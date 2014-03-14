@@ -1,4 +1,4 @@
 molecular-tools
 ===============
 
-Basic tools to for molecular modeling manipulations
+Basic tools for molecular modeling manipulations
