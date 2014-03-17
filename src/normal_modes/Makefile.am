@@ -1,4 +1,4 @@
-bin_PROGRAMS = nm_internal nm_cartesian internal_numder_analysis
+bin_PROGRAMS = nm_internal nm_cartesian 
 
 nm_internal_SOURCES = ../modules/alerts.f90\
                       ../modules/line_preprocess.f90\
@@ -36,14 +36,6 @@ nm_cartesian_SOURCES =../modules/alerts.f90\
                       normal_modes_Cartesian1b_v4.f90
 nm_cartesian_LDFLAGS = @LIBS@
 nm_cartesian_FCFLAGS = -cpp -DDOUBLE
-
-internal_numder_analysis_SOURCES =../modules/alerts.f90\
-                                  ../modules/line_preprocess.f90\
-                                  ../modules/constants_mod.f90\
-                                  internal_numder_analysis_v4.0.1.f90
-internal_numder_analysis_LDFLAGS = @LIBS@
-internal_numder_analysis_FCFLAGS = -cpp -DDOUBLE
-
 
 CLEANFILES =*.mod 
 
