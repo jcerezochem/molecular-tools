@@ -1,0 +1,10 @@
+molecular-tools
+===============
+Basic tools for molecular modeling manipulations
+
+Molecular Tools is a buch of Fortran90 modules that undertake a number of basic molecular modelling / computational chemistry analysis and manipulations, such as structure file reading and writing (including pdb, gro, g96, xyz), and parsing output files from programs as Gaussian (fchk and log) and Molpro retrieving informations such as geometry, frequencies, normal modes, Hessian, Gradient... A set of tools developed using these modules is distributed altogether.
+
+These set of subroutines has been developed during my PhD program, so they might seem rudimentary, which can be of help in order to develop new small projects written in Fortran90 handling chemical information. Although such tasks can also be undertaken by means of more advanced parsers such as cclib (cclib.sourceforge.net), our contribution is more limited but, because of that, might be simpler to use. Furthermore, note that this project also adds support for fchk Gaussian files (actually, it is mainly focus on analysing output from such software).
+
+Enjoy!
+
