@@ -1,4 +1,4 @@
-MODULE MatrixMod
+module MatrixMod
 
     !==============================================================
     ! This code is part of MOLECULAR_TOOLS (version 0.4/February 2014)
@@ -1694,4 +1694,4 @@ END SUBROUTINE RMS
     end subroutine sort_vec_int                                   
 
 
-END MODULE MatrixMod
+end module MatrixMod
