@@ -115,10 +115,10 @@ module structure_types
         character(len=6)::attype="ATOM  "
         character::fftype*6
         character::name*5
-        character::resname*5
+        character::resname*5="UNK"
         character(len=1)::chain=" ",alter_loc=" ", ins_code=" "
         character(len=2) :: element=""
-        integer  ::resseq, AtNum
+        integer  ::resseq=1, AtNum
 #ifdef DOUBLE
         !-------------------------------------------------------------
         double precision:: x, y, z

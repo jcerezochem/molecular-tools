@@ -9,9 +9,6 @@ module gro_manage
     !    subroutine read_gro_def(unt,system)
     !    subroutine write_gro(unt,system)
     !    subroutine write_gro_def(unt,system)
-    !    subroutine renum(system)
-    !    subroutine sist2res(sistema,residuo)
-    !    subroutine res2sist(residuo,nres,boxX,boxY,boxZ,sistema)
     !    subroutine write_top_new(unt,residue)
     !
     ! Dependences
@@ -36,6 +33,10 @@ module gro_manage
     !              _def version become default (prev are removed): i.e.: \AA are used as ref. length units
     !-----------------------------------------------------
 
+    !Common modules for all subroutines
+    use structure_types
+    implicit none
+
     contains
 
 !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -43,8 +44,6 @@ module gro_manage
     subroutine read_gro(unt,system)
 
        !Input is in \AA. Conversion to nm is performed here!
-
-        use structure_types
 
         integer,intent(in)::unt
         type(str_resmol),intent(inout)::system
@@ -91,8 +90,6 @@ module gro_manage
 
        !Output is in \AA. Conversion from nm is performed here!
 
-        use structure_types
-
         integer,intent(in)::unt
         type(str_resmol),intent(in)::system
 
@@ -131,13 +128,11 @@ module gro_manage
 
        !Reads GROMOS-96 structure file (input/output in ANGS but the file in NM)
 
-        use structure_types
-
         integer,intent(in)::unt
         type(str_resmol),intent(inout)::system
 
         !local
-        integer::i, natoms, ii
+        integer::i, natoms, ii, ios
         character(len=260) :: line
         logical :: get_structure=.false.
 
@@ -194,8 +189,6 @@ module gro_manage
 
        !Writes GROMOS-96 structure file (input/output in ANGS but the file in NM)
 
-        use structure_types
-
         integer,intent(in)::unt
         type(str_resmol),intent(in)::system
 
@@ -231,324 +224,6 @@ module gro_manage
 
     end subroutine write_g96
 
-!%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
-    subroutine renum(system)
-
-        !====================================
-        ! Renumber residues in a gro system
-        !====================================
-
-        use structure_types
-
-        type(str_resmol),intent(inout)::system
-
-        !local
-        integer::i, i_res, prev_res
-
-
-        i_res=1
-        prev_res=system%atom(1)%resseq
-
-        do i=1,system%natoms
-
-            if (system%atom(i)%resseq /= prev_res) i_res=i_res+1
-            prev_res=system%atom(i)%resseq
-            system%atom(i)%resseq=i_res
-
-        enddo
-
-        return
-
-    end subroutine renum
-
-!%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
-    subroutine sist_nres(sistema)
-
-        !--------------------------------------------------------------------------
-
-        use structure_types
-
-        type(str_resmol),intent(inout)::sistema
-
-        !Contadores
-         integer::i,ii,iat,r
-
-        !criterios para busqueda de residuos
-        integer::resI_test
-        character::resA_test*5
-
-
-        !Como es intetn(inout), damos valor a todas las direcciones
-        !de la estructura dentro de la subrutina.
-        sistema = sistema
-
-
-        !Encontramos los residuos
-        !Para ello aplicamos conjuntamente los dos siguientes criterios:
-        resI_test=-1     !criterio 1: cambio en res.seq
-        resA_test='???'  !criterio 2: cambio en res.name
-        ires=0
-        do i=1,sistema%natoms
-!            if (indice /= sistema%atom(i)%res_index) ires = ires + 1
-!       La siguiente condición es más "robusta" para localizar residuos
-            if (resI_test /= sistema%atom(i)%resseq .or. resA_test /= sistema%atom(i)%resname) ires = ires + 1
-            resI_test=sistema%atom(i)%resseq
-            resA_test=sistema%atom(i)%resname
-        enddo
-
-        sistema%nres=ires
- 
-        return
-
-    end subroutine sist_nres
-
-
-    subroutine sist2res(sistema,residuo)
-
-        ! TO BE DEPRECATED
-
-        !--------------------------------------------------------------------------
-        ! Subrutina que localiza y guarda en una estructura (tipo derivado)
-        ! residuos en un sistema leido de PDB o GRO. No es trivial, ya que los
-        ! ficheros pueden ser algo desordenados. El uso de dos criterios asegura
-        ! encontrar los residuos siempre que las estructuras no esten partidas 
-        ! y dispersas entre el PDB o GRO. En ese caso la única posibilidad sería
-        ! usar la topología del sistema leída de ficheros separados
-        !--------------------------------------------------------------------------
-
-
-        use structure_types
-
-        type(str_resmol),intent(inout)::sistema
-        type(str_resmol),intent(inout)::residuo(:)
-
-        !Contadores
-         integer::i,ii,iat,r
-
-        !criterios para busqueda de residuos
-        integer::resI_test
-        character::resA_test*5
-
-
-        !Como es intetn(inout), damos valor a todas las direcciones
-        !de la estructura dentro de la subrutina.
-        sistema = sistema
-        residuo(:)%frst_atom=-1
-
-
-        !Encontramos los residuos
-        !Para ello aplicamos conjuntamente los dos siguientes criterios:
-        resI_test=-1     !criterio 1: cambio en res.seq
-        resA_test='???'  !criterio 2: cambio en res.name
-        ires=0
-        do i=1,sistema%natoms
-!            if (indice /= sistema%atom(i)%res_index) ires = ires + 1
-!       La siguiente condición es más "robusta" para localizar residuos
-            if (resI_test /= sistema%atom(i)%resseq .or. resA_test /= sistema%atom(i)%resname) ires = ires + 1
-            resI_test=sistema%atom(i)%resseq
-            resA_test=sistema%atom(i)%resname
-            residuo(ires)%name = sistema%atom(i)%resname
-            if ( residuo(ires)%frst_atom == -1 ) residuo(ires)%frst_atom = i
-            residuo(ires)%lst_atom = i
-        enddo
-
-        sistema%nres=ires
-
-        do i=1,sistema%nres
-            residuo(i)%natoms = residuo(i)%lst_atom - residuo(i)%frst_atom + 1
-        enddo
-
-
-        !Y les asignamos sus átomos
-        iat = 0
-        do i=1,sistema%nres
-            do ii=1,residuo(i)%natoms
-                iat = iat + 1
-                residuo(i)%atom(ii) = sistema%atom(iat)
-            enddo
-        enddo
-
-       return
-    end subroutine sist2res
-
-
-!%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
-    subroutine sist2res_new(sistema,residuo)
-
-        !EN PRUEBAS!!!
-
-        !--------------------------------------------------------------------------
-        ! La subrutina antigua es un poco paranoica, no creo que sea muy normal que
-        ! en un pdb/gro no cambie el numero de residuo cuando debería porque cambie
-        ! el nombre... (no ocurria para BCR???)
-        !--------------------------------------------------------------------------
-
-
-        use structure_types
-
-        type(str_resmol),intent(inout)::sistema
-        type(str_resmol),intent(inout)::residuo(:)
-
-        !Contadores
-         integer::i,ii,iat,r
-
-        !auxiliares para busqueda de residuos
-        integer::nres
-
-
-        !Como es intetn(inout), damos valor a todas las direcciones
-        !de la estructura dentro de la subrutina.
-        sistema = sistema
-
-        !Llenamos la array "residuo()"
-        residuo(:)%natoms=0
-        nres=0
-        do i=1,sistema%natoms
-            ires=sistema%atom(i)%resseq
-            residuo(ires)%name = sistema%atom(i)%resname
-            residuo(ires)%natoms=residuo(ires)%natoms+1
-            residuo(ires)%atom(residuo(ires)%natoms)=sistema%atom(i)
-            !Lo siguiente nos ayudará a tener una secuencia continua:
-            nres=max(ires,nres)
-        enddo
-
-        !Ahora comprobamos que la numeración de los residuos es continua
-        ires=0
-        do i=1,nres
-            ires=ires+1
-            if ( residuo(ires)%natoms == 0 ) then
-                ires = ires - 1
-                cycle
-            endif
-            residuo(ires)=residuo(i)
-        enddo
-
-       return
-    end subroutine sist2res_new
-
-!%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
-    subroutine sist2res1_new(sistema,residuo)
-
-        !EN PRUEBAS!!!
-
-        !--------------------------------------------------------------------------
-        ! La subrutina antigua es un poco paranoica, no creo que sea muy normal que
-        ! en un pdb/gro no cambie el numero de residuo cuando debería porque cambie
-        ! el nombre... (no ocurria para BCR???)
-        ! VERSION FOR ONE-RESIDUE SYSTEMS -- should be stable for this case!
-        !
-        ! This version manages only one residue (not an array)
-        !--------------------------------------------------------------------------
-
-
-        use structure_types
-
-        type(str_resmol),intent(inout)::sistema
-        type(str_resmol),intent(inout)::residuo
-
-        !Contadores
-         integer::i,ii,iat,r
-
-        !auxiliares para busqueda de residuos
-        integer::nres
-
-
-        !Como es intetn(inout), damos valor a todas las direcciones
-        !de la estructura dentro de la subrutina.
-        sistema = sistema
-
-        !Consideramos que solo hay un residuo (aunque haya más... WARNING?)
-        residuo%natoms=0
-        do i=1,sistema%natoms
-            ires=sistema%atom(i)%resseq
-            residuo%name = sistema%atom(i)%resname
-            residuo%natoms=residuo%natoms+1
-            residuo%atom(residuo%natoms)=sistema%atom(i)
-        enddo
-
-       return
-    end subroutine sist2res1_new
-
-
-!%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
-    subroutine res2sist(residuo,nres,boxX,boxY,boxZ,sistema)
-
-        !--------------------------------------------------------------------------
-        ! The inverse as befeore (this is trivial)
-        !--------------------------------------------------------------------------
-
-
-        use structure_types
-
-        type(str_resmol),intent(in)::residuo(:)
-        integer, intent(in)::nres
-        type(str_resmol),intent(inout)::sistema
-
-        !Contadores
-        integer::i,ii,iat
-
-
-        iat=0
-        do i=1,nres
-            do ii=1,residuo(i)%natoms
-                iat=iat+1
-                sistema%atom(iat)=residuo(i)%atom(ii)
-            enddo
-        enddo
-
-        sistema%natoms=iat
-        sistema%nres=nres
-
-        sistema%boxX=boxX
-        sistema%boxY=boxY
-        sistema%boxZ=boxZ
-            
-        return
-
-    end subroutine res2sist
-
-!%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
-    subroutine res1_2_sist(residuo,nres,boxX,boxY,boxZ,sistema)
-
-        !--------------------------------------------------------------------------
-        ! The inverse as befeore (this is trivial)
-        !--------------------------------------------------------------------------
-
-
-        use structure_types
-
-        type(str_resmol),intent(in)::residuo
-        integer, intent(in)::nres
-        type(str_resmol),intent(inout)::sistema
-
-        !Contadores
-        integer::i,ii,iat
-
-
-        iat=0
-        do i=1,1 !nres
-            do ii=1,residuo%natoms
-                iat=iat+1
-                sistema%atom(iat)=residuo%atom(ii)
-            enddo
-        enddo
-
-        sistema%natoms=iat
-        sistema%nres=nres
-
-        sistema%boxX=boxX
-        sistema%boxY=boxY
-        sistema%boxZ=boxZ
-            
-        return
-
-    end subroutine res1_2_sist
 
 !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
@@ -558,9 +233,6 @@ module gro_manage
        ! Subrutina para el la estructura de la topología (itp)
        ! de un residuo. Usa un resido (solo uno) no el sistema
        !=======================================================
-
-
-        use structure_types
 
         implicit none
 
@@ -692,9 +364,6 @@ module gro_manage
        ! no el sistema
        !=======================================================
 
-
-        use structure_types
-
         implicit none
 
         integer,intent(in)::unt
@@ -815,11 +484,7 @@ module gro_manage
        !      not in the conf file. They must be selected by name!
        !=======================================================
 
-
-        use structure_types
         use line_preprocess
-
-        implicit none
 
         integer,intent(in)::unt
         type(str_resmol),intent(inout),dimension(:)::residue

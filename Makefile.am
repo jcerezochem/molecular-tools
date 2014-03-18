@@ -1,2 +1,2 @@
-SUBDIRS = src/normal_modes src/bonded_info
+SUBDIRS = src/normal_modes src/bonded_info src/build_top/
 
