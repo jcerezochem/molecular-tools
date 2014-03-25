@@ -53,12 +53,13 @@ am_nm_cartesian_OBJECTS = nm_cartesian-alerts.$(OBJEXT) \
 	nm_cartesian-gro_manage_v4.$(OBJEXT) \
 	nm_cartesian-pdb_manage_v4.$(OBJEXT) \
 	nm_cartesian-gaussian_manage_v4.$(OBJEXT) \
+	nm_cartesian-gaussian_manage_vNoTypes.$(OBJEXT) \
 	nm_cartesian-gaussian_fchk_manage_v4.$(OBJEXT) \
 	nm_cartesian-xyz_manage_v4.$(OBJEXT) \
 	nm_cartesian-molecular_structure.$(OBJEXT) \
 	nm_cartesian-ff_build_module_v4.$(OBJEXT) \
 	nm_cartesian-atomic_geom_v2.$(OBJEXT) \
-	nm_cartesian-normal_modes_Cartesian1b_v4.$(OBJEXT)
+	nm_cartesian-normal_modes_Cartesian1b_v4.0.1.$(OBJEXT)
 nm_cartesian_OBJECTS = $(am_nm_cartesian_OBJECTS)
 nm_cartesian_LDADD = $(LDADD)
 nm_cartesian_LINK = $(FCLD) $(nm_cartesian_FCFLAGS) $(FCFLAGS) \
@@ -201,12 +202,13 @@ nm_cartesian_SOURCES = ../modules/alerts.f90\
                       ../modules/gro_manage_v4.f90\
                       ../modules/pdb_manage_v4.f90\
                       ../modules/gaussian_manage_v4.f90\
+                      ../modules/gaussian_manage_vNoTypes.f90\
                       ../modules/gaussian_fchk_manage_v4.f90\
                       ../modules/xyz_manage_v4.f90\
                       ../modules/molecular_structure.f90\
                       ../modules/ff_build_module_v4.f90\
                       ../modules/atomic_geom_v2.f90\
-                      normal_modes_Cartesian1b_v4.f90
+                      normal_modes_Cartesian1b_v4.0.1.f90
 
 nm_cartesian_LDFLAGS = @LIBS@
 nm_cartesian_FCFLAGS = -cpp -DDOUBLE
@@ -349,6 +351,12 @@ nm_cartesian-gaussian_manage_v4.o: ../modules/gaussian_manage_v4.f90
 nm_cartesian-gaussian_manage_v4.obj: ../modules/gaussian_manage_v4.f90
 	$(FC) $(nm_cartesian_FCFLAGS) $(FCFLAGS) -c -o nm_cartesian-gaussian_manage_v4.obj `if test -f '../modules/gaussian_manage_v4.f90'; then $(CYGPATH_W) '../modules/gaussian_manage_v4.f90'; else $(CYGPATH_W) '$(srcdir)/../modules/gaussian_manage_v4.f90'; fi`
 
+nm_cartesian-gaussian_manage_vNoTypes.o: ../modules/gaussian_manage_vNoTypes.f90
+	$(FC) $(nm_cartesian_FCFLAGS) $(FCFLAGS) -c -o nm_cartesian-gaussian_manage_vNoTypes.o `test -f '../modules/gaussian_manage_vNoTypes.f90' || echo '$(srcdir)/'`../modules/gaussian_manage_vNoTypes.f90
+
+nm_cartesian-gaussian_manage_vNoTypes.obj: ../modules/gaussian_manage_vNoTypes.f90
+	$(FC) $(nm_cartesian_FCFLAGS) $(FCFLAGS) -c -o nm_cartesian-gaussian_manage_vNoTypes.obj `if test -f '../modules/gaussian_manage_vNoTypes.f90'; then $(CYGPATH_W) '../modules/gaussian_manage_vNoTypes.f90'; else $(CYGPATH_W) '$(srcdir)/../modules/gaussian_manage_vNoTypes.f90'; fi`
+
 nm_cartesian-gaussian_fchk_manage_v4.o: ../modules/gaussian_fchk_manage_v4.f90
 	$(FC) $(nm_cartesian_FCFLAGS) $(FCFLAGS) -c -o nm_cartesian-gaussian_fchk_manage_v4.o `test -f '../modules/gaussian_fchk_manage_v4.f90' || echo '$(srcdir)/'`../modules/gaussian_fchk_manage_v4.f90
 
@@ -379,11 +387,11 @@ nm_cartesian-atomic_geom_v2.o: ../modules/atomic_geom_v2.f90
 nm_cartesian-atomic_geom_v2.obj: ../modules/atomic_geom_v2.f90
 	$(FC) $(nm_cartesian_FCFLAGS) $(FCFLAGS) -c -o nm_cartesian-atomic_geom_v2.obj `if test -f '../modules/atomic_geom_v2.f90'; then $(CYGPATH_W) '../modules/atomic_geom_v2.f90'; else $(CYGPATH_W) '$(srcdir)/../modules/atomic_geom_v2.f90'; fi`
 
-nm_cartesian-normal_modes_Cartesian1b_v4.o: normal_modes_Cartesian1b_v4.f90
-	$(FC) $(nm_cartesian_FCFLAGS) $(FCFLAGS) -c -o nm_cartesian-normal_modes_Cartesian1b_v4.o `test -f 'normal_modes_Cartesian1b_v4.f90' || echo '$(srcdir)/'`normal_modes_Cartesian1b_v4.f90
+nm_cartesian-normal_modes_Cartesian1b_v4.0.1.o: normal_modes_Cartesian1b_v4.0.1.f90
+	$(FC) $(nm_cartesian_FCFLAGS) $(FCFLAGS) -c -o nm_cartesian-normal_modes_Cartesian1b_v4.0.1.o `test -f 'normal_modes_Cartesian1b_v4.0.1.f90' || echo '$(srcdir)/'`normal_modes_Cartesian1b_v4.0.1.f90
 
-nm_cartesian-normal_modes_Cartesian1b_v4.obj: normal_modes_Cartesian1b_v4.f90
-	$(FC) $(nm_cartesian_FCFLAGS) $(FCFLAGS) -c -o nm_cartesian-normal_modes_Cartesian1b_v4.obj `if test -f 'normal_modes_Cartesian1b_v4.f90'; then $(CYGPATH_W) 'normal_modes_Cartesian1b_v4.f90'; else $(CYGPATH_W) '$(srcdir)/normal_modes_Cartesian1b_v4.f90'; fi`
+nm_cartesian-normal_modes_Cartesian1b_v4.0.1.obj: normal_modes_Cartesian1b_v4.0.1.f90
+	$(FC) $(nm_cartesian_FCFLAGS) $(FCFLAGS) -c -o nm_cartesian-normal_modes_Cartesian1b_v4.0.1.obj `if test -f 'normal_modes_Cartesian1b_v4.0.1.f90'; then $(CYGPATH_W) 'normal_modes_Cartesian1b_v4.0.1.f90'; else $(CYGPATH_W) '$(srcdir)/normal_modes_Cartesian1b_v4.0.1.f90'; fi`
 
 nm_internal-alerts.o: ../modules/alerts.f90
 	$(FC) $(nm_internal_FCFLAGS) $(FCFLAGS) -c -o nm_internal-alerts.o `test -f '../modules/alerts.f90' || echo '$(srcdir)/'`../modules/alerts.f90

@@ -418,7 +418,7 @@ program normal_modes_animation
              endif
         enddo
 
-       !Use force constant to get dimmension-less displacements
+       !Use freqs. to make displacements equivalent in dimensionless units
         Factor(1:Nvib) = dsqrt(dabs(Freq(1:Nvib)))/5.d3
 
     endif
@@ -433,7 +433,6 @@ program normal_modes_animation
             print'(100(F8.3,2X))', Freq(i)
         enddo
     endif
-
 
 
     !==========================================================0
@@ -498,7 +497,7 @@ program normal_modes_animation
             qcoord = qcoord + Qstep/Factor(j)
             print*, "STEP:", k
             write(dummy_char,*) k
-            molecule%job%title = "File generated for "//trim(adjustl(grofile(jj)))//".step "//trim(adjustl(dummy_char))
+            molecule%title = "File generated for "//trim(adjustl(grofile(jj)))//".step "//trim(adjustl(dummy_char))
 !             print*, "Bonds"
             do i=1,molecule%geom%nbonds
                 S1(i) = S1(i) + L1(i,j) * Qstep/Factor(j)
@@ -536,6 +535,8 @@ program normal_modes_animation
             call write_gro(O_GRO,molecule)
             !Write the max amplitude step to G09 scan
             if (k==nsteps/2) then
+                molecule%job%title=trim(adjustl(grofile(jj)))//".step "//trim(adjustl(dummy_char))
+                molecule%title=trim(adjustl(g09file))
                 call write_gcom(O_G09,molecule)
                 write(O_Q,*) qcoord
             endif
@@ -586,6 +587,8 @@ program normal_modes_animation
             endif
             call write_gro(O_GRO,molecule)
             if (mod(k,10) == 0) then
+                molecule%job%title=trim(adjustl(grofile(jj)))//".step "//trim(adjustl(dummy_char))
+                molecule%title=trim(adjustl(g09file))
                 call write_gcom(O_G09,molecule)
                 write(O_Q,*) qcoord
             endif
@@ -601,7 +604,7 @@ program normal_modes_animation
             qcoord = qcoord - Qstep/Factor(j)
             print*, "STEP:", k
             write(dummy_char,*) k
-            molecule%title = trim(adjustl(grofile(jj)))//".step "//trim(adjustl(dummy_char))
+            molecule%title=trim(adjustl(grofile(jj)))//".step "//trim(adjustl(dummy_char))
 !             print*, "Bonds"
             do i=1,molecule%geom%nbonds
                 S1(i) = S1(i) - L1(i,j) * Qstep/Factor(j)
@@ -636,7 +639,9 @@ program normal_modes_animation
                 dist = dist*1.05
             endif
             call write_gro(O_GRO,molecule)
-            !This time write all three numbers
+            !This time write all five numbers
+            molecule%job%title=trim(adjustl(grofile(jj)))//".step "//trim(adjustl(dummy_char))
+            molecule%title=trim(adjustl(g09file))
             call write_gcom(O_G09,molecule)
             write(dummy_char,*) qcoord
             molecule%job%title = "Displacement = "//trim(adjustl(dummy_char))
@@ -696,6 +701,8 @@ program normal_modes_animation
             endif
             call write_gro(O_GRO,molecule)
             if (mod(k,10) == 0) then
+                molecule%job%title=trim(adjustl(grofile(jj)))//".step "//trim(adjustl(dummy_char))
+                molecule%title=trim(adjustl(g09file))
                 call write_gcom(O_G09,molecule)
                 write(O_Q,*) qcoord
             endif
@@ -896,35 +903,36 @@ program normal_modes_animation
         endif
 
        !Print options (to stderr)
-        write(6,'(/,A)') '--------------------------------------------------'
-        write(6,'(/,A)') '          INTERNAL MODES ANIMATION '    
-        write(6,'(/,A)') '      Perform vibrational analysis based on  '
-        write(6,'(/,A)') '            internal coordinates (D-V7)'        
-        write(6,'(/,A)') '--------------------------------------------------'
-        write(6,*) '-f              ', trim(adjustl(inpfile))
-        write(6,*) '-ft             ', trim(adjustl(filetype))
-        write(6,*) '-nm            ', nm(1),"-",nm(Nsel)
+        write(0,'(/,A)') '--------------------------------------------------'
+        write(0,'(/,A)') '          INTERNAL MODES ANIMATION '    
+        write(0,'(/,A)') '      Perform vibrational analysis based on  '
+        write(0,'(/,A)') '            internal coordinates (D-V7)'        
+        write(0,'(/,A)') '         Revision: nm_internal-140320-1'
+       write(0,'(/,A)') '--------------------------------------------------'
+        write(0,*) '-f              ', trim(adjustl(inpfile))
+        write(0,*) '-ft             ', trim(adjustl(filetype))
+        write(0,*) '-nm            ', nm(1),"-",nm(Nsel)
 !         write(0,*) '-nmf           ', nm(1:Nsel)
-        write(6,*) '-vmd           ',  call_vmd
-        write(6,*) '-maxd          ',  Amplitude
+        write(0,*) '-vmd           ',  call_vmd
+        write(0,*) '-maxd          ',  Amplitude
         if (nosym) dummy_char="NO "
         if (.not.nosym) dummy_char="YES"
-        write(6,*) '-[no]sym        ', dummy_char
+        write(0,*) '-[no]sym        ', dummy_char
         if (zmat) dummy_char="YES"
         if (.not.zmat) dummy_char="NO "
-        write(6,*) '-[no]zmat       ', dummy_char
-        write(6,*) '-readz          ', trim(adjustl(zmatfile))
-        write(6,*) '-showz         ', showZ
+        write(0,*) '-[no]zmat       ', dummy_char
+        write(0,*) '-readz          ', trim(adjustl(zmatfile))
+        write(0,*) '-showz         ', showZ
         if (tswitch) dummy_char="YES"
         if (.not.tswitch) dummy_char="NO "
-        write(6,*) '-tswitch        ', dummy_char
+        write(0,*) '-tswitch        ', dummy_char
         if (symaddapt) dummy_char="YES"
         if (.not.symaddapt) dummy_char="NO "
-        write(6,*) '-sa             ', dummy_char
-        write(6,*) '-int           ', icoord
-        write(6,*) '-v             ', verbose
-        write(6,*) '-h             ',  need_help
-        write(6,*) '--------------------------------------------------'
+        write(0,*) '-sa             ', dummy_char
+        write(0,*) '-int           ', icoord
+        write(0,*) '-v             ', verbose
+        write(0,*) '-h             ',  need_help
+        write(0,*) '--------------------------------------------------'
         if (need_help) call alert_msg("fatal", 'There is no manual (for the moment)' )
 
         return

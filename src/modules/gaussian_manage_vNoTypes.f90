@@ -87,7 +87,7 @@ module gaussian_manage_notypes
     end subroutine read_freq_only
 
 
-    subroutine read_freq_NT(unt,Nvib,Nat,freq,Lvector,err_label)
+    subroutine read_freq_NT(unt,Nvib,Nat,freq,RedMass,Lvector,err_label)
 
         !==============================================================
         ! This code is part of MOLECULAR_TOOLS (version 0.4/February 2014)
@@ -101,9 +101,9 @@ module gaussian_manage_notypes
         integer,intent(in) :: unt
         integer, intent(in) :: Nvib, Nat
 #ifdef DOUBLE
-        double precision, dimension(:), intent(out) :: freq, Lvector
+        double precision, dimension(:), intent(out) :: freq, Lvector, RedMass
 #else
-        real, dimension(:), intent(out) :: freq, Lvector
+        real, dimension(:), intent(out) :: freq, Lvector, RedMass
 #endif
         integer,intent(out) :: err_label
 
@@ -111,7 +111,7 @@ module gaussian_manage_notypes
         character(len=240) :: line, subline, cnull
         character(len=2) :: modes, modes_prev
         character(len=4) splitter
-        character(len=10000) :: cfreq
+        character(len=10000) :: cfreq, cRedMass
         character(len=10000),dimension(1:1000) :: cL
 #ifdef DOUBLE
         double precision, dimension(1:500,1:500) :: L
@@ -125,6 +125,7 @@ module gaussian_manage_notypes
         integer :: i,j, IOstatus, k
 
         cfreq = ""
+        cRedMass = ""
         cL = ""
         modes=""
         modes_prev=""
@@ -135,7 +136,7 @@ module gaussian_manage_notypes
 
             if ( INDEX(line,"Frequencies") /= 0 ) then
                 err_label = 0
-
+                !We use the separator to differeciate HP modes and LP modes
                 if ( INDEX(line,'---') /= 0 ) then
                     !High precision modes
                     splitter="---"
@@ -149,7 +150,7 @@ module gaussian_manage_notypes
                 endif
 
                 ! When HP modes are available:
-                ! LP modes come after HP, but they are not interesting
+                ! LP modes come after HP, but they are not interesting. So its time to leave
                 if ( modes == "LP" .and. modes_prev == "HP" ) then
                     modes = "HP"
                     nlines=3*Nat
@@ -157,10 +158,16 @@ module gaussian_manage_notypes
                 endif
                 modes_prev = modes
 
+                !We form a superstring with all Frequencies (as characters): cfreq
                 call split_line(line,trim(adjustl(splitter)),line,subline)
                 cfreq = trim(adjustl(cfreq))//" "//trim(adjustl(subline))
 
-                !Look for the Lcart matrix
+                !Now read RedMass (that is below Frequencies). Use the same splitter as for Frequencies
+                read(unt,'(X,A)',IOSTAT=IOstatus) line
+                call split_line(line,trim(adjustl(splitter)),line,subline)
+                cRedMass = trim(adjustl(cRedMass))//" "//trim(adjustl(subline))
+
+                !Look for the Lcart matrix (i.e., we continue reading till we find it)
                 do 
                     read(unt,'(X,A)',IOSTAT=IOstatus) line
                     if ( IOstatus /= 0) stop
@@ -178,7 +185,9 @@ module gaussian_manage_notypes
             endif
         enddo
 
+        !We now read the superstrings cfreq and cRedMass
         read(cfreq,*) freq(1:Nvib)
+        read(cRedMass,*) RedMass(1:Nvib)
         N = Nvib * 3*Nat
         
         do i=1,nlines
@@ -194,7 +203,7 @@ module gaussian_manage_notypes
         enddo
 
         !The subroutine returns a vector (in the same order as stored in fchk)
-        !(so we forget about the two indexed...)
+        !(so we forget about the two indexes...)
         k=0
         do i=1,Nvib
             do j=1,3*Nat
