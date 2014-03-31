@@ -1,0 +1,14 @@
+===============================
+v0.1.2: Released (25/03/04)
+================================
+
+BUGS to solve for: v0.1.3
+- Makefile at root do not contain src/file_management (autoolize again, and always check before releasing!)
+  DONE
+- geom_param_list do not recognize any file extension (arror at retrieving file extension info)
+  DONE
+
+CHANGES for: v0.1.3
+- in modules/constants.f90: added new conversion factors (HtoeV...)
+- Changed modules/internals_v4.0...: Changes in verbosed info for GF method (showing F. G and B matrices in detail)
+

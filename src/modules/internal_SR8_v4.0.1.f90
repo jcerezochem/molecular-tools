@@ -377,6 +377,14 @@ print*, "Actual number of vibrational coordinates", Nred
     do i=1,Nred
         write(6,'(100(F9.5,X))') B(i,1:3*Nat)
     enddo
+    print*, ""
+    print*, "B MATRIX (all elements)"
+    do i=1,Nred
+        do j=1,3*Nat
+            print'(G15.8)', B(i,j)
+        enddo
+    enddo
+    print*, "--END OF B MATRIX (all elements)"
     endif
 
     !Symmetry adapted coordinates
@@ -449,6 +457,14 @@ print*, "Actual number of vibrational coordinates", Nred
     do i=1,Nred
         write(6,'(100(E10.2,3X))') G(i,1:Nred)
     enddo
+    print*, ""
+    print*, "G MATRIX (lower triangular)"
+    do i=1,Nred
+        do j=1,i
+            print'(G15.8)', G(i,j)
+        enddo
+    enddo
+    print*, "--END OF G MATRIX (lower triangular)"
     endif
 
     print*, "Redundant coordinates", Nred-Nvib
@@ -800,6 +816,14 @@ print*, "Number of vibrational coordinates", Nvib
     do i=1,Nvib
         print'(100(F8.3,X))', Hess(i,1:Nvib)
     enddo 
+    print*, ""
+    print*, "F MATRIX (lower triangular)"
+    do i=1,Nvib
+        do j=1,i
+            print'(G15.8)', Hess(i,j)
+        enddo
+    enddo
+    print*, "--END OF F MATRIX (lower triangular)"
     endif
 !     test1(1:Nvib,1:Nvib) = Hess(1:Nvib,1:Nvib)
 
@@ -2064,6 +2088,14 @@ subroutine internal_Wilson_fc(molec,S,S_sym,ModeDef,B,G,Asel,verbose)
     do i=1,Nred
         write(6,'(100(E10.2,3X))') G(i,1:Nvib)
     enddo
+    print*, ""
+    print*, "G MATRIX (lower triangular)"
+    do i=1,Nvib
+        do j=1,i
+            print'(G15.8)', G(i,j)
+        enddo
+    enddo
+    print*, "--END OF G MATRIX (lower triangular)"
     endif
 
     return

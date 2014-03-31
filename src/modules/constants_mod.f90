@@ -39,7 +39,8 @@ module constants
                            ANGStoM   = 1.d-10,          &
                            HARTtoJ   = 4.3597482d-18,   &
                            HtoKCALM  = 627.5095d0,      &
-                           CALtoJ    = 4.184   
+                           CALtoJ    = 4.184,           &
+                           HtoeV     = 27.2114
 
 
 

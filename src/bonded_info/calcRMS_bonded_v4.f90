@@ -27,6 +27,7 @@ program calcRMS_bonded
     use constants
     use atomic_geom
     use gaussian_manage
+    use gaussian_fchk_manage
     use molecular_structure
 
     implicit none
@@ -326,6 +327,8 @@ program calcRMS_bonded
              allocate(props)
              call parse_summary(unt,molec,props,"struct_only")
              deallocate(props)
+            case("fchk")
+             call read_fchk_geom(unt,molec)
             case default
              call alert_msg("fatal","File type not supported: "//filetype)
         end select

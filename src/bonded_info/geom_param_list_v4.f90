@@ -18,6 +18,7 @@ program geom_param_list
     use structure_types
     use line_preprocess
     use gaussian_manage
+    use gaussian_fchk_manage
     use pdb_manage
     use gro_manage
     use atomic_geom
@@ -54,7 +55,7 @@ program geom_param_list
 
     if (adjustl(filetype) == "guess") then
         ! Guess file type
-        call split_line(filetype,".",null,filetype)
+        call split_line(inpfile,".",null,filetype)
     endif
 
     call generic_strfile_read(IGeom,filetype,molecule)
@@ -175,6 +176,8 @@ program geom_param_list
              allocate(props)
              call parse_summary(unt,molec,props,"struct_only")
              deallocate(props)
+            case("fchk")
+             call read_fchk_geom(unt,molec)
             case default
              call alert_msg("fatal","File type not supported: "//filetype)
         end select
