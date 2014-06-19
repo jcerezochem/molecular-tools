@@ -3,3 +3,12 @@
 *.exe
 *.log
 *.aux
+*.mod
+src/bonded_info/calcRMS_bonded
+src/bonded_info/geom_param_list
+src/build_top/build_top
+src/file_management/fchk2gro
+src/file_management/gen_oniom
+src/normal_modes/nm_cartesian
+src/normal_modes/nm_internal
+
