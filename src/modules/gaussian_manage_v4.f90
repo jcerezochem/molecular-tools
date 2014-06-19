@@ -463,6 +463,7 @@ module gaussian_manage
         call split_line(log_section,'\',dummy_char,log_section) ! GINC_[SERVER]
         !Get the important:
         call split_line(log_section,'\',molec%job%type,log_section)    ! JOBTYPE
+        jobtype=adjustl(molec%job%type)
         call split_line(log_section,'\',molec%job%method,log_section)     ! METHOD
         call split_line(log_section,'\',molec%job%basis,log_section)      ! BASIS
         call split_line(log_section,'\',formula,log_section)    ! FORMULA

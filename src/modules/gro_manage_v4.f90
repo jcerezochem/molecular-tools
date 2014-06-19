@@ -134,7 +134,9 @@ module gro_manage
         !local
         integer::i, natoms, ii, ios
         character(len=260) :: line
-        logical :: get_structure=.false.
+        !The use of get_structure=.false. fails probably due to
+        ! memory issues (change without being directly accesed)
+        logical :: not_get_structure=.true.
 
         !The file is organized in sections. Each begining with a given name
         do
@@ -147,7 +149,7 @@ module gro_manage
                 read(unt,*) line !END
 
             elseif (adjustl(line) == "POSITION") then
-                get_structure=.true.
+                not_get_structure=.false.
                 i=0
                 do 
                      read(unt,'(A)') line
@@ -174,7 +176,7 @@ module gro_manage
 
         enddo
 
-        if (.not.get_structure) then
+        if (not_get_structure) then
             write(0,*) "ERROR: No structure read in g96 file"
             stop
         endif
@@ -545,13 +547,13 @@ module gro_manage
 !                 print'(/,A)', "Will include: "//trim(adjustl(itpfile))
                 open(S_TOP,file=itpfile,iostat=ios,status="old")
                 if (ios /= 0) then
-!                     print*, trim(adjustl(itpfile))//" not found in curent dir"
-!                     print*, "Searching in "//trim(adjustl(GMXLIB))
+                    print*, trim(adjustl(itpfile))//" not found in curent dir"
+                    print*, "Searching in "//trim(adjustl(GMXLIB))
                     itpfile=trim(adjustl(GMXLIB))//"/"//trim(adjustl(itpfile))
                     open(S_TOP,file=itpfile,iostat=ios,status="old")
                 endif
                 if (ios /= 0) then
-                    print*, "File "//trim(adjustl(itpfile))//" should be"//&
+                    print*, "File "//trim(adjustl(itpfile))//" should be "//&
                             "included but it was not found. Check the output!"
                     cycle
                 endif
