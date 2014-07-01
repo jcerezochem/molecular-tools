@@ -2,6 +2,50 @@ module zmat_manage
 
     contains
 
+subroutine modredundant(I_RED,molec)
+
+    use structure_types
+    use alerts
+    use constants
+    use atomic_geom
+    use symmetry_mod
+
+    type(str_resmol),intent(inout) :: molec
+    integer,intent(in) :: I_RED
+    !Local
+    character(len=1) :: int_type
+    character(len=100) :: line
+
+    nbonds  = 0
+    nangles = 0
+    ndihed  = 0
+
+    do
+        read(I_RED,'(A,A)',iostat=ios) int_type, line
+        if (ios /=0) exit
+        if (int_type == "B") then
+            read(line,*) i1, i2
+            nbonds = nbonds + 1
+            molec%geom%bond(nbonds,1:2) = (/i1,i2/)
+        elseif (int_type == "A") then
+            read(line,*) i1, i2, i3
+            nangles = nangles + 1
+            molec%geom%angle(nangles,1:3) = (/i1,i2,i3/)
+        elseif (int_type == "D") then
+            read(line,*) i1, i2, i3, i4
+            ndihed = ndihed + 1
+            molec%geom%dihed(ndihed,1:4) = (/i1,i2,i3,i4/)
+        endif
+    enddo
+
+    molec%geom%nbonds  = nbonds
+    molec%geom%nangles = nangles
+    molec%geom%ndihed  = ndihed
+
+    return
+
+end subroutine modredundant
+
 subroutine build_Z(molec,bond_s,angle_s,dihed_s,PG,isym,bond_sym,angle_sym,dihed_sym)
 
     ! Construct the Z-matrix information from the connectivity

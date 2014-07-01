@@ -12,4 +12,5 @@ src/file_management/gen_oniom
 src/normal_modes/nm_cartesian
 src/normal_modes/nm_internal
 autom4te.cache
+src/fcclasses_tools
 

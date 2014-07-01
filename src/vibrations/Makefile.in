@@ -49,7 +49,7 @@ POST_INSTALL = :
 NORMAL_UNINSTALL = :
 PRE_UNINSTALL = :
 POST_UNINSTALL = :
-bin_PROGRAMS = calcRMS_bonded$(EXEEXT) geom_param_list$(EXEEXT)
+bin_PROGRAMS = check_diag$(EXEEXT) read_state_hess$(EXEEXT)
 subdir = .
 DIST_COMMON = $(am__configure_deps) $(srcdir)/../../install-sh \
 	$(srcdir)/../../missing $(srcdir)/Makefile.am \
@@ -65,45 +65,49 @@ CONFIG_CLEAN_FILES =
 CONFIG_CLEAN_VPATH_FILES =
 am__installdirs = "$(DESTDIR)$(bindir)"
 PROGRAMS = $(bin_PROGRAMS)
-am_calcRMS_bonded_OBJECTS = calcRMS_bonded-alerts.$(OBJEXT) \
-	calcRMS_bonded-line_preprocess.$(OBJEXT) \
-	calcRMS_bonded-constants_mod.$(OBJEXT) \
-	calcRMS_bonded-structure_types_v4.$(OBJEXT) \
-	calcRMS_bonded-gro_manage_v4.$(OBJEXT) \
-	calcRMS_bonded-pdb_manage_v4.$(OBJEXT) \
-	calcRMS_bonded-gaussian_manage_v4.$(OBJEXT) \
-	calcRMS_bonded-gaussian_fchk_manage_v4.$(OBJEXT) \
-	calcRMS_bonded-xyz_manage_v4.$(OBJEXT) \
-	calcRMS_bonded-molecular_structure.$(OBJEXT) \
-	calcRMS_bonded-ff_build_module_v4.$(OBJEXT) \
-	calcRMS_bonded-atomic_geom_v2.$(OBJEXT) \
-	calcRMS_bonded-calcRMS_bonded_v4.$(OBJEXT)
-calcRMS_bonded_OBJECTS = $(am_calcRMS_bonded_OBJECTS)
-calcRMS_bonded_LDADD = $(LDADD)
-calcRMS_bonded_LINK = $(FCLD) $(calcRMS_bonded_FCFLAGS) $(FCFLAGS) \
-	$(calcRMS_bonded_LDFLAGS) $(LDFLAGS) -o $@
-am_geom_param_list_OBJECTS = geom_param_list-alerts.$(OBJEXT) \
-	geom_param_list-line_preprocess.$(OBJEXT) \
-	geom_param_list-constants_mod.$(OBJEXT) \
-	geom_param_list-structure_types_v4.$(OBJEXT) \
-	geom_param_list-gro_manage_v4.$(OBJEXT) \
-	geom_param_list-pdb_manage_v4.$(OBJEXT) \
-	geom_param_list-gaussian_manage_v4.$(OBJEXT) \
-	geom_param_list-gaussian_fchk_manage_v4.$(OBJEXT) \
-	geom_param_list-xyz_manage_v4.$(OBJEXT) \
-	geom_param_list-atomic_geom_v2.$(OBJEXT) \
-	geom_param_list-geom_param_list_v4.$(OBJEXT)
-geom_param_list_OBJECTS = $(am_geom_param_list_OBJECTS)
-geom_param_list_LDADD = $(LDADD)
-geom_param_list_LINK = $(FCLD) $(geom_param_list_FCFLAGS) $(FCFLAGS) \
-	$(geom_param_list_LDFLAGS) $(LDFLAGS) -o $@
+am_check_diag_OBJECTS = check_diag-alerts.$(OBJEXT) \
+	check_diag-line_preprocess.$(OBJEXT) \
+	check_diag-constants_mod.$(OBJEXT) \
+	check_diag-MatrixMod.$(OBJEXT) \
+	check_diag-structure_types_v4.$(OBJEXT) \
+	check_diag-molecular_structure.$(OBJEXT) \
+	check_diag-gro_manage_v4.$(OBJEXT) \
+	check_diag-gaussian_fchk_manage_v4.$(OBJEXT) \
+	check_diag-molcas_unsym_manage_v4.$(OBJEXT) \
+	check_diag-check_diag_v4.$(OBJEXT)
+check_diag_OBJECTS = $(am_check_diag_OBJECTS)
+check_diag_LDADD = $(LDADD)
+check_diag_LINK = $(FCLD) $(check_diag_FCFLAGS) $(FCFLAGS) \
+	$(check_diag_LDFLAGS) $(LDFLAGS) -o $@
+am_read_state_hess_OBJECTS = read_state_hess-alerts.$(OBJEXT) \
+	read_state_hess-line_preprocess.$(OBJEXT) \
+	read_state_hess-constants_mod.$(OBJEXT) \
+	read_state_hess-MatrixMod.$(OBJEXT) \
+	read_state_hess-structure_types_v4.$(OBJEXT) \
+	read_state_hess-gro_manage_v4.$(OBJEXT) \
+	read_state_hess-pdb_manage_v4.$(OBJEXT) \
+	read_state_hess-gaussian_manage_v4.$(OBJEXT) \
+	read_state_hess-gaussian_fchk_manage_v4.$(OBJEXT) \
+	read_state_hess-xyz_manage_v4.$(OBJEXT) \
+	read_state_hess-molcas_unsym_manage_v4.$(OBJEXT) \
+	read_state_hess-molecular_structure.$(OBJEXT) \
+	read_state_hess-ff_build_module_v4.$(OBJEXT) \
+	read_state_hess-atomic_geom_v2.$(OBJEXT) \
+	read_state_hess-symmetry_mod_v4.$(OBJEXT) \
+	read_state_hess-internal_SR8_v4.0.1.$(OBJEXT) \
+	read_state_hess-zmat_manage_v4.$(OBJEXT) \
+	read_state_hess-read_state_hess.$(OBJEXT)
+read_state_hess_OBJECTS = $(am_read_state_hess_OBJECTS)
+read_state_hess_LDADD = $(LDADD)
+read_state_hess_LINK = $(FCLD) $(read_state_hess_FCFLAGS) $(FCFLAGS) \
+	$(read_state_hess_LDFLAGS) $(LDFLAGS) -o $@
 DEFAULT_INCLUDES = -I.@am__isrc@
 FCCOMPILE = $(FC) $(AM_FCFLAGS) $(FCFLAGS)
 FCLD = $(FC)
 FCLINK = $(FCLD) $(AM_FCFLAGS) $(FCFLAGS) $(AM_LDFLAGS) $(LDFLAGS) -o \
 	$@
-SOURCES = $(calcRMS_bonded_SOURCES) $(geom_param_list_SOURCES)
-DIST_SOURCES = $(calcRMS_bonded_SOURCES) $(geom_param_list_SOURCES)
+SOURCES = $(check_diag_SOURCES) $(read_state_hess_SOURCES)
+DIST_SOURCES = $(check_diag_SOURCES) $(read_state_hess_SOURCES)
 am__can_run_installinfo = \
   case $$AM_UPDATE_INFO_DIR in \
     n|no|NO) false;; \
@@ -205,36 +209,40 @@ target_alias = @target_alias@
 top_build_prefix = @top_build_prefix@
 top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
-calcRMS_bonded_SOURCES = ../modules/alerts.f90\
+check_diag_SOURCES = ../modules/alerts.f90\
                       ../modules/line_preprocess.f90\
                       ../modules/constants_mod.f90\
+                      ../modules/MatrixMod.f90\
+                      ../modules/structure_types_v4.f90\
+                      ../modules/molecular_structure.f90\
+                      ../modules/gro_manage_v4.f90\
+                      ../modules/gaussian_fchk_manage_v4.f90\
+                      ../modules/molcas_unsym_manage_v4.f90\
+                      check_diag_v4.f90
+
+check_diag_LDFLAGS = @LIBS@
+check_diag_FCFLAGS = -cpp -DDOUBLE -DUSE_LAPACK
+read_state_hess_SOURCES = ../modules/alerts.f90\
+                      ../modules/line_preprocess.f90\
+                      ../modules/constants_mod.f90\
+                      ../modules/MatrixMod.f90\
                       ../modules/structure_types_v4.f90\
                       ../modules/gro_manage_v4.f90\
                       ../modules/pdb_manage_v4.f90\
                       ../modules/gaussian_manage_v4.f90\
                       ../modules/gaussian_fchk_manage_v4.f90\
                       ../modules/xyz_manage_v4.f90\
+                      ../modules/molcas_unsym_manage_v4.f90\
                       ../modules/molecular_structure.f90\
                       ../modules/ff_build_module_v4.f90\
                       ../modules/atomic_geom_v2.f90\
-                      calcRMS_bonded_v4.f90
+                      ../modules/symmetry_mod_v4.f90\
+                      ../modules/internal_SR8_v4.0.1.f90\
+                      ../modules/zmat_manage_v4.f90\
+                      read_state_hess.f90
 
-calcRMS_bonded_LDFLAGS = @LIBS@
-calcRMS_bonded_FCFLAGS = -cpp -DDOUBLE
-geom_param_list_SOURCES = ../modules/alerts.f90\
-                      ../modules/line_preprocess.f90\
-                      ../modules/constants_mod.f90\
-                      ../modules/structure_types_v4.f90\
-                      ../modules/gro_manage_v4.f90\
-                      ../modules/pdb_manage_v4.f90\
-                      ../modules/gaussian_manage_v4.f90\
-                      ../modules/gaussian_fchk_manage_v4.f90\
-                      ../modules/xyz_manage_v4.f90\
-                      ../modules/atomic_geom_v2.f90\
-                      geom_param_list_v4.f90
-
-geom_param_list_LDFLAGS = @LIBS@
-geom_param_list_FCFLAGS = -cpp -DDOUBLE 
+read_state_hess_LDFLAGS = @LIBS@
+read_state_hess_FCFLAGS = -cpp -DDOUBLE -DUSE_LAPACK
 CLEANFILES = *.mod 
 all: all-am
 
@@ -314,12 +322,12 @@ uninstall-binPROGRAMS:
 
 clean-binPROGRAMS:
 	-test -z "$(bin_PROGRAMS)" || rm -f $(bin_PROGRAMS)
-calcRMS_bonded$(EXEEXT): $(calcRMS_bonded_OBJECTS) $(calcRMS_bonded_DEPENDENCIES) $(EXTRA_calcRMS_bonded_DEPENDENCIES) 
-	@rm -f calcRMS_bonded$(EXEEXT)
-	$(calcRMS_bonded_LINK) $(calcRMS_bonded_OBJECTS) $(calcRMS_bonded_LDADD) $(LIBS)
-geom_param_list$(EXEEXT): $(geom_param_list_OBJECTS) $(geom_param_list_DEPENDENCIES) $(EXTRA_geom_param_list_DEPENDENCIES) 
-	@rm -f geom_param_list$(EXEEXT)
-	$(geom_param_list_LINK) $(geom_param_list_OBJECTS) $(geom_param_list_LDADD) $(LIBS)
+check_diag$(EXEEXT): $(check_diag_OBJECTS) $(check_diag_DEPENDENCIES) $(EXTRA_check_diag_DEPENDENCIES) 
+	@rm -f check_diag$(EXEEXT)
+	$(check_diag_LINK) $(check_diag_OBJECTS) $(check_diag_LDADD) $(LIBS)
+read_state_hess$(EXEEXT): $(read_state_hess_OBJECTS) $(read_state_hess_DEPENDENCIES) $(EXTRA_read_state_hess_DEPENDENCIES) 
+	@rm -f read_state_hess$(EXEEXT)
+	$(read_state_hess_LINK) $(read_state_hess_OBJECTS) $(read_state_hess_LDADD) $(LIBS)
 
 mostlyclean-compile:
 	-rm -f *.$(OBJEXT)
@@ -333,149 +341,173 @@ distclean-compile:
 .f90.obj:
 	$(FCCOMPILE) -c -o $@ `$(CYGPATH_W) '$<'`
 
-calcRMS_bonded-alerts.o: ../modules/alerts.f90
-	$(FC) $(calcRMS_bonded_FCFLAGS) $(FCFLAGS) -c -o calcRMS_bonded-alerts.o `test -f '../modules/alerts.f90' || echo '$(srcdir)/'`../modules/alerts.f90
+check_diag-alerts.o: ../modules/alerts.f90
+	$(FC) $(check_diag_FCFLAGS) $(FCFLAGS) -c -o check_diag-alerts.o `test -f '../modules/alerts.f90' || echo '$(srcdir)/'`../modules/alerts.f90
 
-calcRMS_bonded-alerts.obj: ../modules/alerts.f90
-	$(FC) $(calcRMS_bonded_FCFLAGS) $(FCFLAGS) -c -o calcRMS_bonded-alerts.obj `if test -f '../modules/alerts.f90'; then $(CYGPATH_W) '../modules/alerts.f90'; else $(CYGPATH_W) '$(srcdir)/../modules/alerts.f90'; fi`
+check_diag-alerts.obj: ../modules/alerts.f90
+	$(FC) $(check_diag_FCFLAGS) $(FCFLAGS) -c -o check_diag-alerts.obj `if test -f '../modules/alerts.f90'; then $(CYGPATH_W) '../modules/alerts.f90'; else $(CYGPATH_W) '$(srcdir)/../modules/alerts.f90'; fi`
 
-calcRMS_bonded-line_preprocess.o: ../modules/line_preprocess.f90
-	$(FC) $(calcRMS_bonded_FCFLAGS) $(FCFLAGS) -c -o calcRMS_bonded-line_preprocess.o `test -f '../modules/line_preprocess.f90' || echo '$(srcdir)/'`../modules/line_preprocess.f90
+check_diag-line_preprocess.o: ../modules/line_preprocess.f90
+	$(FC) $(check_diag_FCFLAGS) $(FCFLAGS) -c -o check_diag-line_preprocess.o `test -f '../modules/line_preprocess.f90' || echo '$(srcdir)/'`../modules/line_preprocess.f90
 
-calcRMS_bonded-line_preprocess.obj: ../modules/line_preprocess.f90
-	$(FC) $(calcRMS_bonded_FCFLAGS) $(FCFLAGS) -c -o calcRMS_bonded-line_preprocess.obj `if test -f '../modules/line_preprocess.f90'; then $(CYGPATH_W) '../modules/line_preprocess.f90'; else $(CYGPATH_W) '$(srcdir)/../modules/line_preprocess.f90'; fi`
+check_diag-line_preprocess.obj: ../modules/line_preprocess.f90
+	$(FC) $(check_diag_FCFLAGS) $(FCFLAGS) -c -o check_diag-line_preprocess.obj `if test -f '../modules/line_preprocess.f90'; then $(CYGPATH_W) '../modules/line_preprocess.f90'; else $(CYGPATH_W) '$(srcdir)/../modules/line_preprocess.f90'; fi`
 
-calcRMS_bonded-constants_mod.o: ../modules/constants_mod.f90
-	$(FC) $(calcRMS_bonded_FCFLAGS) $(FCFLAGS) -c -o calcRMS_bonded-constants_mod.o `test -f '../modules/constants_mod.f90' || echo '$(srcdir)/'`../modules/constants_mod.f90
+check_diag-constants_mod.o: ../modules/constants_mod.f90
+	$(FC) $(check_diag_FCFLAGS) $(FCFLAGS) -c -o check_diag-constants_mod.o `test -f '../modules/constants_mod.f90' || echo '$(srcdir)/'`../modules/constants_mod.f90
 
-calcRMS_bonded-constants_mod.obj: ../modules/constants_mod.f90
-	$(FC) $(calcRMS_bonded_FCFLAGS) $(FCFLAGS) -c -o calcRMS_bonded-constants_mod.obj `if test -f '../modules/constants_mod.f90'; then $(CYGPATH_W) '../modules/constants_mod.f90'; else $(CYGPATH_W) '$(srcdir)/../modules/constants_mod.f90'; fi`
+check_diag-constants_mod.obj: ../modules/constants_mod.f90
+	$(FC) $(check_diag_FCFLAGS) $(FCFLAGS) -c -o check_diag-constants_mod.obj `if test -f '../modules/constants_mod.f90'; then $(CYGPATH_W) '../modules/constants_mod.f90'; else $(CYGPATH_W) '$(srcdir)/../modules/constants_mod.f90'; fi`
 
-calcRMS_bonded-structure_types_v4.o: ../modules/structure_types_v4.f90
-	$(FC) $(calcRMS_bonded_FCFLAGS) $(FCFLAGS) -c -o calcRMS_bonded-structure_types_v4.o `test -f '../modules/structure_types_v4.f90' || echo '$(srcdir)/'`../modules/structure_types_v4.f90
+check_diag-MatrixMod.o: ../modules/MatrixMod.f90
+	$(FC) $(check_diag_FCFLAGS) $(FCFLAGS) -c -o check_diag-MatrixMod.o `test -f '../modules/MatrixMod.f90' || echo '$(srcdir)/'`../modules/MatrixMod.f90
 
-calcRMS_bonded-structure_types_v4.obj: ../modules/structure_types_v4.f90
-	$(FC) $(calcRMS_bonded_FCFLAGS) $(FCFLAGS) -c -o calcRMS_bonded-structure_types_v4.obj `if test -f '../modules/structure_types_v4.f90'; then $(CYGPATH_W) '../modules/structure_types_v4.f90'; else $(CYGPATH_W) '$(srcdir)/../modules/structure_types_v4.f90'; fi`
+check_diag-MatrixMod.obj: ../modules/MatrixMod.f90
+	$(FC) $(check_diag_FCFLAGS) $(FCFLAGS) -c -o check_diag-MatrixMod.obj `if test -f '../modules/MatrixMod.f90'; then $(CYGPATH_W) '../modules/MatrixMod.f90'; else $(CYGPATH_W) '$(srcdir)/../modules/MatrixMod.f90'; fi`
 
-calcRMS_bonded-gro_manage_v4.o: ../modules/gro_manage_v4.f90
-	$(FC) $(calcRMS_bonded_FCFLAGS) $(FCFLAGS) -c -o calcRMS_bonded-gro_manage_v4.o `test -f '../modules/gro_manage_v4.f90' || echo '$(srcdir)/'`../modules/gro_manage_v4.f90
+check_diag-structure_types_v4.o: ../modules/structure_types_v4.f90
+	$(FC) $(check_diag_FCFLAGS) $(FCFLAGS) -c -o check_diag-structure_types_v4.o `test -f '../modules/structure_types_v4.f90' || echo '$(srcdir)/'`../modules/structure_types_v4.f90
 
-calcRMS_bonded-gro_manage_v4.obj: ../modules/gro_manage_v4.f90
-	$(FC) $(calcRMS_bonded_FCFLAGS) $(FCFLAGS) -c -o calcRMS_bonded-gro_manage_v4.obj `if test -f '../modules/gro_manage_v4.f90'; then $(CYGPATH_W) '../modules/gro_manage_v4.f90'; else $(CYGPATH_W) '$(srcdir)/../modules/gro_manage_v4.f90'; fi`
+check_diag-structure_types_v4.obj: ../modules/structure_types_v4.f90
+	$(FC) $(check_diag_FCFLAGS) $(FCFLAGS) -c -o check_diag-structure_types_v4.obj `if test -f '../modules/structure_types_v4.f90'; then $(CYGPATH_W) '../modules/structure_types_v4.f90'; else $(CYGPATH_W) '$(srcdir)/../modules/structure_types_v4.f90'; fi`
 
-calcRMS_bonded-pdb_manage_v4.o: ../modules/pdb_manage_v4.f90
-	$(FC) $(calcRMS_bonded_FCFLAGS) $(FCFLAGS) -c -o calcRMS_bonded-pdb_manage_v4.o `test -f '../modules/pdb_manage_v4.f90' || echo '$(srcdir)/'`../modules/pdb_manage_v4.f90
+check_diag-molecular_structure.o: ../modules/molecular_structure.f90
+	$(FC) $(check_diag_FCFLAGS) $(FCFLAGS) -c -o check_diag-molecular_structure.o `test -f '../modules/molecular_structure.f90' || echo '$(srcdir)/'`../modules/molecular_structure.f90
 
-calcRMS_bonded-pdb_manage_v4.obj: ../modules/pdb_manage_v4.f90
-	$(FC) $(calcRMS_bonded_FCFLAGS) $(FCFLAGS) -c -o calcRMS_bonded-pdb_manage_v4.obj `if test -f '../modules/pdb_manage_v4.f90'; then $(CYGPATH_W) '../modules/pdb_manage_v4.f90'; else $(CYGPATH_W) '$(srcdir)/../modules/pdb_manage_v4.f90'; fi`
+check_diag-molecular_structure.obj: ../modules/molecular_structure.f90
+	$(FC) $(check_diag_FCFLAGS) $(FCFLAGS) -c -o check_diag-molecular_structure.obj `if test -f '../modules/molecular_structure.f90'; then $(CYGPATH_W) '../modules/molecular_structure.f90'; else $(CYGPATH_W) '$(srcdir)/../modules/molecular_structure.f90'; fi`
 
-calcRMS_bonded-gaussian_manage_v4.o: ../modules/gaussian_manage_v4.f90
-	$(FC) $(calcRMS_bonded_FCFLAGS) $(FCFLAGS) -c -o calcRMS_bonded-gaussian_manage_v4.o `test -f '../modules/gaussian_manage_v4.f90' || echo '$(srcdir)/'`../modules/gaussian_manage_v4.f90
+check_diag-gro_manage_v4.o: ../modules/gro_manage_v4.f90
+	$(FC) $(check_diag_FCFLAGS) $(FCFLAGS) -c -o check_diag-gro_manage_v4.o `test -f '../modules/gro_manage_v4.f90' || echo '$(srcdir)/'`../modules/gro_manage_v4.f90
 
-calcRMS_bonded-gaussian_manage_v4.obj: ../modules/gaussian_manage_v4.f90
-	$(FC) $(calcRMS_bonded_FCFLAGS) $(FCFLAGS) -c -o calcRMS_bonded-gaussian_manage_v4.obj `if test -f '../modules/gaussian_manage_v4.f90'; then $(CYGPATH_W) '../modules/gaussian_manage_v4.f90'; else $(CYGPATH_W) '$(srcdir)/../modules/gaussian_manage_v4.f90'; fi`
+check_diag-gro_manage_v4.obj: ../modules/gro_manage_v4.f90
+	$(FC) $(check_diag_FCFLAGS) $(FCFLAGS) -c -o check_diag-gro_manage_v4.obj `if test -f '../modules/gro_manage_v4.f90'; then $(CYGPATH_W) '../modules/gro_manage_v4.f90'; else $(CYGPATH_W) '$(srcdir)/../modules/gro_manage_v4.f90'; fi`
 
-calcRMS_bonded-gaussian_fchk_manage_v4.o: ../modules/gaussian_fchk_manage_v4.f90
-	$(FC) $(calcRMS_bonded_FCFLAGS) $(FCFLAGS) -c -o calcRMS_bonded-gaussian_fchk_manage_v4.o `test -f '../modules/gaussian_fchk_manage_v4.f90' || echo '$(srcdir)/'`../modules/gaussian_fchk_manage_v4.f90
+check_diag-gaussian_fchk_manage_v4.o: ../modules/gaussian_fchk_manage_v4.f90
+	$(FC) $(check_diag_FCFLAGS) $(FCFLAGS) -c -o check_diag-gaussian_fchk_manage_v4.o `test -f '../modules/gaussian_fchk_manage_v4.f90' || echo '$(srcdir)/'`../modules/gaussian_fchk_manage_v4.f90
 
-calcRMS_bonded-gaussian_fchk_manage_v4.obj: ../modules/gaussian_fchk_manage_v4.f90
-	$(FC) $(calcRMS_bonded_FCFLAGS) $(FCFLAGS) -c -o calcRMS_bonded-gaussian_fchk_manage_v4.obj `if test -f '../modules/gaussian_fchk_manage_v4.f90'; then $(CYGPATH_W) '../modules/gaussian_fchk_manage_v4.f90'; else $(CYGPATH_W) '$(srcdir)/../modules/gaussian_fchk_manage_v4.f90'; fi`
+check_diag-gaussian_fchk_manage_v4.obj: ../modules/gaussian_fchk_manage_v4.f90
+	$(FC) $(check_diag_FCFLAGS) $(FCFLAGS) -c -o check_diag-gaussian_fchk_manage_v4.obj `if test -f '../modules/gaussian_fchk_manage_v4.f90'; then $(CYGPATH_W) '../modules/gaussian_fchk_manage_v4.f90'; else $(CYGPATH_W) '$(srcdir)/../modules/gaussian_fchk_manage_v4.f90'; fi`
 
-calcRMS_bonded-xyz_manage_v4.o: ../modules/xyz_manage_v4.f90
-	$(FC) $(calcRMS_bonded_FCFLAGS) $(FCFLAGS) -c -o calcRMS_bonded-xyz_manage_v4.o `test -f '../modules/xyz_manage_v4.f90' || echo '$(srcdir)/'`../modules/xyz_manage_v4.f90
+check_diag-molcas_unsym_manage_v4.o: ../modules/molcas_unsym_manage_v4.f90
+	$(FC) $(check_diag_FCFLAGS) $(FCFLAGS) -c -o check_diag-molcas_unsym_manage_v4.o `test -f '../modules/molcas_unsym_manage_v4.f90' || echo '$(srcdir)/'`../modules/molcas_unsym_manage_v4.f90
 
-calcRMS_bonded-xyz_manage_v4.obj: ../modules/xyz_manage_v4.f90
-	$(FC) $(calcRMS_bonded_FCFLAGS) $(FCFLAGS) -c -o calcRMS_bonded-xyz_manage_v4.obj `if test -f '../modules/xyz_manage_v4.f90'; then $(CYGPATH_W) '../modules/xyz_manage_v4.f90'; else $(CYGPATH_W) '$(srcdir)/../modules/xyz_manage_v4.f90'; fi`
+check_diag-molcas_unsym_manage_v4.obj: ../modules/molcas_unsym_manage_v4.f90
+	$(FC) $(check_diag_FCFLAGS) $(FCFLAGS) -c -o check_diag-molcas_unsym_manage_v4.obj `if test -f '../modules/molcas_unsym_manage_v4.f90'; then $(CYGPATH_W) '../modules/molcas_unsym_manage_v4.f90'; else $(CYGPATH_W) '$(srcdir)/../modules/molcas_unsym_manage_v4.f90'; fi`
 
-calcRMS_bonded-molecular_structure.o: ../modules/molecular_structure.f90
-	$(FC) $(calcRMS_bonded_FCFLAGS) $(FCFLAGS) -c -o calcRMS_bonded-molecular_structure.o `test -f '../modules/molecular_structure.f90' || echo '$(srcdir)/'`../modules/molecular_structure.f90
+check_diag-check_diag_v4.o: check_diag_v4.f90
+	$(FC) $(check_diag_FCFLAGS) $(FCFLAGS) -c -o check_diag-check_diag_v4.o `test -f 'check_diag_v4.f90' || echo '$(srcdir)/'`check_diag_v4.f90
 
-calcRMS_bonded-molecular_structure.obj: ../modules/molecular_structure.f90
-	$(FC) $(calcRMS_bonded_FCFLAGS) $(FCFLAGS) -c -o calcRMS_bonded-molecular_structure.obj `if test -f '../modules/molecular_structure.f90'; then $(CYGPATH_W) '../modules/molecular_structure.f90'; else $(CYGPATH_W) '$(srcdir)/../modules/molecular_structure.f90'; fi`
+check_diag-check_diag_v4.obj: check_diag_v4.f90
+	$(FC) $(check_diag_FCFLAGS) $(FCFLAGS) -c -o check_diag-check_diag_v4.obj `if test -f 'check_diag_v4.f90'; then $(CYGPATH_W) 'check_diag_v4.f90'; else $(CYGPATH_W) '$(srcdir)/check_diag_v4.f90'; fi`
 
-calcRMS_bonded-ff_build_module_v4.o: ../modules/ff_build_module_v4.f90
-	$(FC) $(calcRMS_bonded_FCFLAGS) $(FCFLAGS) -c -o calcRMS_bonded-ff_build_module_v4.o `test -f '../modules/ff_build_module_v4.f90' || echo '$(srcdir)/'`../modules/ff_build_module_v4.f90
+read_state_hess-alerts.o: ../modules/alerts.f90
+	$(FC) $(read_state_hess_FCFLAGS) $(FCFLAGS) -c -o read_state_hess-alerts.o `test -f '../modules/alerts.f90' || echo '$(srcdir)/'`../modules/alerts.f90
 
-calcRMS_bonded-ff_build_module_v4.obj: ../modules/ff_build_module_v4.f90
-	$(FC) $(calcRMS_bonded_FCFLAGS) $(FCFLAGS) -c -o calcRMS_bonded-ff_build_module_v4.obj `if test -f '../modules/ff_build_module_v4.f90'; then $(CYGPATH_W) '../modules/ff_build_module_v4.f90'; else $(CYGPATH_W) '$(srcdir)/../modules/ff_build_module_v4.f90'; fi`
+read_state_hess-alerts.obj: ../modules/alerts.f90
+	$(FC) $(read_state_hess_FCFLAGS) $(FCFLAGS) -c -o read_state_hess-alerts.obj `if test -f '../modules/alerts.f90'; then $(CYGPATH_W) '../modules/alerts.f90'; else $(CYGPATH_W) '$(srcdir)/../modules/alerts.f90'; fi`
 
-calcRMS_bonded-atomic_geom_v2.o: ../modules/atomic_geom_v2.f90
-	$(FC) $(calcRMS_bonded_FCFLAGS) $(FCFLAGS) -c -o calcRMS_bonded-atomic_geom_v2.o `test -f '../modules/atomic_geom_v2.f90' || echo '$(srcdir)/'`../modules/atomic_geom_v2.f90
+read_state_hess-line_preprocess.o: ../modules/line_preprocess.f90
+	$(FC) $(read_state_hess_FCFLAGS) $(FCFLAGS) -c -o read_state_hess-line_preprocess.o `test -f '../modules/line_preprocess.f90' || echo '$(srcdir)/'`../modules/line_preprocess.f90
 
-calcRMS_bonded-atomic_geom_v2.obj: ../modules/atomic_geom_v2.f90
-	$(FC) $(calcRMS_bonded_FCFLAGS) $(FCFLAGS) -c -o calcRMS_bonded-atomic_geom_v2.obj `if test -f '../modules/atomic_geom_v2.f90'; then $(CYGPATH_W) '../modules/atomic_geom_v2.f90'; else $(CYGPATH_W) '$(srcdir)/../modules/atomic_geom_v2.f90'; fi`
+read_state_hess-line_preprocess.obj: ../modules/line_preprocess.f90
+	$(FC) $(read_state_hess_FCFLAGS) $(FCFLAGS) -c -o read_state_hess-line_preprocess.obj `if test -f '../modules/line_preprocess.f90'; then $(CYGPATH_W) '../modules/line_preprocess.f90'; else $(CYGPATH_W) '$(srcdir)/../modules/line_preprocess.f90'; fi`
 
-calcRMS_bonded-calcRMS_bonded_v4.o: calcRMS_bonded_v4.f90
-	$(FC) $(calcRMS_bonded_FCFLAGS) $(FCFLAGS) -c -o calcRMS_bonded-calcRMS_bonded_v4.o `test -f 'calcRMS_bonded_v4.f90' || echo '$(srcdir)/'`calcRMS_bonded_v4.f90
+read_state_hess-constants_mod.o: ../modules/constants_mod.f90
+	$(FC) $(read_state_hess_FCFLAGS) $(FCFLAGS) -c -o read_state_hess-constants_mod.o `test -f '../modules/constants_mod.f90' || echo '$(srcdir)/'`../modules/constants_mod.f90
 
-calcRMS_bonded-calcRMS_bonded_v4.obj: calcRMS_bonded_v4.f90
-	$(FC) $(calcRMS_bonded_FCFLAGS) $(FCFLAGS) -c -o calcRMS_bonded-calcRMS_bonded_v4.obj `if test -f 'calcRMS_bonded_v4.f90'; then $(CYGPATH_W) 'calcRMS_bonded_v4.f90'; else $(CYGPATH_W) '$(srcdir)/calcRMS_bonded_v4.f90'; fi`
+read_state_hess-constants_mod.obj: ../modules/constants_mod.f90
+	$(FC) $(read_state_hess_FCFLAGS) $(FCFLAGS) -c -o read_state_hess-constants_mod.obj `if test -f '../modules/constants_mod.f90'; then $(CYGPATH_W) '../modules/constants_mod.f90'; else $(CYGPATH_W) '$(srcdir)/../modules/constants_mod.f90'; fi`
 
-geom_param_list-alerts.o: ../modules/alerts.f90
-	$(FC) $(geom_param_list_FCFLAGS) $(FCFLAGS) -c -o geom_param_list-alerts.o `test -f '../modules/alerts.f90' || echo '$(srcdir)/'`../modules/alerts.f90
+read_state_hess-MatrixMod.o: ../modules/MatrixMod.f90
+	$(FC) $(read_state_hess_FCFLAGS) $(FCFLAGS) -c -o read_state_hess-MatrixMod.o `test -f '../modules/MatrixMod.f90' || echo '$(srcdir)/'`../modules/MatrixMod.f90
 
-geom_param_list-alerts.obj: ../modules/alerts.f90
-	$(FC) $(geom_param_list_FCFLAGS) $(FCFLAGS) -c -o geom_param_list-alerts.obj `if test -f '../modules/alerts.f90'; then $(CYGPATH_W) '../modules/alerts.f90'; else $(CYGPATH_W) '$(srcdir)/../modules/alerts.f90'; fi`
+read_state_hess-MatrixMod.obj: ../modules/MatrixMod.f90
+	$(FC) $(read_state_hess_FCFLAGS) $(FCFLAGS) -c -o read_state_hess-MatrixMod.obj `if test -f '../modules/MatrixMod.f90'; then $(CYGPATH_W) '../modules/MatrixMod.f90'; else $(CYGPATH_W) '$(srcdir)/../modules/MatrixMod.f90'; fi`
 
-geom_param_list-line_preprocess.o: ../modules/line_preprocess.f90
-	$(FC) $(geom_param_list_FCFLAGS) $(FCFLAGS) -c -o geom_param_list-line_preprocess.o `test -f '../modules/line_preprocess.f90' || echo '$(srcdir)/'`../modules/line_preprocess.f90
+read_state_hess-structure_types_v4.o: ../modules/structure_types_v4.f90
+	$(FC) $(read_state_hess_FCFLAGS) $(FCFLAGS) -c -o read_state_hess-structure_types_v4.o `test -f '../modules/structure_types_v4.f90' || echo '$(srcdir)/'`../modules/structure_types_v4.f90
 
-geom_param_list-line_preprocess.obj: ../modules/line_preprocess.f90
-	$(FC) $(geom_param_list_FCFLAGS) $(FCFLAGS) -c -o geom_param_list-line_preprocess.obj `if test -f '../modules/line_preprocess.f90'; then $(CYGPATH_W) '../modules/line_preprocess.f90'; else $(CYGPATH_W) '$(srcdir)/../modules/line_preprocess.f90'; fi`
+read_state_hess-structure_types_v4.obj: ../modules/structure_types_v4.f90
+	$(FC) $(read_state_hess_FCFLAGS) $(FCFLAGS) -c -o read_state_hess-structure_types_v4.obj `if test -f '../modules/structure_types_v4.f90'; then $(CYGPATH_W) '../modules/structure_types_v4.f90'; else $(CYGPATH_W) '$(srcdir)/../modules/structure_types_v4.f90'; fi`
 
-geom_param_list-constants_mod.o: ../modules/constants_mod.f90
-	$(FC) $(geom_param_list_FCFLAGS) $(FCFLAGS) -c -o geom_param_list-constants_mod.o `test -f '../modules/constants_mod.f90' || echo '$(srcdir)/'`../modules/constants_mod.f90
+read_state_hess-gro_manage_v4.o: ../modules/gro_manage_v4.f90
+	$(FC) $(read_state_hess_FCFLAGS) $(FCFLAGS) -c -o read_state_hess-gro_manage_v4.o `test -f '../modules/gro_manage_v4.f90' || echo '$(srcdir)/'`../modules/gro_manage_v4.f90
 
-geom_param_list-constants_mod.obj: ../modules/constants_mod.f90
-	$(FC) $(geom_param_list_FCFLAGS) $(FCFLAGS) -c -o geom_param_list-constants_mod.obj `if test -f '../modules/constants_mod.f90'; then $(CYGPATH_W) '../modules/constants_mod.f90'; else $(CYGPATH_W) '$(srcdir)/../modules/constants_mod.f90'; fi`
+read_state_hess-gro_manage_v4.obj: ../modules/gro_manage_v4.f90
+	$(FC) $(read_state_hess_FCFLAGS) $(FCFLAGS) -c -o read_state_hess-gro_manage_v4.obj `if test -f '../modules/gro_manage_v4.f90'; then $(CYGPATH_W) '../modules/gro_manage_v4.f90'; else $(CYGPATH_W) '$(srcdir)/../modules/gro_manage_v4.f90'; fi`
 
-geom_param_list-structure_types_v4.o: ../modules/structure_types_v4.f90
-	$(FC) $(geom_param_list_FCFLAGS) $(FCFLAGS) -c -o geom_param_list-structure_types_v4.o `test -f '../modules/structure_types_v4.f90' || echo '$(srcdir)/'`../modules/structure_types_v4.f90
+read_state_hess-pdb_manage_v4.o: ../modules/pdb_manage_v4.f90
+	$(FC) $(read_state_hess_FCFLAGS) $(FCFLAGS) -c -o read_state_hess-pdb_manage_v4.o `test -f '../modules/pdb_manage_v4.f90' || echo '$(srcdir)/'`../modules/pdb_manage_v4.f90
 
-geom_param_list-structure_types_v4.obj: ../modules/structure_types_v4.f90
-	$(FC) $(geom_param_list_FCFLAGS) $(FCFLAGS) -c -o geom_param_list-structure_types_v4.obj `if test -f '../modules/structure_types_v4.f90'; then $(CYGPATH_W) '../modules/structure_types_v4.f90'; else $(CYGPATH_W) '$(srcdir)/../modules/structure_types_v4.f90'; fi`
+read_state_hess-pdb_manage_v4.obj: ../modules/pdb_manage_v4.f90
+	$(FC) $(read_state_hess_FCFLAGS) $(FCFLAGS) -c -o read_state_hess-pdb_manage_v4.obj `if test -f '../modules/pdb_manage_v4.f90'; then $(CYGPATH_W) '../modules/pdb_manage_v4.f90'; else $(CYGPATH_W) '$(srcdir)/../modules/pdb_manage_v4.f90'; fi`
 
-geom_param_list-gro_manage_v4.o: ../modules/gro_manage_v4.f90
-	$(FC) $(geom_param_list_FCFLAGS) $(FCFLAGS) -c -o geom_param_list-gro_manage_v4.o `test -f '../modules/gro_manage_v4.f90' || echo '$(srcdir)/'`../modules/gro_manage_v4.f90
+read_state_hess-gaussian_manage_v4.o: ../modules/gaussian_manage_v4.f90
+	$(FC) $(read_state_hess_FCFLAGS) $(FCFLAGS) -c -o read_state_hess-gaussian_manage_v4.o `test -f '../modules/gaussian_manage_v4.f90' || echo '$(srcdir)/'`../modules/gaussian_manage_v4.f90
 
-geom_param_list-gro_manage_v4.obj: ../modules/gro_manage_v4.f90
-	$(FC) $(geom_param_list_FCFLAGS) $(FCFLAGS) -c -o geom_param_list-gro_manage_v4.obj `if test -f '../modules/gro_manage_v4.f90'; then $(CYGPATH_W) '../modules/gro_manage_v4.f90'; else $(CYGPATH_W) '$(srcdir)/../modules/gro_manage_v4.f90'; fi`
+read_state_hess-gaussian_manage_v4.obj: ../modules/gaussian_manage_v4.f90
+	$(FC) $(read_state_hess_FCFLAGS) $(FCFLAGS) -c -o read_state_hess-gaussian_manage_v4.obj `if test -f '../modules/gaussian_manage_v4.f90'; then $(CYGPATH_W) '../modules/gaussian_manage_v4.f90'; else $(CYGPATH_W) '$(srcdir)/../modules/gaussian_manage_v4.f90'; fi`
 
-geom_param_list-pdb_manage_v4.o: ../modules/pdb_manage_v4.f90
-	$(FC) $(geom_param_list_FCFLAGS) $(FCFLAGS) -c -o geom_param_list-pdb_manage_v4.o `test -f '../modules/pdb_manage_v4.f90' || echo '$(srcdir)/'`../modules/pdb_manage_v4.f90
+read_state_hess-gaussian_fchk_manage_v4.o: ../modules/gaussian_fchk_manage_v4.f90
+	$(FC) $(read_state_hess_FCFLAGS) $(FCFLAGS) -c -o read_state_hess-gaussian_fchk_manage_v4.o `test -f '../modules/gaussian_fchk_manage_v4.f90' || echo '$(srcdir)/'`../modules/gaussian_fchk_manage_v4.f90
 
-geom_param_list-pdb_manage_v4.obj: ../modules/pdb_manage_v4.f90
-	$(FC) $(geom_param_list_FCFLAGS) $(FCFLAGS) -c -o geom_param_list-pdb_manage_v4.obj `if test -f '../modules/pdb_manage_v4.f90'; then $(CYGPATH_W) '../modules/pdb_manage_v4.f90'; else $(CYGPATH_W) '$(srcdir)/../modules/pdb_manage_v4.f90'; fi`
+read_state_hess-gaussian_fchk_manage_v4.obj: ../modules/gaussian_fchk_manage_v4.f90
+	$(FC) $(read_state_hess_FCFLAGS) $(FCFLAGS) -c -o read_state_hess-gaussian_fchk_manage_v4.obj `if test -f '../modules/gaussian_fchk_manage_v4.f90'; then $(CYGPATH_W) '../modules/gaussian_fchk_manage_v4.f90'; else $(CYGPATH_W) '$(srcdir)/../modules/gaussian_fchk_manage_v4.f90'; fi`
 
-geom_param_list-gaussian_manage_v4.o: ../modules/gaussian_manage_v4.f90
-	$(FC) $(geom_param_list_FCFLAGS) $(FCFLAGS) -c -o geom_param_list-gaussian_manage_v4.o `test -f '../modules/gaussian_manage_v4.f90' || echo '$(srcdir)/'`../modules/gaussian_manage_v4.f90
+read_state_hess-xyz_manage_v4.o: ../modules/xyz_manage_v4.f90
+	$(FC) $(read_state_hess_FCFLAGS) $(FCFLAGS) -c -o read_state_hess-xyz_manage_v4.o `test -f '../modules/xyz_manage_v4.f90' || echo '$(srcdir)/'`../modules/xyz_manage_v4.f90
 
-geom_param_list-gaussian_manage_v4.obj: ../modules/gaussian_manage_v4.f90
-	$(FC) $(geom_param_list_FCFLAGS) $(FCFLAGS) -c -o geom_param_list-gaussian_manage_v4.obj `if test -f '../modules/gaussian_manage_v4.f90'; then $(CYGPATH_W) '../modules/gaussian_manage_v4.f90'; else $(CYGPATH_W) '$(srcdir)/../modules/gaussian_manage_v4.f90'; fi`
+read_state_hess-xyz_manage_v4.obj: ../modules/xyz_manage_v4.f90
+	$(FC) $(read_state_hess_FCFLAGS) $(FCFLAGS) -c -o read_state_hess-xyz_manage_v4.obj `if test -f '../modules/xyz_manage_v4.f90'; then $(CYGPATH_W) '../modules/xyz_manage_v4.f90'; else $(CYGPATH_W) '$(srcdir)/../modules/xyz_manage_v4.f90'; fi`
 
-geom_param_list-gaussian_fchk_manage_v4.o: ../modules/gaussian_fchk_manage_v4.f90
-	$(FC) $(geom_param_list_FCFLAGS) $(FCFLAGS) -c -o geom_param_list-gaussian_fchk_manage_v4.o `test -f '../modules/gaussian_fchk_manage_v4.f90' || echo '$(srcdir)/'`../modules/gaussian_fchk_manage_v4.f90
+read_state_hess-molcas_unsym_manage_v4.o: ../modules/molcas_unsym_manage_v4.f90
+	$(FC) $(read_state_hess_FCFLAGS) $(FCFLAGS) -c -o read_state_hess-molcas_unsym_manage_v4.o `test -f '../modules/molcas_unsym_manage_v4.f90' || echo '$(srcdir)/'`../modules/molcas_unsym_manage_v4.f90
 
-geom_param_list-gaussian_fchk_manage_v4.obj: ../modules/gaussian_fchk_manage_v4.f90
-	$(FC) $(geom_param_list_FCFLAGS) $(FCFLAGS) -c -o geom_param_list-gaussian_fchk_manage_v4.obj `if test -f '../modules/gaussian_fchk_manage_v4.f90'; then $(CYGPATH_W) '../modules/gaussian_fchk_manage_v4.f90'; else $(CYGPATH_W) '$(srcdir)/../modules/gaussian_fchk_manage_v4.f90'; fi`
+read_state_hess-molcas_unsym_manage_v4.obj: ../modules/molcas_unsym_manage_v4.f90
+	$(FC) $(read_state_hess_FCFLAGS) $(FCFLAGS) -c -o read_state_hess-molcas_unsym_manage_v4.obj `if test -f '../modules/molcas_unsym_manage_v4.f90'; then $(CYGPATH_W) '../modules/molcas_unsym_manage_v4.f90'; else $(CYGPATH_W) '$(srcdir)/../modules/molcas_unsym_manage_v4.f90'; fi`
 
-geom_param_list-xyz_manage_v4.o: ../modules/xyz_manage_v4.f90
-	$(FC) $(geom_param_list_FCFLAGS) $(FCFLAGS) -c -o geom_param_list-xyz_manage_v4.o `test -f '../modules/xyz_manage_v4.f90' || echo '$(srcdir)/'`../modules/xyz_manage_v4.f90
+read_state_hess-molecular_structure.o: ../modules/molecular_structure.f90
+	$(FC) $(read_state_hess_FCFLAGS) $(FCFLAGS) -c -o read_state_hess-molecular_structure.o `test -f '../modules/molecular_structure.f90' || echo '$(srcdir)/'`../modules/molecular_structure.f90
 
-geom_param_list-xyz_manage_v4.obj: ../modules/xyz_manage_v4.f90
-	$(FC) $(geom_param_list_FCFLAGS) $(FCFLAGS) -c -o geom_param_list-xyz_manage_v4.obj `if test -f '../modules/xyz_manage_v4.f90'; then $(CYGPATH_W) '../modules/xyz_manage_v4.f90'; else $(CYGPATH_W) '$(srcdir)/../modules/xyz_manage_v4.f90'; fi`
+read_state_hess-molecular_structure.obj: ../modules/molecular_structure.f90
+	$(FC) $(read_state_hess_FCFLAGS) $(FCFLAGS) -c -o read_state_hess-molecular_structure.obj `if test -f '../modules/molecular_structure.f90'; then $(CYGPATH_W) '../modules/molecular_structure.f90'; else $(CYGPATH_W) '$(srcdir)/../modules/molecular_structure.f90'; fi`
 
-geom_param_list-atomic_geom_v2.o: ../modules/atomic_geom_v2.f90
-	$(FC) $(geom_param_list_FCFLAGS) $(FCFLAGS) -c -o geom_param_list-atomic_geom_v2.o `test -f '../modules/atomic_geom_v2.f90' || echo '$(srcdir)/'`../modules/atomic_geom_v2.f90
+read_state_hess-ff_build_module_v4.o: ../modules/ff_build_module_v4.f90
+	$(FC) $(read_state_hess_FCFLAGS) $(FCFLAGS) -c -o read_state_hess-ff_build_module_v4.o `test -f '../modules/ff_build_module_v4.f90' || echo '$(srcdir)/'`../modules/ff_build_module_v4.f90
 
-geom_param_list-atomic_geom_v2.obj: ../modules/atomic_geom_v2.f90
-	$(FC) $(geom_param_list_FCFLAGS) $(FCFLAGS) -c -o geom_param_list-atomic_geom_v2.obj `if test -f '../modules/atomic_geom_v2.f90'; then $(CYGPATH_W) '../modules/atomic_geom_v2.f90'; else $(CYGPATH_W) '$(srcdir)/../modules/atomic_geom_v2.f90'; fi`
+read_state_hess-ff_build_module_v4.obj: ../modules/ff_build_module_v4.f90
+	$(FC) $(read_state_hess_FCFLAGS) $(FCFLAGS) -c -o read_state_hess-ff_build_module_v4.obj `if test -f '../modules/ff_build_module_v4.f90'; then $(CYGPATH_W) '../modules/ff_build_module_v4.f90'; else $(CYGPATH_W) '$(srcdir)/../modules/ff_build_module_v4.f90'; fi`
 
-geom_param_list-geom_param_list_v4.o: geom_param_list_v4.f90
-	$(FC) $(geom_param_list_FCFLAGS) $(FCFLAGS) -c -o geom_param_list-geom_param_list_v4.o `test -f 'geom_param_list_v4.f90' || echo '$(srcdir)/'`geom_param_list_v4.f90
+read_state_hess-atomic_geom_v2.o: ../modules/atomic_geom_v2.f90
+	$(FC) $(read_state_hess_FCFLAGS) $(FCFLAGS) -c -o read_state_hess-atomic_geom_v2.o `test -f '../modules/atomic_geom_v2.f90' || echo '$(srcdir)/'`../modules/atomic_geom_v2.f90
 
-geom_param_list-geom_param_list_v4.obj: geom_param_list_v4.f90
-	$(FC) $(geom_param_list_FCFLAGS) $(FCFLAGS) -c -o geom_param_list-geom_param_list_v4.obj `if test -f 'geom_param_list_v4.f90'; then $(CYGPATH_W) 'geom_param_list_v4.f90'; else $(CYGPATH_W) '$(srcdir)/geom_param_list_v4.f90'; fi`
+read_state_hess-atomic_geom_v2.obj: ../modules/atomic_geom_v2.f90
+	$(FC) $(read_state_hess_FCFLAGS) $(FCFLAGS) -c -o read_state_hess-atomic_geom_v2.obj `if test -f '../modules/atomic_geom_v2.f90'; then $(CYGPATH_W) '../modules/atomic_geom_v2.f90'; else $(CYGPATH_W) '$(srcdir)/../modules/atomic_geom_v2.f90'; fi`
+
+read_state_hess-symmetry_mod_v4.o: ../modules/symmetry_mod_v4.f90
+	$(FC) $(read_state_hess_FCFLAGS) $(FCFLAGS) -c -o read_state_hess-symmetry_mod_v4.o `test -f '../modules/symmetry_mod_v4.f90' || echo '$(srcdir)/'`../modules/symmetry_mod_v4.f90
+
+read_state_hess-symmetry_mod_v4.obj: ../modules/symmetry_mod_v4.f90
+	$(FC) $(read_state_hess_FCFLAGS) $(FCFLAGS) -c -o read_state_hess-symmetry_mod_v4.obj `if test -f '../modules/symmetry_mod_v4.f90'; then $(CYGPATH_W) '../modules/symmetry_mod_v4.f90'; else $(CYGPATH_W) '$(srcdir)/../modules/symmetry_mod_v4.f90'; fi`
+
+read_state_hess-internal_SR8_v4.0.1.o: ../modules/internal_SR8_v4.0.1.f90
+	$(FC) $(read_state_hess_FCFLAGS) $(FCFLAGS) -c -o read_state_hess-internal_SR8_v4.0.1.o `test -f '../modules/internal_SR8_v4.0.1.f90' || echo '$(srcdir)/'`../modules/internal_SR8_v4.0.1.f90
+
+read_state_hess-internal_SR8_v4.0.1.obj: ../modules/internal_SR8_v4.0.1.f90
+	$(FC) $(read_state_hess_FCFLAGS) $(FCFLAGS) -c -o read_state_hess-internal_SR8_v4.0.1.obj `if test -f '../modules/internal_SR8_v4.0.1.f90'; then $(CYGPATH_W) '../modules/internal_SR8_v4.0.1.f90'; else $(CYGPATH_W) '$(srcdir)/../modules/internal_SR8_v4.0.1.f90'; fi`
+
+read_state_hess-zmat_manage_v4.o: ../modules/zmat_manage_v4.f90
+	$(FC) $(read_state_hess_FCFLAGS) $(FCFLAGS) -c -o read_state_hess-zmat_manage_v4.o `test -f '../modules/zmat_manage_v4.f90' || echo '$(srcdir)/'`../modules/zmat_manage_v4.f90
+
+read_state_hess-zmat_manage_v4.obj: ../modules/zmat_manage_v4.f90
+	$(FC) $(read_state_hess_FCFLAGS) $(FCFLAGS) -c -o read_state_hess-zmat_manage_v4.obj `if test -f '../modules/zmat_manage_v4.f90'; then $(CYGPATH_W) '../modules/zmat_manage_v4.f90'; else $(CYGPATH_W) '$(srcdir)/../modules/zmat_manage_v4.f90'; fi`
+
+read_state_hess-read_state_hess.o: read_state_hess.f90
+	$(FC) $(read_state_hess_FCFLAGS) $(FCFLAGS) -c -o read_state_hess-read_state_hess.o `test -f 'read_state_hess.f90' || echo '$(srcdir)/'`read_state_hess.f90
+
+read_state_hess-read_state_hess.obj: read_state_hess.f90
+	$(FC) $(read_state_hess_FCFLAGS) $(FCFLAGS) -c -o read_state_hess-read_state_hess.obj `if test -f 'read_state_hess.f90'; then $(CYGPATH_W) 'read_state_hess.f90'; else $(CYGPATH_W) '$(srcdir)/read_state_hess.f90'; fi`
 
 ID: $(HEADERS) $(SOURCES) $(LISP) $(TAGS_FILES)
 	list='$(SOURCES) $(HEADERS) $(LISP) $(TAGS_FILES)'; \

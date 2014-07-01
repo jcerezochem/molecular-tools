@@ -35,6 +35,7 @@ program fchk2gro
     use gaussian_manage
     use gaussian_fchk_manage
     use xyz_manage
+    use molcas_unsym_manage
     use ff_build
     use molecular_structure
 
@@ -226,6 +227,8 @@ program fchk2gro
              call read_fchk_geom(unt,molec)
              molec%atom(:)%resname = "UNK"
              molec%atom(:)%resseq = 1
+            case("UnSym")
+             call read_molcas_geom(unt,molec)
             case default
              call alert_msg("fatal","File type not supported: "//filetype)
         end select

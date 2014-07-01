@@ -185,6 +185,8 @@ module gaussian_manage_notypes
             endif
         enddo
 
+        if (err_label == -1 ) return
+
         !We now read the superstrings cfreq and cRedMass
         read(cfreq,*) freq(1:Nvib)
         read(cRedMass,*) RedMass(1:Nvib)

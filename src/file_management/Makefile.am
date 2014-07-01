@@ -9,6 +9,7 @@ fchk2gro_SOURCES = ../modules/alerts.f90\
                       ../modules/gaussian_manage_v4.f90\
                       ../modules/gaussian_fchk_manage_v4.f90\
                       ../modules/xyz_manage_v4.f90\
+                      ../modules/molcas_unsym_manage_v4.f90\
                       ../modules/molecular_structure.f90\
                       ../modules/ff_build_module_v4.f90\
                       fchk2gro_v4.f90
