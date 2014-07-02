@@ -12,7 +12,6 @@ src/file_management/gen_oniom
 src/normal_modes/nm_cartesian
 src/normal_modes/nm_internal
 autom4te.cache
-# src/fcclasses_tools
 src/vibrations/read_state_hess
 src/vibrations/check_diag
 src/fcclasses_tools/prepare_fcinput  
