@@ -202,7 +202,7 @@ target_alias = @target_alias@
 top_build_prefix = @top_build_prefix@
 top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
-SUBDIRS = src/normal_modes src/bonded_info src/build_top/ src/file_management
+SUBDIRS = src/normal_modes src/bonded_info src/build_top/ src/file_management src/fcclasses_tools src/vibrations
 all: all-recursive
 
 .SUFFIXES:

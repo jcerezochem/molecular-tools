@@ -145,7 +145,7 @@ INSTALL_SCRIPT = ${INSTALL}
 INSTALL_STRIP_PROGRAM = $(install_sh) -c -s
 LDFLAGS = 
 LIBOBJS = 
-LIBS = -lmkl_intel_lp64 -lmkl_sequential -lmkl_core
+LIBS = -llapack
 LTLIBOBJS = 
 MAKEINFO = ${SHELL} /home/cerezo/dev/MY_PROJECTS/GIT/molecular-tools/missing --run makeinfo
 MKDIR_P = /bin/mkdir -p
@@ -202,7 +202,7 @@ target_alias =
 top_build_prefix = 
 top_builddir = .
 top_srcdir = .
-SUBDIRS = src/normal_modes src/bonded_info src/build_top/ src/file_management
+SUBDIRS = src/normal_modes src/bonded_info src/build_top/ src/file_management src/fcclasses_tools src/vibrations
 all: all-recursive
 
 .SUFFIXES:

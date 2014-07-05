@@ -140,7 +140,7 @@ INSTALL_SCRIPT = ${INSTALL}
 INSTALL_STRIP_PROGRAM = $(install_sh) -c -s
 LDFLAGS = 
 LIBOBJS = 
-LIBS = -lmkl_intel_lp64 -lmkl_sequential -lmkl_core
+LIBS = -llapack
 LTLIBOBJS = 
 MAKEINFO = ${SHELL} /home/cerezo/dev/MY_PROJECTS/GIT/molecular-tools/missing --run makeinfo
 MKDIR_P = /bin/mkdir -p
@@ -216,7 +216,7 @@ nm_internal_SOURCES = ../modules/alerts.f90\
                       ../modules/zmat_manage_v4.f90\
                       normal_modes_internal_v4.0.1.1.f90
 
-nm_internal_LDFLAGS = -lmkl_intel_lp64 -lmkl_sequential -lmkl_core
+nm_internal_LDFLAGS = -llapack
 nm_internal_FCFLAGS = -cpp -DDOUBLE -DUSE_LAPACK
 nm_cartesian_SOURCES = ../modules/alerts.f90\
                       ../modules/line_preprocess.f90\
@@ -234,7 +234,7 @@ nm_cartesian_SOURCES = ../modules/alerts.f90\
                       ../modules/atomic_geom_v2.f90\
                       normal_modes_Cartesian1b_v4.0.1.f90
 
-nm_cartesian_LDFLAGS = -lmkl_intel_lp64 -lmkl_sequential -lmkl_core
+nm_cartesian_LDFLAGS = -llapack
 nm_cartesian_FCFLAGS = -cpp -DDOUBLE
 CLEANFILES = *.mod 
 all: all-am
