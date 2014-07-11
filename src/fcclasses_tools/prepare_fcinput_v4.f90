@@ -74,9 +74,9 @@ program prepare_fcinput
     write(O_OUT,*) "'abs' 'ECDNO ' 'FC'"
     write(O_OUT,*) "TEMP.0d0 1.d-1 ! Temp(K) / BoltzThr (for TI)"
     write(O_OUT,*) "'TD' 4096 1000.d0 2"
-    write(O_OUT,*) "'state_"//trim(adjustl(basename))//"_fchk'"
-    write(O_OUT,*) "'state_"//trim(adjustl(basename))//"_fchk' 'CALCTYPE'  -1.d5  1.d5"
-    write(O_OUT,*) "'eldip_"//trim(adjustl(basename))//"_fchk'"
+    write(O_OUT,*) "'../../../state_"//trim(adjustl(basename))//"_fchk'"
+    write(O_OUT,*) "'../../../state_"//trim(adjustl(basename))//"_fchk' 'CALCTYPE'  -1.d5  1.d5"
+    write(O_OUT,*) "'../../../eldip_"//trim(adjustl(basename))//"_fchk'"
     write(O_OUT,*) "'magdip_"//trim(adjustl(basename))//"_fchk'"
     write(O_OUT,*) "1 rotation to overlap S1 and S2 (1=yes)"
     write(O_OUT,*) "20"
@@ -84,8 +84,8 @@ program prepare_fcinput
     write(O_OUT,*) "1.d8"
     write(O_OUT,*) "'Gau' 1.50d0  4.00d0 1001 0.01d0"
     write(O_OUT,*) "'NO' 'SELECT' 0.96d0"
-    write(O_OUT,*) "duschinsky.dat"
-    write(O_OUT,*) "displacement.dat" 
+    write(O_OUT,*) "'../../duschinsky.dat'"
+    write(O_OUT,*) "'../../displacement.dat'" 
 
     close(O_OUT)
 

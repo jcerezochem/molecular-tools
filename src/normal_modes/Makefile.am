@@ -15,7 +15,7 @@ nm_internal_SOURCES = ../modules/alerts.f90\
                       ../modules/ff_build_module_v4.f90\
                       ../modules/atomic_geom_v2.f90\
                       ../modules/symmetry_mod_v4.f90\
-                      ../modules/internal_SR8_v4.0.1.f90\
+                      ../modules/internal_SR8_v4.0.2.f90\
                       ../modules/zmat_manage_v4.f90\
                       normal_modes_internal_v4.0.1.1.f90
 nm_internal_LDFLAGS = @LIBS@

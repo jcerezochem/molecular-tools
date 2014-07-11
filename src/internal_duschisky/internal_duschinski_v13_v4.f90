@@ -45,33 +45,57 @@ program internal_duschinski
     !      REQUIRES: internal_SR_v9
     !...................................................................................................
     ! v13: merge v9.2 with advances in v11 (B derivatives)
+    !*********************************
+    !
+    ! v13_v4: addapt to molecular tools distribution
     !
     !============================================================================    
 
-    use structure_types
+!*****************
+!   MODULE LOAD
+!*****************
+!============================================
+!   Generic (structure_types independent)
+!============================================
+    use alerts
     use line_preprocess
-    use ff_build
+    use constants
+!   Matrix manipulation (i.e. rotation matrices)
+    use MatrixMod
+!============================================
+!   Structure types module
+!============================================
+    use structure_types
+!============================================
+!   Structure dependent modules
+!============================================
     use gro_manage
     use pdb_manage
-    use alerts
-    use constants
-    use atomic_geom
     use gaussian_manage
-    use symmetry_mod
     use gaussian_fchk_manage
-    use MatrixMod
+    use xyz_manage
+!   Structural parameters
+    use molecular_structure
+    use ff_build
+!   Bond/angle/dihed meassurement
+    use atomic_geom
+!   Symmetry support
+    use symmetry_mod
+!   For internal thingies
     use internal_module
+    use zmat_manage
 
     implicit none
 
-    integer,parameter :: NDIM = 800
+    integer,parameter :: NDIM = 400
 
     !====================== 
     !Options 
     logical :: nosym=.true.   ,&
                zmat=.true.    ,&
                tswitch=.false.,&
-               symaddapt=.false.
+               symaddapt=.false.,&
+               vertical=.false.
     !======================
 
     !====================== 
@@ -129,6 +153,8 @@ program internal_duschinski
     character(1) :: null
     character(len=16) :: dummy_char
     real(8) :: Theta, Theta2, Theta3
+    !Read gaussian log auxiliars
+    type(str_molprops),allocatable :: props
     !====================== 
 
     !=============
@@ -173,7 +199,7 @@ program internal_duschinski
     call cpu_time(ti)
 
     ! 0. GET COMMAND LINE ARGUMENTS
-    call parse_input(inpfile,inpfile2,filetype,nosym,zmat,verbose,tswitch,symaddapt,zmatfile,symm_file)
+    call parse_input(inpfile,inpfile2,filetype,nosym,zmat,verbose,tswitch,symaddapt,zmatfile,vertical,symm_file)
 
 
     ! 1. INTERNAL VIBRATIONAL ANALYSIS ON STATE1 AND STATE2
@@ -193,25 +219,30 @@ program internal_duschinski
 
     !Read structure
     ft=filetype
-    call generic_strfile_read(I_INP,inpfile,ft,state1)
+    call generic_strfile_read(I_INP,ft,state1)
     !Shortcuts
     Nat = state1%natoms
     Nvib = 3*Nat-6
 
     ! READ HESSIAN
 
-    if (trim(adjustl(ft)) == "log") then
-
-        call parse_summary(I_INP,state1,"read_hess")
+    if (adjustl(ft) == "log") then
+        !Gaussian logfile
+        allocate(props)
+        call parse_summary(I_INP,state1,props,"read_hess")
+        !Caution: we NEED to read the Freq summary section
+        if (adjustl(state1%job%type) /= "Freq") &
+          call alert_msg( "fatal","Section from the logfile is not a Freq calculation")
         ! RECONSTRUCT THE FULL HESSIAN
         k=0
         do i=1,3*Nat
             do j=1,i
                 k=k+1
-                Hess(i,j) = state1%H(k) 
+                Hess(i,j) = props%H(k) 
                 Hess(j,i) = Hess(i,j)
             enddo
         enddo
+        deallocate(props)
 
     else
         !Read Hessian from fchk
@@ -273,7 +304,7 @@ program internal_duschinski
     state1%atom(:)%z = state1%atom(:)%z/BOHRtoANGS
 
     !Generate bonded info
-    call gen_bonded_mol(state1)
+    call gen_bonded(state1)
     !...Also get bond array (to be done in gen_bonded, would be cleaner)
     k = 0
     do i=1,state1%natoms-1
@@ -357,9 +388,12 @@ program internal_duschinski
     !as they must be used for state 2 (not rederived!).
     Asel1(1,1) = 99.d0 !out-of-range, as Asel is normalized -- this option is not tested
     call internal_Wilson(state1,S1,S_sym,ModeDef,B1,G1,Asel1,verbose)
-!     call gf_method(Hess,state1,S_sym,ModeDef,L1,B1,G1,Freq,Asel1,X1,X1inv,verbose) 
-    call NumBder(state1,S_sym,Bder)
-    call gf_method_V(Hess,Grad,state1,S_sym,ModeDef,L1,B1,Bder,G1,Freq,Asel1,X1,X1inv,verbose) 
+    if (vertical) then
+        call NumBder(state1,S_sym,Bder)
+        call gf_method_V(Hess,Grad,state1,S_sym,ModeDef,L1,B1,Bder,G1,Freq,Asel1,X1,X1inv,verbose) 
+    else
+        call gf_method(Hess,state1,S_sym,ModeDef,L1,B1,G1,Freq,Asel1,X1,X1inv,verbose)
+    endif 
 
     !Compute new state_file for 2
     ! T2(g09) = mu^1/2 m B^t G2^-1 L2
@@ -458,22 +492,27 @@ program internal_duschinski
 
     !Read Structure
     ft=filetype
-    call generic_strfile_read(I_INP,inpfile2,ft,state2)
+    call generic_strfile_read(I_INP,ft,state2)
 
     ! READ HESSIAN
 
-    if (trim(adjustl(ft)) == "log") then
-
-        call parse_summary(I_INP,state2,"read_hess")
+    if (adjustl(ft) == "log") then
+        !Gaussian logfile
+        allocate(props)
+        call parse_summary(I_INP,state2,props,"read_hess")
+        !Caution: we NEED to read the Freq summary section
+        if (adjustl(state2%job%type) /= "Freq") &
+          call alert_msg( "fatal","Section from the logfile is not a Freq calculation")
         ! RECONSTRUCT THE FULL HESSIAN
         k=0
         do i=1,3*Nat
             do j=1,i
                 k=k+1
-                Hess(i,j) = state2%H(k) 
+                Hess(i,j) = props%H(k) 
                 Hess(j,i) = Hess(i,j)
             enddo
         enddo
+        deallocate(props)
 
     else
         !Read Hessian from fchk
@@ -564,7 +603,7 @@ program internal_duschinski
     endif
 
     !Generate bonded info
-    call gen_bonded_mol(state2)
+    call gen_bonded(state2)
     !Get bonds (to be done in gen_bonded, would be cleaner)
     k = 0
     do i=1,state2%natoms-1
@@ -600,9 +639,14 @@ program internal_duschinski
     !SOLVE GF METHOD TO GET NM AND FREQ
     Asel2 = Asel1
     call internal_Wilson(state2,S2,S_sym,ModeDef,B2,G2,Asel2,verbose) 
-!     call gf_method(Hess,state2,S_sym,ModeDef,L2,B2,G2,Freq,Asel2,X2,X2inv,verbose)
-    call NumBder(state2,S_sym,Bder)
-    call gf_method_V(Hess,Grad,state2,S_sym,ModeDef,L2,B2,Bder,G2,Freq,Asel2,X2,X2inv,verbose)
+    if (vertical) then
+        call NumBder(state2,S_sym,Bder)
+        call gf_method_V(Hess,Grad,state2,S_sym,ModeDef,L2,B2,Bder,G2,Freq,Asel2,X2,X2inv,verbose)
+    else
+        call gf_method(Hess,state2,S_sym,ModeDef,L2,B2,G2,Freq,Asel2,X2,X2inv,verbose)
+    endif 
+
+
 
     !Compute new state_file for 2
     ! T2(g09) = mu^1/2 m B^t G2^-1 L2
@@ -1036,14 +1080,14 @@ program internal_duschinski
     contains
     !=============================================
 
-    subroutine parse_input(inpfile,inpfile2,filetype,nosym,zmat,verbose,tswitch,symaddapt,zmatfile,symm_file)
+    subroutine parse_input(inpfile,inpfile2,filetype,nosym,zmat,verbose,tswitch,symaddapt,zmatfile,vertical,symm_file)
     !==================================================
     ! My input parser (gromacs style)
     !==================================================
         implicit none
 
         character(len=*),intent(inout) :: inpfile,inpfile2,filetype,zmatfile,symm_file
-        logical,intent(inout) :: nosym, verbose, zmat, tswitch, symaddapt
+        logical,intent(inout) :: nosym, verbose, zmat, tswitch, symaddapt, vertical
         ! Localconsole in kate
         logical :: argument_retrieved,  &
                    need_help = .false.
@@ -1096,6 +1140,9 @@ program internal_duschinski
                 case ("-tswitch")
                     tswitch=.true.
 
+                case ("-vert")
+                     vertical=.true.
+
                 case ("-v")
                     verbose=.true.
         
@@ -1147,42 +1194,59 @@ program internal_duschinski
     end subroutine parse_input
 
 
-    subroutine generic_strfile_read(unt,inpfile,filetype,molec)
+    subroutine generic_strfile_read(unt,filetype,molec)
 
         integer, intent(in) :: unt
-        character(len=*),intent(inout) :: filetype, inpfile
+        character(len=*),intent(inout) :: filetype
         type(str_resmol),intent(inout) :: molec
+
+        !local
+        type(str_molprops) :: props
 
         if (adjustl(filetype) == "guess") then
         ! Guess file type
-        call split_line_back(inpfile,".",null,filetype)
+        call split_line(inpfile,".",null,filetype)
         select case (adjustl(filetype))
             case("gro")
-             call read_gro_def(I_INP,molec)
+             call read_gro(I_INP,molec)
+             call atname2element(molec)
+             call assign_masses(molec)
             case("pdb")
              call read_pdb_new(I_INP,molec)
+             call atname2element(molec)
+             call assign_masses(molec)
             case("log")
-             call parse_summary(I_INP,molec,"struct_only")
+             call parse_summary(I_INP,molec,props,"struct_only")
+             call atname2element(molec)
              call assign_masses(molec)
             case("fchk")
              call read_fchk_geom(I_INP,molec)
+             call atname2element(molec)
+!              call assign_masses(molec) !read_fchk_geom includes the fchk masses
             case default
              call alert_msg("fatal","Trying to guess, but file type but not known: "//adjustl(trim(filetype))&
-                        //". Try forcing the filetype with -ft flag (available: gro, pdb)")
+                        //". Try forcing the filetype with -ft flag (available: log, fchk)")
         end select
 
         else
         ! Predefined filetypes
         select case (adjustl(filetype))
             case("gro")
-             call read_gro_def(I_INP,molec)
+             call read_gro(I_INP,molec)
+             call atname2element(molec)
+             call assign_masses(molec)
             case("pdb")
              call read_pdb_new(I_INP,molec)
+             call atname2element(molec)
+             call assign_masses(molec)
             case("log")
-             call parse_summary(I_INP,molec,"struct_only")
+             call parse_summary(I_INP,molec,props,"struct_only")
+             call atname2element(molec)
              call assign_masses(molec)
             case("fchk")
              call read_fchk_geom(I_INP,molec)
+             call atname2element(molec)
+!              call assign_masses(molec) !read_fchk_geom includes the fchk masses
             case default
              call alert_msg("fatal","File type not supported: "//filetype)
         end select
