@@ -1,5 +1,8 @@
-bin_PROGRAMS = nm_internal nm_cartesian
+bin_PROGRAMS = nm_internal nm_cartesian freq2fc
 
+# ============
+# nm_internal
+# ============
 nm_internal_SOURCES = ../modules/alerts.f90\
                       ../modules/line_preprocess.f90\
                       ../modules/constants_mod.f90\
@@ -21,6 +24,9 @@ nm_internal_SOURCES = ../modules/alerts.f90\
 nm_internal_LDFLAGS = @LIBS@
 nm_internal_FCFLAGS = -cpp -DDOUBLE -DUSE_LAPACK
 
+# ============
+# nm_cartesian
+# ============
 nm_cartesian_SOURCES =../modules/alerts.f90\
                       ../modules/line_preprocess.f90\
                       ../modules/constants_mod.f90\
@@ -38,6 +44,21 @@ nm_cartesian_SOURCES =../modules/alerts.f90\
                       normal_modes_Cartesian1b_v4.0.1.f90
 nm_cartesian_LDFLAGS = @LIBS@
 nm_cartesian_FCFLAGS = -cpp -DDOUBLE
+
+# ========
+# freq2fc
+# ========
+freq2fc_SOURCES =../modules/alerts.f90\
+                      ../modules/line_preprocess.f90\
+                      ../modules/constants_mod.f90\
+                      freq2fc.f90
+freq2fc_LDFLAGS = @LIBS@
+freq2fc_FCFLAGS = -cpp -DDOUBLE
+
+# =========================
+# internal_numder_analysis
+# =========================
+# internal_numder_analysis_v4.0.1.f90
 
 CLEANFILES =*.mod 
 

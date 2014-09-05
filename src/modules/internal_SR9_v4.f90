@@ -108,7 +108,6 @@ subroutine internal_Wilson(molec,S,S_sym,ModeDef,B,G,Asel,verbose)
     angle_s(1:nangles,1:3) =  molec%geom%angle(1:nangles,1:3)
     dihed_s(1:ndihed,1:4)  =  molec%geom%dihed(1:ndihed,1:4)
 
-
     !Initialize matrices
     Nat = molec%natoms
     Nvib = 3*Nat-6
@@ -1383,7 +1382,7 @@ subroutine gf_method(Hess,molec,S_sym,ModeDef,L,B,G,Freq,Asel,X,Xinv,verbose)
     enddo
     endif
 
-    !Now rotate F, F'=X^TFX. Store the rotated matrix in F
+    !Now rotate F, F'=X^TFX. Store the rotated matrix in Aux3 (temporary array)
     do i=1,Nvib
         do j=1,Nvib
             Aux(i,j) = 0.d0
@@ -1394,15 +1393,15 @@ subroutine gf_method(Hess,molec,S_sym,ModeDef,L,B,G,Freq,Asel,X,Xinv,verbose)
     enddo
     do i=1,Nvib
         do j=1,Nvib
-            Hess(i,j) = 0.d0
+            Aux3(i,j) = 0.d0
             do k=1,Nvib
-                Hess(i,j) = Hess(i,j) + Aux(i,k)*X(k,j)
+                Aux3(i,j) = Aux3(i,j) + Aux(i,k)*X(k,j)
             enddo
         enddo
     enddo
 
     !We can now diagonalize F
-    call diagonalize_full(Hess(1:Nvib,1:Nvib),Nvib,L(1:Nvib,1:Nvib),Freq(1:Nvib),"lapack")
+    call diagonalize_full(Aux3(1:Nvib,1:Nvib),Nvib,L(1:Nvib,1:Nvib),Freq(1:Nvib),"lapack")
     !WE NEED TO PASS "L" AS IT IS NOW
 
     !Check freqcuencies
@@ -1769,15 +1768,16 @@ subroutine gf_method_V(Hess,Grad,molec,S_sym,ModeDef,L,B,Bder,G,Freq,Asel,X,Xinv
             Freq(i) = Freq(i) + Aux(i,j) * Grad(j)
         enddo
     enddo
-    ! .. and multiply: Bder(i,j,K) * gq(K)
+    ! .. and multiply: Bder(i,j,K)^t * gq(K)
     do i=1,3*Nat
     do j=1,3*Nat
         AuxT(i,j) = 0.d0
         do k=1,Nvib
-            AuxT(i,j) = AuxT(i,j) + Bder(i,j,k)*Freq(k)
+            AuxT(i,j) = AuxT(i,j) + Bder(k,i,j)*Freq(k)
         enddo
     enddo
     enddo
+
 
     !Now (modified for Vertical): Hint = Aux (Hcart-Bder*gq) Aux^T
     do i=1,Nvib
@@ -1847,7 +1847,7 @@ subroutine gf_method_V(Hess,Grad,molec,S_sym,ModeDef,L,B,Bder,G,Freq,Asel,X,Xinv
     enddo
     endif
 
-    !Now rotate F, F'=X^TFX. Store the rotated matrix in F
+    !Now rotate F, F'=X^TFX. Store the rotated matrix in Aux3 (temporary array)
     do i=1,Nvib
         do j=1,Nvib
             Aux(i,j) = 0.d0
@@ -1858,15 +1858,15 @@ subroutine gf_method_V(Hess,Grad,molec,S_sym,ModeDef,L,B,Bder,G,Freq,Asel,X,Xinv
     enddo
     do i=1,Nvib
         do j=1,Nvib
-            Hess(i,j) = 0.d0
+            Aux3(i,j) = 0.d0
             do k=1,Nvib
-                Hess(i,j) = Hess(i,j) + Aux(i,k)*X(k,j)
+                Aux3(i,j) = Aux3(i,j) + Aux(i,k)*X(k,j)
             enddo
         enddo
     enddo
 
     !We can now diagonalize F
-    call diagonalize_full(Hess(1:Nvib,1:Nvib),Nvib,L(1:Nvib,1:Nvib),Freq(1:Nvib),"lapack")
+    call diagonalize_full(Aux3(1:Nvib,1:Nvib),Nvib,L(1:Nvib,1:Nvib),Freq(1:Nvib),"lapack")
     !WE NEED TO PASS "L" AS IT IS NOW
 
     !Check freqcuencies
@@ -3428,7 +3428,7 @@ subroutine NumBDer(molec,S_sym,Bder)
     use structure_types
 
     integer,parameter :: NDIM = 400
-    real(8),parameter :: delta=1.889726133d-3 !for numerical ders, in bohr(=10^-3 \AA, as Num freq in G09)
+    real(8),parameter :: delta = 1.889726133d-3 !for numerical ders, in bohr(=10^-3 \AA, as Num freq in G09)
 
     type(str_resmol),intent(in) :: molec
     integer,dimension(NDIM),intent(in) :: S_sym
@@ -3465,22 +3465,22 @@ subroutine NumBDer(molec,S_sym,Bder)
         !Displace X
         molecB = molec
         ii = 3*i-2
-print*, i, "X0", molecB%atom(i)%x
+! print*, i, "X0", molecB%atom(i)%x
         molecB%atom(i)%x = molec%atom(i)%x + delta
-print*, i, "X0+d", molecB%atom(i)%x
+! print*, i, "X0+d", molecB%atom(i)%x
         !Call B matrix at this geometry   
         call internal_Wilson(molecB,S,S_sym,ModeDef,Bplus,G,Asel,verbose)
         molecB%atom(i)%x = molec%atom(i)%x - delta
-print*, i, "X0-d", molecB%atom(i)%x
+! print*, i, "X0-d", molecB%atom(i)%x
         !Call B matrix at this geometry   
         call internal_Wilson(molecB,S,S_sym,ModeDef,Bmin,G,Asel,verbose)
 
         do j=1,Nvib
         do k=1,3*Nat
            Bder(j,k,ii) = ( Bplus(j,k) - Bmin(j,k) ) / (2.d0*delta)
+print*, j,k,ii, Bder(j,k,ii), Bplus(j,k), Bmin(j,k)
         enddo
         enddo
-
 
         !Displace Y
         molecB = molec
@@ -3495,6 +3495,7 @@ print*, i, "X0-d", molecB%atom(i)%x
         do j=1,Nvib
         do k=1,3*Nat
            Bder(j,k,ii) = ( Bplus(j,k) - Bmin(j,k) ) / (2.d0*delta)
+print*, j,k,ii, Bder(j,k,ii), Bplus(j,k), Bmin(j,k)
         enddo
         enddo
 
@@ -3512,10 +3513,12 @@ print*, i, "X0-d", molecB%atom(i)%x
         do j=1,Nvib
         do k=1,3*Nat
            Bder(j,k,ii) = ( Bplus(j,k) - Bmin(j,k) ) / (2.d0*delta)
+print*, j,k,ii, Bder(j,k,ii), Bplus(j,k), Bmin(j,k)
         enddo
         enddo
 
     enddo
+stop
 
     return
 

@@ -51,11 +51,12 @@ module structure_types
     !                * molprops  -x-> // Now is a standalone type
     ! (14/02/14) TESTING: new str_type: str_internal to store internal coordinates
     ! (27/02/14) Added str_job and included molec%job and molec%props(allocatable)
+    ! (20/06/14) Version3.2 (in internal project): add impropers to geom
     !---------------------------------------------------------
 
     !SIZES
     integer,parameter:: MAX_ATOMS = 100000, &
-                        MAX_ATM_RES = 200,  &
+                        MAX_ATM_RES = 400,  &
                         MAX_CONNEXIONS = 6, &
                         MAX_DERIVED_CNX = 5000
 
@@ -69,7 +70,8 @@ module structure_types
         integer,dimension(1:MAX_DERIVED_CNX,2) :: pair
         integer,dimension(1:MAX_DERIVED_CNX,3) :: angle
         integer,dimension(1:MAX_DERIVED_CNX,4) :: dihed
-        integer :: npairs, nangles, ndihed, nbonds
+        integer,dimension(1:MAX_DERIVED_CNX,4) :: improp
+        integer :: npairs, nangles, ndihed, nbonds, nimprop
     end type str_bonded
 
 !--------------------------

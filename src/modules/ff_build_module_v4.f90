@@ -628,7 +628,7 @@ module ff_build
 
         ! Stepwise walk along the connection network to retrieve
         ! bonding relations (angle, dihedral and 1-4 interaction)
-        ! 13/02/12: angles, dihedrals and pairs do not belong to str_atom anymore
+        ! 13/02/12: angles, dihedrals and pairs do not belong to str_atom anymore (now are part of "geom", and then atom%geom)
         n_angle=0
         n_dihed=0
         do i_1=1,residue%natoms 
@@ -681,7 +681,7 @@ module ff_build
         residue%geom%npairs=n_dihed
 
         !==================================
-        !Order dihedrals by rotated bond:
+        !Sort dihedrals by rotated bond index (set to second element of the dihed):
         !==================================
         do i=1,n_dihed-1
             min_dihed_index=residue%geom%dihed(i,2)

@@ -128,7 +128,7 @@ program freq2fc
             write(6,*) " freq2fc -fq 3000"
             write(6,*) "  (returns the fc in A.U)"
             write(6,*) " freq2fc -fc 30"
-            write(6,*) "  (returns the fc in A.U)"
+            write(6,*) "  (returns the fq in cm-1)"
             write(6,*) ""
             stop
         endif

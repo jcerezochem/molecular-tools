@@ -87,6 +87,7 @@ am_gen_oniom_OBJECTS = gen_oniom-alerts.$(OBJEXT) \
 	gen_oniom-gaussian_manage_v4.$(OBJEXT) \
 	gen_oniom-gaussian_fchk_manage_v4.$(OBJEXT) \
 	gen_oniom-xyz_manage_v4.$(OBJEXT) \
+	gen_oniom-molecular_structure.$(OBJEXT) \
 	gen_oniom-gen_oniom_v4.$(OBJEXT)
 gen_oniom_OBJECTS = $(am_gen_oniom_OBJECTS)
 gen_oniom_LDADD = $(LDADD)
@@ -211,6 +212,7 @@ gen_oniom_SOURCES = ../modules/alerts.f90\
                       ../modules/gaussian_manage_v4.f90\
                       ../modules/gaussian_fchk_manage_v4.f90\
                       ../modules/xyz_manage_v4.f90\
+                      ../modules/molecular_structure.f90\
                       gen_oniom_v4.f90
 
 gen_oniom_LDFLAGS = -llapack
@@ -440,6 +442,12 @@ gen_oniom-xyz_manage_v4.o: ../modules/xyz_manage_v4.f90
 
 gen_oniom-xyz_manage_v4.obj: ../modules/xyz_manage_v4.f90
 	$(FC) $(gen_oniom_FCFLAGS) $(FCFLAGS) -c -o gen_oniom-xyz_manage_v4.obj `if test -f '../modules/xyz_manage_v4.f90'; then $(CYGPATH_W) '../modules/xyz_manage_v4.f90'; else $(CYGPATH_W) '$(srcdir)/../modules/xyz_manage_v4.f90'; fi`
+
+gen_oniom-molecular_structure.o: ../modules/molecular_structure.f90
+	$(FC) $(gen_oniom_FCFLAGS) $(FCFLAGS) -c -o gen_oniom-molecular_structure.o `test -f '../modules/molecular_structure.f90' || echo '$(srcdir)/'`../modules/molecular_structure.f90
+
+gen_oniom-molecular_structure.obj: ../modules/molecular_structure.f90
+	$(FC) $(gen_oniom_FCFLAGS) $(FCFLAGS) -c -o gen_oniom-molecular_structure.obj `if test -f '../modules/molecular_structure.f90'; then $(CYGPATH_W) '../modules/molecular_structure.f90'; else $(CYGPATH_W) '$(srcdir)/../modules/molecular_structure.f90'; fi`
 
 gen_oniom-gen_oniom_v4.o: gen_oniom_v4.f90
 	$(FC) $(gen_oniom_FCFLAGS) $(FCFLAGS) -c -o gen_oniom-gen_oniom_v4.o `test -f 'gen_oniom_v4.f90' || echo '$(srcdir)/'`gen_oniom_v4.f90

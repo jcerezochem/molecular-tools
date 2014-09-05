@@ -33,10 +33,10 @@ am__make_dryrun = \
     esac; \
     test $$am__dry = yes; \
   }
-pkgdatadir = $(datadir)/fcclasses_tools
-pkgincludedir = $(includedir)/fcclasses_tools
-pkglibdir = $(libdir)/fcclasses_tools
-pkglibexecdir = $(libexecdir)/fcclasses_tools
+pkgdatadir = $(datadir)/normal_modes_anim
+pkgincludedir = $(includedir)/normal_modes_anim
+pkglibdir = $(libdir)/normal_modes_anim
+pkglibexecdir = $(libexecdir)/normal_modes_anim
 am__cd = CDPATH="$${ZSH_VERSION+.}$(PATH_SEPARATOR)" && cd
 install_sh_DATA = $(install_sh) -c -m 644
 install_sh_PROGRAM = $(install_sh) -c
@@ -49,13 +49,11 @@ POST_INSTALL = :
 NORMAL_UNINSTALL = :
 PRE_UNINSTALL = :
 POST_UNINSTALL = :
-bin_PROGRAMS = prepare_fcinput$(EXEEXT) read_dip_fchk$(EXEEXT) \
-	read_state_log$(EXEEXT) read_state_fchk$(EXEEXT) \
-	get_adiabaticE$(EXEEXT) read_state_hess$(EXEEXT)
+bin_PROGRAMS = read_state_hess$(EXEEXT)
 subdir = .
-DIST_COMMON = $(am__configure_deps) $(srcdir)/Makefile.am \
-	$(srcdir)/Makefile.in $(top_srcdir)/configure depcomp \
-	install-sh missing
+DIST_COMMON = $(am__configure_deps) $(srcdir)/../../install-sh \
+	$(srcdir)/../../missing $(srcdir)/Makefile.am \
+	$(srcdir)/Makefile.in $(top_srcdir)/configure
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
 am__aclocal_m4_deps = $(top_srcdir)/configure.ac
 am__configure_deps = $(am__aclocal_m4_deps) $(CONFIGURE_DEPENDENCIES) \
@@ -67,47 +65,6 @@ CONFIG_CLEAN_FILES =
 CONFIG_CLEAN_VPATH_FILES =
 am__installdirs = "$(DESTDIR)$(bindir)"
 PROGRAMS = $(bin_PROGRAMS)
-am_get_adiabaticE_OBJECTS = get_adiabaticE-alerts.$(OBJEXT) \
-	get_adiabaticE-line_preprocess.$(OBJEXT) \
-	get_adiabaticE-constants_mod.$(OBJEXT) \
-	get_adiabaticE-structure_types_v4.$(OBJEXT) \
-	get_adiabaticE-gaussian_fchk_manage_v4.$(OBJEXT) \
-	get_adiabaticE-get_adiabaticE.$(OBJEXT)
-get_adiabaticE_OBJECTS = $(am_get_adiabaticE_OBJECTS)
-get_adiabaticE_LDADD = $(LDADD)
-get_adiabaticE_LINK = $(FCLD) $(get_adiabaticE_FCFLAGS) $(FCFLAGS) \
-	$(get_adiabaticE_LDFLAGS) $(LDFLAGS) -o $@
-am_prepare_fcinput_OBJECTS = prepare_fcinput-alerts.$(OBJEXT) \
-	prepare_fcinput-line_preprocess.$(OBJEXT) \
-	prepare_fcinput-constants_mod.$(OBJEXT) \
-	prepare_fcinput-structure_types_v4.$(OBJEXT) \
-	prepare_fcinput-gro_manage_v4.$(OBJEXT) \
-	prepare_fcinput-pdb_manage_v4.$(OBJEXT) \
-	prepare_fcinput-gaussian_manage_v4.$(OBJEXT) \
-	prepare_fcinput-gaussian_fchk_manage_v4.$(OBJEXT) \
-	prepare_fcinput-xyz_manage_v4.$(OBJEXT) \
-	prepare_fcinput-molecular_structure.$(OBJEXT) \
-	prepare_fcinput-ff_build_module_v4.$(OBJEXT) \
-	prepare_fcinput-atomic_geom_v2.$(OBJEXT) \
-	prepare_fcinput-prepare_fcinput_v4.$(OBJEXT)
-prepare_fcinput_OBJECTS = $(am_prepare_fcinput_OBJECTS)
-prepare_fcinput_LDADD = $(LDADD)
-prepare_fcinput_LINK = $(FCLD) $(prepare_fcinput_FCFLAGS) $(FCFLAGS) \
-	$(prepare_fcinput_LDFLAGS) $(LDFLAGS) -o $@
-am_read_dip_fchk_OBJECTS = read_dip_fchk-alerts.$(OBJEXT) \
-	read_dip_fchk-line_preprocess.$(OBJEXT) \
-	read_dip_fchk-constants_mod.$(OBJEXT) \
-	read_dip_fchk-MatrixMod.$(OBJEXT) \
-	read_dip_fchk-gaussian_fchk_manage_v4.$(OBJEXT) \
-	read_dip_fchk-symmetry_mod_notypes_v2.$(OBJEXT) \
-	read_dip_fchk-read_dip_fchk_v4.$(OBJEXT)
-read_dip_fchk_OBJECTS = $(am_read_dip_fchk_OBJECTS)
-read_dip_fchk_LDADD = $(LDADD)
-read_dip_fchk_LINK = $(FCLD) $(read_dip_fchk_FCFLAGS) $(FCFLAGS) \
-	$(read_dip_fchk_LDFLAGS) $(LDFLAGS) -o $@
-am_read_state_fchk_OBJECTS = read_state_fchk_v3.$(OBJEXT)
-read_state_fchk_OBJECTS = $(am_read_state_fchk_OBJECTS)
-read_state_fchk_LDADD = $(LDADD)
 am_read_state_hess_OBJECTS = read_state_hess-alerts.$(OBJEXT) \
 	read_state_hess-line_preprocess.$(OBJEXT) \
 	read_state_hess-constants_mod.$(OBJEXT) \
@@ -123,38 +80,20 @@ am_read_state_hess_OBJECTS = read_state_hess-alerts.$(OBJEXT) \
 	read_state_hess-ff_build_module_v4.$(OBJEXT) \
 	read_state_hess-atomic_geom_v2.$(OBJEXT) \
 	read_state_hess-symmetry_mod_v4.$(OBJEXT) \
-	read_state_hess-internal_SR9_v4.$(OBJEXT) \
+	read_state_hess-internal_SR8_v4.0.1.$(OBJEXT) \
 	read_state_hess-zmat_manage_v4.$(OBJEXT) \
 	read_state_hess-read_state_hess.$(OBJEXT)
 read_state_hess_OBJECTS = $(am_read_state_hess_OBJECTS)
 read_state_hess_LDADD = $(LDADD)
 read_state_hess_LINK = $(FCLD) $(read_state_hess_FCFLAGS) $(FCFLAGS) \
 	$(read_state_hess_LDFLAGS) $(LDFLAGS) -o $@
-am_read_state_log_OBJECTS = read_state_log-alerts.$(OBJEXT) \
-	read_state_log-line_preprocess.$(OBJEXT) \
-	read_state_log-constants_mod.$(OBJEXT) \
-	read_state_log-structure_types_v4.$(OBJEXT) \
-	read_state_log-gaussian_manage_v4.$(OBJEXT) \
-	read_state_log-gaussian_manage_vNoTypes.$(OBJEXT) \
-	read_state_log-molecular_structure.$(OBJEXT) \
-	read_state_log-ff_build_module_v4.$(OBJEXT) \
-	read_state_log-atomic_geom_v2.$(OBJEXT) \
-	read_state_log-read_state_log_v4.$(OBJEXT)
-read_state_log_OBJECTS = $(am_read_state_log_OBJECTS)
-read_state_log_LDADD = $(LDADD)
-read_state_log_LINK = $(FCLD) $(read_state_log_FCFLAGS) $(FCFLAGS) \
-	$(read_state_log_LDFLAGS) $(LDFLAGS) -o $@
 DEFAULT_INCLUDES = -I.
 FCCOMPILE = $(FC) $(AM_FCFLAGS) $(FCFLAGS)
 FCLD = $(FC)
 FCLINK = $(FCLD) $(AM_FCFLAGS) $(FCFLAGS) $(AM_LDFLAGS) $(LDFLAGS) -o \
 	$@
-SOURCES = $(get_adiabaticE_SOURCES) $(prepare_fcinput_SOURCES) \
-	$(read_dip_fchk_SOURCES) $(read_state_fchk_SOURCES) \
-	$(read_state_hess_SOURCES) $(read_state_log_SOURCES)
-DIST_SOURCES = $(get_adiabaticE_SOURCES) $(prepare_fcinput_SOURCES) \
-	$(read_dip_fchk_SOURCES) $(read_state_fchk_SOURCES) \
-	$(read_state_hess_SOURCES) $(read_state_log_SOURCES)
+SOURCES = $(read_state_hess_SOURCES)
+DIST_SOURCES = $(read_state_hess_SOURCES)
 am__can_run_installinfo = \
   case $$AM_UPDATE_INFO_DIR in \
     n|no|NO) false;; \
@@ -177,20 +116,21 @@ distuninstallcheck_listfiles = find . -type f -print
 am__distuninstallcheck_listfiles = $(distuninstallcheck_listfiles) \
   | sed 's|^\./|$(prefix)/|' | grep -v '$(infodir)/dir$$'
 distcleancheck_listfiles = find . -type f -print
-ACLOCAL = ${SHELL} /home/cerezo/dev/MY_PROJECTS/GIT/molecular-tools/src/fcclasses_tools/missing --run aclocal-1.11
+ACLOCAL = ${SHELL} /home/cerezo/dev/MY_PROJECTS/GIT/molecular-tools/missing --run aclocal-1.11
 AMTAR = $${TAR-tar}
-AUTOCONF = ${SHELL} /home/cerezo/dev/MY_PROJECTS/GIT/molecular-tools/src/fcclasses_tools/missing --run autoconf
-AUTOHEADER = ${SHELL} /home/cerezo/dev/MY_PROJECTS/GIT/molecular-tools/src/fcclasses_tools/missing --run autoheader
-AUTOMAKE = ${SHELL} /home/cerezo/dev/MY_PROJECTS/GIT/molecular-tools/src/fcclasses_tools/missing --run automake-1.11
+AUTOCONF = ${SHELL} /home/cerezo/dev/MY_PROJECTS/GIT/molecular-tools/missing --run autoconf
+AUTOHEADER = ${SHELL} /home/cerezo/dev/MY_PROJECTS/GIT/molecular-tools/missing --run autoheader
+AUTOMAKE = ${SHELL} /home/cerezo/dev/MY_PROJECTS/GIT/molecular-tools/missing --run automake-1.11
 AWK = gawk
 CYGPATH_W = echo
-DEFS = -DPACKAGE_NAME=\"fcclasses_tools\" -DPACKAGE_TARNAME=\"fcclasses_tools\" -DPACKAGE_VERSION=\"2.2.1\" -DPACKAGE_STRING=\"fcclasses_tools\ 2.2.1\" -DPACKAGE_BUGREPORT=\"jcb1@um.es\" -DPACKAGE_URL=\"\" -DPACKAGE=\"fcclasses_tools\" -DVERSION=\"2.2.1\"
+DEFS = -DPACKAGE_NAME=\"normal_modes_anim\" -DPACKAGE_TARNAME=\"normal_modes_anim\" -DPACKAGE_VERSION=\"2.2.1\" -DPACKAGE_STRING=\"normal_modes_anim\ 2.2.1\" -DPACKAGE_BUGREPORT=\"jcb1@um.es\" -DPACKAGE_URL=\"\" -DPACKAGE=\"normal_modes_anim\" -DVERSION=\"2.2.1\"
 ECHO_C = 
 ECHO_N = -n
 ECHO_T = 
 EXEEXT = 
 FC = gfortran
 FCFLAGS = 
+FFT_SR_SRC = fft_calculator_SR.f90
 INSTALL = /usr/bin/install -c
 INSTALL_DATA = ${INSTALL} -m 644
 INSTALL_PROGRAM = ${INSTALL}
@@ -198,16 +138,16 @@ INSTALL_SCRIPT = ${INSTALL}
 INSTALL_STRIP_PROGRAM = $(install_sh) -c -s
 LDFLAGS = 
 LIBOBJS = 
-LIBS = 
+LIBS = -llapack
 LTLIBOBJS = 
-MAKEINFO = ${SHELL} /home/cerezo/dev/MY_PROJECTS/GIT/molecular-tools/src/fcclasses_tools/missing --run makeinfo
+MAKEINFO = ${SHELL} /home/cerezo/dev/MY_PROJECTS/GIT/molecular-tools/missing --run makeinfo
 MKDIR_P = /bin/mkdir -p
 OBJEXT = o
-PACKAGE = fcclasses_tools
+PACKAGE = normal_modes_anim
 PACKAGE_BUGREPORT = jcb1@um.es
-PACKAGE_NAME = fcclasses_tools
-PACKAGE_STRING = fcclasses_tools 2.2.1
-PACKAGE_TARNAME = fcclasses_tools
+PACKAGE_NAME = normal_modes_anim
+PACKAGE_STRING = normal_modes_anim 2.2.1
+PACKAGE_TARNAME = normal_modes_anim
 PACKAGE_URL = 
 PACKAGE_VERSION = 2.2.1
 PATH_SEPARATOR = :
@@ -215,10 +155,10 @@ SET_MAKE =
 SHELL = /bin/bash
 STRIP = 
 VERSION = 2.2.1
-abs_builddir = /home/cerezo/dev/MY_PROJECTS/GIT/molecular-tools/src/fcclasses_tools
-abs_srcdir = /home/cerezo/dev/MY_PROJECTS/GIT/molecular-tools/src/fcclasses_tools
-abs_top_builddir = /home/cerezo/dev/MY_PROJECTS/GIT/molecular-tools/src/fcclasses_tools
-abs_top_srcdir = /home/cerezo/dev/MY_PROJECTS/GIT/molecular-tools/src/fcclasses_tools
+abs_builddir = /home/cerezo/dev/MY_PROJECTS/GIT/molecular-tools/src/fcclasses_tools_dev
+abs_srcdir = /home/cerezo/dev/MY_PROJECTS/GIT/molecular-tools/src/fcclasses_tools_dev
+abs_top_builddir = /home/cerezo/dev/MY_PROJECTS/GIT/molecular-tools/src/fcclasses_tools_dev
+abs_top_srcdir = /home/cerezo/dev/MY_PROJECTS/GIT/molecular-tools/src/fcclasses_tools_dev
 ac_ct_FC = gfortran
 am__leading_dot = .
 am__tar = $${TAR-tar} chof - "$$tardir"
@@ -235,7 +175,7 @@ host_alias =
 htmldir = ${docdir}
 includedir = ${prefix}/include
 infodir = ${datarootdir}/info
-install_sh = ${SHELL} /home/cerezo/dev/MY_PROJECTS/GIT/molecular-tools/src/fcclasses_tools/install-sh
+install_sh = ${SHELL} /home/cerezo/dev/MY_PROJECTS/GIT/molecular-tools/install-sh
 libdir = ${exec_prefix}/lib
 libexecdir = ${exec_prefix}/libexec
 localedir = ${datarootdir}/locale
@@ -255,46 +195,6 @@ target_alias =
 top_build_prefix = 
 top_builddir = .
 top_srcdir = .
-prepare_fcinput_SOURCES = ../modules/alerts.f90\
-                      ../modules/line_preprocess.f90\
-                      ../modules/constants_mod.f90\
-                      ../modules/structure_types_v4.f90\
-                      ../modules/gro_manage_v4.f90\
-                      ../modules/pdb_manage_v4.f90\
-                      ../modules/gaussian_manage_v4.f90\
-                      ../modules/gaussian_fchk_manage_v4.f90\
-                      ../modules/xyz_manage_v4.f90\
-                      ../modules/molecular_structure.f90\
-                      ../modules/ff_build_module_v4.f90\
-                      ../modules/atomic_geom_v2.f90\
-                      prepare_fcinput_v4.f90
-
-prepare_fcinput_LDFLAGS = 
-prepare_fcinput_FCFLAGS = -cpp -DDOUBLE
-read_dip_fchk_SOURCES = ../modules/alerts.f90\
-                      ../modules/line_preprocess.f90\
-                      ../modules/constants_mod.f90\
-                      ../modules/MatrixMod.f90\
-                      ../modules/gaussian_fchk_manage_v4.f90\
-                      ../modules/symmetry_mod_notypes_v2.f90\
-                      read_dip_fchk_v4.f90
-
-read_dip_fchk_LDFLAGS = 
-read_dip_fchk_FCFLAGS = -cpp -DDOUBLE
-read_state_log_SOURCES = ../modules/alerts.f90\
-                      ../modules/line_preprocess.f90\
-                      ../modules/constants_mod.f90\
-                      ../modules/structure_types_v4.f90\
-                      ../modules/gaussian_manage_v4.f90\
-                      ../modules/gaussian_manage_vNoTypes.f90\
-                      ../modules/molecular_structure.f90\
-                      ../modules/ff_build_module_v4.f90\
-                      ../modules/atomic_geom_v2.f90\
-                      read_state_log_v4.f90
-
-read_state_log_LDFLAGS = 
-read_state_log_FCFLAGS = -cpp -DDOUBLE
-read_state_fchk_SOURCES = read_state_fchk_v3.f90
 read_state_hess_SOURCES = ../modules/alerts.f90\
                        ../modules/line_preprocess.f90\
                        ../modules/constants_mod.f90\
@@ -310,21 +210,12 @@ read_state_hess_SOURCES = ../modules/alerts.f90\
                        ../modules/ff_build_module_v4.f90\
                        ../modules/atomic_geom_v2.f90\
                        ../modules/symmetry_mod_v4.f90\
-                       ../modules/internal_SR9_v4.f90\
+                       ../modules/internal_SR8_v4.0.1.f90\
                        ../modules/zmat_manage_v4.f90\
                        read_state_hess.f90
 
-read_state_hess_LDFLAGS = 
+read_state_hess_LDFLAGS = -llapack
 read_state_hess_FCFLAGS = -cpp -DDOUBLE -DUSE_LAPACK
-get_adiabaticE_SOURCES = ../modules/alerts.f90\
-                      ../modules/line_preprocess.f90\
-                      ../modules/constants_mod.f90\
-                      ../modules/structure_types_v4.f90\
-                      ../modules/gaussian_fchk_manage_v4.f90\
-                      get_adiabaticE.f90
-
-get_adiabaticE_LDFLAGS = 
-get_adiabaticE_FCFLAGS = -cpp -DDOUBLE 
 CLEANFILES = *.mod 
 all: all-am
 
@@ -404,24 +295,9 @@ uninstall-binPROGRAMS:
 
 clean-binPROGRAMS:
 	-test -z "$(bin_PROGRAMS)" || rm -f $(bin_PROGRAMS)
-get_adiabaticE$(EXEEXT): $(get_adiabaticE_OBJECTS) $(get_adiabaticE_DEPENDENCIES) $(EXTRA_get_adiabaticE_DEPENDENCIES) 
-	@rm -f get_adiabaticE$(EXEEXT)
-	$(get_adiabaticE_LINK) $(get_adiabaticE_OBJECTS) $(get_adiabaticE_LDADD) $(LIBS)
-prepare_fcinput$(EXEEXT): $(prepare_fcinput_OBJECTS) $(prepare_fcinput_DEPENDENCIES) $(EXTRA_prepare_fcinput_DEPENDENCIES) 
-	@rm -f prepare_fcinput$(EXEEXT)
-	$(prepare_fcinput_LINK) $(prepare_fcinput_OBJECTS) $(prepare_fcinput_LDADD) $(LIBS)
-read_dip_fchk$(EXEEXT): $(read_dip_fchk_OBJECTS) $(read_dip_fchk_DEPENDENCIES) $(EXTRA_read_dip_fchk_DEPENDENCIES) 
-	@rm -f read_dip_fchk$(EXEEXT)
-	$(read_dip_fchk_LINK) $(read_dip_fchk_OBJECTS) $(read_dip_fchk_LDADD) $(LIBS)
-read_state_fchk$(EXEEXT): $(read_state_fchk_OBJECTS) $(read_state_fchk_DEPENDENCIES) $(EXTRA_read_state_fchk_DEPENDENCIES) 
-	@rm -f read_state_fchk$(EXEEXT)
-	$(FCLINK) $(read_state_fchk_OBJECTS) $(read_state_fchk_LDADD) $(LIBS)
 read_state_hess$(EXEEXT): $(read_state_hess_OBJECTS) $(read_state_hess_DEPENDENCIES) $(EXTRA_read_state_hess_DEPENDENCIES) 
 	@rm -f read_state_hess$(EXEEXT)
 	$(read_state_hess_LINK) $(read_state_hess_OBJECTS) $(read_state_hess_LDADD) $(LIBS)
-read_state_log$(EXEEXT): $(read_state_log_OBJECTS) $(read_state_log_DEPENDENCIES) $(EXTRA_read_state_log_DEPENDENCIES) 
-	@rm -f read_state_log$(EXEEXT)
-	$(read_state_log_LINK) $(read_state_log_OBJECTS) $(read_state_log_LDADD) $(LIBS)
 
 mostlyclean-compile:
 	-rm -f *.$(OBJEXT)
@@ -434,162 +310,6 @@ distclean-compile:
 
 .f90.obj:
 	$(FCCOMPILE) -c -o $@ `$(CYGPATH_W) '$<'`
-
-get_adiabaticE-alerts.o: ../modules/alerts.f90
-	$(FC) $(get_adiabaticE_FCFLAGS) $(FCFLAGS) -c -o get_adiabaticE-alerts.o `test -f '../modules/alerts.f90' || echo '$(srcdir)/'`../modules/alerts.f90
-
-get_adiabaticE-alerts.obj: ../modules/alerts.f90
-	$(FC) $(get_adiabaticE_FCFLAGS) $(FCFLAGS) -c -o get_adiabaticE-alerts.obj `if test -f '../modules/alerts.f90'; then $(CYGPATH_W) '../modules/alerts.f90'; else $(CYGPATH_W) '$(srcdir)/../modules/alerts.f90'; fi`
-
-get_adiabaticE-line_preprocess.o: ../modules/line_preprocess.f90
-	$(FC) $(get_adiabaticE_FCFLAGS) $(FCFLAGS) -c -o get_adiabaticE-line_preprocess.o `test -f '../modules/line_preprocess.f90' || echo '$(srcdir)/'`../modules/line_preprocess.f90
-
-get_adiabaticE-line_preprocess.obj: ../modules/line_preprocess.f90
-	$(FC) $(get_adiabaticE_FCFLAGS) $(FCFLAGS) -c -o get_adiabaticE-line_preprocess.obj `if test -f '../modules/line_preprocess.f90'; then $(CYGPATH_W) '../modules/line_preprocess.f90'; else $(CYGPATH_W) '$(srcdir)/../modules/line_preprocess.f90'; fi`
-
-get_adiabaticE-constants_mod.o: ../modules/constants_mod.f90
-	$(FC) $(get_adiabaticE_FCFLAGS) $(FCFLAGS) -c -o get_adiabaticE-constants_mod.o `test -f '../modules/constants_mod.f90' || echo '$(srcdir)/'`../modules/constants_mod.f90
-
-get_adiabaticE-constants_mod.obj: ../modules/constants_mod.f90
-	$(FC) $(get_adiabaticE_FCFLAGS) $(FCFLAGS) -c -o get_adiabaticE-constants_mod.obj `if test -f '../modules/constants_mod.f90'; then $(CYGPATH_W) '../modules/constants_mod.f90'; else $(CYGPATH_W) '$(srcdir)/../modules/constants_mod.f90'; fi`
-
-get_adiabaticE-structure_types_v4.o: ../modules/structure_types_v4.f90
-	$(FC) $(get_adiabaticE_FCFLAGS) $(FCFLAGS) -c -o get_adiabaticE-structure_types_v4.o `test -f '../modules/structure_types_v4.f90' || echo '$(srcdir)/'`../modules/structure_types_v4.f90
-
-get_adiabaticE-structure_types_v4.obj: ../modules/structure_types_v4.f90
-	$(FC) $(get_adiabaticE_FCFLAGS) $(FCFLAGS) -c -o get_adiabaticE-structure_types_v4.obj `if test -f '../modules/structure_types_v4.f90'; then $(CYGPATH_W) '../modules/structure_types_v4.f90'; else $(CYGPATH_W) '$(srcdir)/../modules/structure_types_v4.f90'; fi`
-
-get_adiabaticE-gaussian_fchk_manage_v4.o: ../modules/gaussian_fchk_manage_v4.f90
-	$(FC) $(get_adiabaticE_FCFLAGS) $(FCFLAGS) -c -o get_adiabaticE-gaussian_fchk_manage_v4.o `test -f '../modules/gaussian_fchk_manage_v4.f90' || echo '$(srcdir)/'`../modules/gaussian_fchk_manage_v4.f90
-
-get_adiabaticE-gaussian_fchk_manage_v4.obj: ../modules/gaussian_fchk_manage_v4.f90
-	$(FC) $(get_adiabaticE_FCFLAGS) $(FCFLAGS) -c -o get_adiabaticE-gaussian_fchk_manage_v4.obj `if test -f '../modules/gaussian_fchk_manage_v4.f90'; then $(CYGPATH_W) '../modules/gaussian_fchk_manage_v4.f90'; else $(CYGPATH_W) '$(srcdir)/../modules/gaussian_fchk_manage_v4.f90'; fi`
-
-get_adiabaticE-get_adiabaticE.o: get_adiabaticE.f90
-	$(FC) $(get_adiabaticE_FCFLAGS) $(FCFLAGS) -c -o get_adiabaticE-get_adiabaticE.o `test -f 'get_adiabaticE.f90' || echo '$(srcdir)/'`get_adiabaticE.f90
-
-get_adiabaticE-get_adiabaticE.obj: get_adiabaticE.f90
-	$(FC) $(get_adiabaticE_FCFLAGS) $(FCFLAGS) -c -o get_adiabaticE-get_adiabaticE.obj `if test -f 'get_adiabaticE.f90'; then $(CYGPATH_W) 'get_adiabaticE.f90'; else $(CYGPATH_W) '$(srcdir)/get_adiabaticE.f90'; fi`
-
-prepare_fcinput-alerts.o: ../modules/alerts.f90
-	$(FC) $(prepare_fcinput_FCFLAGS) $(FCFLAGS) -c -o prepare_fcinput-alerts.o `test -f '../modules/alerts.f90' || echo '$(srcdir)/'`../modules/alerts.f90
-
-prepare_fcinput-alerts.obj: ../modules/alerts.f90
-	$(FC) $(prepare_fcinput_FCFLAGS) $(FCFLAGS) -c -o prepare_fcinput-alerts.obj `if test -f '../modules/alerts.f90'; then $(CYGPATH_W) '../modules/alerts.f90'; else $(CYGPATH_W) '$(srcdir)/../modules/alerts.f90'; fi`
-
-prepare_fcinput-line_preprocess.o: ../modules/line_preprocess.f90
-	$(FC) $(prepare_fcinput_FCFLAGS) $(FCFLAGS) -c -o prepare_fcinput-line_preprocess.o `test -f '../modules/line_preprocess.f90' || echo '$(srcdir)/'`../modules/line_preprocess.f90
-
-prepare_fcinput-line_preprocess.obj: ../modules/line_preprocess.f90
-	$(FC) $(prepare_fcinput_FCFLAGS) $(FCFLAGS) -c -o prepare_fcinput-line_preprocess.obj `if test -f '../modules/line_preprocess.f90'; then $(CYGPATH_W) '../modules/line_preprocess.f90'; else $(CYGPATH_W) '$(srcdir)/../modules/line_preprocess.f90'; fi`
-
-prepare_fcinput-constants_mod.o: ../modules/constants_mod.f90
-	$(FC) $(prepare_fcinput_FCFLAGS) $(FCFLAGS) -c -o prepare_fcinput-constants_mod.o `test -f '../modules/constants_mod.f90' || echo '$(srcdir)/'`../modules/constants_mod.f90
-
-prepare_fcinput-constants_mod.obj: ../modules/constants_mod.f90
-	$(FC) $(prepare_fcinput_FCFLAGS) $(FCFLAGS) -c -o prepare_fcinput-constants_mod.obj `if test -f '../modules/constants_mod.f90'; then $(CYGPATH_W) '../modules/constants_mod.f90'; else $(CYGPATH_W) '$(srcdir)/../modules/constants_mod.f90'; fi`
-
-prepare_fcinput-structure_types_v4.o: ../modules/structure_types_v4.f90
-	$(FC) $(prepare_fcinput_FCFLAGS) $(FCFLAGS) -c -o prepare_fcinput-structure_types_v4.o `test -f '../modules/structure_types_v4.f90' || echo '$(srcdir)/'`../modules/structure_types_v4.f90
-
-prepare_fcinput-structure_types_v4.obj: ../modules/structure_types_v4.f90
-	$(FC) $(prepare_fcinput_FCFLAGS) $(FCFLAGS) -c -o prepare_fcinput-structure_types_v4.obj `if test -f '../modules/structure_types_v4.f90'; then $(CYGPATH_W) '../modules/structure_types_v4.f90'; else $(CYGPATH_W) '$(srcdir)/../modules/structure_types_v4.f90'; fi`
-
-prepare_fcinput-gro_manage_v4.o: ../modules/gro_manage_v4.f90
-	$(FC) $(prepare_fcinput_FCFLAGS) $(FCFLAGS) -c -o prepare_fcinput-gro_manage_v4.o `test -f '../modules/gro_manage_v4.f90' || echo '$(srcdir)/'`../modules/gro_manage_v4.f90
-
-prepare_fcinput-gro_manage_v4.obj: ../modules/gro_manage_v4.f90
-	$(FC) $(prepare_fcinput_FCFLAGS) $(FCFLAGS) -c -o prepare_fcinput-gro_manage_v4.obj `if test -f '../modules/gro_manage_v4.f90'; then $(CYGPATH_W) '../modules/gro_manage_v4.f90'; else $(CYGPATH_W) '$(srcdir)/../modules/gro_manage_v4.f90'; fi`
-
-prepare_fcinput-pdb_manage_v4.o: ../modules/pdb_manage_v4.f90
-	$(FC) $(prepare_fcinput_FCFLAGS) $(FCFLAGS) -c -o prepare_fcinput-pdb_manage_v4.o `test -f '../modules/pdb_manage_v4.f90' || echo '$(srcdir)/'`../modules/pdb_manage_v4.f90
-
-prepare_fcinput-pdb_manage_v4.obj: ../modules/pdb_manage_v4.f90
-	$(FC) $(prepare_fcinput_FCFLAGS) $(FCFLAGS) -c -o prepare_fcinput-pdb_manage_v4.obj `if test -f '../modules/pdb_manage_v4.f90'; then $(CYGPATH_W) '../modules/pdb_manage_v4.f90'; else $(CYGPATH_W) '$(srcdir)/../modules/pdb_manage_v4.f90'; fi`
-
-prepare_fcinput-gaussian_manage_v4.o: ../modules/gaussian_manage_v4.f90
-	$(FC) $(prepare_fcinput_FCFLAGS) $(FCFLAGS) -c -o prepare_fcinput-gaussian_manage_v4.o `test -f '../modules/gaussian_manage_v4.f90' || echo '$(srcdir)/'`../modules/gaussian_manage_v4.f90
-
-prepare_fcinput-gaussian_manage_v4.obj: ../modules/gaussian_manage_v4.f90
-	$(FC) $(prepare_fcinput_FCFLAGS) $(FCFLAGS) -c -o prepare_fcinput-gaussian_manage_v4.obj `if test -f '../modules/gaussian_manage_v4.f90'; then $(CYGPATH_W) '../modules/gaussian_manage_v4.f90'; else $(CYGPATH_W) '$(srcdir)/../modules/gaussian_manage_v4.f90'; fi`
-
-prepare_fcinput-gaussian_fchk_manage_v4.o: ../modules/gaussian_fchk_manage_v4.f90
-	$(FC) $(prepare_fcinput_FCFLAGS) $(FCFLAGS) -c -o prepare_fcinput-gaussian_fchk_manage_v4.o `test -f '../modules/gaussian_fchk_manage_v4.f90' || echo '$(srcdir)/'`../modules/gaussian_fchk_manage_v4.f90
-
-prepare_fcinput-gaussian_fchk_manage_v4.obj: ../modules/gaussian_fchk_manage_v4.f90
-	$(FC) $(prepare_fcinput_FCFLAGS) $(FCFLAGS) -c -o prepare_fcinput-gaussian_fchk_manage_v4.obj `if test -f '../modules/gaussian_fchk_manage_v4.f90'; then $(CYGPATH_W) '../modules/gaussian_fchk_manage_v4.f90'; else $(CYGPATH_W) '$(srcdir)/../modules/gaussian_fchk_manage_v4.f90'; fi`
-
-prepare_fcinput-xyz_manage_v4.o: ../modules/xyz_manage_v4.f90
-	$(FC) $(prepare_fcinput_FCFLAGS) $(FCFLAGS) -c -o prepare_fcinput-xyz_manage_v4.o `test -f '../modules/xyz_manage_v4.f90' || echo '$(srcdir)/'`../modules/xyz_manage_v4.f90
-
-prepare_fcinput-xyz_manage_v4.obj: ../modules/xyz_manage_v4.f90
-	$(FC) $(prepare_fcinput_FCFLAGS) $(FCFLAGS) -c -o prepare_fcinput-xyz_manage_v4.obj `if test -f '../modules/xyz_manage_v4.f90'; then $(CYGPATH_W) '../modules/xyz_manage_v4.f90'; else $(CYGPATH_W) '$(srcdir)/../modules/xyz_manage_v4.f90'; fi`
-
-prepare_fcinput-molecular_structure.o: ../modules/molecular_structure.f90
-	$(FC) $(prepare_fcinput_FCFLAGS) $(FCFLAGS) -c -o prepare_fcinput-molecular_structure.o `test -f '../modules/molecular_structure.f90' || echo '$(srcdir)/'`../modules/molecular_structure.f90
-
-prepare_fcinput-molecular_structure.obj: ../modules/molecular_structure.f90
-	$(FC) $(prepare_fcinput_FCFLAGS) $(FCFLAGS) -c -o prepare_fcinput-molecular_structure.obj `if test -f '../modules/molecular_structure.f90'; then $(CYGPATH_W) '../modules/molecular_structure.f90'; else $(CYGPATH_W) '$(srcdir)/../modules/molecular_structure.f90'; fi`
-
-prepare_fcinput-ff_build_module_v4.o: ../modules/ff_build_module_v4.f90
-	$(FC) $(prepare_fcinput_FCFLAGS) $(FCFLAGS) -c -o prepare_fcinput-ff_build_module_v4.o `test -f '../modules/ff_build_module_v4.f90' || echo '$(srcdir)/'`../modules/ff_build_module_v4.f90
-
-prepare_fcinput-ff_build_module_v4.obj: ../modules/ff_build_module_v4.f90
-	$(FC) $(prepare_fcinput_FCFLAGS) $(FCFLAGS) -c -o prepare_fcinput-ff_build_module_v4.obj `if test -f '../modules/ff_build_module_v4.f90'; then $(CYGPATH_W) '../modules/ff_build_module_v4.f90'; else $(CYGPATH_W) '$(srcdir)/../modules/ff_build_module_v4.f90'; fi`
-
-prepare_fcinput-atomic_geom_v2.o: ../modules/atomic_geom_v2.f90
-	$(FC) $(prepare_fcinput_FCFLAGS) $(FCFLAGS) -c -o prepare_fcinput-atomic_geom_v2.o `test -f '../modules/atomic_geom_v2.f90' || echo '$(srcdir)/'`../modules/atomic_geom_v2.f90
-
-prepare_fcinput-atomic_geom_v2.obj: ../modules/atomic_geom_v2.f90
-	$(FC) $(prepare_fcinput_FCFLAGS) $(FCFLAGS) -c -o prepare_fcinput-atomic_geom_v2.obj `if test -f '../modules/atomic_geom_v2.f90'; then $(CYGPATH_W) '../modules/atomic_geom_v2.f90'; else $(CYGPATH_W) '$(srcdir)/../modules/atomic_geom_v2.f90'; fi`
-
-prepare_fcinput-prepare_fcinput_v4.o: prepare_fcinput_v4.f90
-	$(FC) $(prepare_fcinput_FCFLAGS) $(FCFLAGS) -c -o prepare_fcinput-prepare_fcinput_v4.o `test -f 'prepare_fcinput_v4.f90' || echo '$(srcdir)/'`prepare_fcinput_v4.f90
-
-prepare_fcinput-prepare_fcinput_v4.obj: prepare_fcinput_v4.f90
-	$(FC) $(prepare_fcinput_FCFLAGS) $(FCFLAGS) -c -o prepare_fcinput-prepare_fcinput_v4.obj `if test -f 'prepare_fcinput_v4.f90'; then $(CYGPATH_W) 'prepare_fcinput_v4.f90'; else $(CYGPATH_W) '$(srcdir)/prepare_fcinput_v4.f90'; fi`
-
-read_dip_fchk-alerts.o: ../modules/alerts.f90
-	$(FC) $(read_dip_fchk_FCFLAGS) $(FCFLAGS) -c -o read_dip_fchk-alerts.o `test -f '../modules/alerts.f90' || echo '$(srcdir)/'`../modules/alerts.f90
-
-read_dip_fchk-alerts.obj: ../modules/alerts.f90
-	$(FC) $(read_dip_fchk_FCFLAGS) $(FCFLAGS) -c -o read_dip_fchk-alerts.obj `if test -f '../modules/alerts.f90'; then $(CYGPATH_W) '../modules/alerts.f90'; else $(CYGPATH_W) '$(srcdir)/../modules/alerts.f90'; fi`
-
-read_dip_fchk-line_preprocess.o: ../modules/line_preprocess.f90
-	$(FC) $(read_dip_fchk_FCFLAGS) $(FCFLAGS) -c -o read_dip_fchk-line_preprocess.o `test -f '../modules/line_preprocess.f90' || echo '$(srcdir)/'`../modules/line_preprocess.f90
-
-read_dip_fchk-line_preprocess.obj: ../modules/line_preprocess.f90
-	$(FC) $(read_dip_fchk_FCFLAGS) $(FCFLAGS) -c -o read_dip_fchk-line_preprocess.obj `if test -f '../modules/line_preprocess.f90'; then $(CYGPATH_W) '../modules/line_preprocess.f90'; else $(CYGPATH_W) '$(srcdir)/../modules/line_preprocess.f90'; fi`
-
-read_dip_fchk-constants_mod.o: ../modules/constants_mod.f90
-	$(FC) $(read_dip_fchk_FCFLAGS) $(FCFLAGS) -c -o read_dip_fchk-constants_mod.o `test -f '../modules/constants_mod.f90' || echo '$(srcdir)/'`../modules/constants_mod.f90
-
-read_dip_fchk-constants_mod.obj: ../modules/constants_mod.f90
-	$(FC) $(read_dip_fchk_FCFLAGS) $(FCFLAGS) -c -o read_dip_fchk-constants_mod.obj `if test -f '../modules/constants_mod.f90'; then $(CYGPATH_W) '../modules/constants_mod.f90'; else $(CYGPATH_W) '$(srcdir)/../modules/constants_mod.f90'; fi`
-
-read_dip_fchk-MatrixMod.o: ../modules/MatrixMod.f90
-	$(FC) $(read_dip_fchk_FCFLAGS) $(FCFLAGS) -c -o read_dip_fchk-MatrixMod.o `test -f '../modules/MatrixMod.f90' || echo '$(srcdir)/'`../modules/MatrixMod.f90
-
-read_dip_fchk-MatrixMod.obj: ../modules/MatrixMod.f90
-	$(FC) $(read_dip_fchk_FCFLAGS) $(FCFLAGS) -c -o read_dip_fchk-MatrixMod.obj `if test -f '../modules/MatrixMod.f90'; then $(CYGPATH_W) '../modules/MatrixMod.f90'; else $(CYGPATH_W) '$(srcdir)/../modules/MatrixMod.f90'; fi`
-
-read_dip_fchk-gaussian_fchk_manage_v4.o: ../modules/gaussian_fchk_manage_v4.f90
-	$(FC) $(read_dip_fchk_FCFLAGS) $(FCFLAGS) -c -o read_dip_fchk-gaussian_fchk_manage_v4.o `test -f '../modules/gaussian_fchk_manage_v4.f90' || echo '$(srcdir)/'`../modules/gaussian_fchk_manage_v4.f90
-
-read_dip_fchk-gaussian_fchk_manage_v4.obj: ../modules/gaussian_fchk_manage_v4.f90
-	$(FC) $(read_dip_fchk_FCFLAGS) $(FCFLAGS) -c -o read_dip_fchk-gaussian_fchk_manage_v4.obj `if test -f '../modules/gaussian_fchk_manage_v4.f90'; then $(CYGPATH_W) '../modules/gaussian_fchk_manage_v4.f90'; else $(CYGPATH_W) '$(srcdir)/../modules/gaussian_fchk_manage_v4.f90'; fi`
-
-read_dip_fchk-symmetry_mod_notypes_v2.o: ../modules/symmetry_mod_notypes_v2.f90
-	$(FC) $(read_dip_fchk_FCFLAGS) $(FCFLAGS) -c -o read_dip_fchk-symmetry_mod_notypes_v2.o `test -f '../modules/symmetry_mod_notypes_v2.f90' || echo '$(srcdir)/'`../modules/symmetry_mod_notypes_v2.f90
-
-read_dip_fchk-symmetry_mod_notypes_v2.obj: ../modules/symmetry_mod_notypes_v2.f90
-	$(FC) $(read_dip_fchk_FCFLAGS) $(FCFLAGS) -c -o read_dip_fchk-symmetry_mod_notypes_v2.obj `if test -f '../modules/symmetry_mod_notypes_v2.f90'; then $(CYGPATH_W) '../modules/symmetry_mod_notypes_v2.f90'; else $(CYGPATH_W) '$(srcdir)/../modules/symmetry_mod_notypes_v2.f90'; fi`
-
-read_dip_fchk-read_dip_fchk_v4.o: read_dip_fchk_v4.f90
-	$(FC) $(read_dip_fchk_FCFLAGS) $(FCFLAGS) -c -o read_dip_fchk-read_dip_fchk_v4.o `test -f 'read_dip_fchk_v4.f90' || echo '$(srcdir)/'`read_dip_fchk_v4.f90
-
-read_dip_fchk-read_dip_fchk_v4.obj: read_dip_fchk_v4.f90
-	$(FC) $(read_dip_fchk_FCFLAGS) $(FCFLAGS) -c -o read_dip_fchk-read_dip_fchk_v4.obj `if test -f 'read_dip_fchk_v4.f90'; then $(CYGPATH_W) 'read_dip_fchk_v4.f90'; else $(CYGPATH_W) '$(srcdir)/read_dip_fchk_v4.f90'; fi`
 
 read_state_hess-alerts.o: ../modules/alerts.f90
 	$(FC) $(read_state_hess_FCFLAGS) $(FCFLAGS) -c -o read_state_hess-alerts.o `test -f '../modules/alerts.f90' || echo '$(srcdir)/'`../modules/alerts.f90
@@ -681,11 +401,11 @@ read_state_hess-symmetry_mod_v4.o: ../modules/symmetry_mod_v4.f90
 read_state_hess-symmetry_mod_v4.obj: ../modules/symmetry_mod_v4.f90
 	$(FC) $(read_state_hess_FCFLAGS) $(FCFLAGS) -c -o read_state_hess-symmetry_mod_v4.obj `if test -f '../modules/symmetry_mod_v4.f90'; then $(CYGPATH_W) '../modules/symmetry_mod_v4.f90'; else $(CYGPATH_W) '$(srcdir)/../modules/symmetry_mod_v4.f90'; fi`
 
-read_state_hess-internal_SR9_v4.o: ../modules/internal_SR9_v4.f90
-	$(FC) $(read_state_hess_FCFLAGS) $(FCFLAGS) -c -o read_state_hess-internal_SR9_v4.o `test -f '../modules/internal_SR9_v4.f90' || echo '$(srcdir)/'`../modules/internal_SR9_v4.f90
+read_state_hess-internal_SR8_v4.0.1.o: ../modules/internal_SR8_v4.0.1.f90
+	$(FC) $(read_state_hess_FCFLAGS) $(FCFLAGS) -c -o read_state_hess-internal_SR8_v4.0.1.o `test -f '../modules/internal_SR8_v4.0.1.f90' || echo '$(srcdir)/'`../modules/internal_SR8_v4.0.1.f90
 
-read_state_hess-internal_SR9_v4.obj: ../modules/internal_SR9_v4.f90
-	$(FC) $(read_state_hess_FCFLAGS) $(FCFLAGS) -c -o read_state_hess-internal_SR9_v4.obj `if test -f '../modules/internal_SR9_v4.f90'; then $(CYGPATH_W) '../modules/internal_SR9_v4.f90'; else $(CYGPATH_W) '$(srcdir)/../modules/internal_SR9_v4.f90'; fi`
+read_state_hess-internal_SR8_v4.0.1.obj: ../modules/internal_SR8_v4.0.1.f90
+	$(FC) $(read_state_hess_FCFLAGS) $(FCFLAGS) -c -o read_state_hess-internal_SR8_v4.0.1.obj `if test -f '../modules/internal_SR8_v4.0.1.f90'; then $(CYGPATH_W) '../modules/internal_SR8_v4.0.1.f90'; else $(CYGPATH_W) '$(srcdir)/../modules/internal_SR8_v4.0.1.f90'; fi`
 
 read_state_hess-zmat_manage_v4.o: ../modules/zmat_manage_v4.f90
 	$(FC) $(read_state_hess_FCFLAGS) $(FCFLAGS) -c -o read_state_hess-zmat_manage_v4.o `test -f '../modules/zmat_manage_v4.f90' || echo '$(srcdir)/'`../modules/zmat_manage_v4.f90
@@ -698,66 +418,6 @@ read_state_hess-read_state_hess.o: read_state_hess.f90
 
 read_state_hess-read_state_hess.obj: read_state_hess.f90
 	$(FC) $(read_state_hess_FCFLAGS) $(FCFLAGS) -c -o read_state_hess-read_state_hess.obj `if test -f 'read_state_hess.f90'; then $(CYGPATH_W) 'read_state_hess.f90'; else $(CYGPATH_W) '$(srcdir)/read_state_hess.f90'; fi`
-
-read_state_log-alerts.o: ../modules/alerts.f90
-	$(FC) $(read_state_log_FCFLAGS) $(FCFLAGS) -c -o read_state_log-alerts.o `test -f '../modules/alerts.f90' || echo '$(srcdir)/'`../modules/alerts.f90
-
-read_state_log-alerts.obj: ../modules/alerts.f90
-	$(FC) $(read_state_log_FCFLAGS) $(FCFLAGS) -c -o read_state_log-alerts.obj `if test -f '../modules/alerts.f90'; then $(CYGPATH_W) '../modules/alerts.f90'; else $(CYGPATH_W) '$(srcdir)/../modules/alerts.f90'; fi`
-
-read_state_log-line_preprocess.o: ../modules/line_preprocess.f90
-	$(FC) $(read_state_log_FCFLAGS) $(FCFLAGS) -c -o read_state_log-line_preprocess.o `test -f '../modules/line_preprocess.f90' || echo '$(srcdir)/'`../modules/line_preprocess.f90
-
-read_state_log-line_preprocess.obj: ../modules/line_preprocess.f90
-	$(FC) $(read_state_log_FCFLAGS) $(FCFLAGS) -c -o read_state_log-line_preprocess.obj `if test -f '../modules/line_preprocess.f90'; then $(CYGPATH_W) '../modules/line_preprocess.f90'; else $(CYGPATH_W) '$(srcdir)/../modules/line_preprocess.f90'; fi`
-
-read_state_log-constants_mod.o: ../modules/constants_mod.f90
-	$(FC) $(read_state_log_FCFLAGS) $(FCFLAGS) -c -o read_state_log-constants_mod.o `test -f '../modules/constants_mod.f90' || echo '$(srcdir)/'`../modules/constants_mod.f90
-
-read_state_log-constants_mod.obj: ../modules/constants_mod.f90
-	$(FC) $(read_state_log_FCFLAGS) $(FCFLAGS) -c -o read_state_log-constants_mod.obj `if test -f '../modules/constants_mod.f90'; then $(CYGPATH_W) '../modules/constants_mod.f90'; else $(CYGPATH_W) '$(srcdir)/../modules/constants_mod.f90'; fi`
-
-read_state_log-structure_types_v4.o: ../modules/structure_types_v4.f90
-	$(FC) $(read_state_log_FCFLAGS) $(FCFLAGS) -c -o read_state_log-structure_types_v4.o `test -f '../modules/structure_types_v4.f90' || echo '$(srcdir)/'`../modules/structure_types_v4.f90
-
-read_state_log-structure_types_v4.obj: ../modules/structure_types_v4.f90
-	$(FC) $(read_state_log_FCFLAGS) $(FCFLAGS) -c -o read_state_log-structure_types_v4.obj `if test -f '../modules/structure_types_v4.f90'; then $(CYGPATH_W) '../modules/structure_types_v4.f90'; else $(CYGPATH_W) '$(srcdir)/../modules/structure_types_v4.f90'; fi`
-
-read_state_log-gaussian_manage_v4.o: ../modules/gaussian_manage_v4.f90
-	$(FC) $(read_state_log_FCFLAGS) $(FCFLAGS) -c -o read_state_log-gaussian_manage_v4.o `test -f '../modules/gaussian_manage_v4.f90' || echo '$(srcdir)/'`../modules/gaussian_manage_v4.f90
-
-read_state_log-gaussian_manage_v4.obj: ../modules/gaussian_manage_v4.f90
-	$(FC) $(read_state_log_FCFLAGS) $(FCFLAGS) -c -o read_state_log-gaussian_manage_v4.obj `if test -f '../modules/gaussian_manage_v4.f90'; then $(CYGPATH_W) '../modules/gaussian_manage_v4.f90'; else $(CYGPATH_W) '$(srcdir)/../modules/gaussian_manage_v4.f90'; fi`
-
-read_state_log-gaussian_manage_vNoTypes.o: ../modules/gaussian_manage_vNoTypes.f90
-	$(FC) $(read_state_log_FCFLAGS) $(FCFLAGS) -c -o read_state_log-gaussian_manage_vNoTypes.o `test -f '../modules/gaussian_manage_vNoTypes.f90' || echo '$(srcdir)/'`../modules/gaussian_manage_vNoTypes.f90
-
-read_state_log-gaussian_manage_vNoTypes.obj: ../modules/gaussian_manage_vNoTypes.f90
-	$(FC) $(read_state_log_FCFLAGS) $(FCFLAGS) -c -o read_state_log-gaussian_manage_vNoTypes.obj `if test -f '../modules/gaussian_manage_vNoTypes.f90'; then $(CYGPATH_W) '../modules/gaussian_manage_vNoTypes.f90'; else $(CYGPATH_W) '$(srcdir)/../modules/gaussian_manage_vNoTypes.f90'; fi`
-
-read_state_log-molecular_structure.o: ../modules/molecular_structure.f90
-	$(FC) $(read_state_log_FCFLAGS) $(FCFLAGS) -c -o read_state_log-molecular_structure.o `test -f '../modules/molecular_structure.f90' || echo '$(srcdir)/'`../modules/molecular_structure.f90
-
-read_state_log-molecular_structure.obj: ../modules/molecular_structure.f90
-	$(FC) $(read_state_log_FCFLAGS) $(FCFLAGS) -c -o read_state_log-molecular_structure.obj `if test -f '../modules/molecular_structure.f90'; then $(CYGPATH_W) '../modules/molecular_structure.f90'; else $(CYGPATH_W) '$(srcdir)/../modules/molecular_structure.f90'; fi`
-
-read_state_log-ff_build_module_v4.o: ../modules/ff_build_module_v4.f90
-	$(FC) $(read_state_log_FCFLAGS) $(FCFLAGS) -c -o read_state_log-ff_build_module_v4.o `test -f '../modules/ff_build_module_v4.f90' || echo '$(srcdir)/'`../modules/ff_build_module_v4.f90
-
-read_state_log-ff_build_module_v4.obj: ../modules/ff_build_module_v4.f90
-	$(FC) $(read_state_log_FCFLAGS) $(FCFLAGS) -c -o read_state_log-ff_build_module_v4.obj `if test -f '../modules/ff_build_module_v4.f90'; then $(CYGPATH_W) '../modules/ff_build_module_v4.f90'; else $(CYGPATH_W) '$(srcdir)/../modules/ff_build_module_v4.f90'; fi`
-
-read_state_log-atomic_geom_v2.o: ../modules/atomic_geom_v2.f90
-	$(FC) $(read_state_log_FCFLAGS) $(FCFLAGS) -c -o read_state_log-atomic_geom_v2.o `test -f '../modules/atomic_geom_v2.f90' || echo '$(srcdir)/'`../modules/atomic_geom_v2.f90
-
-read_state_log-atomic_geom_v2.obj: ../modules/atomic_geom_v2.f90
-	$(FC) $(read_state_log_FCFLAGS) $(FCFLAGS) -c -o read_state_log-atomic_geom_v2.obj `if test -f '../modules/atomic_geom_v2.f90'; then $(CYGPATH_W) '../modules/atomic_geom_v2.f90'; else $(CYGPATH_W) '$(srcdir)/../modules/atomic_geom_v2.f90'; fi`
-
-read_state_log-read_state_log_v4.o: read_state_log_v4.f90
-	$(FC) $(read_state_log_FCFLAGS) $(FCFLAGS) -c -o read_state_log-read_state_log_v4.o `test -f 'read_state_log_v4.f90' || echo '$(srcdir)/'`read_state_log_v4.f90
-
-read_state_log-read_state_log_v4.obj: read_state_log_v4.f90
-	$(FC) $(read_state_log_FCFLAGS) $(FCFLAGS) -c -o read_state_log-read_state_log_v4.obj `if test -f 'read_state_log_v4.f90'; then $(CYGPATH_W) 'read_state_log_v4.f90'; else $(CYGPATH_W) '$(srcdir)/read_state_log_v4.f90'; fi`
 
 ID: $(HEADERS) $(SOURCES) $(LISP) $(TAGS_FILES)
 	list='$(SOURCES) $(HEADERS) $(LISP) $(TAGS_FILES)'; \

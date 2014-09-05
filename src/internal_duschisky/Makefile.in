@@ -49,7 +49,7 @@ POST_INSTALL = :
 NORMAL_UNINSTALL = :
 PRE_UNINSTALL = :
 POST_UNINSTALL = :
-bin_PROGRAMS = internal_duschinsky$(EXEEXT)
+bin_PROGRAMS = internal_duschinsky$(EXEEXT) zmat2modredundant$(EXEEXT)
 subdir = .
 DIST_COMMON = $(am__configure_deps) $(srcdir)/../../install-sh \
 	$(srcdir)/../../missing $(srcdir)/Makefile.am \
@@ -87,13 +87,36 @@ internal_duschinsky_OBJECTS = $(am_internal_duschinsky_OBJECTS)
 internal_duschinsky_LDADD = $(LDADD)
 internal_duschinsky_LINK = $(FCLD) $(internal_duschinsky_FCFLAGS) \
 	$(FCFLAGS) $(internal_duschinsky_LDFLAGS) $(LDFLAGS) -o $@
+am_zmat2modredundant_OBJECTS = zmat2modredundant-alerts.$(OBJEXT) \
+	zmat2modredundant-line_preprocess.$(OBJEXT) \
+	zmat2modredundant-constants_mod.$(OBJEXT) \
+	zmat2modredundant-MatrixMod.$(OBJEXT) \
+	zmat2modredundant-structure_types_v4.$(OBJEXT) \
+	zmat2modredundant-gro_manage_v4.$(OBJEXT) \
+	zmat2modredundant-pdb_manage_v4.$(OBJEXT) \
+	zmat2modredundant-gaussian_manage_v4.$(OBJEXT) \
+	zmat2modredundant-gaussian_fchk_manage_v4.$(OBJEXT) \
+	zmat2modredundant-xyz_manage_v4.$(OBJEXT) \
+	zmat2modredundant-molcas_unsym_manage_v4.$(OBJEXT) \
+	zmat2modredundant-molecular_structure.$(OBJEXT) \
+	zmat2modredundant-ff_build_module_v4.$(OBJEXT) \
+	zmat2modredundant-atomic_geom_v2.$(OBJEXT) \
+	zmat2modredundant-symmetry_mod_v4.$(OBJEXT) \
+	zmat2modredundant-internal_SR9_v4.$(OBJEXT) \
+	zmat2modredundant-zmat_manage_v4.$(OBJEXT) \
+	zmat2modredundant-zmat2modredundant.$(OBJEXT)
+zmat2modredundant_OBJECTS = $(am_zmat2modredundant_OBJECTS)
+zmat2modredundant_LDADD = $(LDADD)
+zmat2modredundant_LINK = $(FCLD) $(zmat2modredundant_FCFLAGS) \
+	$(FCFLAGS) $(zmat2modredundant_LDFLAGS) $(LDFLAGS) -o $@
 DEFAULT_INCLUDES = -I.@am__isrc@
 FCCOMPILE = $(FC) $(AM_FCFLAGS) $(FCFLAGS)
 FCLD = $(FC)
 FCLINK = $(FCLD) $(AM_FCFLAGS) $(FCFLAGS) $(AM_LDFLAGS) $(LDFLAGS) -o \
 	$@
-SOURCES = $(internal_duschinsky_SOURCES)
-DIST_SOURCES = $(internal_duschinsky_SOURCES)
+SOURCES = $(internal_duschinsky_SOURCES) $(zmat2modredundant_SOURCES)
+DIST_SOURCES = $(internal_duschinsky_SOURCES) \
+	$(zmat2modredundant_SOURCES)
 am__can_run_installinfo = \
   case $$AM_UPDATE_INFO_DIR in \
     n|no|NO) false;; \
@@ -216,6 +239,27 @@ internal_duschinsky_SOURCES = ../modules/alerts.f90\
 
 internal_duschinsky_LDFLAGS = @LIBS@
 internal_duschinsky_FCFLAGS = -cpp -DDOUBLE -DUSE_LAPACK
+zmat2modredundant_SOURCES = ../modules/alerts.f90\
+                      ../modules/line_preprocess.f90\
+                      ../modules/constants_mod.f90\
+                      ../modules/MatrixMod.f90\
+                      ../modules/structure_types_v4.f90\
+                      ../modules/gro_manage_v4.f90\
+                      ../modules/pdb_manage_v4.f90\
+                      ../modules/gaussian_manage_v4.f90\
+                      ../modules/gaussian_fchk_manage_v4.f90\
+                      ../modules/xyz_manage_v4.f90\
+                      ../modules/molcas_unsym_manage_v4.f90\
+                      ../modules/molecular_structure.f90\
+                      ../modules/ff_build_module_v4.f90\
+                      ../modules/atomic_geom_v2.f90\
+                      ../modules/symmetry_mod_v4.f90\
+                      ../modules/internal_SR9_v4.f90\
+                      ../modules/zmat_manage_v4.f90\
+                      zmat2modredundant.f90
+
+zmat2modredundant_LDFLAGS = @LIBS@
+zmat2modredundant_FCFLAGS = -cpp -DDOUBLE 
 CLEANFILES = *.mod 
 all: all-am
 
@@ -298,6 +342,9 @@ clean-binPROGRAMS:
 internal_duschinsky$(EXEEXT): $(internal_duschinsky_OBJECTS) $(internal_duschinsky_DEPENDENCIES) $(EXTRA_internal_duschinsky_DEPENDENCIES) 
 	@rm -f internal_duschinsky$(EXEEXT)
 	$(internal_duschinsky_LINK) $(internal_duschinsky_OBJECTS) $(internal_duschinsky_LDADD) $(LIBS)
+zmat2modredundant$(EXEEXT): $(zmat2modredundant_OBJECTS) $(zmat2modredundant_DEPENDENCIES) $(EXTRA_zmat2modredundant_DEPENDENCIES) 
+	@rm -f zmat2modredundant$(EXEEXT)
+	$(zmat2modredundant_LINK) $(zmat2modredundant_OBJECTS) $(zmat2modredundant_LDADD) $(LIBS)
 
 mostlyclean-compile:
 	-rm -f *.$(OBJEXT)
@@ -418,6 +465,114 @@ internal_duschinsky-internal_duschinski_v13_v4.o: internal_duschinski_v13_v4.f90
 
 internal_duschinsky-internal_duschinski_v13_v4.obj: internal_duschinski_v13_v4.f90
 	$(FC) $(internal_duschinsky_FCFLAGS) $(FCFLAGS) -c -o internal_duschinsky-internal_duschinski_v13_v4.obj `if test -f 'internal_duschinski_v13_v4.f90'; then $(CYGPATH_W) 'internal_duschinski_v13_v4.f90'; else $(CYGPATH_W) '$(srcdir)/internal_duschinski_v13_v4.f90'; fi`
+
+zmat2modredundant-alerts.o: ../modules/alerts.f90
+	$(FC) $(zmat2modredundant_FCFLAGS) $(FCFLAGS) -c -o zmat2modredundant-alerts.o `test -f '../modules/alerts.f90' || echo '$(srcdir)/'`../modules/alerts.f90
+
+zmat2modredundant-alerts.obj: ../modules/alerts.f90
+	$(FC) $(zmat2modredundant_FCFLAGS) $(FCFLAGS) -c -o zmat2modredundant-alerts.obj `if test -f '../modules/alerts.f90'; then $(CYGPATH_W) '../modules/alerts.f90'; else $(CYGPATH_W) '$(srcdir)/../modules/alerts.f90'; fi`
+
+zmat2modredundant-line_preprocess.o: ../modules/line_preprocess.f90
+	$(FC) $(zmat2modredundant_FCFLAGS) $(FCFLAGS) -c -o zmat2modredundant-line_preprocess.o `test -f '../modules/line_preprocess.f90' || echo '$(srcdir)/'`../modules/line_preprocess.f90
+
+zmat2modredundant-line_preprocess.obj: ../modules/line_preprocess.f90
+	$(FC) $(zmat2modredundant_FCFLAGS) $(FCFLAGS) -c -o zmat2modredundant-line_preprocess.obj `if test -f '../modules/line_preprocess.f90'; then $(CYGPATH_W) '../modules/line_preprocess.f90'; else $(CYGPATH_W) '$(srcdir)/../modules/line_preprocess.f90'; fi`
+
+zmat2modredundant-constants_mod.o: ../modules/constants_mod.f90
+	$(FC) $(zmat2modredundant_FCFLAGS) $(FCFLAGS) -c -o zmat2modredundant-constants_mod.o `test -f '../modules/constants_mod.f90' || echo '$(srcdir)/'`../modules/constants_mod.f90
+
+zmat2modredundant-constants_mod.obj: ../modules/constants_mod.f90
+	$(FC) $(zmat2modredundant_FCFLAGS) $(FCFLAGS) -c -o zmat2modredundant-constants_mod.obj `if test -f '../modules/constants_mod.f90'; then $(CYGPATH_W) '../modules/constants_mod.f90'; else $(CYGPATH_W) '$(srcdir)/../modules/constants_mod.f90'; fi`
+
+zmat2modredundant-MatrixMod.o: ../modules/MatrixMod.f90
+	$(FC) $(zmat2modredundant_FCFLAGS) $(FCFLAGS) -c -o zmat2modredundant-MatrixMod.o `test -f '../modules/MatrixMod.f90' || echo '$(srcdir)/'`../modules/MatrixMod.f90
+
+zmat2modredundant-MatrixMod.obj: ../modules/MatrixMod.f90
+	$(FC) $(zmat2modredundant_FCFLAGS) $(FCFLAGS) -c -o zmat2modredundant-MatrixMod.obj `if test -f '../modules/MatrixMod.f90'; then $(CYGPATH_W) '../modules/MatrixMod.f90'; else $(CYGPATH_W) '$(srcdir)/../modules/MatrixMod.f90'; fi`
+
+zmat2modredundant-structure_types_v4.o: ../modules/structure_types_v4.f90
+	$(FC) $(zmat2modredundant_FCFLAGS) $(FCFLAGS) -c -o zmat2modredundant-structure_types_v4.o `test -f '../modules/structure_types_v4.f90' || echo '$(srcdir)/'`../modules/structure_types_v4.f90
+
+zmat2modredundant-structure_types_v4.obj: ../modules/structure_types_v4.f90
+	$(FC) $(zmat2modredundant_FCFLAGS) $(FCFLAGS) -c -o zmat2modredundant-structure_types_v4.obj `if test -f '../modules/structure_types_v4.f90'; then $(CYGPATH_W) '../modules/structure_types_v4.f90'; else $(CYGPATH_W) '$(srcdir)/../modules/structure_types_v4.f90'; fi`
+
+zmat2modredundant-gro_manage_v4.o: ../modules/gro_manage_v4.f90
+	$(FC) $(zmat2modredundant_FCFLAGS) $(FCFLAGS) -c -o zmat2modredundant-gro_manage_v4.o `test -f '../modules/gro_manage_v4.f90' || echo '$(srcdir)/'`../modules/gro_manage_v4.f90
+
+zmat2modredundant-gro_manage_v4.obj: ../modules/gro_manage_v4.f90
+	$(FC) $(zmat2modredundant_FCFLAGS) $(FCFLAGS) -c -o zmat2modredundant-gro_manage_v4.obj `if test -f '../modules/gro_manage_v4.f90'; then $(CYGPATH_W) '../modules/gro_manage_v4.f90'; else $(CYGPATH_W) '$(srcdir)/../modules/gro_manage_v4.f90'; fi`
+
+zmat2modredundant-pdb_manage_v4.o: ../modules/pdb_manage_v4.f90
+	$(FC) $(zmat2modredundant_FCFLAGS) $(FCFLAGS) -c -o zmat2modredundant-pdb_manage_v4.o `test -f '../modules/pdb_manage_v4.f90' || echo '$(srcdir)/'`../modules/pdb_manage_v4.f90
+
+zmat2modredundant-pdb_manage_v4.obj: ../modules/pdb_manage_v4.f90
+	$(FC) $(zmat2modredundant_FCFLAGS) $(FCFLAGS) -c -o zmat2modredundant-pdb_manage_v4.obj `if test -f '../modules/pdb_manage_v4.f90'; then $(CYGPATH_W) '../modules/pdb_manage_v4.f90'; else $(CYGPATH_W) '$(srcdir)/../modules/pdb_manage_v4.f90'; fi`
+
+zmat2modredundant-gaussian_manage_v4.o: ../modules/gaussian_manage_v4.f90
+	$(FC) $(zmat2modredundant_FCFLAGS) $(FCFLAGS) -c -o zmat2modredundant-gaussian_manage_v4.o `test -f '../modules/gaussian_manage_v4.f90' || echo '$(srcdir)/'`../modules/gaussian_manage_v4.f90
+
+zmat2modredundant-gaussian_manage_v4.obj: ../modules/gaussian_manage_v4.f90
+	$(FC) $(zmat2modredundant_FCFLAGS) $(FCFLAGS) -c -o zmat2modredundant-gaussian_manage_v4.obj `if test -f '../modules/gaussian_manage_v4.f90'; then $(CYGPATH_W) '../modules/gaussian_manage_v4.f90'; else $(CYGPATH_W) '$(srcdir)/../modules/gaussian_manage_v4.f90'; fi`
+
+zmat2modredundant-gaussian_fchk_manage_v4.o: ../modules/gaussian_fchk_manage_v4.f90
+	$(FC) $(zmat2modredundant_FCFLAGS) $(FCFLAGS) -c -o zmat2modredundant-gaussian_fchk_manage_v4.o `test -f '../modules/gaussian_fchk_manage_v4.f90' || echo '$(srcdir)/'`../modules/gaussian_fchk_manage_v4.f90
+
+zmat2modredundant-gaussian_fchk_manage_v4.obj: ../modules/gaussian_fchk_manage_v4.f90
+	$(FC) $(zmat2modredundant_FCFLAGS) $(FCFLAGS) -c -o zmat2modredundant-gaussian_fchk_manage_v4.obj `if test -f '../modules/gaussian_fchk_manage_v4.f90'; then $(CYGPATH_W) '../modules/gaussian_fchk_manage_v4.f90'; else $(CYGPATH_W) '$(srcdir)/../modules/gaussian_fchk_manage_v4.f90'; fi`
+
+zmat2modredundant-xyz_manage_v4.o: ../modules/xyz_manage_v4.f90
+	$(FC) $(zmat2modredundant_FCFLAGS) $(FCFLAGS) -c -o zmat2modredundant-xyz_manage_v4.o `test -f '../modules/xyz_manage_v4.f90' || echo '$(srcdir)/'`../modules/xyz_manage_v4.f90
+
+zmat2modredundant-xyz_manage_v4.obj: ../modules/xyz_manage_v4.f90
+	$(FC) $(zmat2modredundant_FCFLAGS) $(FCFLAGS) -c -o zmat2modredundant-xyz_manage_v4.obj `if test -f '../modules/xyz_manage_v4.f90'; then $(CYGPATH_W) '../modules/xyz_manage_v4.f90'; else $(CYGPATH_W) '$(srcdir)/../modules/xyz_manage_v4.f90'; fi`
+
+zmat2modredundant-molcas_unsym_manage_v4.o: ../modules/molcas_unsym_manage_v4.f90
+	$(FC) $(zmat2modredundant_FCFLAGS) $(FCFLAGS) -c -o zmat2modredundant-molcas_unsym_manage_v4.o `test -f '../modules/molcas_unsym_manage_v4.f90' || echo '$(srcdir)/'`../modules/molcas_unsym_manage_v4.f90
+
+zmat2modredundant-molcas_unsym_manage_v4.obj: ../modules/molcas_unsym_manage_v4.f90
+	$(FC) $(zmat2modredundant_FCFLAGS) $(FCFLAGS) -c -o zmat2modredundant-molcas_unsym_manage_v4.obj `if test -f '../modules/molcas_unsym_manage_v4.f90'; then $(CYGPATH_W) '../modules/molcas_unsym_manage_v4.f90'; else $(CYGPATH_W) '$(srcdir)/../modules/molcas_unsym_manage_v4.f90'; fi`
+
+zmat2modredundant-molecular_structure.o: ../modules/molecular_structure.f90
+	$(FC) $(zmat2modredundant_FCFLAGS) $(FCFLAGS) -c -o zmat2modredundant-molecular_structure.o `test -f '../modules/molecular_structure.f90' || echo '$(srcdir)/'`../modules/molecular_structure.f90
+
+zmat2modredundant-molecular_structure.obj: ../modules/molecular_structure.f90
+	$(FC) $(zmat2modredundant_FCFLAGS) $(FCFLAGS) -c -o zmat2modredundant-molecular_structure.obj `if test -f '../modules/molecular_structure.f90'; then $(CYGPATH_W) '../modules/molecular_structure.f90'; else $(CYGPATH_W) '$(srcdir)/../modules/molecular_structure.f90'; fi`
+
+zmat2modredundant-ff_build_module_v4.o: ../modules/ff_build_module_v4.f90
+	$(FC) $(zmat2modredundant_FCFLAGS) $(FCFLAGS) -c -o zmat2modredundant-ff_build_module_v4.o `test -f '../modules/ff_build_module_v4.f90' || echo '$(srcdir)/'`../modules/ff_build_module_v4.f90
+
+zmat2modredundant-ff_build_module_v4.obj: ../modules/ff_build_module_v4.f90
+	$(FC) $(zmat2modredundant_FCFLAGS) $(FCFLAGS) -c -o zmat2modredundant-ff_build_module_v4.obj `if test -f '../modules/ff_build_module_v4.f90'; then $(CYGPATH_W) '../modules/ff_build_module_v4.f90'; else $(CYGPATH_W) '$(srcdir)/../modules/ff_build_module_v4.f90'; fi`
+
+zmat2modredundant-atomic_geom_v2.o: ../modules/atomic_geom_v2.f90
+	$(FC) $(zmat2modredundant_FCFLAGS) $(FCFLAGS) -c -o zmat2modredundant-atomic_geom_v2.o `test -f '../modules/atomic_geom_v2.f90' || echo '$(srcdir)/'`../modules/atomic_geom_v2.f90
+
+zmat2modredundant-atomic_geom_v2.obj: ../modules/atomic_geom_v2.f90
+	$(FC) $(zmat2modredundant_FCFLAGS) $(FCFLAGS) -c -o zmat2modredundant-atomic_geom_v2.obj `if test -f '../modules/atomic_geom_v2.f90'; then $(CYGPATH_W) '../modules/atomic_geom_v2.f90'; else $(CYGPATH_W) '$(srcdir)/../modules/atomic_geom_v2.f90'; fi`
+
+zmat2modredundant-symmetry_mod_v4.o: ../modules/symmetry_mod_v4.f90
+	$(FC) $(zmat2modredundant_FCFLAGS) $(FCFLAGS) -c -o zmat2modredundant-symmetry_mod_v4.o `test -f '../modules/symmetry_mod_v4.f90' || echo '$(srcdir)/'`../modules/symmetry_mod_v4.f90
+
+zmat2modredundant-symmetry_mod_v4.obj: ../modules/symmetry_mod_v4.f90
+	$(FC) $(zmat2modredundant_FCFLAGS) $(FCFLAGS) -c -o zmat2modredundant-symmetry_mod_v4.obj `if test -f '../modules/symmetry_mod_v4.f90'; then $(CYGPATH_W) '../modules/symmetry_mod_v4.f90'; else $(CYGPATH_W) '$(srcdir)/../modules/symmetry_mod_v4.f90'; fi`
+
+zmat2modredundant-internal_SR9_v4.o: ../modules/internal_SR9_v4.f90
+	$(FC) $(zmat2modredundant_FCFLAGS) $(FCFLAGS) -c -o zmat2modredundant-internal_SR9_v4.o `test -f '../modules/internal_SR9_v4.f90' || echo '$(srcdir)/'`../modules/internal_SR9_v4.f90
+
+zmat2modredundant-internal_SR9_v4.obj: ../modules/internal_SR9_v4.f90
+	$(FC) $(zmat2modredundant_FCFLAGS) $(FCFLAGS) -c -o zmat2modredundant-internal_SR9_v4.obj `if test -f '../modules/internal_SR9_v4.f90'; then $(CYGPATH_W) '../modules/internal_SR9_v4.f90'; else $(CYGPATH_W) '$(srcdir)/../modules/internal_SR9_v4.f90'; fi`
+
+zmat2modredundant-zmat_manage_v4.o: ../modules/zmat_manage_v4.f90
+	$(FC) $(zmat2modredundant_FCFLAGS) $(FCFLAGS) -c -o zmat2modredundant-zmat_manage_v4.o `test -f '../modules/zmat_manage_v4.f90' || echo '$(srcdir)/'`../modules/zmat_manage_v4.f90
+
+zmat2modredundant-zmat_manage_v4.obj: ../modules/zmat_manage_v4.f90
+	$(FC) $(zmat2modredundant_FCFLAGS) $(FCFLAGS) -c -o zmat2modredundant-zmat_manage_v4.obj `if test -f '../modules/zmat_manage_v4.f90'; then $(CYGPATH_W) '../modules/zmat_manage_v4.f90'; else $(CYGPATH_W) '$(srcdir)/../modules/zmat_manage_v4.f90'; fi`
+
+zmat2modredundant-zmat2modredundant.o: zmat2modredundant.f90
+	$(FC) $(zmat2modredundant_FCFLAGS) $(FCFLAGS) -c -o zmat2modredundant-zmat2modredundant.o `test -f 'zmat2modredundant.f90' || echo '$(srcdir)/'`zmat2modredundant.f90
+
+zmat2modredundant-zmat2modredundant.obj: zmat2modredundant.f90
+	$(FC) $(zmat2modredundant_FCFLAGS) $(FCFLAGS) -c -o zmat2modredundant-zmat2modredundant.obj `if test -f 'zmat2modredundant.f90'; then $(CYGPATH_W) 'zmat2modredundant.f90'; else $(CYGPATH_W) '$(srcdir)/zmat2modredundant.f90'; fi`
 
 ID: $(HEADERS) $(SOURCES) $(LISP) $(TAGS_FILES)
 	list='$(SOURCES) $(HEADERS) $(LISP) $(TAGS_FILES)'; \

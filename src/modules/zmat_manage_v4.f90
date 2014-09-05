@@ -35,6 +35,18 @@ subroutine modredundant(I_RED,molec)
             read(line,*) i1, i2, i3, i4
             ndihed = ndihed + 1
             molec%geom%dihed(ndihed,1:4) = (/i1,i2,i3,i4/)
+        elseif (int_type == "I") then
+            read(line,*) i1, i2, i3, i4
+            nimprop = nimprop + 1
+            molec%geom%improp(nimprop,1:4) = (/i1,i2,i3,i4/)
+        elseif (int_type == "!") then
+            !this is a comment
+            cycle
+        elseif (int_type == "") then
+        !Blank line is the end
+            exit
+        else
+            call alert_msg("fatal","Unknows internal type: "//int_type)
         endif
     enddo
 
@@ -45,6 +57,100 @@ subroutine modredundant(I_RED,molec)
     return
 
 end subroutine modredundant
+
+!%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%5
+
+subroutine check_colinear(molec,bond_s,angle_s,natoms0,is_colinear)
+
+    !not tested in molecular_tool (a working code is in internal project)
+
+    use structure_types
+    use alerts
+    use constants
+    use atomic_geom
+    use symmetry_mod
+
+    type(str_resmol),intent(inout) :: molec
+    integer,dimension(:,:),intent(inout) :: bond_s,angle_s
+    integer,intent(in) :: natoms0
+    logical,intent(out) :: is_colinear
+
+    real(8) :: ang, dist, dx, dy, dz, vx, vy, vz
+    integer :: i_1, i_2, i_3
+    integer :: i,j,ii, natoms, iat_1, iat_2
+
+    is_colinear = .false.
+    !Run over angle_s triads
+    natoms=molec%natoms
+    do i=3,natoms
+        i_1 = angle_s(i,1)
+        i_3 = angle_s(i,2)
+        i_2 = angle_s(i,3)
+        if (i_1.gt.natoms0 .or. i_2.gt.natoms0 .or. i_3.gt.natoms0) cycle
+        ang = calc_angle(molec%atom(i_1),molec%atom(i_3),molec%atom(i_2))
+        if (ang.gt.0.97*PI) then
+            print*, "Caution: colinear atoms"
+            is_colinear=.true.
+            print'(3(A,I2,X))', trim(molec%atom(i_1)%name),i_1,&
+                                trim(molec%atom(i_3)%name),i_3,&
+                                trim(molec%atom(i_2)%name),i_2
+            print*, "Angle:", ang*180.d0/PI
+            !Identify the bonded term in atom%geom
+            print*, "==================="
+            print*, angle_s(i,1:3)
+            print*, "I will cut the connection between:", angle_s(i,2), angle_s(i,3)
+            print*, "==================="
+            !Add dummy atom
+            molec%natoms=molec%natoms+1
+            molec%atom(molec%natoms)%name="XX"
+            do j=1,molec%geom%nbonds
+!                 print*, molec%geom%bond(j,1:2)
+                if((bond_s(i,1) == molec%geom%bond(j,1) .and. &
+                    bond_s(i,2) == molec%geom%bond(j,2)) .or. &
+                   (bond_s(i,2) == molec%geom%bond(j,1) .and. &
+                    bond_s(i,1) == molec%geom%bond(j,2))) then
+                    print*, "bond identified (", j,")", molec%geom%bond(j,1:2)
+                    iat_1=molec%geom%bond(j,1)
+                    iat_2=molec%geom%bond(j,2)
+                    exit
+                 endif
+            enddo
+            !Erase conection iat_1 -- iat_2, and redo as iat_1 -- XX --iat_2
+            print*, "Cutting..."
+            do ii=1,molec%atom(iat_1)%nbonds
+                if (molec%atom(iat_1)%connect(ii) == iat_2) molec%atom(iat_1)%connect(ii) = molec%natoms
+            enddo
+            do ii=1,molec%atom(iat_2)%nbonds
+                if (molec%atom(iat_2)%connect(ii) == iat_1) molec%atom(iat_2)%connect(ii) = molec%natoms
+            enddo
+            molec%atom(molec%natoms)%nbonds = 2
+            molec%atom(molec%natoms)%connect(1) = iat_1
+            molec%atom(molec%natoms)%connect(2) = iat_2
+            dist=calc_dist(molec%atom(iat_1),molec%atom(iat_2))
+            vx=(molec%atom(iat_1)%x - molec%atom(iat_2)%x)/2.d0
+            vy=(molec%atom(iat_1)%y - molec%atom(iat_2)%y)/2.d0
+            vz=(molec%atom(iat_1)%z - molec%atom(iat_2)%z)/2.d0
+            if (abs(vx) .lt. 1.d-2) then
+                dy = -vz
+                dz = vy
+            elseif (abs(vy) .lt. 1.d-2) then
+                dx = -vz
+                dz = vx
+            else
+                dx = -vy
+                dy = vx
+            endif
+            molec%atom(molec%natoms)%x = (molec%atom(iat_1)%x + molec%atom(iat_2)%x)/2.d0 + dx
+            molec%atom(molec%natoms)%y = (molec%atom(iat_1)%y + molec%atom(iat_2)%y)/2.d0 + dy
+            molec%atom(molec%natoms)%z = (molec%atom(iat_1)%z + molec%atom(iat_2)%z)/2.d0 + dz
+            molec%atom(molec%natoms)%mass = 10000000.d0
+            exit
+        endif
+    enddo
+    return
+end subroutine check_colinear
+
+!%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%5
 
 subroutine build_Z(molec,bond_s,angle_s,dihed_s,PG,isym,bond_sym,angle_sym,dihed_sym)
 

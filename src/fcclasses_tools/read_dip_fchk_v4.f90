@@ -88,6 +88,11 @@ program read_dip_fchk
     endif
     close(I_FCHK)
 
+    !Set to zero very low values
+!     do j=1,N 
+!         if (abs(A(j)) .lt. 1d-10) A(j)=0.d0
+!     enddo
+
     !===================================
     ! TRANSITION ELECTRIC DIPOLE MOMENT
     !===================================
@@ -96,6 +101,7 @@ program read_dip_fchk
     Dip(1:3) = A(2:4)
 
     ! If numerical freqs were computed, the size of the section is bigger:
+        call symm_atoms_nt(geom,Nat,isym)
     if (N == Nes*16+48+3*Nat*16) then
         print*, "Derivatives of TrDip available"
         call symm_atoms_nt(geom,Nat,isym)
@@ -108,19 +114,27 @@ program read_dip_fchk
             jj = j*3-2
             DipD(jj:jj+2) = A(k+2:k+4)
 
+!             if (DipD(jj  ) == 0.d0 .and.&
+!                 DipD(jj+1) == 0.d0 .and.&
+!                 DipD(jj+2) == 0.d0) then
+!                 !use symmetric values
+!                 at_num = j/3
+!                 if (at_num*3 /= j) at_num=at_num+1 
+!                 delta=at_num*3 - j
+!                 j_sym = 3*isym(at_num)-delta
+! print'(X,4(A,I3))', "Taking symmetric for atom ", at_num, " from atom ", isym(at_num), "  |  Ders for geom: ", j, " <-->", j_sym
+!                 jj_sym = j_sym*3-2
+!                 DipD(jj:jj+2) = DipD(jj_sym:jj_sym+2)
+!             endif
             if (DipD(jj  ) == 0.d0 .and.&
                 DipD(jj+1) == 0.d0 .and.&
                 DipD(jj+2) == 0.d0) then
-                !use symmetric values
-                at_num = j/3
-                if (at_num*3 /= j) at_num=at_num+1 
-                delta=at_num*3 - j
-                j_sym = 3*isym(at_num)-delta
-print'(X,4(A,I3))', "Taking symmetric for atom ", at_num, " from atom ", isym(at_num), "  |  Ders for geom: ", j, " <-->", j_sym
-                jj_sym = j_sym*3-2
-                DipD(jj:jj+2) = DipD(jj_sym:jj_sym+2)
+                !Symmetry is used
+                call alert_msg("warning","Looks like the computation was done with symmetry. If so, dipole ders. are not reliable!")
             endif
         enddo
+    else
+        print*, "Derivatives of TrDip NOT available"
     endif
     !WRITE ELDIP FILE
     ! outfile

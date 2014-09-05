@@ -70,17 +70,8 @@ program normal_modes_animation
     integer,parameter :: NDIM = 800
 
     !====================== 
-    !Options 
-    logical :: nosym=.true.   ,&
-               zmat=.true.    ,&
-               tswitch=.false.,&
-               symaddapt=.false.
-    !======================
-
-    !====================== 
     !System variables
-    type(str_resmol) :: molecule, molec_aux
-    type(str_job)    :: job
+    type(str_resmol) :: molecule
     integer,dimension(1:NDIM) :: isym
     integer :: Nat, Nvib, Nred
     character(len=5) :: PG
@@ -153,13 +144,6 @@ program normal_modes_animation
     character(len=10000) :: vmdcall
     integer :: Nsteps, Nsel, istep
 
-    !=================================
-    ! Internal scan stuff
-    !=================================
-    integer :: icoord
-    logical :: scan_internal=.false.,&
-               showZ=.false.
-
     !================
     !I/O stuff 
     !units
@@ -170,10 +154,8 @@ program normal_modes_animation
     !files
     character(len=10) :: filetype="guess"
     character(len=200):: inpfile ="input.fchk",  &
-                         zmatfile="NO",          &
-                         numfile       
-    character(len=100),dimension(1:1000) :: grofile
-    character(len=100) :: nmfile='none', g09file,qfile
+                         outfile   
+    character(len=1)  :: cnull       
     !Control of stdout
     logical :: verbose=.false.
     !status
@@ -189,13 +171,8 @@ program normal_modes_animation
 !==================================================================================
     call cpu_time(ti)
 
-    ! 0. GET COMMAND LINE ARGUMENTS
-    nm(1) = 0
-    icoord=-1
-    call parse_input(inpfile,nmfile,nm,Nsel,Amplitude,filetype,nosym,zmat,verbose,tswitch,symaddapt,zmatfile,&
-                     icoord,showZ,call_vmd)
-    if (icoord /= -1) scan_internal=.true.
-    if (showZ) scan_internal=.false.
+    ! 0. GET COMMAND LINE ARGUMENT: input file name
+    call getarg(1, inpfile) 
 
     ! 1. INTERNAL VIBRATIONAL ANALYSIS 
  
@@ -252,16 +229,6 @@ program normal_modes_animation
     endif
     close(I_INP)
 
-    !NORMAL MODES SELECTION SWITCH
-    if (Nsel == 0) then
-        !The select them all
-        Nsel = Nvib
-        do i=1,Nsel
-            nm(i) = i
-        enddo
-    endif
-    if (Nsel > 1000) call alert_msg("fatal", "Too many normal modes. Dying")
-
 
     !====================================
     !INTERNAL COORDINATES MANAGEMENT
@@ -269,12 +236,6 @@ program normal_modes_animation
     ! Get connectivity from the residue (needs to be in ANGS, as it is -- default coord. output)
     ! Setting element from atom names is mandatory to use guess_connect
     call guess_connect(molecule)
-    if (nosym) then
-        PG="C1"
-    else
-        call symm_atoms(molecule,isym)
-        PG=molecule%PG
-    endif
     !From now on, we'll use atomic units
     molecule%atom(1:Nat)%x = molecule%atom(1:Nat)%x/BOHRtoANGS
     molecule%atom(1:Nat)%y = molecule%atom(1:Nat)%y/BOHRtoANGS
@@ -282,20 +243,12 @@ program normal_modes_animation
 
     !Generate bonded info
     call gen_bonded(molecule)
+! print*, "Nbonds", molecule%geom%nbonds
+! print*, "Nangls", molecule%geom%nangles
+! print*, "Ndihed", molecule%geom%ndihed
 
     !GENERATE SET FOR INTERNAL COORDINATES FROM Z-MATRIX
-    ! Store this info in molec%geom module
-    if (adjustl(zmatfile) == "NO") then
-        call build_Z(molecule,bond_s,angle_s,dihed_s,PG,isym,bond_sym,angle_sym,dihed_sym)
-    else
-        open(I_ZMAT,file=zmatfile,status="old")
-        print*, "Z-matrix read from "//trim(adjustl(zmatfile))
-        call read_Z(molecule,bond_s,angle_s,dihed_s,PG,isym,bond_sym,angle_sym,dihed_sym,I_ZMAT)
-        close(I_ZMAT)
-        !Deactivate symaddapt (for the moment)
-        PG = "C1"
-    endif
-
+    call build_Z(molecule,bond_s,angle_s,dihed_s,PG,isym,bond_sym,angle_sym,dihed_sym)
     !Z-mat (always Z-mat is used)
     molecule%geom%bond(1:Nat-1,1:2) = bond_s(2:Nat,1:2)
     molecule%geom%angle(1:Nat-2,1:3) = angle_s(3:Nat,1:3)
@@ -307,6 +260,7 @@ program normal_modes_animation
 
     !INTERNAL COORDINATES ANALYSIS
     Asel1(1,1) = 99.d0 !out-of-range, as Asel is normalized -- this option is not tested
+    S_sym(3*Nat) = 0
     call internal_Wilson(molecule,S1,S_sym,ModeDef,B1,G1,Asel1,verbose)
 
 
@@ -376,7 +330,9 @@ program normal_modes_animation
     enddo
     print*, ""
     !Print state
-    open(O_STAT,file="state_file")
+    call split_line(inpfile,".",outfile,cnull)
+    outfile = "state_"//trim(adjustl(outfile))//"_hess"
+    open(O_STAT,file=outfile)
     do i=1,Nat
         write(O_STAT,*) molecule%atom(i)%x*BOHRtoANGS
         write(O_STAT,*) molecule%atom(i)%y*BOHRtoANGS
@@ -403,146 +359,6 @@ program normal_modes_animation
     !==============================================
     contains
     !=============================================
-
-    subroutine parse_input(inpfile,nmfile,nm,Nsel,Amplitude,filetype,nosym,zmat,verbose,tswitch,symaddapt,zmatfile,&
-                           icoord,showZ,call_vmd)
-    !==================================================
-    ! My input parser (gromacs style)
-    !==================================================
-        implicit none
-
-        character(len=*),intent(inout) :: inpfile,nmfile,filetype,zmatfile
-        logical,intent(inout) :: nosym, verbose, zmat, tswitch, symaddapt,showZ,call_vmd
-        integer,dimension(:),intent(inout) :: nm
-        integer,intent(inout) :: icoord
-        integer,intent(out) :: Nsel
-        real(8),intent(out) :: Amplitude
-        ! Local
-        logical :: argument_retrieved,  &
-                   need_help = .false.
-        integer:: i
-        character(len=200) :: arg
-
-        !Prelimirary defaults
-        Nsel = 0
-
-        argument_retrieved=.false.
-        do i=1,iargc()
-            if (argument_retrieved) then
-                argument_retrieved=.false.
-                cycle
-            endif
-            call getarg(i, arg) 
-            select case (adjustl(arg))
-                case ("-f") 
-                    call getarg(i+1, inpfile)
-                    argument_retrieved=.true.
-                case ("-ft") 
-                    call getarg(i+1, filetype)
-                    argument_retrieved=.true.
-
-                case ("-nm") 
-                    call getarg(i+1, arg)
-                    argument_retrieved=.true.
-                    call string2vector_int(arg,nm,Nsel)
-
-                case ("-nmf") 
-                    call getarg(i+1, nmfile)
-                    argument_retrieved=.true.
-
-                case ("-maxd") 
-                    call getarg(i+1, arg)
-                    read(arg,*) Amplitude
-                    argument_retrieved=.true.
-
-                case ("-vmd")
-                    call_vmd=.true.
-
-                case ("-nosym")
-                    nosym=.true.
-                case ("-sym")
-                    nosym=.false.
-
-                case ("-sa")
-                    symaddapt=.true.
-                case ("-nosa")
-                    symaddapt=.false.
-
-                case ("-readz") 
-                    call getarg(i+1, zmatfile)
-                    argument_retrieved=.true.
-
-                case("-showz")
-                    showZ=.true.
-
-                case ("-zmat")
-                    zmat=.true.
-                case ("-nozmat")
-                    zmat=.false.
-
-                case ("-tswitch")
-                    tswitch=.true.
-
-                case ("-int")
-                    call getarg(i+1, arg)
-                    read(arg,*) icoord
-                    argument_retrieved=.true.
-
-                case ("-v")
-                    verbose=.true.
-        
-                case ("-h")
-                    need_help=.true.
-
-                case default
-                    call alert_msg("fatal","Unkown command line argument: "//adjustl(arg))
-            end select
-        enddo 
-
-        ! Some checks on the input
-        !----------------------------
-        if (symaddapt.and.nosym) then
-            print*, ""
-            print*, "Symmetry addapted internal coordintes implies -sym. Turning on..."
-            print*, ""
-            nosym=.false.
-        endif
-
-       !Print options (to stderr)
-        write(0,'(/,A)') '--------------------------------------------------'
-        write(0,'(/,A)') '          INTERNAL MODES ANIMATION '    
-        write(0,'(/,A)') '      Perform vibrational analysis based on  '
-        write(0,'(/,A)') '            internal coordinates (D-V7)'        
-        write(0,'(/,A)') '         Revision: nm_internal-140320-1'
-       write(0,'(/,A)') '--------------------------------------------------'
-        write(0,*) '-f              ', trim(adjustl(inpfile))
-        write(0,*) '-ft             ', trim(adjustl(filetype))
-        write(0,*) '-nm            ', nm(1),"-",nm(Nsel)
-!         write(0,*) '-nmf           ', nm(1:Nsel)
-        write(0,*) '-vmd           ',  call_vmd
-        write(0,*) '-maxd          ',  Amplitude
-        if (nosym) dummy_char="NO "
-        if (.not.nosym) dummy_char="YES"
-        write(0,*) '-[no]sym        ', dummy_char
-        if (zmat) dummy_char="YES"
-        if (.not.zmat) dummy_char="NO "
-        write(0,*) '-[no]zmat       ', dummy_char
-        write(0,*) '-readz          ', trim(adjustl(zmatfile))
-        write(0,*) '-showz         ', showZ
-        if (tswitch) dummy_char="YES"
-        if (.not.tswitch) dummy_char="NO "
-        write(0,*) '-tswitch        ', dummy_char
-        if (symaddapt) dummy_char="YES"
-        if (.not.symaddapt) dummy_char="NO "
-        write(0,*) '-sa             ', dummy_char
-        write(0,*) '-int           ', icoord
-        write(0,*) '-v             ', verbose
-        write(0,*) '-h             ',  need_help
-        write(0,*) '--------------------------------------------------'
-        if (need_help) call alert_msg("fatal", 'There is no manual (for the moment)' )
-
-        return
-    end subroutine parse_input
 
 
     subroutine generic_strfile_read(unt,filetype,molec)

@@ -388,12 +388,12 @@ program internal_duschinski
     !as they must be used for state 2 (not rederived!).
     Asel1(1,1) = 99.d0 !out-of-range, as Asel is normalized -- this option is not tested
     call internal_Wilson(state1,S1,S_sym,ModeDef,B1,G1,Asel1,verbose)
-    if (vertical) then
-        call NumBder(state1,S_sym,Bder)
-        call gf_method_V(Hess,Grad,state1,S_sym,ModeDef,L1,B1,Bder,G1,Freq,Asel1,X1,X1inv,verbose) 
-    else
+!     if (vertical) then
+!         call NumBder(state1,S_sym,Bder)
+!         call gf_method_V(Hess,Grad,state1,S_sym,ModeDef,L1,B1,Bder,G1,Freq,Asel1,X1,X1inv,verbose) 
+!     else
         call gf_method(Hess,state1,S_sym,ModeDef,L1,B1,G1,Freq,Asel1,X1,X1inv,verbose)
-    endif 
+!     endif 
 
     !Compute new state_file for 2
     ! T2(g09) = mu^1/2 m B^t G2^-1 L2
@@ -638,15 +638,51 @@ program internal_duschinski
 
     !SOLVE GF METHOD TO GET NM AND FREQ
     Asel2 = Asel1
-    call internal_Wilson(state2,S2,S_sym,ModeDef,B2,G2,Asel2,verbose) 
+    call internal_Wilson(state2,S2,S_sym,ModeDef,B2,G2,Asel2,verbose)
     if (vertical) then
         call NumBder(state2,S_sym,Bder)
         call gf_method_V(Hess,Grad,state2,S_sym,ModeDef,L2,B2,Bder,G2,Freq,Asel2,X2,X2inv,verbose)
+!         call gf_method(Hess,state2,S_sym,ModeDef,L2,B2,G2,Freq,Asel2,X2,X2inv,verbose)
     else
         call gf_method(Hess,state2,S_sym,ModeDef,L2,B2,G2,Freq,Asel2,X2,X2inv,verbose)
     endif 
 
+    if (vertical) then
+        do i=1,Nvib
+            Vec2(i) = 0.d0
+            do k=1,3*Nat
+                Vec2(i) = Vec2(i) + L1(i,k)*Grad(k)
+            enddo
+        enddo
+        Grad(1:Nvib) = Vec2(1:Nvib)
+        do i=1,Nvib
+        do j=1,Nvib
+            Aux2(i,j) = 0.d0
+            do k=1,3*Nat
+                Aux2(i,j) = Aux2(i,j) + L1(k,i)*Hess(k,j)
+            enddo
+        enddo
+        enddo
+        do i=1,Nvib
+        do j=1,Nvib
+            Hess(i,j) = 0.d0
+            do k=1,3*Nat
+                Hess(i,j) = Hess(i,j) + Aux2(i,k)*L1(k,j)
+            enddo
+        enddo
+        enddo
 
+        call diagonalize_full(Hess(1:Nvib,1:Nvib),Nvib,Aux(1:Nvib,1:Nvib),Freq(1:Nvib),"lapack")
+
+        print*, "FREQUENCIES (VH)"
+        do i=1,Nvib
+          Freq(i) = sign(dsqrt(abs(Freq(i))*HARTtoJ/BOHRtoM**2/AUtoKG)/2.d0/pi/clight/1.d2,&
+                         Freq(i))
+          write(6,*) Freq(i)
+        enddo
+
+        stop
+    endif
 
     !Compute new state_file for 2
     ! T2(g09) = mu^1/2 m B^t G2^-1 L2

@@ -24,6 +24,7 @@ program gen_oniom
     use gaussian_manage
     use pdb_manage
     use alerts
+    use molecular_structure
 
     implicit none
 
@@ -105,6 +106,9 @@ program gen_oniom
 
     ! 1. READ DATA
     call generic_strfile_read(I_INP,filetype,molec)
+!     do i=1,molec%natoms
+!         molec%atom(i)%name = molec%atom(i)%element
+!     enddo
     call read_top(I_TOP,residue,molname,nmol)
     close(I_INP)
     close(I_TOP)
@@ -404,6 +408,7 @@ program gen_oniom
         end select
         endif
 
+        call atname2element(molec)
 
         return
 

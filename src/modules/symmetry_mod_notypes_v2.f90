@@ -249,9 +249,9 @@ module symmetry_mod_notypes
             endif
             print*, ""
 
-            do i=1,natoms
-                print*, i, isym(i)
-            enddo
+!             do i=1,natoms
+!                 print*, i, isym(i)
+!             enddo
 
             !Higher symmetry groups shuld also be tested... (TODO)
             

@@ -1,0 +1,11 @@
+Title: Issues recognising H-bonds as connected terms
+Reported by: J. Cerezo
+Date: 5 Sept 2014
+Description:
+H-bonds are not recognised as bonds by gues_connect. Although this behavior is generally ok, in some cases we might need to include H-bonds in the "bonded" terms (i.e., to contruct the Z-matrix of a system with H-bonds). To that end, we can manually change in src/modules/molecular_structure.f90 the database ref. value to identify O-H bonds(l. 255) from 1.07 to, e.g., 1.80 and recompile. This should be controlled without needing to change the source, by adding a flag into the code (e.g. -hbonds). This might require an additional argument to the subroutine or a common block, in any case, all programs calling guess_connec would be affected.
+Assigned to: J. Cerezo
+
+
+**************************************************
+
+

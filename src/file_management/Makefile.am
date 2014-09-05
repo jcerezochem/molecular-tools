@@ -25,6 +25,7 @@ gen_oniom_SOURCES = ../modules/alerts.f90\
                       ../modules/gaussian_manage_v4.f90\
                       ../modules/gaussian_fchk_manage_v4.f90\
                       ../modules/xyz_manage_v4.f90\
+                      ../modules/molecular_structure.f90\
                       gen_oniom_v4.f90
 gen_oniom_LDFLAGS = @LIBS@
 gen_oniom_FCFLAGS = -cpp -DDOUBLE

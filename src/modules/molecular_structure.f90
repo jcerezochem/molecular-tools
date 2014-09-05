@@ -239,7 +239,7 @@ module molecular_structure
         if (external_DB) then
             print*, "External DB not yet supported"
         else
-            n_entries=27
+            n_entries=28
             ! Default implementation
             ! Taken from CRC Handbook of Chemistry and Physics
             !(that's a good plan, for the moment, they're gv defaults)
@@ -252,7 +252,7 @@ module molecular_structure
                     "C    H    1.07",      & !4
                     "O    O    1.34",      & !5 was 1.32, but was not enough for H2O2 (1.47 needed 1.337)
                     "O    S    1.67",      & !6
-                    "O    H    1.07",      & !7
+                    "O    H    1.07",      & !7 !to include Hbonds use 1.80, else use 1.07
                     "S    S    2.02",      & !8
                     "S    H    1.31",      & !9
                     "H    H    0.60",      & !10
@@ -272,7 +272,8 @@ module molecular_structure
                     "Ni   N    2.10",      & !24  To be revised
                     "Cl   C    1.80",      & !25  Larger than gv standard (1.76)
                     "P    O    1.71",      & !26
-                    "P    H    1.35"       & !27
+                    "P    H    1.35",      & !27
+                    "Pt   N    2.20"       & !28
                     /)                       
         endif
 
@@ -513,6 +514,8 @@ module molecular_structure
                             atom%element = "Fe"
                         case ("o")
                             atom%element = "Po"
+                        case ("T")
+                            atom%element = "Pt"
                         case default
                             atom%element = "P"
                     end select
@@ -744,6 +747,8 @@ module molecular_structure
                 residuo(i)%atom(ii) = sistema%atom(iat)
             enddo
         enddo
+
+print*, sistema%nres
 
        return
     end subroutine sist2res

@@ -427,7 +427,7 @@ Copyright (C) 2012 Free Software Foundation, Inc.
 This config.status script is free software; the Free Software Foundation
 gives unlimited permission to copy, distribute and modify it."
 
-ac_pwd='/home/cerezo/dev/MY_PROJECTS/GIT/molecular-tools/src/normal_modes'
+ac_pwd='/home/cerezo/dev/MY_PROJECTS/GIT/molecular-tools/src/fcclasses_tools_dev'
 srcdir='.'
 INSTALL='/usr/bin/install -c'
 MKDIR_P='/bin/mkdir -p'
@@ -597,26 +597,22 @@ S["ac_ct_FC"]="gfortran"
 S["LDFLAGS"]=""
 S["FCFLAGS"]=""
 S["FC"]="gfortran"
-S["AM_BACKSLASH"]="\\"
-S["AM_DEFAULT_VERBOSITY"]="1"
-S["AM_DEFAULT_V"]="$(AM_DEFAULT_VERBOSITY)"
-S["AM_V"]="$(V)"
 S["am__untar"]="$${TAR-tar} xf -"
 S["am__tar"]="$${TAR-tar} chof - \"$$tardir\""
 S["AMTAR"]="$${TAR-tar}"
 S["am__leading_dot"]="."
 S["SET_MAKE"]=""
 S["AWK"]="gawk"
-S["mkdir_p"]="$(MKDIR_P)"
+S["mkdir_p"]="/bin/mkdir -p"
 S["MKDIR_P"]="/bin/mkdir -p"
 S["INSTALL_STRIP_PROGRAM"]="$(install_sh) -c -s"
 S["STRIP"]=""
-S["install_sh"]="${SHELL} /home/cerezo/dev/MY_PROJECTS/GIT/molecular-tools/src/normal_modes/install-sh"
-S["MAKEINFO"]="${SHELL} /home/cerezo/dev/MY_PROJECTS/GIT/molecular-tools/src/normal_modes/missing makeinfo"
-S["AUTOHEADER"]="${SHELL} /home/cerezo/dev/MY_PROJECTS/GIT/molecular-tools/src/normal_modes/missing autoheader"
-S["AUTOMAKE"]="${SHELL} /home/cerezo/dev/MY_PROJECTS/GIT/molecular-tools/src/normal_modes/missing automake-1.13"
-S["AUTOCONF"]="${SHELL} /home/cerezo/dev/MY_PROJECTS/GIT/molecular-tools/src/normal_modes/missing autoconf"
-S["ACLOCAL"]="${SHELL} /home/cerezo/dev/MY_PROJECTS/GIT/molecular-tools/src/normal_modes/missing aclocal-1.13"
+S["install_sh"]="${SHELL} /home/cerezo/dev/MY_PROJECTS/GIT/molecular-tools/install-sh"
+S["MAKEINFO"]="${SHELL} /home/cerezo/dev/MY_PROJECTS/GIT/molecular-tools/missing --run makeinfo"
+S["AUTOHEADER"]="${SHELL} /home/cerezo/dev/MY_PROJECTS/GIT/molecular-tools/missing --run autoheader"
+S["AUTOMAKE"]="${SHELL} /home/cerezo/dev/MY_PROJECTS/GIT/molecular-tools/missing --run automake-1.11"
+S["AUTOCONF"]="${SHELL} /home/cerezo/dev/MY_PROJECTS/GIT/molecular-tools/missing --run autoconf"
+S["ACLOCAL"]="${SHELL} /home/cerezo/dev/MY_PROJECTS/GIT/molecular-tools/missing --run aclocal-1.11"
 S["VERSION"]="2.2.1"
 S["PACKAGE"]="normal_modes_anim"
 S["CYGPATH_W"]="echo"

@@ -122,6 +122,7 @@ program build_top
         endif
 
         call sist2res(molec,residue)
+print*, molec%nres
 !         call sist_nres(molec)
 
         !Only one residue supported (for the momenfor the moment)

@@ -81,8 +81,8 @@ program geom_param_list
         elseif (nitems == 4) then
             param=calc_dihed_new(molecule%atom(atlabels(1)),molecule%atom(atlabels(2)),molecule%atom(atlabels(3)),&
                              molecule%atom(atlabels(4)))
-            if (.not.labels) print'(F9.2,2X)', param
-            if (labels)      print'(4I5,X,F9.2)', atlabels(1), atlabels(2), atlabels(3), atlabels(4), param
+            if (.not.labels) print'(F9.2,2X)', param*180.d0/pi
+            if (labels)      print'(4I5,X,F9.2)', atlabels(1), atlabels(2), atlabels(3), atlabels(4), param*180.d0/pi
         endif
         
     enddo
