@@ -1,4 +1,4 @@
-program fchk2gro
+program get_symatoms
 
 
     !==============================================================
@@ -21,6 +21,8 @@ program fchk2gro
     !  July 2013: guess connect is placed out of generic_strfile_read/write
     !
     !  Version 4: addapted to v4 modules
+    !  v4.1: add "swap" option (10/10/14)
+    !        included fcc (structure part of state file)
     !
     ! TODO:
     ! ------
@@ -38,12 +40,15 @@ program fchk2gro
     use molcas_unsym_manage
     use ff_build
     use molecular_structure
+    use symmetry_mod
 
     implicit none
 
     !====================== 
     !System variables
-    type(str_resmol) :: molec
+    type(str_resmol) :: molec, &
+                        molec_aux
+    integer,dimension(1:1000) :: isym
     !====================== 
 
     !=============
@@ -52,19 +57,23 @@ program fchk2gro
     character(len=1) :: null
     logical :: overwrite=.false.,&
                make_connect=.false.
+    !Swap related counters
+    integer :: iat_new, iat_orig, nswap
     !=============
 
     !================
     !I/O stuff 
     !units
-    integer :: I_INP=10,  &
+    integer :: I_INP=10, &
+               I_SWP=11, &
                O_OUT=20  
     !files
     character(len=5) :: resname="read"
     character(len=10) :: filetype_inp="guess",&
                          filetype_out="guess"
-    character(len=200):: inpfile="input.fchk",          &
-                         outfile="default"
+    character(len=200):: inpfile="input.fchk",&
+                         outfile="default"   ,&
+                         swapfile="none"  
     !status
     integer :: IOstatus
     character(len=7) :: stat="new" !do not overwrite when writting
@@ -72,7 +81,7 @@ program fchk2gro
 
 
     ! 0. GET COMMAND LINE ARGUMENTS
-    call parse_input(inpfile,filetype_inp,outfile,filetype_out,overwrite,make_connect,resname)
+    call parse_input(inpfile,filetype_inp,outfile,filetype_out,overwrite,make_connect,resname,swapfile)
 
  
     ! 1. READ INPUT
@@ -87,22 +96,12 @@ program fchk2gro
     !Option to specify the resname from command line
     if (adjustl(resname) /= "read") molec%atom(:)%resname=resname
 
-
-    ! 2. WRITE OUTPUT
-    ! ---------------------------------
-    if (overwrite) stat="unknown"
-    open(O_OUT,file=outfile,status=stat,iostat=IOstatus)
-    if (IOstatus /= 0) call alert_msg( "fatal","Cannot write in "//trim(adjustl(outfile))//&
-                                                            ". Already exists? Use -r to overwrite" )
-
-    if (adjustl(filetype_out) == "guess") call split_line_back(outfile,".",null,filetype_out)
-    !If PDB check if connections are requested
-    if (make_connect .and. adjustl(filetype_out)=="pdb") then
-        call guess_connect(molec)
-        filetype_out="pdb-c"
-    endif
-    call generic_strfile_write(O_OUT,filetype_out,molec) 
-    close(O_OUT)
+    ! 2. GUESS SYMMETRY AND WRITE
+    ! -------------------------------
+    call symm_atoms(molec,isym)
+    do i=1,molec%natoms
+        print*, i, isym(i)
+    enddo
 
     stop
 
@@ -111,7 +110,7 @@ program fchk2gro
     contains
     !=============================================
 
-    subroutine parse_input(inpfile,filetype_inp,outfile,filetype_out,overwrite,make_connect,resname)
+    subroutine parse_input(inpfile,filetype_inp,outfile,filetype_out,overwrite,make_connect,resname,swapfile)
     !==================================================
     ! My input parser (gromacs style)
     !==================================================
@@ -119,7 +118,7 @@ program fchk2gro
 
         character(len=*),intent(inout) :: inpfile,outfile,&
                                           filetype_inp,filetype_out, &
-                                          resname
+                                          resname,swapfile
         logical,intent(inout) :: overwrite, make_connect
         ! Local
         logical :: argument_retrieved,  &
@@ -158,6 +157,10 @@ program fchk2gro
 
                 case ("-connect")
                     make_connect=.true.
+
+                case ("-swap")
+                    call getarg(i+1, swapfile)
+                    argument_retrieved=.true.
         
                 case ("-h")
                     need_help=.true.
@@ -186,6 +189,7 @@ program fchk2gro
         write(0,*) '-o              ', trim(adjustl(outfile))
         write(0,*) '-fto            ', trim(adjustl(filetype_out))
         write(0,*) '-r             ',  overwrite
+        write(0,*) '-swap           ',  trim(adjustl(swapfile))
         write(0,*) '-rn             ',  trim(adjustl(resname))
         write(0,*) '-connect       ',  make_connect
         write(0,*) '-h             ',  need_help
@@ -221,6 +225,10 @@ program fchk2gro
              molec%atom(:)%resseq = 1
             case("stdori")
              call get_first_std_geom(unt,molec)
+             molec%atom(:)%resname = "UNK"
+             molec%atom(:)%resseq = 1
+            case("inpori")
+             call get_first_inp_geom(unt,molec)
              molec%atom(:)%resname = "UNK"
              molec%atom(:)%resseq = 1
             case("fchk")
@@ -261,6 +269,8 @@ program fchk2gro
             case("fchk")
              call element2AtNum(molec)
              call write_fchk(unt,molec)
+            case("fcc")
+             call write_fcc(unt,molec)
             case default
              call alert_msg("fatal","File type not supported: "//filetype)
         end select
@@ -270,5 +280,5 @@ program fchk2gro
     end subroutine generic_strfile_write 
 
 
-end program fchk2gro
+end program get_symatoms
 

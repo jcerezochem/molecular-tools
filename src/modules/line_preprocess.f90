@@ -93,6 +93,15 @@ module line_preprocess
    !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
     subroutine parse_line(line,narg,arg)
+
+        !======================================================  
+        ! Description
+        !  Divides a line in the words that are separated by blank spaces
+        ! Arguments
+        !  line   INPUT   String to be evaluated
+        !  narg   OUTPUT  Number of words
+        !  arg(:) OUTPUT  String vector with all the words
+        !======================================================  
     
         character(len=*),intent(in) :: line
         integer,intent(out) :: narg
@@ -102,7 +111,7 @@ module line_preprocess
         integer :: nchar, i, id
 
         line_pp = adjustl(line)
-        nchar=len_trim(line_pp)
+        nchar=len(line_pp)
 
         id=1
         args=""

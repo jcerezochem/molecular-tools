@@ -21,6 +21,7 @@ program geom_param_list
     use gaussian_fchk_manage
     use pdb_manage
     use gro_manage
+    use xyz_manage
     use atomic_geom
 
     implicit none
@@ -76,8 +77,8 @@ program geom_param_list
             if (labels)      print'(2I5,11X,F9.4)', atlabels(1), atlabels(2), param
         elseif (nitems == 3) then
             param=calc_angle(molecule%atom(atlabels(1)),molecule%atom(atlabels(2)),molecule%atom(atlabels(3)))
-            if (.not.labels) print'(F9.2,2X)', param
-            if (labels)      print'(3I5,6X,F9.2)', atlabels(1), atlabels(2), atlabels(3), param
+            if (.not.labels) print'(F9.2,2X)', param*180.d0/pi
+            if (labels)      print'(3I5,6X,F9.2)', atlabels(1), atlabels(2), atlabels(3), param*180.d0/pi
         elseif (nitems == 4) then
             param=calc_dihed_new(molecule%atom(atlabels(1)),molecule%atom(atlabels(2)),molecule%atom(atlabels(3)),&
                              molecule%atom(atlabels(4)))
@@ -172,6 +173,10 @@ program geom_param_list
         select case (adjustl(filetype))
             case("gro")
              call read_gro(unt,molec)
+            case("g96")
+             call read_g96(unt,molec)
+            case("xyz")
+             call read_xyz(unt,molec)
             case("pdb")
              call read_pdb_new(unt,molec)
             case("log")

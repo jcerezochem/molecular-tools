@@ -31,6 +31,8 @@ module gro_manage
     !  2013/07/15  Improved read_top: the GMXLIB folder is now readble to look for its files (release v3)
     !  2014/02/11  Uses structure_types v4 (changed str_system by str_resmol)
     !              _def version become default (prev are removed): i.e.: \AA are used as ref. length units
+    !  2014/10/23  Fixed bug in read_g96. Now it also reads properly when there is not title
+    !              Fixed bug in read_g96. Now also gets the structure from POSITIONRED sections
     !-----------------------------------------------------
 
     !Common modules for all subroutines
@@ -146,9 +148,13 @@ module gro_manage
 
             if (adjustl(line) == "TITLE") then
                 read(unt,*) system%title
-                read(unt,*) line !END
+                if (adjustl(system%title) == "END") then
+                     system%title=""
+                else
+                    read(unt,*) line !END
+                endif
 
-            elseif (adjustl(line) == "POSITION") then
+            elseif (adjustl(line) == "POSITION" ) then
                 not_get_structure=.false.
                 i=0
                 do 
@@ -165,6 +171,27 @@ module gro_manage
                      system%atom(i)%x = system%atom(i)%x*10.d0
                      system%atom(i)%y = system%atom(i)%y*10.d0
                      system%atom(i)%z = system%atom(i)%z*10.d0
+                enddo
+                system%natoms = i
+            elseif (adjustl(line) == "POSITIONRED" ) then
+            !this section only has info about coordinates (no atom info!)
+            write(0,*) "NOTE: No atomic info in g96!"
+                not_get_structure=.false.
+                i=0
+                do 
+                     read(unt,'(A)') line
+                     if (adjustl(line) == "END" ) exit
+                     i=i+1
+                     read(line,*) system%atom(i)%x,      &
+                                  system%atom(i)%y,      &
+                                  system%atom(i)%z
+                     system%atom(i)%x = system%atom(i)%x*10.d0
+                     system%atom(i)%y = system%atom(i)%y*10.d0
+                     system%atom(i)%z = system%atom(i)%z*10.d0
+                     !Missing info is set to "default" values
+                     system%atom(i)%resseq=1
+                     system%atom(i)%resname="UNK"
+                     system%atom(i)%name="X"
                 enddo
                 system%natoms = i
             elseif (adjustl(line) == "BOX") then

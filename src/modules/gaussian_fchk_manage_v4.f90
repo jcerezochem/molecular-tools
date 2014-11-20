@@ -845,6 +845,155 @@ module gaussian_fchk_manage
     end subroutine read_NrEl
 
 
+    subroutine write_fchk(unt,system)
+
+        !Write fchk file
+
+        use structure_types
+        use constants
+
+        integer,intent(in)::unt
+        type(str_resmol),intent(inout)::system
+
+        !local
+        integer::i, j
+!         integer,dimension(:), allocatable :: aux_int
+#ifdef DOUBLE
+        double precision, dimension(:), allocatable :: aux 
+#else
+        real, dimension(:), allocatable :: aux 
+#endif
+        character :: vartype
+        character(len=43) :: section
+        
+        !Title
+         write(unt,'(A)') "File converted to fchk. Title:"//trim(adjustl(system%title))//&
+                                                 " Name:"//trim(adjustl(system%name))
+
+        !Number of atoms
+        section="Number of atoms"
+        vartype="I"
+        write(unt,'(A43,A,I17)') section, vartype, system%natoms
+
+        !Atomic numbers
+        section="Atomic numbers"
+        vartype="I"
+        j=system%natoms
+        write(unt,'(A43,A,A5,I12)') section, vartype,"   N=",j
+        write(unt,'(6I12)') system%atom(1:j)%AtNum
+
+        !Nuclear charges
+        section="Nuclear charges"
+        vartype="R"
+        j=system%natoms
+        write(unt,'(A43,A,A5,I12)') section, vartype,"   N=",j
+        write(unt,'(5ES16.8)') float(system%atom(1:j)%AtNum)
+
+        !Cartesian coordinates
+        allocate( aux(1:3*system%natoms) )
+        section="Current cartesian coordinates"
+        vartype="R"
+        j=0
+        do i=1,system%natoms
+            j=j+1
+            aux(j)=system%atom(i)%x/BOHRtoANGS
+            j=j+1
+            aux(j)=system%atom(i)%y/BOHRtoANGS
+            j=j+1
+            aux(j)=system%atom(i)%z/BOHRtoANGS
+        enddo       
+        write(unt,'(A43,A,A5,I12)') section, vartype,"   N=",j
+        write(unt,'(5ES16.8)') aux(1:j)
+
+        deallocate(aux)
+
+        return
+
+    end subroutine write_fchk
+
+    subroutine write_fchk_E(unt,system,Energ)
+
+        !Write fchk file (including energy)
+
+        use structure_types
+        use constants
+
+        integer,intent(in)::unt
+        type(str_resmol),intent(inout)::system
+#ifdef DOUBLE
+        double precision,intent(in) :: Energ
+#else
+        real,intent(in) :: Energ
+#endif
+
+        !local
+        integer::i, j
+!         integer,dimension(:), allocatable :: aux_int
+#ifdef DOUBLE
+        double precision, dimension(:), allocatable :: aux 
+#else
+        real, dimension(:), allocatable :: aux 
+#endif
+        character :: vartype
+        character(len=43) :: section
+        
+        !Title
+         write(unt,'(A)') "File converted to fchk. Title:"//trim(adjustl(system%title))//&
+                                                 " Name:"//trim(adjustl(system%name))
+        !jog type and method
+         write(unt,'(A)') "Freq      RB3LYP                                                      6-31G(d)"
+
+        !Number of atoms
+        section="Number of atoms"
+        vartype="I"
+        write(unt,'(A43,A,I17)') section, vartype, system%natoms
+
+        !Atomic numbers
+        section="Atomic numbers"
+        vartype="I"
+        j=system%natoms
+        write(unt,'(A43,A,A5,I12)') section, vartype,"   N=",j
+        write(unt,'(6I12)') system%atom(1:j)%AtNum
+
+        !Nuclear charges
+        section="Nuclear charges"
+        vartype="R"
+        j=system%natoms
+        write(unt,'(A43,A,A5,I12)') section, vartype,"   N=",j
+        write(unt,'(5ES16.8)') float(system%atom(1:j)%AtNum)
+
+        !Cartesian coordinates
+        allocate( aux(1:3*system%natoms) )
+        section="Current cartesian coordinates"
+        vartype="R"
+        j=0
+        do i=1,system%natoms
+            j=j+1
+            aux(j)=system%atom(i)%x/BOHRtoANGS
+            j=j+1
+            aux(j)=system%atom(i)%y/BOHRtoANGS
+            j=j+1
+            aux(j)=system%atom(i)%z/BOHRtoANGS
+        enddo       
+        write(unt,'(A43,A,A5,I12)') section, vartype,"   N=",j
+        write(unt,'(5ES16.8)') aux(1:j)
+
+        !SCF Energy
+        section="SCF Energy"
+        vartype="R"
+        write(unt,'(A43,A,ES27.15)') section, vartype, Energ
+
+        !Total Energy
+        section="Total Energy"
+        vartype="R"
+        write(unt,'(A43,A,ES27.15)') section, vartype, Energ
+
+        deallocate(aux)
+
+        return
+
+    end subroutine write_fchk_E
+
 
 !     subroutine read_freq_fckh
 ! 

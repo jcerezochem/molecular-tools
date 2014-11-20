@@ -54,11 +54,8 @@ module structure_types
     ! (20/06/14) Version3.2 (in internal project): add impropers to geom
     !---------------------------------------------------------
 
-    !SIZES (defaults)
-    integer,parameter:: MAX_ATOMS = 100000, &
-                        MAX_ATM_RES = 400,  &
-                        MAX_CONNEXIONS = 6, &
-                        MAX_DERIVED_CNX = 5000
+    !SIZES
+    use sizes
 
     !DERIVED TYPES
 !   Auxiliar new types (need to be defined first)

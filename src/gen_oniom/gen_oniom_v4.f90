@@ -28,8 +28,6 @@ program gen_oniom
 
     implicit none
 
-    common /ALERT_COUNT/ n_notes, n_errors
-
     !====================== 
     !Number of error/notes
     integer :: n_notes=0, n_errors=0
@@ -37,15 +35,17 @@ program gen_oniom
 
     !====================== 
     !System variables
-    type(str_resmol) :: molec !, molecUA
-    type(str_resmol),dimension(1000) :: residue
+    type(str_resmol) :: molec 
+    type(str_resmol),dimension(1:2) :: residue
     !
-    character(len=5),dimension(1000) :: molname
+    character(len=5),dimension(2000) :: molname
     integer :: nmol
-    integer,dimension(500) :: molmap, resdone=0
+    integer,dimension(5000) :: molmap, resdone=0
     integer,dimension(10000) :: frz
     !
     integer :: ires, imap
+    !
+    logical :: pointcharges=.false.
     !====================== 
 
     !====================== 
@@ -96,64 +96,68 @@ program gen_oniom
 
 
     ! 0. GET COMMAND LINE ARGUMENTS AND OPEN FILES
-    call parse_input(inpfile,filetype,topfile,ndxfile,resname,jobspec,outgau,nproc,mm_file,chrgspin_h,chrgspin_l,verbose)
-
-    open(I_INP,file=inpfile,iostat=IOstatus,status="old")
-    if (IOstatus /= 0) call alert_msg("fatal","Unable to open "//trim(adjustl(inpfile)))
-    open(I_TOP,file=topfile,iostat=IOstatus,status="old")
-    if (IOstatus /= 0) call alert_msg("fatal","Unable to open "//trim(adjustl(topfile)))
+    call parse_input(inpfile,filetype,topfile,ndxfile,resname,jobspec,outgau,nproc,mm_file,chrgspin_h,chrgspin_l,pointcharges,verbose)
 
 
     ! 1. READ DATA
+    open(I_INP,file=inpfile,iostat=IOstatus,status="old")
+    if (IOstatus /= 0) call alert_msg("fatal","Unable to open "//trim(adjustl(inpfile)))
     call generic_strfile_read(I_INP,filetype,molec)
-!     do i=1,molec%natoms
-!         molec%atom(i)%name = molec%atom(i)%element
-!     enddo
-    call read_top(I_TOP,residue,molname,nmol)
     close(I_INP)
-    close(I_TOP)
-    !========================0
-    !should THIS be in read_top?
-    !Identify different molecules (like that if splitted in [ molecules ] will not work.
-    imap=1
-    k=0
-    molmap=1
-    do i=2,nmol
-        if (molname(i) == molname(i-1)) molmap(imap)=molmap(imap)+1
-        if (molname(i) /= molname(i-1)) imap=imap+1
-    enddo
-    !Atom names should be elemet names
-    do i=1,imap
-! print*, residue(i)%name
-        do j=1,residue(i)%natoms
-            !NOT VALID FOR TWO CHAR NAMES (NEW: introducing some exceptions)
-            if (residue(i)%atom(j)%name(1:2) == "Cl") then
-                residue(i)%atom(j)%name="Cl"
-            elseif (residue(i)%atom(j)%name(1:2) == "NA" .or. residue(i)%atom(j)%name(1:2) == "Na") then
-                residue(i)%atom(j)%name="Na"
-            else
-                residue(i)%atom(j)%name = residue(i)%atom(j)%name(1:1)
-            endif
+
+    if (adjustl(topfile) /= "none") then
+!         allocate(residue(1:2))
+!         residue(:) = molec
+        open(I_TOP,file=topfile,iostat=IOstatus,status="old")
+        if (IOstatus /= 0) call alert_msg("fatal","Unable to open "//trim(adjustl(topfile)))
+        call read_top(I_TOP,residue,molname,nmol)
+        close(I_TOP)
+
+        !========================0
+        !should THIS be in read_top?
+        !Identify different molecules (like that if splitted in [ molecules ] will not work.
+        imap=1
+        k=0
+        molmap=1
+        do i=2,nmol
+            if (molname(i) == molname(i-1)) molmap(imap)=molmap(imap)+1
+            if (molname(i) /= molname(i-1)) imap=imap+1
         enddo
-    enddo
-    ! Merge molec and top info (top is kept in case of non-coincident info)
-    k=0
-    ires=0
-    do i=1,imap
-    do ii=1,molmap(i)
-        ires=ires+1
-        do j=1,residue(i)%natoms
-            k=k+1
-            residue(i)%atom(j)%x = molec%atom(k)%x
-            residue(i)%atom(j)%y = molec%atom(k)%y
-            residue(i)%atom(j)%z = molec%atom(k)%z
-            residue(i)%atom(j)%resseq=ires
-            molec%atom(k) = residue(i)%atom(j)
+print*, imap
+stop
+        !Atom names should be elemet names
+        do i=1,imap
+            do j=1,residue(i)%natoms
+                !NOT VALID FOR TWO CHAR NAMES (NEW: introducing some exceptions)
+                if (residue(i)%atom(j)%name(1:2) == "Cl") then
+                    residue(i)%atom(j)%name="Cl"
+                elseif (residue(i)%atom(j)%name(1:2) == "NA" .or. residue(i)%atom(j)%name(1:2) == "Na") then
+                    residue(i)%atom(j)%name="Na"
+                else
+                    residue(i)%atom(j)%name = residue(i)%atom(j)%name(1:1)
+                endif
+            enddo
         enddo
-    enddo
-    enddo
-    molec%natoms = k
-    !========================0
+        ! Merge molec and top info (top is kept in case of non-coincident info)
+        k=0
+        ires=0
+        do i=1,imap
+        do ii=1,molmap(i)
+            ires=ires+1
+            do j=1,residue(i)%natoms
+                k=k+1
+                residue(i)%atom(j)%x = molec%atom(k)%x
+                residue(i)%atom(j)%y = molec%atom(k)%y
+                residue(i)%atom(j)%z = molec%atom(k)%z
+                residue(i)%atom(j)%resseq=ires
+                molec%atom(k) = residue(i)%atom(j)
+            enddo
+        enddo
+        enddo
+        molec%natoms = k
+        !========================0
+
+    endif
 
     ! 2. SELECT LAYERS (and frz index)
     frz=-1
@@ -229,25 +233,51 @@ program gen_oniom
     write(O_GJF,'(X,A,X,A)') chrgspin_l,chrgspin_h
     !Geomertry
     do i=1,molec%natoms
-        !First form: Atom-Type-Charge
-        write(dummy_char,'(F8.4)') molec%atom(i)%q
-        dummy_char = adjustl(trim(molec%atom(i)%name))//"-"//&
-                     adjustl(trim(molec%atom(i)%attype))//"-"//&
-                     adjustl(trim(dummy_char))
-        write(O_GJF,100) dummy_char, molec%atom(i)%x,molec%atom(i)%y,molec%atom(i)%z,molec%atom(i)%chain
-!         write(O_GJF,101) dummy_char, frz(i), molec%atom(i)%x,molec%atom(i)%y,molec%atom(i)%z,molec%atom(i)%chain
+        !If pointcharges, treat L layer as point charges
+        if (molec%atom(i)%chain == "L" .and. pointcharges) then
+            cycle
+        else
+            if (.not.pointcharges) then
+                !First form: Atom-Type-Charge
+                write(dummy_char,'(F8.4)') molec%atom(i)%q
+                dummy_char = adjustl(trim(molec%atom(i)%name))//"-"//&
+                             adjustl(trim(molec%atom(i)%attype))//"-"//&
+                             adjustl(trim(dummy_char))
+                write(O_GJF,100) dummy_char, molec%atom(i)%x,molec%atom(i)%y,molec%atom(i)%z,molec%atom(i)%chain
+            else
+                write(O_GJF,101) molec%atom(i)%element, molec%atom(i)%x,molec%atom(i)%y,molec%atom(i)%z
+            endif
+        endif
 100 format(A20,X,3(F15.6,X),A)
-101 format(A20,X,I2,X,3(F15.6,X),A)
+101 format(A5,X,3(F15.6,X))
     enddo
+!   If point charges
+    if (pointcharges) then
     write(O_GJF,*) "" 
-    !Geom connectivity (faked to avoid missings) -- it can be the true one! why not? TBD
     do i=1,molec%natoms
-        write(O_GJF,'(I5)') i
+        !If pointcharges, treat L layer as point charges
+        if (molec%atom(i)%chain == "L" .and. pointcharges) then
+            write(O_GJF,102) molec%atom(i)%x,molec%atom(i)%y,molec%atom(i)%z,molec%atom(i)%q
+        else
+            cycle
+        endif
+102 format(4(F15.6,X))
     enddo
+    endif
     write(O_GJF,*) "" 
+    !Connectivity only if L layer is not pointcharges
+    if (.not. pointcharges) then
+        !Geom connectivity (faked to avoid missings) -- it can be the true one! why not? TBD
+        do i=1,molec%natoms
+            write(O_GJF,'(I5)') i
+        enddo
+        write(O_GJF,*) "" 
+    endif
     if ( adjustl(mm_file) /= "none" ) &
     write(O_GJF,'(A)') "@"//trim(adjustl(mm_file))
     write(O_GJF,*) "" 
+
+!     deallocate(residue)
 
     stop
 
@@ -256,7 +286,7 @@ program gen_oniom
     contains
     !=============================================
 
-    subroutine parse_input(inpfile,filetype,topfile,ndxfile,resname,jobspec,outfile,nproc,mm_file,chrgspin_h,chrgspin_l,verbose)
+    subroutine parse_input(inpfile,filetype,topfile,ndxfile,resname,jobspec,outfile,nproc,mm_file,chrgspin_h,chrgspin_l,pointcharges,verbose)
     !==================================================
     ! My input parser (gromacs style)
     !==================================================
@@ -267,7 +297,7 @@ program gen_oniom
         character(len=*),intent(inout) :: inpfile,topfile,filetype,ndxfile,outfile,&
                                           resname,jobspec,nproc,mm_file,chrgspin_h,&
                                           chrgspin_l
-        logical,intent(inout) :: verbose
+        logical,intent(inout) :: verbose, pointcharges
         ! Local
         logical :: argument_retrieved,  &
                    need_help = .false., &
@@ -326,6 +356,9 @@ program gen_oniom
                     call getarg(i+1, chrgspin_h)
                     argument_retrieved=.true.
 
+                case ("-pc")
+                    pointcharges=.true.
+
                 case ("-v") 
                     verbose=.true.
 
@@ -341,7 +374,7 @@ program gen_oniom
        !Print options (to stderr)
         write(0,'(/,A)') '--------------------------------------------------'
         write(0,'(/,A)') '              G E N _ O N I O M '    
-        write(0,'(/,A)') '         Revision: gen_oniom-140225               '           
+        write(0,'(/,A)') '         Revision: gen_oniom-141105              '           
         write(0,'(/,A)') '--------------------------------------------------'
         write(0,*) '-f              ', trim(adjustl(inpfile))
         write(0,*) '-ft             ', trim(adjustl(filetype))
@@ -354,6 +387,7 @@ program gen_oniom
         write(0,*) '-mmf            ', trim(adjustl(mm_file))
         write(0,*) '-cs-h           ', trim(adjustl(chrgspin_h))
         write(0,*) '-cs-l           ', trim(adjustl(chrgspin_l))
+        write(0,*) '-pc            ',  pointcharges
         write(0,*) '-v             ',  verbose
         write(0,*) '-h             ',  need_help
         write(0,*) '--------------------------------------------------'

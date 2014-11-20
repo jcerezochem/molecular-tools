@@ -292,6 +292,72 @@ module atomic_geom
 
      end function calc_dihed
 
+    function calc_improper(atom_1,atom_2,atom_3,atom_4) result(im)
+
+        !----------------------------------------------------------------
+        ! Ańgulo formado por el vector 4-1 con el plano 2-3-4
+        !        2
+        !       /
+        !   1--4
+        !       \
+        !       3
+        !----------------------------------------------------------------
+
+        use constants
+
+        implicit none
+
+        type(str_atom),intent(in) :: atom_1, atom_2, atom_3, atom_4
+#ifdef DOUBLE
+        double precision::im
+        real(8) :: v1,v1x,v1y,v1z,&
+                      v2x,v2y,v2z,&
+                   vn,vnx,vny,vnz
+#else
+        real::im
+        real :: v1,v1x,v1y,v1z,&
+                   v2x,v2y,v2z,&
+                vn,vnx,vny,vnz
+#endif
+        integer::i
+
+        !Vectors 4-2 y 4-3
+        v1x = atom_2%x - atom_4%x
+        v1y = atom_2%y - atom_4%y
+        v1z = atom_2%z - atom_4%z
+        v2x = atom_3%x - atom_4%x
+        v2y = atom_3%y - atom_4%y
+        v2z = atom_3%z - atom_4%z
+        !Vector normal al plano
+        vnx = v1y*v2z - v1z*v2y
+        vny = v1z*v2x - v1x*v2z
+        vnz = v1x*v2y - v1y*v2x
+        !Se normaliza
+        vn = dsqrt(vnx**2+vny**2+vnz**2)
+        vnx=vnx/vn
+        vny=vny/vn
+        vnz=vnz/vn
+
+        !Se calcula y normaliza 4-1 (en v1)
+        v1x = atom_1%x - atom_4%x
+        v1y = atom_1%y - atom_4%y
+        v1z = atom_1%z - atom_4%z
+        v1 = dsqrt(v1x**2+v1y**2+v1z**2)
+        v1x=v1x/v1
+        v1y=v1y/v1
+        v1z=v1z/v1
+
+        !Se calcula el producto escalar de vn y v1
+        im = v1x*vnx + v1y*vny + v1z*vnz
+        im = acos(im)
+
+        !El ángulo es el complementario del anterior
+        im = PI/2.d0 - im 
+
+        return
+
+    end function calc_improper
+
     function calc_dihed_new(atom_1,atom_2,atom_3,atom_4) result(dh)
 
         !----------------------------------------------------------------

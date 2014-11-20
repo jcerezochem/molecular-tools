@@ -19,6 +19,7 @@ module gaussian_manage
     !
     ! History
     ! Version 4: uses structure_types v4
+    ! 
     !==============================================================
 
     !Common declarations:
@@ -250,6 +251,244 @@ module gaussian_manage
         return
 
     end subroutine get_first_std_geom
+
+    subroutine get_first_inp_geom(unt,molec)
+
+        !==============================================================
+        ! This code is part of MOLECULAR_TOOLS (version 0.4/February 2014)
+        !==============================================================
+        !Description
+        ! Read the gaussian standard geometry from the last record (optimized)
+        ! from the log file
+        !Arguments
+        ! unt (int;in): unit number of the log file
+        ! molec (str_resmol,inout): molecule 
+        !==============================================================
+
+        !Practically zero charge
+#ifdef DOUBLE
+        double precision,parameter :: ZERO_q = 2.d-6
+#else
+        real,parameter :: ZERO_q = 2.d-6
+#endif
+
+        !System variables
+        type(str_resmol),intent(inout) :: molec
+
+        !Reading stuff
+        character(len=50) :: header_of_section, &
+                             end_of_section
+        integer :: n_useles_lines
+        character(len=240) :: line=""
+        logical :: final_section, found_standard_orientation
+
+        !Auxiliar variables and Dummies
+        character(len=30) :: dummy_char
+        integer :: dummy_int
+
+        !=============
+        !Counters
+        integer :: i,j
+        !=============
+
+        !================
+        !I/O stuff
+        !units
+        integer,intent(in) :: unt
+        !status
+        integer :: IOstatus
+        !===================
+
+        character(len=5),dimension(100) :: atom_names_from_atnum
+ 
+        !This should be elsewhere (constants_mod?)
+        data atom_names_from_atnum(1:18) &
+         /'H','He','Li','Be','B','C','N','O','F','Ne','Na','Mg','Al','Si','P','S','Cl','Ar'/
+
+
+        !Set variables
+        header_of_section="Input orientation"
+        end_of_section=   "----------"
+        n_useles_lines=4
+
+        ! Take the last Standard orientation in file
+        final_section=.false.
+        found_standard_orientation=.false.
+        do 
+            read(unt,'(X,A)',IOSTAT=IOstatus) line
+            ! Three possible scenarios while reading:
+            ! 1) End of file
+            if ( IOstatus < 0 ) call alert_msg("fatal","Unexpected end of file while searching Standard Orientation")
+!             ! 2) Final section reached
+!             if ( INDEX(line,"GINC") /= 0 ) then
+!                 final_section=.true.
+!                 exit
+!             endif
+            ! 3) Found what looked for!      
+            if ( INDEX(line,trim(adjustl(header_of_section))) /= 0 ) then
+                found_standard_orientation=.true.
+                exit
+            endif
+        enddo
+
+        ! Overpass lines until reaching the target table
+        do j=1,n_useles_lines
+            read(unt,'(X,A)',IOSTAT=IOstatus) line 
+        enddo
+
+        ! Read Standard orientation to a predefined end of table (no need to know the number of atoms)
+        do 
+            read(unt,'(X,A)',IOSTAT=IOstatus) line
+            ! Three possible scenarios while reading:
+            ! 1) End of file
+            if ( IOstatus < 0 ) call alert_msg("fatal","Unexpected end of file while scanning Standard orientation")
+            ! 2) End of table
+            if ( INDEX(line,trim(adjustl(end_of_section))) /= 0 ) exit    
+            ! 3) Table entry
+            read(line,*) i, molec%atom(i)%AtNum, dummy_int, molec%atom(i)%x, molec%atom(i)%y, molec%atom(i)%z
+!             read(line,*) i, molec%atom(i)%AtNum, dummy_int, molec%atom(i)%R(1), molec%atom(i)%R(2), molec%atom(i)%R(3)
+        enddo
+        molec%natoms = i
+
+        do i=1,molec%natoms
+            molec%atom(i)%name = atom_names_from_atnum(molec%atom(i)%AtNum)
+        enddo
+
+        if ( .not.found_standard_orientation ) call alert_msg("warning","No Standard orientation retrieved")
+
+        rewind(unt)
+        return
+
+    end subroutine get_first_inp_geom
+
+    subroutine get_next_std_geom(unt,molec)
+
+        !==============================================================
+        ! This code is part of MOLECULAR_TOOLS (version 0.4/February 2014)
+        !==============================================================
+        !Description
+        ! Read the NEXT gaussian standard geometry from the line where
+        ! is called, while reading a log file. DO NOT REWIND
+        !Arguments
+        ! unt (int;in): unit number of the log file
+        ! molec (str_resmol,inout): molecule 
+        !==============================================================
+
+        !Practically zero charge
+#ifdef DOUBLE
+        double precision,parameter :: ZERO_q = 2.d-6
+#else
+        real,parameter :: ZERO_q = 2.d-6
+#endif
+
+        !System variables
+        type(str_resmol),intent(inout) :: molec
+
+        !Reading stuff
+        character(len=50) :: header_of_section, &
+                             header_of_section2,&
+                             end_of_section
+        integer :: n_useles_lines
+        character(len=240) :: line=""
+        logical :: final_section, found_standard_orientation
+
+        !Auxiliar variables and Dummies
+        character(len=30) :: dummy_char
+        integer :: dummy_int
+
+        !=============
+        !Counters
+        integer :: i,j
+        !=============
+
+        !================
+        !I/O stuff
+        !units
+        integer,intent(in) :: unt
+        !status
+        integer :: IOstatus
+        !===================
+
+        character(len=5),dimension(104) :: atom_names_from_atnum
+ 
+        !This should be elsewhere (constants_mod?)
+        data atom_names_from_atnum(1:103) &
+         /'H' ,                                                                                'He',&
+          'Li','Be',                                                  'B' ,'C' ,'N' ,'O' ,'F' ,'Ne',&
+          'Na','Mg',                                                  'Al','Si','P' ,'S' ,'Cl','Ar',&
+          'K' ,'Ca','Sc','Ti','V' ,'Cr','Mn','Fe','Co','Ni','Cu','Zn','Ga','Ge','As','Se','Br','Kr',&
+          'Rb','Sr','Y' ,'Zr','Nb','Mo','Tc','Ru','Rh','Pd','Ag','Cd','In','Sn','Sb','Te','I' ,'Xe',&
+          'Cs','Ba','La',& !Lantanides:  
+!                  ---------------------------------------------------
+                    'Ce','Pr','Nd','Pm','Sm','Eu','Gd',&
+                    'Tb','Dy','Ho','Er','Tm','Yb','Lu',&
+!                  ---------------------------------------------------
+                         'Hf','Ta','W' ,'Re','Os','Ir','Pt','Au','Hg','Tl','Pb','Bi','Po','At','Rn',&
+         'Fr','Ra','Ac',& !Actinides:
+!                  ---------------------------------------------------
+                   'Th','Pa','U' ,'Np','Pu','Am','Cm',&
+                   'Bk','Cf','Es','Fm','Md','No','Lr'&
+!                  ---------------------------------------------------
+         /
+
+
+        !Set variables
+        header_of_section="Standard orientation"
+        header_of_section2="Input orientation"
+        end_of_section=   "----------"
+        n_useles_lines=4
+
+        ! Take the last Standard orientation in file
+        final_section=.false.
+        found_standard_orientation=.false.
+        do 
+            read(unt,'(X,A)',IOSTAT=IOstatus) line
+            ! Three possible scenarios while reading:
+            ! 1) End of file
+            if ( IOstatus < 0 ) call alert_msg("fatal","Unexpected end of file while searching the next Standard Orientation")
+!             ! 2) Final section reached
+!             if ( INDEX(line,"GINC") /= 0 ) then
+!                 final_section=.true.
+!                 exit
+!             endif
+            ! 3) Found what looked for!      
+            if ( INDEX(line,trim(adjustl(header_of_section))) /= 0 .or. &
+                 INDEX(line,trim(adjustl(header_of_section2))) /= 0) then
+                found_standard_orientation=.true.
+                exit
+            endif
+        enddo
+
+        ! Overpass lines until reaching the target table
+        do j=1,n_useles_lines
+            read(unt,'(X,A)',IOSTAT=IOstatus) line 
+        enddo
+
+        ! Read Standard orientation to a predefined end of table (no need to know the number of atoms)
+        do 
+            read(unt,'(X,A)',IOSTAT=IOstatus) line
+            ! Three possible scenarios while reading:
+            ! 1) End of file
+            if ( IOstatus < 0 ) call alert_msg("fatal","Unexpected end of file while scanning Standard orientation")
+            ! 2) End of table
+            if ( INDEX(line,trim(adjustl(end_of_section))) /= 0 ) exit    
+            ! 3) Table entry
+            read(line,*) i, molec%atom(i)%AtNum, dummy_int, molec%atom(i)%x, molec%atom(i)%y, molec%atom(i)%z
+!             read(line,*) i, molec%atom(i)%AtNum, dummy_int, molec%atom(i)%R(1), molec%atom(i)%R(2), molec%atom(i)%R(3)
+        enddo
+        molec%natoms = i
+
+        do i=1,molec%natoms
+            molec%atom(i)%name = atom_names_from_atnum(molec%atom(i)%AtNum)
+        enddo
+
+        if ( .not.found_standard_orientation ) call alert_msg("warning","No Standard orientation retrieved")
+
+!       This sr does not rewid the file
+!        rewind(unt)
+        return
+
+    end subroutine get_next_std_geom
 
 
     subroutine read_charge(unt,molec,q_type)

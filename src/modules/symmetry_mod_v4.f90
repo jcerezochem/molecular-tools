@@ -82,7 +82,7 @@ module symmetry_mod
 
         use structure_types
         use alerts
-        use MatrixMod
+        use MatrixMod, only:sort_vec_int
 
         real(8),parameter :: THRS=1.d-1 !loose
 

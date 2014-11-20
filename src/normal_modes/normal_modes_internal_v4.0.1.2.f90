@@ -29,6 +29,8 @@ program normal_modes_animation
     ! -use redundant coordinates
     !v4.0.1.1:
     ! - include UnSym (MOLCAS) file as input (freqs and nm)
+    !v4.0.1.2:
+    ! - if the calculation is only a internal scan, do not need the hessian (so do not try to read it)
     !
     !============================================================================    
 
@@ -198,7 +200,10 @@ program normal_modes_animation
     call parse_input(inpfile,nmfile,nm,Nsel,Amplitude,filetype,nosym,zmat,verbose,tswitch,symaddapt,zmatfile,&
                      icoord,showZ,call_vmd)
     if (icoord /= -1) scan_internal=.true.
-    if (showZ) scan_internal=.false.
+! Por qué estaba este switch????
+!    if (showZ) scan_internal=.false.
+! Más bien debería ser al contrario, para que le deje hacer el internal analisys aunque no haya Hessiana
+   if (showZ) scan_internal=.true.
 
     ! 1. INTERNAL VIBRATIONAL ANALYSIS 
  
@@ -212,46 +217,50 @@ program normal_modes_animation
     !Shortcuts
     Nat = molecule%natoms
     Nvib = 3*Nat-6
-    !Read the Hessian: only two possibilities supported
-    if (adjustl(filetype) == "log") then
-        !Gaussian logfile
-        allocate(props)
-        call parse_summary(I_INP,molecule,props,"read_hess")
-        !Caution: we NEED to read the Freq summary section
-        if (adjustl(molecule%job%type) /= "Freq") &
-          call alert_msg( "fatal","Section from the logfile is not a Freq calculation")
-        ! RECONSTRUCT THE FULL HESSIAN
-        k=0
-        do i=1,3*Nat
-            do j=1,i
-                k=k+1
-                Hess(i,j) = props%H(k) 
-                Hess(j,i) = Hess(i,j)
-            enddo
-        enddo
-        deallocate(props)
-        !No job info read for the moment. Use "sensible" defaults
-        molecule%job%title = ""
-        molecule%job%type= "SP"
-    else if (adjustl(filetype) == "fchk") then
-        !FCHK file    
-        call read_fchk(I_INP,"Cartesian Force Constants",dtype,N,A,IA,error)
-        ! RECONSTRUCT THE FULL HESSIAN
-        k=0
-        do i=1,3*Nat
-            do j=1,i
-                k=k+1
-                Hess(i,j) = A(k) 
-                Hess(j,i) = Hess(i,j)
-            enddo
-        enddo
-        deallocate(A)
-        !Read job info
-        call get_jobtype_fchk(I_INP,molecule%job,error)
-        molecule%job%type= "SP"
 
-    else if (adjustl(filetype) == "UnSym") then
-        call read_molcas_hess(I_INP,N,Hess,error)
+    !ONLY READ HESSIAN IF NM ANALYSIS IS REQUIRED
+    if (.not.scan_internal) then
+        !Read the Hessian: only two possibilities supported
+        if (adjustl(filetype) == "log") then
+            !Gaussian logfile
+            allocate(props)
+            call parse_summary(I_INP,molecule,props,"read_hess")
+            !Caution: we NEED to read the Freq summary section
+            if (adjustl(molecule%job%type) /= "Freq") &
+              call alert_msg( "fatal","Section from the logfile is not a Freq calculation")
+            ! RECONSTRUCT THE FULL HESSIAN
+            k=0
+            do i=1,3*Nat
+                do j=1,i
+                    k=k+1
+                    Hess(i,j) = props%H(k) 
+                    Hess(j,i) = Hess(i,j)
+                enddo
+            enddo
+            deallocate(props)
+            !No job info read for the moment. Use "sensible" defaults
+            molecule%job%title = ""
+            molecule%job%type= "SP"
+        else if (adjustl(filetype) == "fchk") then
+            !FCHK file    
+            call read_fchk(I_INP,"Cartesian Force Constants",dtype,N,A,IA,error)
+            ! RECONSTRUCT THE FULL HESSIAN
+            k=0
+            do i=1,3*Nat
+                do j=1,i
+                    k=k+1
+                    Hess(i,j) = A(k) 
+                    Hess(j,i) = Hess(i,j)
+                enddo
+            enddo
+            deallocate(A)
+            !Read job info
+            call get_jobtype_fchk(I_INP,molecule%job,error)
+            molecule%job%type= "SP"
+
+        else if (adjustl(filetype) == "UnSym") then
+            call read_molcas_hess(I_INP,N,Hess,error)
+        endif
     endif
     close(I_INP)
 

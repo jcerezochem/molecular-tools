@@ -115,7 +115,7 @@ module xyz_manage
         if (len_trim(system%title) == 0) then
             write(unt,*) "File generated with write_xyz subroutine"
         else
-            write(unt,*) system%title
+            write(unt,'(A)') system%title
         endif
 
         do i=1,system%natoms   
@@ -176,5 +176,189 @@ module xyz_manage
 
     end subroutine write_gcom
 
+
+    subroutine write_fcc(unt,system)
+
+        !Writes the structure related part of a fcc input (state)
+        !
+        !
+
+        use structure_types
+        use line_preprocess
+
+        integer,intent(in)::unt
+        type(str_resmol),intent(inout)::system
+
+        !local
+        integer::i, natoms, j
+        character(len=180) :: line
+        character(len=1) :: null
+        character(len=9) :: mark
+        real(8) :: x,y,z
+
+        !
+        do i=1,system%natoms   
+
+            write(unt,*) system%atom(i)%x
+            write(unt,*) system%atom(i)%y
+            write(unt,*) system%atom(i)%z
+
+        enddo
+
+        return
+
+    end subroutine write_fcc
+
+
+    subroutine read_gcom_multi2fccinp(unt,system)
+
+        !Read gaussian com file (in cartesian coord, not Zmat..)
+        !CAUTION: this need exahustive testing to cope with different 
+        ! input styles. 
+        !
+        !Notes
+        ! Also reads nested (--link1--) files. The first one is taken?
+        !
+
+        use structure_types
+        use line_preprocess
+
+        integer,intent(in)::unt
+        type(str_resmol),intent(inout)::system
+
+        !local
+        integer::i, natoms, j
+        character(len=180) :: line, output
+        character(len=1) :: null
+        character(len=9) :: mark
+        real(8) :: x,y,z
+
+        mark="--link1--"
+        i=0
+        do while (mark=="--link1--")
+            i=i+1
+            write(output,*) i
+            output="fcc_"//trim(adjustl(output))//".dat"
+            open(20,file=output)
+            read(unt,'(A)') line
+            do while (index(line,'#')==0)        
+                read(unt,'(A)') line
+            enddo
+            read(unt,'(A)') line
+            !Read till title section
+            do while (trim(line)=="")        
+                read(unt,'(A)') line
+            enddo
+            !Read till title section
+            read(unt,'(A)') line
+            do while (trim(line)=="")        
+                read(unt,'(A)') line
+            enddo
+
+            !From now, read the strucuture
+            do        
+                read(unt,'(A)') line
+                if (trim(line) == "") exit
+                read(line,*) null, x, y, z
+                write(20,*) x
+                write(20,*) y
+                write(20,*) z
+            enddo
+            close(20)
+            !Look for another mark
+            read(unt,*) mark
+            print*, mark
+        enddo
+
+        return
+
+    end subroutine read_gcom_multi2fccinp
+
+    subroutine read_gcom_multi2xyz(unt,system)
+
+        !Read gaussian com file (in cartesian coord, not Zmat..)
+        !CAUTION: this need exahustive testing to cope with different 
+        ! input styles. 
+        !
+        !Notes
+        ! Also reads nested (--link1--) files. The first one is taken?
+        !
+
+        use structure_types
+        use line_preprocess
+
+        integer,intent(in)::unt
+        type(str_resmol),intent(inout)::system
+
+        !local
+        integer::i, natoms, j
+        character(len=180) :: line, output, title
+        character(len=1) :: null
+        character(len=9) :: mark, atname
+        real(8) :: x,y,z
+
+        character(len=5),dimension(103) :: atom_names_from_atnum
+
+        !This should be elsewhere (constants_mod?)
+        data atom_names_from_atnum(1:103) &
+         /'H' ,                                                                                'He',&
+          'Li','Be',                                                  'B' ,'C' ,'N' ,'O' ,'F' ,'Ne',&
+          'Na','Mg',                                                  'Al','Si','P' ,'S' ,'Cl','Ar',&
+          'K' ,'Ca','Sc','Ti','V' ,'Cr','Mn','Fe','Co','Ni','Cu','Zn','Ga','Ge','As','Se','Br','Kr',&
+          'Rb','Sr','Y' ,'Zr','Nb','Mo','Tc','Ru','Rh','Pd','Ag','Cd','In','Sn','Sb','Te','I' ,'Xe',&
+          'Cs','Ba','La',& !Lantanides:  
+!                  ---------------------------------------------------
+                    'Ce','Pr','Nd','Pm','Sm','Eu','Gd',&
+                    'Tb','Dy','Ho','Er','Tm','Yb','Lu',&
+!                  ---------------------------------------------------
+                         'Hf','Ta','W' ,'Re','Os','Ir','Pt','Au','Hg','Tl','Pb','Bi','Po','At','Rn',&
+         'Fr','Ra','Ac',& !Actinides:
+!                  ---------------------------------------------------
+                   'Th','Pa','U' ,'Np','Pu','Am','Cm',&
+                   'Bk','Cf','Es','Fm','Md','No','Lr'&
+!                  ---------------------------------------------------
+         /
+
+        mark="--link1--"
+        i=0
+        do while (mark=="--link1--")
+            i=i+1
+            write(output,*) i
+            output="fcc_"//trim(adjustl(output))//".xyz"
+            open(20,file=output)
+            read(unt,'(A)') line
+            do while (index(line,'#')==0)        
+                read(unt,'(A)') line
+            enddo
+            read(unt,'(A)') line
+            !Read till title section
+            do while (trim(line)=="")        
+                read(unt,'(A)') line
+            enddo
+            title=line
+            !Read till title section
+            read(unt,'(A)') line
+            do while (trim(line)=="")        
+                read(unt,'(A)') line
+            enddo
+
+            !From now, read the strucuture
+            write(20,*) 21
+            write(20,*) trim(adjustl(title))
+            do        
+                read(unt,'(A)') line
+                if (trim(line) == "") exit
+                read(line,*) j, x, y, z
+                atname =  atom_names_from_atnum(j)
+                write(20,*) trim(adjustl(atname)), x, y, z
+            enddo
+            close(20)
+            !Look for another mark
+            read(unt,*) mark
+        enddo
+
+        return
+
+    end subroutine read_gcom_multi2xyz
 
 end module xyz_manage

@@ -252,7 +252,7 @@ module molecular_structure
                     "C    H    1.07",      & !4
                     "O    O    1.34",      & !5 was 1.32, but was not enough for H2O2 (1.47 needed 1.337)
                     "O    S    1.67",      & !6
-                    "O    H    1.07",      & !7 !to include Hbonds use 1.80, else use 1.07
+                    "O    H    1.80",      & !7 !to include Hbonds use 1.80, else use 1.07
                     "S    S    2.02",      & !8
                     "S    H    1.31",      & !9
                     "H    H    0.60",      & !10
@@ -610,6 +610,52 @@ module molecular_structure
 
     end subroutine atname2element
 
+!======================================
+
+    subroutine element2AtNum(molec)
+
+    ! Subroutine to generate Atomic Numbers from element name
+
+        type(str_resmol),intent(inout) :: molec
+
+        !local
+        integer :: i, iel
+
+        character(len=5),dimension(103) :: atom_names_from_atnum
+ 
+        !This should be elsewhere (constants_mod?)
+        data atom_names_from_atnum(1:103) &
+         /'H' ,                                                                                'He',&
+          'Li','Be',                                                  'B' ,'C' ,'N' ,'O' ,'F' ,'Ne',&
+          'Na','Mg',                                                  'Al','Si','P' ,'S' ,'Cl','Ar',&
+          'K' ,'Ca','Sc','Ti','V' ,'Cr','Mn','Fe','Co','Ni','Cu','Zn','Ga','Ge','As','Se','Br','Kr',&
+          'Rb','Sr','Y' ,'Zr','Nb','Mo','Tc','Ru','Rh','Pd','Ag','Cd','In','Sn','Sb','Te','I' ,'Xe',&
+          'Cs','Ba','La',& !Lantanides:  
+!                  ---------------------------------------------------
+                    'Ce','Pr','Nd','Pm','Sm','Eu','Gd',&
+                    'Tb','Dy','Ho','Er','Tm','Yb','Lu',&
+!                  ---------------------------------------------------
+                         'Hf','Ta','W' ,'Re','Os','Ir','Pt','Au','Hg','Tl','Pb','Bi','Po','At','Rn',&
+         'Fr','Ra','Ac',& !Actinides:
+!                  ---------------------------------------------------
+                   'Th','Pa','U' ,'Np','Pu','Am','Cm',&
+                   'Bk','Cf','Es','Fm','Md','No','Lr'&
+!                  ---------------------------------------------------
+         /
+
+        do i=1,molec%natoms
+            do iel=1,103
+                if (adjustl(molec%atom(i)%name) == &
+                    adjustl(atom_names_from_atnum(iel))) then
+                    molec%atom(i)%AtNum = iel
+                    exit
+                endif
+            enddo
+        enddo
+
+        return
+
+    end subroutine element2AtNum
 
 !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 

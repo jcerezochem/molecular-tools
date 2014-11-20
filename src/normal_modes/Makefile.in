@@ -77,7 +77,7 @@ NORMAL_UNINSTALL = :
 PRE_UNINSTALL = :
 POST_UNINSTALL = :
 bin_PROGRAMS = nm_internal$(EXEEXT) nm_cartesian$(EXEEXT) \
-	freq2fc$(EXEEXT)
+	freq2fc$(EXEEXT) prj_nm_internal$(EXEEXT)
 subdir = .
 DIST_COMMON = $(srcdir)/Makefile.in $(srcdir)/Makefile.am \
 	$(top_srcdir)/configure $(am__configure_deps) AUTHORS \
@@ -136,11 +136,33 @@ am_nm_internal_OBJECTS = nm_internal-alerts.$(OBJEXT) \
 	nm_internal-symmetry_mod_v4.$(OBJEXT) \
 	nm_internal-internal_SR8_v4.0.2.$(OBJEXT) \
 	nm_internal-zmat_manage_v4.$(OBJEXT) \
-	nm_internal-normal_modes_internal_v4.0.1.1.$(OBJEXT)
+	nm_internal-normal_modes_internal_v4.0.1.2.$(OBJEXT)
 nm_internal_OBJECTS = $(am_nm_internal_OBJECTS)
 nm_internal_LDADD = $(LDADD)
 nm_internal_LINK = $(FCLD) $(nm_internal_FCFLAGS) $(FCFLAGS) \
 	$(nm_internal_LDFLAGS) $(LDFLAGS) -o $@
+am_prj_nm_internal_OBJECTS = prj_nm_internal-alerts.$(OBJEXT) \
+	prj_nm_internal-line_preprocess.$(OBJEXT) \
+	prj_nm_internal-constants_mod.$(OBJEXT) \
+	prj_nm_internal-MatrixMod.$(OBJEXT) \
+	prj_nm_internal-structure_types_v4.$(OBJEXT) \
+	prj_nm_internal-gro_manage_v4.$(OBJEXT) \
+	prj_nm_internal-pdb_manage_v4.$(OBJEXT) \
+	prj_nm_internal-gaussian_manage_v4.$(OBJEXT) \
+	prj_nm_internal-gaussian_fchk_manage_v4.$(OBJEXT) \
+	prj_nm_internal-xyz_manage_v4.$(OBJEXT) \
+	prj_nm_internal-molcas_unsym_manage_v4.$(OBJEXT) \
+	prj_nm_internal-molecular_structure.$(OBJEXT) \
+	prj_nm_internal-ff_build_module_v4.$(OBJEXT) \
+	prj_nm_internal-atomic_geom_v2.$(OBJEXT) \
+	prj_nm_internal-symmetry_mod_v4.$(OBJEXT) \
+	prj_nm_internal-internal_SR8_v4.0.2.$(OBJEXT) \
+	prj_nm_internal-zmat_manage_v4.$(OBJEXT) \
+	prj_nm_internal-project_normal_modes_internal.$(OBJEXT)
+prj_nm_internal_OBJECTS = $(am_prj_nm_internal_OBJECTS)
+prj_nm_internal_LDADD = $(LDADD)
+prj_nm_internal_LINK = $(FCLD) $(prj_nm_internal_FCFLAGS) $(FCFLAGS) \
+	$(prj_nm_internal_LDFLAGS) $(LDFLAGS) -o $@
 AM_V_P = $(am__v_P_@AM_V@)
 am__v_P_ = $(am__v_P_@AM_DEFAULT_V@)
 am__v_P_0 = false
@@ -171,9 +193,9 @@ am__v_FCLD_ = $(am__v_FCLD_@AM_DEFAULT_V@)
 am__v_FCLD_0 = @echo "  FCLD    " $@;
 am__v_FCLD_1 = 
 SOURCES = $(freq2fc_SOURCES) $(nm_cartesian_SOURCES) \
-	$(nm_internal_SOURCES)
+	$(nm_internal_SOURCES) $(prj_nm_internal_SOURCES)
 DIST_SOURCES = $(freq2fc_SOURCES) $(nm_cartesian_SOURCES) \
-	$(nm_internal_SOURCES)
+	$(nm_internal_SOURCES) $(prj_nm_internal_SOURCES)
 am__can_run_installinfo = \
   case $$AM_UPDATE_INFO_DIR in \
     n|no|NO) false;; \
@@ -318,7 +340,7 @@ nm_internal_SOURCES = ../modules/alerts.f90\
                       ../modules/symmetry_mod_v4.f90\
                       ../modules/internal_SR8_v4.0.2.f90\
                       ../modules/zmat_manage_v4.f90\
-                      normal_modes_internal_v4.0.1.1.f90
+                      normal_modes_internal_v4.0.1.2.f90
 
 nm_internal_LDFLAGS = @LIBS@
 nm_internal_FCFLAGS = -cpp -DDOUBLE -DUSE_LAPACK
@@ -360,6 +382,31 @@ freq2fc_FCFLAGS = -cpp -DDOUBLE
 # internal_numder_analysis
 # =========================
 # internal_numder_analysis_v4.0.1.f90
+
+# ============
+# prj_nm_internal
+# ============
+prj_nm_internal_SOURCES = ../modules/alerts.f90\
+                      ../modules/line_preprocess.f90\
+                      ../modules/constants_mod.f90\
+                      ../modules/MatrixMod.f90\
+                      ../modules/structure_types_v4.f90\
+                      ../modules/gro_manage_v4.f90\
+                      ../modules/pdb_manage_v4.f90\
+                      ../modules/gaussian_manage_v4.f90\
+                      ../modules/gaussian_fchk_manage_v4.f90\
+                      ../modules/xyz_manage_v4.f90\
+                      ../modules/molcas_unsym_manage_v4.f90\
+                      ../modules/molecular_structure.f90\
+                      ../modules/ff_build_module_v4.f90\
+                      ../modules/atomic_geom_v2.f90\
+                      ../modules/symmetry_mod_v4.f90\
+                      ../modules/internal_SR8_v4.0.2.f90\
+                      ../modules/zmat_manage_v4.f90\
+                      project_normal_modes_internal.f90
+
+prj_nm_internal_LDFLAGS = @LIBS@
+prj_nm_internal_FCFLAGS = -cpp -DDOUBLE -DUSE_LAPACK
 CLEANFILES = *.mod 
 all: all-am
 
@@ -453,6 +500,10 @@ nm_cartesian$(EXEEXT): $(nm_cartesian_OBJECTS) $(nm_cartesian_DEPENDENCIES) $(EX
 nm_internal$(EXEEXT): $(nm_internal_OBJECTS) $(nm_internal_DEPENDENCIES) $(EXTRA_nm_internal_DEPENDENCIES) 
 	@rm -f nm_internal$(EXEEXT)
 	$(AM_V_FCLD)$(nm_internal_LINK) $(nm_internal_OBJECTS) $(nm_internal_LDADD) $(LIBS)
+
+prj_nm_internal$(EXEEXT): $(prj_nm_internal_OBJECTS) $(prj_nm_internal_DEPENDENCIES) $(EXTRA_prj_nm_internal_DEPENDENCIES) 
+	@rm -f prj_nm_internal$(EXEEXT)
+	$(AM_V_FCLD)$(prj_nm_internal_LINK) $(prj_nm_internal_OBJECTS) $(prj_nm_internal_LDADD) $(LIBS)
 
 mostlyclean-compile:
 	-rm -f *.$(OBJEXT)
@@ -682,11 +733,119 @@ nm_internal-zmat_manage_v4.o: ../modules/zmat_manage_v4.f90
 nm_internal-zmat_manage_v4.obj: ../modules/zmat_manage_v4.f90
 	$(AM_V_FC)$(FC) $(nm_internal_FCFLAGS) $(FCFLAGS) -c -o nm_internal-zmat_manage_v4.obj `if test -f '../modules/zmat_manage_v4.f90'; then $(CYGPATH_W) '../modules/zmat_manage_v4.f90'; else $(CYGPATH_W) '$(srcdir)/../modules/zmat_manage_v4.f90'; fi`
 
-nm_internal-normal_modes_internal_v4.0.1.1.o: normal_modes_internal_v4.0.1.1.f90
-	$(AM_V_FC)$(FC) $(nm_internal_FCFLAGS) $(FCFLAGS) -c -o nm_internal-normal_modes_internal_v4.0.1.1.o `test -f 'normal_modes_internal_v4.0.1.1.f90' || echo '$(srcdir)/'`normal_modes_internal_v4.0.1.1.f90
+nm_internal-normal_modes_internal_v4.0.1.2.o: normal_modes_internal_v4.0.1.2.f90
+	$(AM_V_FC)$(FC) $(nm_internal_FCFLAGS) $(FCFLAGS) -c -o nm_internal-normal_modes_internal_v4.0.1.2.o `test -f 'normal_modes_internal_v4.0.1.2.f90' || echo '$(srcdir)/'`normal_modes_internal_v4.0.1.2.f90
 
-nm_internal-normal_modes_internal_v4.0.1.1.obj: normal_modes_internal_v4.0.1.1.f90
-	$(AM_V_FC)$(FC) $(nm_internal_FCFLAGS) $(FCFLAGS) -c -o nm_internal-normal_modes_internal_v4.0.1.1.obj `if test -f 'normal_modes_internal_v4.0.1.1.f90'; then $(CYGPATH_W) 'normal_modes_internal_v4.0.1.1.f90'; else $(CYGPATH_W) '$(srcdir)/normal_modes_internal_v4.0.1.1.f90'; fi`
+nm_internal-normal_modes_internal_v4.0.1.2.obj: normal_modes_internal_v4.0.1.2.f90
+	$(AM_V_FC)$(FC) $(nm_internal_FCFLAGS) $(FCFLAGS) -c -o nm_internal-normal_modes_internal_v4.0.1.2.obj `if test -f 'normal_modes_internal_v4.0.1.2.f90'; then $(CYGPATH_W) 'normal_modes_internal_v4.0.1.2.f90'; else $(CYGPATH_W) '$(srcdir)/normal_modes_internal_v4.0.1.2.f90'; fi`
+
+prj_nm_internal-alerts.o: ../modules/alerts.f90
+	$(AM_V_FC)$(FC) $(prj_nm_internal_FCFLAGS) $(FCFLAGS) -c -o prj_nm_internal-alerts.o `test -f '../modules/alerts.f90' || echo '$(srcdir)/'`../modules/alerts.f90
+
+prj_nm_internal-alerts.obj: ../modules/alerts.f90
+	$(AM_V_FC)$(FC) $(prj_nm_internal_FCFLAGS) $(FCFLAGS) -c -o prj_nm_internal-alerts.obj `if test -f '../modules/alerts.f90'; then $(CYGPATH_W) '../modules/alerts.f90'; else $(CYGPATH_W) '$(srcdir)/../modules/alerts.f90'; fi`
+
+prj_nm_internal-line_preprocess.o: ../modules/line_preprocess.f90
+	$(AM_V_FC)$(FC) $(prj_nm_internal_FCFLAGS) $(FCFLAGS) -c -o prj_nm_internal-line_preprocess.o `test -f '../modules/line_preprocess.f90' || echo '$(srcdir)/'`../modules/line_preprocess.f90
+
+prj_nm_internal-line_preprocess.obj: ../modules/line_preprocess.f90
+	$(AM_V_FC)$(FC) $(prj_nm_internal_FCFLAGS) $(FCFLAGS) -c -o prj_nm_internal-line_preprocess.obj `if test -f '../modules/line_preprocess.f90'; then $(CYGPATH_W) '../modules/line_preprocess.f90'; else $(CYGPATH_W) '$(srcdir)/../modules/line_preprocess.f90'; fi`
+
+prj_nm_internal-constants_mod.o: ../modules/constants_mod.f90
+	$(AM_V_FC)$(FC) $(prj_nm_internal_FCFLAGS) $(FCFLAGS) -c -o prj_nm_internal-constants_mod.o `test -f '../modules/constants_mod.f90' || echo '$(srcdir)/'`../modules/constants_mod.f90
+
+prj_nm_internal-constants_mod.obj: ../modules/constants_mod.f90
+	$(AM_V_FC)$(FC) $(prj_nm_internal_FCFLAGS) $(FCFLAGS) -c -o prj_nm_internal-constants_mod.obj `if test -f '../modules/constants_mod.f90'; then $(CYGPATH_W) '../modules/constants_mod.f90'; else $(CYGPATH_W) '$(srcdir)/../modules/constants_mod.f90'; fi`
+
+prj_nm_internal-MatrixMod.o: ../modules/MatrixMod.f90
+	$(AM_V_FC)$(FC) $(prj_nm_internal_FCFLAGS) $(FCFLAGS) -c -o prj_nm_internal-MatrixMod.o `test -f '../modules/MatrixMod.f90' || echo '$(srcdir)/'`../modules/MatrixMod.f90
+
+prj_nm_internal-MatrixMod.obj: ../modules/MatrixMod.f90
+	$(AM_V_FC)$(FC) $(prj_nm_internal_FCFLAGS) $(FCFLAGS) -c -o prj_nm_internal-MatrixMod.obj `if test -f '../modules/MatrixMod.f90'; then $(CYGPATH_W) '../modules/MatrixMod.f90'; else $(CYGPATH_W) '$(srcdir)/../modules/MatrixMod.f90'; fi`
+
+prj_nm_internal-structure_types_v4.o: ../modules/structure_types_v4.f90
+	$(AM_V_FC)$(FC) $(prj_nm_internal_FCFLAGS) $(FCFLAGS) -c -o prj_nm_internal-structure_types_v4.o `test -f '../modules/structure_types_v4.f90' || echo '$(srcdir)/'`../modules/structure_types_v4.f90
+
+prj_nm_internal-structure_types_v4.obj: ../modules/structure_types_v4.f90
+	$(AM_V_FC)$(FC) $(prj_nm_internal_FCFLAGS) $(FCFLAGS) -c -o prj_nm_internal-structure_types_v4.obj `if test -f '../modules/structure_types_v4.f90'; then $(CYGPATH_W) '../modules/structure_types_v4.f90'; else $(CYGPATH_W) '$(srcdir)/../modules/structure_types_v4.f90'; fi`
+
+prj_nm_internal-gro_manage_v4.o: ../modules/gro_manage_v4.f90
+	$(AM_V_FC)$(FC) $(prj_nm_internal_FCFLAGS) $(FCFLAGS) -c -o prj_nm_internal-gro_manage_v4.o `test -f '../modules/gro_manage_v4.f90' || echo '$(srcdir)/'`../modules/gro_manage_v4.f90
+
+prj_nm_internal-gro_manage_v4.obj: ../modules/gro_manage_v4.f90
+	$(AM_V_FC)$(FC) $(prj_nm_internal_FCFLAGS) $(FCFLAGS) -c -o prj_nm_internal-gro_manage_v4.obj `if test -f '../modules/gro_manage_v4.f90'; then $(CYGPATH_W) '../modules/gro_manage_v4.f90'; else $(CYGPATH_W) '$(srcdir)/../modules/gro_manage_v4.f90'; fi`
+
+prj_nm_internal-pdb_manage_v4.o: ../modules/pdb_manage_v4.f90
+	$(AM_V_FC)$(FC) $(prj_nm_internal_FCFLAGS) $(FCFLAGS) -c -o prj_nm_internal-pdb_manage_v4.o `test -f '../modules/pdb_manage_v4.f90' || echo '$(srcdir)/'`../modules/pdb_manage_v4.f90
+
+prj_nm_internal-pdb_manage_v4.obj: ../modules/pdb_manage_v4.f90
+	$(AM_V_FC)$(FC) $(prj_nm_internal_FCFLAGS) $(FCFLAGS) -c -o prj_nm_internal-pdb_manage_v4.obj `if test -f '../modules/pdb_manage_v4.f90'; then $(CYGPATH_W) '../modules/pdb_manage_v4.f90'; else $(CYGPATH_W) '$(srcdir)/../modules/pdb_manage_v4.f90'; fi`
+
+prj_nm_internal-gaussian_manage_v4.o: ../modules/gaussian_manage_v4.f90
+	$(AM_V_FC)$(FC) $(prj_nm_internal_FCFLAGS) $(FCFLAGS) -c -o prj_nm_internal-gaussian_manage_v4.o `test -f '../modules/gaussian_manage_v4.f90' || echo '$(srcdir)/'`../modules/gaussian_manage_v4.f90
+
+prj_nm_internal-gaussian_manage_v4.obj: ../modules/gaussian_manage_v4.f90
+	$(AM_V_FC)$(FC) $(prj_nm_internal_FCFLAGS) $(FCFLAGS) -c -o prj_nm_internal-gaussian_manage_v4.obj `if test -f '../modules/gaussian_manage_v4.f90'; then $(CYGPATH_W) '../modules/gaussian_manage_v4.f90'; else $(CYGPATH_W) '$(srcdir)/../modules/gaussian_manage_v4.f90'; fi`
+
+prj_nm_internal-gaussian_fchk_manage_v4.o: ../modules/gaussian_fchk_manage_v4.f90
+	$(AM_V_FC)$(FC) $(prj_nm_internal_FCFLAGS) $(FCFLAGS) -c -o prj_nm_internal-gaussian_fchk_manage_v4.o `test -f '../modules/gaussian_fchk_manage_v4.f90' || echo '$(srcdir)/'`../modules/gaussian_fchk_manage_v4.f90
+
+prj_nm_internal-gaussian_fchk_manage_v4.obj: ../modules/gaussian_fchk_manage_v4.f90
+	$(AM_V_FC)$(FC) $(prj_nm_internal_FCFLAGS) $(FCFLAGS) -c -o prj_nm_internal-gaussian_fchk_manage_v4.obj `if test -f '../modules/gaussian_fchk_manage_v4.f90'; then $(CYGPATH_W) '../modules/gaussian_fchk_manage_v4.f90'; else $(CYGPATH_W) '$(srcdir)/../modules/gaussian_fchk_manage_v4.f90'; fi`
+
+prj_nm_internal-xyz_manage_v4.o: ../modules/xyz_manage_v4.f90
+	$(AM_V_FC)$(FC) $(prj_nm_internal_FCFLAGS) $(FCFLAGS) -c -o prj_nm_internal-xyz_manage_v4.o `test -f '../modules/xyz_manage_v4.f90' || echo '$(srcdir)/'`../modules/xyz_manage_v4.f90
+
+prj_nm_internal-xyz_manage_v4.obj: ../modules/xyz_manage_v4.f90
+	$(AM_V_FC)$(FC) $(prj_nm_internal_FCFLAGS) $(FCFLAGS) -c -o prj_nm_internal-xyz_manage_v4.obj `if test -f '../modules/xyz_manage_v4.f90'; then $(CYGPATH_W) '../modules/xyz_manage_v4.f90'; else $(CYGPATH_W) '$(srcdir)/../modules/xyz_manage_v4.f90'; fi`
+
+prj_nm_internal-molcas_unsym_manage_v4.o: ../modules/molcas_unsym_manage_v4.f90
+	$(AM_V_FC)$(FC) $(prj_nm_internal_FCFLAGS) $(FCFLAGS) -c -o prj_nm_internal-molcas_unsym_manage_v4.o `test -f '../modules/molcas_unsym_manage_v4.f90' || echo '$(srcdir)/'`../modules/molcas_unsym_manage_v4.f90
+
+prj_nm_internal-molcas_unsym_manage_v4.obj: ../modules/molcas_unsym_manage_v4.f90
+	$(AM_V_FC)$(FC) $(prj_nm_internal_FCFLAGS) $(FCFLAGS) -c -o prj_nm_internal-molcas_unsym_manage_v4.obj `if test -f '../modules/molcas_unsym_manage_v4.f90'; then $(CYGPATH_W) '../modules/molcas_unsym_manage_v4.f90'; else $(CYGPATH_W) '$(srcdir)/../modules/molcas_unsym_manage_v4.f90'; fi`
+
+prj_nm_internal-molecular_structure.o: ../modules/molecular_structure.f90
+	$(AM_V_FC)$(FC) $(prj_nm_internal_FCFLAGS) $(FCFLAGS) -c -o prj_nm_internal-molecular_structure.o `test -f '../modules/molecular_structure.f90' || echo '$(srcdir)/'`../modules/molecular_structure.f90
+
+prj_nm_internal-molecular_structure.obj: ../modules/molecular_structure.f90
+	$(AM_V_FC)$(FC) $(prj_nm_internal_FCFLAGS) $(FCFLAGS) -c -o prj_nm_internal-molecular_structure.obj `if test -f '../modules/molecular_structure.f90'; then $(CYGPATH_W) '../modules/molecular_structure.f90'; else $(CYGPATH_W) '$(srcdir)/../modules/molecular_structure.f90'; fi`
+
+prj_nm_internal-ff_build_module_v4.o: ../modules/ff_build_module_v4.f90
+	$(AM_V_FC)$(FC) $(prj_nm_internal_FCFLAGS) $(FCFLAGS) -c -o prj_nm_internal-ff_build_module_v4.o `test -f '../modules/ff_build_module_v4.f90' || echo '$(srcdir)/'`../modules/ff_build_module_v4.f90
+
+prj_nm_internal-ff_build_module_v4.obj: ../modules/ff_build_module_v4.f90
+	$(AM_V_FC)$(FC) $(prj_nm_internal_FCFLAGS) $(FCFLAGS) -c -o prj_nm_internal-ff_build_module_v4.obj `if test -f '../modules/ff_build_module_v4.f90'; then $(CYGPATH_W) '../modules/ff_build_module_v4.f90'; else $(CYGPATH_W) '$(srcdir)/../modules/ff_build_module_v4.f90'; fi`
+
+prj_nm_internal-atomic_geom_v2.o: ../modules/atomic_geom_v2.f90
+	$(AM_V_FC)$(FC) $(prj_nm_internal_FCFLAGS) $(FCFLAGS) -c -o prj_nm_internal-atomic_geom_v2.o `test -f '../modules/atomic_geom_v2.f90' || echo '$(srcdir)/'`../modules/atomic_geom_v2.f90
+
+prj_nm_internal-atomic_geom_v2.obj: ../modules/atomic_geom_v2.f90
+	$(AM_V_FC)$(FC) $(prj_nm_internal_FCFLAGS) $(FCFLAGS) -c -o prj_nm_internal-atomic_geom_v2.obj `if test -f '../modules/atomic_geom_v2.f90'; then $(CYGPATH_W) '../modules/atomic_geom_v2.f90'; else $(CYGPATH_W) '$(srcdir)/../modules/atomic_geom_v2.f90'; fi`
+
+prj_nm_internal-symmetry_mod_v4.o: ../modules/symmetry_mod_v4.f90
+	$(AM_V_FC)$(FC) $(prj_nm_internal_FCFLAGS) $(FCFLAGS) -c -o prj_nm_internal-symmetry_mod_v4.o `test -f '../modules/symmetry_mod_v4.f90' || echo '$(srcdir)/'`../modules/symmetry_mod_v4.f90
+
+prj_nm_internal-symmetry_mod_v4.obj: ../modules/symmetry_mod_v4.f90
+	$(AM_V_FC)$(FC) $(prj_nm_internal_FCFLAGS) $(FCFLAGS) -c -o prj_nm_internal-symmetry_mod_v4.obj `if test -f '../modules/symmetry_mod_v4.f90'; then $(CYGPATH_W) '../modules/symmetry_mod_v4.f90'; else $(CYGPATH_W) '$(srcdir)/../modules/symmetry_mod_v4.f90'; fi`
+
+prj_nm_internal-internal_SR8_v4.0.2.o: ../modules/internal_SR8_v4.0.2.f90
+	$(AM_V_FC)$(FC) $(prj_nm_internal_FCFLAGS) $(FCFLAGS) -c -o prj_nm_internal-internal_SR8_v4.0.2.o `test -f '../modules/internal_SR8_v4.0.2.f90' || echo '$(srcdir)/'`../modules/internal_SR8_v4.0.2.f90
+
+prj_nm_internal-internal_SR8_v4.0.2.obj: ../modules/internal_SR8_v4.0.2.f90
+	$(AM_V_FC)$(FC) $(prj_nm_internal_FCFLAGS) $(FCFLAGS) -c -o prj_nm_internal-internal_SR8_v4.0.2.obj `if test -f '../modules/internal_SR8_v4.0.2.f90'; then $(CYGPATH_W) '../modules/internal_SR8_v4.0.2.f90'; else $(CYGPATH_W) '$(srcdir)/../modules/internal_SR8_v4.0.2.f90'; fi`
+
+prj_nm_internal-zmat_manage_v4.o: ../modules/zmat_manage_v4.f90
+	$(AM_V_FC)$(FC) $(prj_nm_internal_FCFLAGS) $(FCFLAGS) -c -o prj_nm_internal-zmat_manage_v4.o `test -f '../modules/zmat_manage_v4.f90' || echo '$(srcdir)/'`../modules/zmat_manage_v4.f90
+
+prj_nm_internal-zmat_manage_v4.obj: ../modules/zmat_manage_v4.f90
+	$(AM_V_FC)$(FC) $(prj_nm_internal_FCFLAGS) $(FCFLAGS) -c -o prj_nm_internal-zmat_manage_v4.obj `if test -f '../modules/zmat_manage_v4.f90'; then $(CYGPATH_W) '../modules/zmat_manage_v4.f90'; else $(CYGPATH_W) '$(srcdir)/../modules/zmat_manage_v4.f90'; fi`
+
+prj_nm_internal-project_normal_modes_internal.o: project_normal_modes_internal.f90
+	$(AM_V_FC)$(FC) $(prj_nm_internal_FCFLAGS) $(FCFLAGS) -c -o prj_nm_internal-project_normal_modes_internal.o `test -f 'project_normal_modes_internal.f90' || echo '$(srcdir)/'`project_normal_modes_internal.f90
+
+prj_nm_internal-project_normal_modes_internal.obj: project_normal_modes_internal.f90
+	$(AM_V_FC)$(FC) $(prj_nm_internal_FCFLAGS) $(FCFLAGS) -c -o prj_nm_internal-project_normal_modes_internal.obj `if test -f 'project_normal_modes_internal.f90'; then $(CYGPATH_W) 'project_normal_modes_internal.f90'; else $(CYGPATH_W) '$(srcdir)/project_normal_modes_internal.f90'; fi`
 
 ID: $(am__tagged_files)
 	$(am__define_uniq_tagged_files); mkid -fID $$unique

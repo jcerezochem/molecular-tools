@@ -40,7 +40,8 @@ module constants
                            HARTtoJ   = 4.3597482d-18,   &
                            HtoKCALM  = 627.5095d0,      &
                            CALtoJ    = 4.184,           &
-                           HtoeV     = 27.2114
+                           HtoeV     = 27.2114,         &
+                           autown    = 2.1947463068d5    !From FCclasses Freq from AU to cm-1
 
 
 

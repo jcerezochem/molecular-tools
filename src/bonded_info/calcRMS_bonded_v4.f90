@@ -16,6 +16,7 @@ program calcRMS_bonded
     ! Change log:
     ! v2: use slightly modified modules. calc_dihed and calc_angle now returns angle in rad, so changes are made accordingly
     ! v4: using v4 modules (disable allocation)
+    ! Added RMSD of the whole structure (atomic positions)
     !============================================================================    
 
     use structure_types
@@ -29,6 +30,7 @@ program calcRMS_bonded
     use gaussian_manage
     use gaussian_fchk_manage
     use molecular_structure
+    use xyz_manage
 
     implicit none
 
@@ -213,6 +215,27 @@ program calcRMS_bonded
     rmsd = sqrt(dev/k)
 
     print'(X,A,X,F8.3,/)', "RMSD-dihedrals (deg):", rmsd
+
+
+    dev = 0.0
+    k = 0
+    if (debug) print*, "LIST OF ATOMS"
+    do i=1,ref_molec%natoms
+        if (nonH) then
+            if (adjustl(ref_molec%atom(i)%name) == "H") cycle
+        endif
+        !Using an external counter in case nonH is used
+        k=k+1
+        dif = calc_dist(molec%atom(i),ref_molec%atom(i))
+        if (debug) &
+        print'(A2,A1,I2,A1,X,F11.6)', &
+              ref_molec%atom(i)%name, "(", i, ")", dif
+        dev = dev + (dif)**2
+    enddo
+    rmsd = sqrt(dev/k)
+    print'(A,/)', '---------------------' 
+
+    print'(X,A,X,F8.3,/)', "RMSD-struct (AA):", rmsd
    
 
     ! 9999. CHECK ERROR/NOTES
@@ -319,6 +342,10 @@ program calcRMS_bonded
         character :: null
 
         select case (adjustl(filetype))
+            case("g96")
+             call read_g96(unt,molec)
+            case("xyz")
+             call read_xyz(unt,molec)
             case("gro")
              call read_gro(unt,molec)
             case("pdb")
