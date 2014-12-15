@@ -666,6 +666,14 @@ module gaussian_manage
         character(len=20),dimension(1:5) :: dummy_char_array
         integer :: i,j, IOstatus
 
+        !Auxiliar to read Cartesian geometry
+#ifdef DOUBLE
+        double precision,dimension(4) :: aux_vec
+#else
+        real,dimension(4) :: aux_vec
+#endif
+        integer :: nitems
+
 
         !The summary is read section by section
         line=""
@@ -804,15 +812,14 @@ module gaussian_manage
             i=0
             do while ( len_trim(log_section) /= 0 )
                 call split_line(log_section,'\',subline,log_section)
+                !Here we add a check to know hwo to read the Cartesian geometry. Since the check of "SP" do not always work (e.g. some jobs of coumarins from Paco)
                 i=i+1
-                !The format depends on the type of job (apparently): With SP includes a "layer=0"
-                if ( adjustl(jobtype) == "SP" ) then
-                    read(subline,*) molec%atom(i)%name, dummy_int, molec%atom(i)%x, molec%atom(i)%y, molec%atom(i)%z
-!   !                 read(subline,*) molec%atom(i)%name, dummy_int, molec%atom(i)%R(1), molec%atom(i)%R(2), molec%atom(i)%R(3)
-                else
-                    read(subline,*) molec%atom(i)%name, molec%atom(i)%x, molec%atom(i)%y, molec%atom(i)%z
-!   !                 read(subline,*) molec%atom(i)%name, molec%atom(i)%R(1), molec%atom(i)%R(2), molec%atom(i)%R(3)
-                endif
+                !Better to read it with string2vector_geom, an add-hoc modification of the general roitine (in this file)
+                call string2vector_geom(subline, &
+                                        molec%atom(i)%name, &
+                                        molec%atom(i)%x, &
+                                        molec%atom(i)%y, &
+                                        molec%atom(i)%z)
             enddo
             molec%natoms=i
         else
@@ -1003,6 +1010,7 @@ module gaussian_manage
             !Description
             ! Tranforms a string of comma sepparated values into an
             ! array of such real vaues 
+            ! ** What's the difference with  string2vector in line_preprocess module??
 
             character(len=*),intent(inout) :: raw_vector
 #ifdef DOUBLE
@@ -1034,6 +1042,54 @@ module gaussian_manage
             return
 
         end subroutine string2vector_gm
+
+        subroutine string2vector_geom(raw_vector,atname,x,y,z)
+
+            !Description
+            ! Tranforms a string of comma sepparated values into geom data
+            ! The first is a string (the atom name) and the rest are the coords
+
+            character(len=*),intent(inout) :: raw_vector, atname
+#ifdef DOUBLE
+            double precision,intent(out) :: x,y,z
+#else
+            real,intent(out) :: x,y,z
+#endif
+
+            !Local
+            character(len=240),dimension(5) :: auxchar
+            integer :: i, n_elem
+        
+            
+            !Read unknown length vector (comma sepparated)
+            i=0
+            do 
+                i=i+1
+                if ( INDEX(raw_vector,',') /= 0 ) then
+                    call split_line(raw_vector,',',auxchar(i),raw_vector)
+                else 
+                    auxchar(i) = raw_vector
+                    exit
+                endif
+            enddo  
+            n_elem=i
+
+            atname = adjustl(auxchar(1))
+            if ( n_elem == 4) then
+                read(auxchar(2),*) x
+                read(auxchar(3),*) y
+                read(auxchar(4),*) z
+             elseif ( n_elem == 5) then
+                read(auxchar(3),*) x
+                read(auxchar(4),*) y
+                read(auxchar(5),*) z
+             else
+                call alert_msg("fatal","Wrong format while reading geometry in glog summary")
+             endif
+
+            return
+
+        end subroutine string2vector_geom
 
     end subroutine parse_summary
 
