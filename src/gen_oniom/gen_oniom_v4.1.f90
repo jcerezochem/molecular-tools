@@ -18,6 +18,12 @@ program gen_oniom
     !
     !   V4: addapted to v4 subroutines
     !   v4.1: Using element names where needed
+    !         Solved issue: when using -n crash for large systems
+    !                       with segfault. The problem is in
+    !                       frz array. It is not called (should be
+    !                       eliminated)
+    !         Solved issue: if the ndxrecord has not atoms, exit the 
+    !                       the cycle to avoid segfault
 
     use structure_types
     use line_preprocess
@@ -177,7 +183,8 @@ program gen_oniom
             if (line(1:1) == '[') exit
             ndxrecord=trim(adjustl(ndxrecord))//" "//trim(adjustl(line))
         enddo
-        call read_list_int(ndxrecord,nelements,molmap)
+        if ( trim(adjustl(ndxrecord)) /= "" ) then
+            call read_list_int(ndxrecord,nelements,molmap)
 !         !Set the ndx-selected atoms and corresponing molec to H (ensures whole residues, even if they are not in the ndx!)
 !         imap=0
 !         do i=1,nelements
@@ -194,15 +201,16 @@ program gen_oniom
 !                 if (molec%atom(j)%resseq == k) molec%atom(j)%chain='H'
 !             enddo
 !         enddo
-        !Set the ndx-selected atoms and corresponing molec to H (assuming whole residues in ndx (more efficient...)
-        imap=0
-        do i=1,nelements
-            j=molmap(i)
-            if (verbose) print'(A,I5,A)', "Adding atom ",j," to the QM layer"
-            molec%atom(j)%chain='H'
-            !Also unfreeze (to be generalized)
-            frz(j) = 0
-        enddo
+            !Set the ndx-selected atoms and corresponing molec to H (assuming whole residues in ndx (more efficient...)
+            imap=0
+            do i=1,nelements
+                j=molmap(i)
+                if (verbose) print'(A,I5,A)', "Adding atom ",j," to the QM layer"
+                molec%atom(j)%chain='H'
+                !Also unfreeze (to be generalized): why this freeze?
+!   !            frz(j) = 0
+            enddo
+         endif
 !         call sort_vec_int(selres,nelements) !it is already ordered in ndx file
      endif
         

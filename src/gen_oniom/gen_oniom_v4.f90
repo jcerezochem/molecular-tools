@@ -17,6 +17,15 @@ program gen_oniom
     !   Includes support for standard GMX paths (if they are exported)
     !
     !   V4: addapted to v4 subroutines
+    !   
+    ! Memory issues
+    ! =============
+    ! The program uses an array of molecules to store residue information. Each molecule has a
+    !  dimension of MAX_ATM_RES. Using structure_types_v5, this value can be set in the sized module
+    !  However, take into account that this value also holds for the the str_type holding the whole
+    !  system, so MAX_ATM_RES need to be as large as the whole system (this is very ineficient!!). At
+    !  the moment the solution is to limit the dimension of the molecule array to store resid info to
+    !  2 (see "type(str_resmol),dimension(1:2) :: residue"), which works for solute+solvent (binary mixtures)
 
     use structure_types
     use line_preprocess

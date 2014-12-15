@@ -96,7 +96,7 @@ program calcRMS_bonded
 
     if (adjustl(ft) == "guess") then
         ! Guess file type
-        call split_line(inpfile,".",null,ft)
+        call split_line_back(inpfile,".",null,ft)
     endif
 
     call generic_strfile_read(I_INP,ft,molec)
@@ -109,7 +109,7 @@ program calcRMS_bonded
 
     if (adjustl(ft_ref) == "guess") then
         ! Guess file type
-        call split_line(reffile,".",null,ft_ref)
+        call split_line_back(reffile,".",null,ft_ref)
     endif
 
     call generic_strfile_read(I_INP,ft_ref,ref_molec)
