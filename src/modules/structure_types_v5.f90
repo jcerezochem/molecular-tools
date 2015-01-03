@@ -52,6 +52,7 @@ module structure_types
     ! (14/02/14) TESTING: new str_type: str_internal to store internal coordinates
     ! (27/02/14) Added str_job and included molec%job and molec%props(allocatable)
     ! (20/06/14) Version3.2 (in internal project): add impropers to geom
+    ! (Dec 14)   Version5: added sizes as module (differecen with version4)
     !---------------------------------------------------------
 
     !SIZES

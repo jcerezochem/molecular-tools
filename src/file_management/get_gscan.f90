@@ -145,7 +145,7 @@ program get_gscan
             write(O_ENR,*) geompar, E
         endif
         ! 3) Read structure and associted energy
-        if ( INDEX(line,                                                                 &
+        if ( INDEX(line,    &
              "orientation") &
               /= 0 ) then
             backspace(I_INP)
