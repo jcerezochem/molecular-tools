@@ -268,7 +268,7 @@ program get_symatoms
              call write_xyz(unt,molec)
             case("fchk")
              call element2AtNum(molec)
-             call write_fchk(unt,molec)
+             call write_fchk_geom(unt,molec)
             case("fcc")
              call write_fcc(unt,molec)
             case default
