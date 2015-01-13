@@ -23,6 +23,7 @@ program fchk2gro
     !  Version 4: addapted to v4 modules
     !  v4.1: add "swap" option (10/10/14)
     !        included fcc (structure part of state file)
+    !  Jan15: Fixed the write_fchk call
     !
     ! TODO:
     ! ------
@@ -289,7 +290,7 @@ program fchk2gro
              call write_xyz(unt,molec)
             case("fchk")
              call element2AtNum(molec)
-             call write_fchk(unt,molec)
+             call write_fchk_geom(unt,molec)
             case("fcc")
              call write_fcc(unt,molec)
             case default
