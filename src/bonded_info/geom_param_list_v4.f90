@@ -56,7 +56,7 @@ program geom_param_list
 
     if (adjustl(filetype) == "guess") then
         ! Guess file type
-        call split_line(inpfile,".",null,filetype)
+        call split_line_back(inpfile,".",null,filetype)
     endif
 
     call generic_strfile_read(IGeom,filetype,molecule)
