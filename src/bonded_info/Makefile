@@ -76,7 +76,8 @@ POST_INSTALL = :
 NORMAL_UNINSTALL = :
 PRE_UNINSTALL = :
 POST_UNINSTALL = :
-bin_PROGRAMS = calcRMS_bonded$(EXEEXT) geom_param_list$(EXEEXT)
+bin_PROGRAMS = calcRMS_bonded$(EXEEXT) geom_param_list$(EXEEXT) \
+	get_com$(EXEEXT)
 subdir = src/bonded_info
 DIST_COMMON = $(srcdir)/Makefile.in $(srcdir)/Makefile.am install-sh \
 	missing
@@ -121,6 +122,22 @@ geom_param_list_OBJECTS = $(am_geom_param_list_OBJECTS)
 geom_param_list_LDADD = $(LDADD)
 geom_param_list_LINK = $(FCLD) $(geom_param_list_FCFLAGS) $(FCFLAGS) \
 	$(geom_param_list_LDFLAGS) $(LDFLAGS) -o $@
+am_get_com_OBJECTS = get_com-alerts.$(OBJEXT) \
+	get_com-line_preprocess.$(OBJEXT) \
+	get_com-constants_mod.$(OBJEXT) \
+	get_com-structure_types_v4.$(OBJEXT) \
+	get_com-gro_manage_v4.$(OBJEXT) \
+	get_com-pdb_manage_v4.$(OBJEXT) \
+	get_com-gaussian_manage_v4.$(OBJEXT) \
+	get_com-gaussian_fchk_manage_v4.$(OBJEXT) \
+	get_com-xyz_manage_v4.$(OBJEXT) \
+	get_com-molcas_unsym_manage_v4.$(OBJEXT) \
+	get_com-molecular_structure.$(OBJEXT) \
+	get_com-ff_build_module_v4.$(OBJEXT) get_com-get_com.$(OBJEXT)
+get_com_OBJECTS = $(am_get_com_OBJECTS)
+get_com_LDADD = $(LDADD)
+get_com_LINK = $(FCLD) $(get_com_FCFLAGS) $(FCFLAGS) \
+	$(get_com_LDFLAGS) $(LDFLAGS) -o $@
 AM_V_P = $(am__v_P_$(V))
 am__v_P_ = $(am__v_P_$(AM_DEFAULT_VERBOSITY))
 am__v_P_0 = false
@@ -150,8 +167,10 @@ AM_V_FCLD = $(am__v_FCLD_$(V))
 am__v_FCLD_ = $(am__v_FCLD_$(AM_DEFAULT_VERBOSITY))
 am__v_FCLD_0 = @echo "  FCLD    " $@;
 am__v_FCLD_1 = 
-SOURCES = $(calcRMS_bonded_SOURCES) $(geom_param_list_SOURCES)
-DIST_SOURCES = $(calcRMS_bonded_SOURCES) $(geom_param_list_SOURCES)
+SOURCES = $(calcRMS_bonded_SOURCES) $(geom_param_list_SOURCES) \
+	$(get_com_SOURCES)
+DIST_SOURCES = $(calcRMS_bonded_SOURCES) $(geom_param_list_SOURCES) \
+	$(get_com_SOURCES)
 am__can_run_installinfo = \
   case $$AM_UPDATE_INFO_DIR in \
     n|no|NO) false;; \
@@ -286,7 +305,23 @@ geom_param_list_SOURCES = ../modules/alerts.f90\
                       geom_param_list_v4.f90
 
 geom_param_list_LDFLAGS = -llapack
-geom_param_list_FCFLAGS = -cpp -DDOUBLE 
+geom_param_list_FCFLAGS = -cpp -DDOUBLE
+get_com_SOURCES = ../modules/alerts.f90\
+                      ../modules/line_preprocess.f90\
+                      ../modules/constants_mod.f90\
+                      ../modules/structure_types_v4.f90\
+                      ../modules/gro_manage_v4.f90\
+                      ../modules/pdb_manage_v4.f90\
+                      ../modules/gaussian_manage_v4.f90\
+                      ../modules/gaussian_fchk_manage_v4.f90\
+                      ../modules/xyz_manage_v4.f90\
+                      ../modules/molcas_unsym_manage_v4.f90\
+                      ../modules/molecular_structure.f90\
+                      ../modules/ff_build_module_v4.f90\
+                      get_com.f90
+
+get_com_LDFLAGS = -llapack
+get_com_FCFLAGS = -cpp -DDOUBLE 
 CLEANFILES = *.mod 
 all: all-am
 
@@ -372,6 +407,10 @@ calcRMS_bonded$(EXEEXT): $(calcRMS_bonded_OBJECTS) $(calcRMS_bonded_DEPENDENCIES
 geom_param_list$(EXEEXT): $(geom_param_list_OBJECTS) $(geom_param_list_DEPENDENCIES) $(EXTRA_geom_param_list_DEPENDENCIES) 
 	@rm -f geom_param_list$(EXEEXT)
 	$(AM_V_FCLD)$(geom_param_list_LINK) $(geom_param_list_OBJECTS) $(geom_param_list_LDADD) $(LIBS)
+
+get_com$(EXEEXT): $(get_com_OBJECTS) $(get_com_DEPENDENCIES) $(EXTRA_get_com_DEPENDENCIES) 
+	@rm -f get_com$(EXEEXT)
+	$(AM_V_FCLD)$(get_com_LINK) $(get_com_OBJECTS) $(get_com_LDADD) $(LIBS)
 
 mostlyclean-compile:
 	-rm -f *.$(OBJEXT)
@@ -528,6 +567,84 @@ geom_param_list-geom_param_list_v4.o: geom_param_list_v4.f90
 
 geom_param_list-geom_param_list_v4.obj: geom_param_list_v4.f90
 	$(AM_V_FC)$(FC) $(geom_param_list_FCFLAGS) $(FCFLAGS) -c -o geom_param_list-geom_param_list_v4.obj `if test -f 'geom_param_list_v4.f90'; then $(CYGPATH_W) 'geom_param_list_v4.f90'; else $(CYGPATH_W) '$(srcdir)/geom_param_list_v4.f90'; fi`
+
+get_com-alerts.o: ../modules/alerts.f90
+	$(AM_V_FC)$(FC) $(get_com_FCFLAGS) $(FCFLAGS) -c -o get_com-alerts.o `test -f '../modules/alerts.f90' || echo '$(srcdir)/'`../modules/alerts.f90
+
+get_com-alerts.obj: ../modules/alerts.f90
+	$(AM_V_FC)$(FC) $(get_com_FCFLAGS) $(FCFLAGS) -c -o get_com-alerts.obj `if test -f '../modules/alerts.f90'; then $(CYGPATH_W) '../modules/alerts.f90'; else $(CYGPATH_W) '$(srcdir)/../modules/alerts.f90'; fi`
+
+get_com-line_preprocess.o: ../modules/line_preprocess.f90
+	$(AM_V_FC)$(FC) $(get_com_FCFLAGS) $(FCFLAGS) -c -o get_com-line_preprocess.o `test -f '../modules/line_preprocess.f90' || echo '$(srcdir)/'`../modules/line_preprocess.f90
+
+get_com-line_preprocess.obj: ../modules/line_preprocess.f90
+	$(AM_V_FC)$(FC) $(get_com_FCFLAGS) $(FCFLAGS) -c -o get_com-line_preprocess.obj `if test -f '../modules/line_preprocess.f90'; then $(CYGPATH_W) '../modules/line_preprocess.f90'; else $(CYGPATH_W) '$(srcdir)/../modules/line_preprocess.f90'; fi`
+
+get_com-constants_mod.o: ../modules/constants_mod.f90
+	$(AM_V_FC)$(FC) $(get_com_FCFLAGS) $(FCFLAGS) -c -o get_com-constants_mod.o `test -f '../modules/constants_mod.f90' || echo '$(srcdir)/'`../modules/constants_mod.f90
+
+get_com-constants_mod.obj: ../modules/constants_mod.f90
+	$(AM_V_FC)$(FC) $(get_com_FCFLAGS) $(FCFLAGS) -c -o get_com-constants_mod.obj `if test -f '../modules/constants_mod.f90'; then $(CYGPATH_W) '../modules/constants_mod.f90'; else $(CYGPATH_W) '$(srcdir)/../modules/constants_mod.f90'; fi`
+
+get_com-structure_types_v4.o: ../modules/structure_types_v4.f90
+	$(AM_V_FC)$(FC) $(get_com_FCFLAGS) $(FCFLAGS) -c -o get_com-structure_types_v4.o `test -f '../modules/structure_types_v4.f90' || echo '$(srcdir)/'`../modules/structure_types_v4.f90
+
+get_com-structure_types_v4.obj: ../modules/structure_types_v4.f90
+	$(AM_V_FC)$(FC) $(get_com_FCFLAGS) $(FCFLAGS) -c -o get_com-structure_types_v4.obj `if test -f '../modules/structure_types_v4.f90'; then $(CYGPATH_W) '../modules/structure_types_v4.f90'; else $(CYGPATH_W) '$(srcdir)/../modules/structure_types_v4.f90'; fi`
+
+get_com-gro_manage_v4.o: ../modules/gro_manage_v4.f90
+	$(AM_V_FC)$(FC) $(get_com_FCFLAGS) $(FCFLAGS) -c -o get_com-gro_manage_v4.o `test -f '../modules/gro_manage_v4.f90' || echo '$(srcdir)/'`../modules/gro_manage_v4.f90
+
+get_com-gro_manage_v4.obj: ../modules/gro_manage_v4.f90
+	$(AM_V_FC)$(FC) $(get_com_FCFLAGS) $(FCFLAGS) -c -o get_com-gro_manage_v4.obj `if test -f '../modules/gro_manage_v4.f90'; then $(CYGPATH_W) '../modules/gro_manage_v4.f90'; else $(CYGPATH_W) '$(srcdir)/../modules/gro_manage_v4.f90'; fi`
+
+get_com-pdb_manage_v4.o: ../modules/pdb_manage_v4.f90
+	$(AM_V_FC)$(FC) $(get_com_FCFLAGS) $(FCFLAGS) -c -o get_com-pdb_manage_v4.o `test -f '../modules/pdb_manage_v4.f90' || echo '$(srcdir)/'`../modules/pdb_manage_v4.f90
+
+get_com-pdb_manage_v4.obj: ../modules/pdb_manage_v4.f90
+	$(AM_V_FC)$(FC) $(get_com_FCFLAGS) $(FCFLAGS) -c -o get_com-pdb_manage_v4.obj `if test -f '../modules/pdb_manage_v4.f90'; then $(CYGPATH_W) '../modules/pdb_manage_v4.f90'; else $(CYGPATH_W) '$(srcdir)/../modules/pdb_manage_v4.f90'; fi`
+
+get_com-gaussian_manage_v4.o: ../modules/gaussian_manage_v4.f90
+	$(AM_V_FC)$(FC) $(get_com_FCFLAGS) $(FCFLAGS) -c -o get_com-gaussian_manage_v4.o `test -f '../modules/gaussian_manage_v4.f90' || echo '$(srcdir)/'`../modules/gaussian_manage_v4.f90
+
+get_com-gaussian_manage_v4.obj: ../modules/gaussian_manage_v4.f90
+	$(AM_V_FC)$(FC) $(get_com_FCFLAGS) $(FCFLAGS) -c -o get_com-gaussian_manage_v4.obj `if test -f '../modules/gaussian_manage_v4.f90'; then $(CYGPATH_W) '../modules/gaussian_manage_v4.f90'; else $(CYGPATH_W) '$(srcdir)/../modules/gaussian_manage_v4.f90'; fi`
+
+get_com-gaussian_fchk_manage_v4.o: ../modules/gaussian_fchk_manage_v4.f90
+	$(AM_V_FC)$(FC) $(get_com_FCFLAGS) $(FCFLAGS) -c -o get_com-gaussian_fchk_manage_v4.o `test -f '../modules/gaussian_fchk_manage_v4.f90' || echo '$(srcdir)/'`../modules/gaussian_fchk_manage_v4.f90
+
+get_com-gaussian_fchk_manage_v4.obj: ../modules/gaussian_fchk_manage_v4.f90
+	$(AM_V_FC)$(FC) $(get_com_FCFLAGS) $(FCFLAGS) -c -o get_com-gaussian_fchk_manage_v4.obj `if test -f '../modules/gaussian_fchk_manage_v4.f90'; then $(CYGPATH_W) '../modules/gaussian_fchk_manage_v4.f90'; else $(CYGPATH_W) '$(srcdir)/../modules/gaussian_fchk_manage_v4.f90'; fi`
+
+get_com-xyz_manage_v4.o: ../modules/xyz_manage_v4.f90
+	$(AM_V_FC)$(FC) $(get_com_FCFLAGS) $(FCFLAGS) -c -o get_com-xyz_manage_v4.o `test -f '../modules/xyz_manage_v4.f90' || echo '$(srcdir)/'`../modules/xyz_manage_v4.f90
+
+get_com-xyz_manage_v4.obj: ../modules/xyz_manage_v4.f90
+	$(AM_V_FC)$(FC) $(get_com_FCFLAGS) $(FCFLAGS) -c -o get_com-xyz_manage_v4.obj `if test -f '../modules/xyz_manage_v4.f90'; then $(CYGPATH_W) '../modules/xyz_manage_v4.f90'; else $(CYGPATH_W) '$(srcdir)/../modules/xyz_manage_v4.f90'; fi`
+
+get_com-molcas_unsym_manage_v4.o: ../modules/molcas_unsym_manage_v4.f90
+	$(AM_V_FC)$(FC) $(get_com_FCFLAGS) $(FCFLAGS) -c -o get_com-molcas_unsym_manage_v4.o `test -f '../modules/molcas_unsym_manage_v4.f90' || echo '$(srcdir)/'`../modules/molcas_unsym_manage_v4.f90
+
+get_com-molcas_unsym_manage_v4.obj: ../modules/molcas_unsym_manage_v4.f90
+	$(AM_V_FC)$(FC) $(get_com_FCFLAGS) $(FCFLAGS) -c -o get_com-molcas_unsym_manage_v4.obj `if test -f '../modules/molcas_unsym_manage_v4.f90'; then $(CYGPATH_W) '../modules/molcas_unsym_manage_v4.f90'; else $(CYGPATH_W) '$(srcdir)/../modules/molcas_unsym_manage_v4.f90'; fi`
+
+get_com-molecular_structure.o: ../modules/molecular_structure.f90
+	$(AM_V_FC)$(FC) $(get_com_FCFLAGS) $(FCFLAGS) -c -o get_com-molecular_structure.o `test -f '../modules/molecular_structure.f90' || echo '$(srcdir)/'`../modules/molecular_structure.f90
+
+get_com-molecular_structure.obj: ../modules/molecular_structure.f90
+	$(AM_V_FC)$(FC) $(get_com_FCFLAGS) $(FCFLAGS) -c -o get_com-molecular_structure.obj `if test -f '../modules/molecular_structure.f90'; then $(CYGPATH_W) '../modules/molecular_structure.f90'; else $(CYGPATH_W) '$(srcdir)/../modules/molecular_structure.f90'; fi`
+
+get_com-ff_build_module_v4.o: ../modules/ff_build_module_v4.f90
+	$(AM_V_FC)$(FC) $(get_com_FCFLAGS) $(FCFLAGS) -c -o get_com-ff_build_module_v4.o `test -f '../modules/ff_build_module_v4.f90' || echo '$(srcdir)/'`../modules/ff_build_module_v4.f90
+
+get_com-ff_build_module_v4.obj: ../modules/ff_build_module_v4.f90
+	$(AM_V_FC)$(FC) $(get_com_FCFLAGS) $(FCFLAGS) -c -o get_com-ff_build_module_v4.obj `if test -f '../modules/ff_build_module_v4.f90'; then $(CYGPATH_W) '../modules/ff_build_module_v4.f90'; else $(CYGPATH_W) '$(srcdir)/../modules/ff_build_module_v4.f90'; fi`
+
+get_com-get_com.o: get_com.f90
+	$(AM_V_FC)$(FC) $(get_com_FCFLAGS) $(FCFLAGS) -c -o get_com-get_com.o `test -f 'get_com.f90' || echo '$(srcdir)/'`get_com.f90
+
+get_com-get_com.obj: get_com.f90
+	$(AM_V_FC)$(FC) $(get_com_FCFLAGS) $(FCFLAGS) -c -o get_com-get_com.obj `if test -f 'get_com.f90'; then $(CYGPATH_W) 'get_com.f90'; else $(CYGPATH_W) '$(srcdir)/get_com.f90'; fi`
 
 ID: $(am__tagged_files)
 	$(am__define_uniq_tagged_files); mkid -fID $$unique

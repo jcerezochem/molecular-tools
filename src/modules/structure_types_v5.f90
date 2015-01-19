@@ -165,6 +165,14 @@ module structure_types
         type(str_job) :: job
         !Include bonded info (useful for force field management) (should be allocatable?)
         type(str_bonded) :: geom
+        !Including com and cog (c. of geometry)
+#ifdef DOUBLE
+        double precision::cogX,cogY,cogZ, &
+                          comX,comY,comZ
+#else
+        real::cogX,cogY,cogZ, & 
+              comX,comY,comZ
+#endif
 !===================================
         !Make it recursive
 !         type(str_resmol),dimension(:),allocatable :: residue

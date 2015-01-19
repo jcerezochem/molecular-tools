@@ -974,4 +974,33 @@ print*, sistema%nres
 
     end subroutine res1_2_sist
 
+!%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+    subroutine get_cog(molec)
+
+        !--------------------------------------------------------------------------
+        ! Compute the center of geometry and store it in molec%cog
+        !--------------------------------------------------------------------------
+        
+        type(str_resmol),intent(inout)::molec
+
+        !Local
+        integer :: i
+
+        molec%cogX = 0.d0
+        molec%cogY = 0.d0
+        molec%cogZ = 0.d0
+        do i=1,molec%natoms
+            molec%cogX = molec%cogX + molec%atom(i)%x
+            molec%cogY = molec%cogY + molec%atom(i)%y
+            molec%cogZ = molec%cogZ + molec%atom(i)%z
+        enddo
+        molec%cogX = molec%cogX/molec%natoms
+        molec%cogY = molec%cogY/molec%natoms
+        molec%cogZ = molec%cogZ/molec%natoms
+
+        return
+
+    end subroutine get_cog
+
 end module molecular_structure
