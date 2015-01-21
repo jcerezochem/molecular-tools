@@ -4,5 +4,6 @@ SUBDIRS = src/normal_modes\
           src/file_management\
           src/vibrations\
           src/internal_duschisky\
-          src/gen_oniom
+          src/gen_oniom\
+          src/wf_analysis
 

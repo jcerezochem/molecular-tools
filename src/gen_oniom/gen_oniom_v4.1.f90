@@ -105,7 +105,8 @@ program gen_oniom
 
 
     ! 0. GET COMMAND LINE ARGUMENTS AND OPEN FILES
-    call parse_input(inpfile,filetype,topfile,ndxfile,resname,jobspec,outgau,nproc,mm_file,chrgspin_h,chrgspin_l,pointcharges,verbose)
+    call parse_input(inpfile,filetype,topfile,ndxfile,resname,jobspec,outgau,nproc,&
+                     mm_file,chrgspin_h,chrgspin_l,pointcharges,verbose)
 
 
     ! 1. READ DATA
@@ -287,7 +288,8 @@ program gen_oniom
     contains
     !=============================================
 
-    subroutine parse_input(inpfile,filetype,topfile,ndxfile,resname,jobspec,outfile,nproc,mm_file,chrgspin_h,chrgspin_l,pointcharges,verbose)
+    subroutine parse_input(inpfile,filetype,topfile,ndxfile,resname,jobspec,outfile,nproc,&
+                           mm_file,chrgspin_h,chrgspin_l,pointcharges,verbose)
     !==================================================
     ! My input parser (gromacs style)
     !==================================================
