@@ -583,7 +583,7 @@ PACKAGE_STRING='MolecularTools 2.2.1'
 PACKAGE_BUGREPORT='jcb1@um.es'
 PACKAGE_URL=''
 
-ac_unique_file="src/normal_modes/normal_modes_internal_v4.f90"
+ac_unique_file="src/"
 ac_default_prefix=/home/cerezo/Programas/MolecularTools
 ac_subst_vars='am__EXEEXT_FALSE
 am__EXEEXT_TRUE
@@ -3008,7 +3008,7 @@ fi
 
 # Checks for library functions.
 
-ac_config_files="$ac_config_files Makefile src/normal_modes/Makefile src/bonded_info/Makefile src/build_top/Makefile src/file_management/Makefile src/fcclasses_tools/Makefile src/vibrations/Makefile src/wf_analysis/Makefile"
+ac_config_files="$ac_config_files Makefile src/normal_modes/Makefile src/bonded_info/Makefile src/build_top/Makefile src/file_management/Makefile src/vibrations/Makefile src/wf_analysis/Makefile src/gen_oniom/Makefile src/internal_duschisky/Makefile"
 
 cat >confcache <<\_ACEOF
 # This file is a shell script that caches the results of configure
@@ -3743,9 +3743,10 @@ do
     "src/bonded_info/Makefile") CONFIG_FILES="$CONFIG_FILES src/bonded_info/Makefile" ;;
     "src/build_top/Makefile") CONFIG_FILES="$CONFIG_FILES src/build_top/Makefile" ;;
     "src/file_management/Makefile") CONFIG_FILES="$CONFIG_FILES src/file_management/Makefile" ;;
-    "src/fcclasses_tools/Makefile") CONFIG_FILES="$CONFIG_FILES src/fcclasses_tools/Makefile" ;;
     "src/vibrations/Makefile") CONFIG_FILES="$CONFIG_FILES src/vibrations/Makefile" ;;
     "src/wf_analysis/Makefile") CONFIG_FILES="$CONFIG_FILES src/wf_analysis/Makefile" ;;
+    "src/gen_oniom/Makefile") CONFIG_FILES="$CONFIG_FILES src/gen_oniom/Makefile" ;;
+    "src/internal_duschisky/Makefile") CONFIG_FILES="$CONFIG_FILES src/internal_duschisky/Makefile" ;;
 
   *) as_fn_error $? "invalid argument: \`$ac_config_target'" "$LINENO" 5;;
   esac
@@ -4205,5 +4206,4 @@ if test -n "$ac_unrecognized_opts" && test "$enable_option_checking" != no; then
   { $as_echo "$as_me:${as_lineno-$LINENO}: WARNING: unrecognized options: $ac_unrecognized_opts" >&5
 $as_echo "$as_me: WARNING: unrecognized options: $ac_unrecognized_opts" >&2;}
 fi
-
 

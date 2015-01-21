@@ -583,7 +583,7 @@ PACKAGE_STRING='structure_files 0.1.2'
 PACKAGE_BUGREPORT='jcb1@um.es'
 PACKAGE_URL=''
 
-ac_unique_file="fchk2gro_v4.f90"
+ac_unique_file="./"
 ac_default_prefix=/home/cerezo/Programas/MolecularTools
 ac_subst_vars='am__EXEEXT_FALSE
 am__EXEEXT_TRUE

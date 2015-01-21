@@ -4,7 +4,7 @@
 AC_PREREQ([2.68])
 AC_INIT([MolecularTools],[2.2.1],[jcb1@um.es])
 AM_INIT_AUTOMAKE([foreign])
-AC_CONFIG_SRCDIR(src/normal_modes/normal_modes_internal_v4.f90)
+AC_CONFIG_SRCDIR(src/)
 AC_LANG([Fortran])
 # Javier specific things
 AC_PREFIX_DEFAULT(/home/cerezo/Programas/MolecularTools)
@@ -74,12 +74,13 @@ AM_CONDITIONAL([FFTW],[test x$use_fftw = xyes])
 # Checks for library functions.
 
 AC_CONFIG_FILES([Makefile
-                 src/normal_modes/Makefile
-                 src/bonded_info/Makefile
-                 src/build_top/Makefile
-                 src/file_management/Makefile
-                 src/fcclasses_tools/Makefile
-                 src/vibrations/Makefile
-                 src/wf_analysis/Makefile])
-AC_OUTPUT
-
+                 src/normal_modes/Makefile         
+                 src/bonded_info/Makefile          
+                 src/build_top/Makefile            
+                 src/file_management/Makefile     
+                 src/vibrations/Makefile           
+                 src/wf_analysis/Makefile
+                 src/gen_oniom/Makefile
+                 src/internal_duschisky/Makefile
+])        
+AC_OUTPUT                                  

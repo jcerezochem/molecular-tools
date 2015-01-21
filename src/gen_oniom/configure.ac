@@ -4,7 +4,7 @@
 AC_PREREQ([2.68])
 AC_INIT([structure_files],[0.1.2],[jcb1@um.es])
 AM_INIT_AUTOMAKE([foreign])
-AC_CONFIG_SRCDIR(source_folder.dat)
+AC_CONFIG_SRCDIR(./)
 AC_LANG([Fortran])
 # Javier specific things
 AC_PREFIX_DEFAULT(/home/cerezo/Programas/MolecularTools)

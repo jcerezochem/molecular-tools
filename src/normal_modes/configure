@@ -583,7 +583,7 @@ PACKAGE_STRING='normal_modes_anim 2.2.1'
 PACKAGE_BUGREPORT='jcb1@um.es'
 PACKAGE_URL=''
 
-ac_unique_file="normal_modes_internal_v4.f90"
+ac_unique_file="./"
 ac_default_prefix=/home/cerezo/Programas/MolecularTools
 ac_subst_vars='am__EXEEXT_FALSE
 am__EXEEXT_TRUE

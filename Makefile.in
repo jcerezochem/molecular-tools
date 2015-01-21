@@ -266,7 +266,14 @@ target_alias = @target_alias@
 top_build_prefix = @top_build_prefix@
 top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
-SUBDIRS = src/normal_modes src/bonded_info src/build_top/ src/file_management src/vibrations
+SUBDIRS = src/normal_modes\
+          src/bonded_info\
+          src/build_top\
+          src/file_management\
+          src/vibrations\
+          src/internal_duschisky\
+          src/gen_oniom
+
 all: all-recursive
 
 .SUFFIXES:

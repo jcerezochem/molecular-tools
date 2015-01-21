@@ -1,5 +1,4 @@
 bin_PROGRAMS = fchk2gro get_gscan get_symatoms
-#gen_oniom
 
 fchk2gro_SOURCES = ../modules/alerts.f90\
                       ../modules/line_preprocess.f90\

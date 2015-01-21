@@ -1,0 +1,5 @@
+1) NOT COMPILE MODULES EVERYTIME!
+Should not recompile the modules for every tool!
+It should compile them first, and the use them
+to build every tool.
+Making a library?
