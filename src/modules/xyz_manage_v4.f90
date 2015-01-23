@@ -61,7 +61,7 @@ module xyz_manage
 
         read(unt,*) natoms
         system%natoms=natoms
-        read(unt,*) system%title
+        read(unt,'(A)') system%title
 
         do i=1,natoms   
 

@@ -54,7 +54,7 @@ module gro_manage
         integer::i, natoms
 
 
-        read(unt,*) system%title
+        read(unt,'(A)') system%title
         read(unt,*) natoms
 
         system%natoms=natoms
@@ -147,7 +147,7 @@ module gro_manage
             if (ios /= 0) exit
 
             if (adjustl(line) == "TITLE") then
-                read(unt,*) system%title
+                read(unt,'(A)') system%title
                 if (adjustl(system%title) == "END") then
                      system%title=""
                 else
