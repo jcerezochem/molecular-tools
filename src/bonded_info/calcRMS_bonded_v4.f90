@@ -116,15 +116,16 @@ program calcRMS_bonded
 
     close(I_INP)
 
+    !Print info for debug
 
     ! Get connectivity from the residue
-
     call guess_connect(ref_molec)
     call gen_bonded(ref_molec)
 
     dev = 0.0
     k = 0
     if (debug) print*, "LIST OF BONDS"
+    if (debug) print*, "Bond   file  ref   file-ref"
     do i=1,ref_molec%geom%nbonds
         if (nonH) then
             if (adjustl(ref_molec%atom(ref_molec%geom%bond(i,1))%name) == "H" .or. &
@@ -138,7 +139,7 @@ program calcRMS_bonded
         if (debug) &
         print'(A2,A1,I2,A5,A2,A1,I2,A1,X,2(F7.2,X),F11.6)', &
               ref_molec%atom(ref_molec%geom%bond(i,1))%name, "(", ref_molec%geom%bond(i,1), ") -- ",&
-              ref_molec%atom(ref_molec%geom%bond(i,2))%name, "(", ref_molec%geom%bond(i,2), ")", calc, ref, dif
+              ref_molec%atom(ref_molec%geom%bond(i,2))%name, "(", ref_molec%geom%bond(i,2), ")", calc, ref, calc-ref
         dev = dev + (calc - ref)**2
     enddo
     rmsd = sqrt(dev/k)
@@ -149,6 +150,7 @@ program calcRMS_bonded
     dev = 0.0
     k = 0
     if (debug) print*, "LIST OF ANGLES"
+    if (debug) print*, "Angle   file  ref   file-ref"
     do i=1,ref_molec%geom%nangles
         if (nonH) then
             if (adjustl(ref_molec%atom(ref_molec%geom%angle(i,1))%name) == "H" .or. &
@@ -171,7 +173,7 @@ program calcRMS_bonded
               ref_molec%atom(ref_molec%geom%angle(i,1))%name, "(", ref_molec%geom%angle(i,1), ") -- ",&
               ref_molec%atom(ref_molec%geom%angle(i,2))%name, "(", ref_molec%geom%angle(i,2), ") -- ",&
               ref_molec%atom(ref_molec%geom%angle(i,3))%name, "(", ref_molec%geom%angle(i,3), ")"    ,&
-              calc, ref, dif
+              calc, ref, calc-ref
         dev = dev + (calc - ref)**2
     enddo
     rmsd = sqrt(dev/k)
@@ -182,6 +184,7 @@ program calcRMS_bonded
     dev = 0.0
     k = 0
     if (debug) print*, "LIST OF DIHEDRALS"
+    if (debug) print*, "Dihedral   file  ref   abs(file-ref)"
     do i=1,ref_molec%geom%ndihed
         if (nonH) then
             if (adjustl(ref_molec%atom(ref_molec%geom%dihed(i,1))%name) == "H" .or. &
