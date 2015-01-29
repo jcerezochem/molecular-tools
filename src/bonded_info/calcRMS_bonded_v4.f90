@@ -137,7 +137,7 @@ program calcRMS_bonded
         calc = calc_dist(molec%atom(ref_molec%geom%bond(i,1)),molec%atom(ref_molec%geom%bond(i,2)))
         dif = abs(calc - ref)
         if (debug) &
-        print'(A2,A1,I2,A5,A2,A1,I2,A1,X,2(F7.2,X),F11.6)', &
+        print'(A2,A1,I2,A5,A2,A1,I2,A1,X,2(F8.3,X),F11.6)', &
               ref_molec%atom(ref_molec%geom%bond(i,1))%name, "(", ref_molec%geom%bond(i,1), ") -- ",&
               ref_molec%atom(ref_molec%geom%bond(i,2))%name, "(", ref_molec%geom%bond(i,2), ")", calc, ref, calc-ref
         dev = dev + (calc - ref)**2
@@ -169,7 +169,7 @@ program calcRMS_bonded
         ref  = ref*180.d0/PI
         dif = abs(calc - ref)
         if (debug) &
-        print'(2(A2,A1,I2,A5),A2,A1,I2,A1,X,2(F7.2,X),F11.6)', &
+        print'(2(A2,A1,I2,A5),A2,A1,I2,A1,X,2(F8.3,X),F11.6)', &
               ref_molec%atom(ref_molec%geom%angle(i,1))%name, "(", ref_molec%geom%angle(i,1), ") -- ",&
               ref_molec%atom(ref_molec%geom%angle(i,2))%name, "(", ref_molec%geom%angle(i,2), ") -- ",&
               ref_molec%atom(ref_molec%geom%angle(i,3))%name, "(", ref_molec%geom%angle(i,3), ")"    ,&
@@ -207,7 +207,7 @@ program calcRMS_bonded
         dif = abs(calc - ref)
         dif = min(dif,abs(dif-360.))
         if (debug) &
-        print'(3(A2,A1,I2,A5),A2,A1,I2,A1,X,2(F7.2,X),F11.6)', &
+        print'(3(A2,A1,I2,A5),A2,A1,I2,A1,X,2(F8.3,X),F11.6)', &
               ref_molec%atom(ref_molec%geom%dihed(i,1))%name, "(", ref_molec%geom%dihed(i,1), ") -- ",&
               ref_molec%atom(ref_molec%geom%dihed(i,2))%name, "(", ref_molec%geom%dihed(i,2), ") -- ",&
               ref_molec%atom(ref_molec%geom%dihed(i,3))%name, "(", ref_molec%geom%dihed(i,3), ") -- ",&
