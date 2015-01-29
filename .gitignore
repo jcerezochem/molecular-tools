@@ -34,3 +34,7 @@ src/wf_analysis/get_NTO_coef
 *gz
 *swp
 tmp
+src/fcclasses_tools/*
+*status
+*missing
+*install-sh
