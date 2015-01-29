@@ -1,3 +1,5 @@
+AUTOMAKE_OPTIONS = subdir-objects
+
 bin_PROGRAMS = check_diag 
 
 check_diag_SOURCES =  ../modules/alerts.f90\

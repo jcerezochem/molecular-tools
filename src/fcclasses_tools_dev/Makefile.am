@@ -1,3 +1,5 @@
+AUTOMAKE_OPTIONS = subdir-objects
+
 bin_PROGRAMS = read_state_hess
 
 read_state_hess_SOURCES = ../modules/alerts.f90\

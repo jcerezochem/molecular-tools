@@ -1,3 +1,5 @@
+AUTOMAKE_OPTIONS = subdir-objects
+
 bin_PROGRAMS = fchk2gro get_gscan get_symatoms
 
 fchk2gro_SOURCES = ../modules/alerts.f90\
@@ -9,6 +11,7 @@ fchk2gro_SOURCES = ../modules/alerts.f90\
                       ../modules/gaussian_manage_v4.f90\
                       ../modules/gaussian_fchk_manage_v4.f90\
                       ../modules/xyz_manage_v4.f90\
+                      ../modules/molden_manage.f90\
                       ../modules/molcas_unsym_manage_v4.f90\
                       ../modules/molecular_structure.f90\
                       ../modules/ff_build_module_v4.f90\
@@ -24,6 +27,7 @@ get_gscan_SOURCES = ../modules/alerts.f90\
                       ../modules/gaussian_manage_v4.f90\
                       ../modules/gaussian_fchk_manage_v4.f90\
                       ../modules/xyz_manage_v4.f90\
+                      ../modules/molden_manage.f90\
                       ../modules/molecular_structure.f90\
                       ../modules/ff_build_module_v4.f90\
                       ../modules/atomic_geom_v2.f90\
@@ -42,6 +46,7 @@ get_symatoms_SOURCES = ../modules/alerts.f90\
                       ../modules/gaussian_manage_v4.f90\
                       ../modules/gaussian_fchk_manage_v4.f90\
                       ../modules/xyz_manage_v4.f90\
+                      ../modules/molden_manage.f90\
                       ../modules/molcas_unsym_manage_v4.f90\
                       ../modules/molecular_structure.f90\
                       ../modules/ff_build_module_v4.f90\

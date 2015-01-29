@@ -1,3 +1,5 @@
+AUTOMAKE_OPTIONS = subdir-objects
+
 bin_PROGRAMS = internal_duschinsky zmat2modredundant
 
 internal_duschinsky_SOURCES = ../modules/alerts.f90\

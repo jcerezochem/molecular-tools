@@ -1,3 +1,5 @@
+AUTOMAKE_OPTIONS = subdir-objects
+
 bin_PROGRAMS = calcRMS_bonded geom_param_list get_com
 
 calcRMS_bonded_SOURCES = ../modules/alerts.f90\
@@ -9,6 +11,7 @@ calcRMS_bonded_SOURCES = ../modules/alerts.f90\
                       ../modules/gaussian_manage_v4.f90\
                       ../modules/gaussian_fchk_manage_v4.f90\
                       ../modules/xyz_manage_v4.f90\
+                      ../modules/molden_manage.f90\
                       ../modules/molecular_structure.f90\
                       ../modules/ff_build_module_v4.f90\
                       ../modules/atomic_geom_v2.f90\
@@ -26,6 +29,7 @@ geom_param_list_SOURCES = ../modules/alerts.f90\
                       ../modules/gaussian_manage_v4.f90\
                       ../modules/gaussian_fchk_manage_v4.f90\
                       ../modules/xyz_manage_v4.f90\
+                      ../modules/molden_manage.f90\
                       ../modules/atomic_geom_v2.f90\
                       geom_param_list_v4.f90
 geom_param_list_LDFLAGS = @LIBS@
@@ -40,6 +44,7 @@ get_com_SOURCES = ../modules/alerts.f90\
                       ../modules/gaussian_manage_v4.f90\
                       ../modules/gaussian_fchk_manage_v4.f90\
                       ../modules/xyz_manage_v4.f90\
+                      ../modules/molden_manage.f90\
                       ../modules/molcas_unsym_manage_v4.f90\
                       ../modules/molecular_structure.f90\
                       ../modules/ff_build_module_v4.f90\

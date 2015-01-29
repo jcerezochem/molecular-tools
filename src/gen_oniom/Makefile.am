@@ -1,3 +1,5 @@
+AUTOMAKE_OPTIONS = subdir-objects
+
 bin_PROGRAMS = gen_oniom
 
 gen_oniom_SOURCES = ../modules/alerts.f90\

@@ -1,3 +1,5 @@
+AUTOMAKE_OPTIONS = subdir-objects
+
 bin_PROGRAMS = build_top
 
 build_top_SOURCES = ../modules/alerts.f90\
@@ -18,6 +20,5 @@ build_top_LDFLAGS = @LIBS@
 build_top_FCFLAGS = -cpp -DDOUBLE
 
 CLEANFILES =*.mod 
-
 
 

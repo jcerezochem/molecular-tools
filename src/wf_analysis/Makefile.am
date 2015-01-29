@@ -1,3 +1,5 @@
+AUTOMAKE_OPTIONS = subdir-objects
+
 bin_PROGRAMS = contribMO get_NTO_coef
 
 contribMO_SOURCES = ../modules/alerts.f90\

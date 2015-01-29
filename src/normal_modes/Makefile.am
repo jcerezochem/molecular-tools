@@ -1,3 +1,5 @@
+AUTOMAKE_OPTIONS = subdir-objects
+
 bin_PROGRAMS = nm_internal nm_cartesian freq2fc prj_nm_internal
 
 # ============
