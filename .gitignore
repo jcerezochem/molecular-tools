@@ -29,3 +29,8 @@ src/ad_hoc_utilities/*
 src/gen_oniom/gen_oniom
 src/wf_analysis/contribMO
 src/wf_analysis/get_NTO_coef
+*output.?
+*m4
+*gz
+*swp
+tmp
