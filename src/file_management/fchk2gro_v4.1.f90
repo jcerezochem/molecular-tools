@@ -24,6 +24,9 @@ program fchk2gro
     !  v4.1: add "swap" option (10/10/14)
     !        included fcc (structure part of state file)
     !  Jan15: Fixed the write_fchk call
+    !  Jan15: Added -use-elems to force use element names and not FF names
+    !  Jan15: Added -rmcog to remove the center of gravity (this is sueful 
+    !         to use with avogadro, since with large distance, do not show labels)
     !
     ! TODO:
     ! ------
@@ -38,6 +41,7 @@ program fchk2gro
     use gaussian_manage
     use gaussian_fchk_manage
     use xyz_manage
+    use molden_manage
     use molcas_unsym_manage
     use ff_build
     use molecular_structure
@@ -54,8 +58,10 @@ program fchk2gro
     !Counters and dummies
     integer :: i,j,k,l, jj,kk, iat
     character(len=1) :: null
-    logical :: overwrite=.false.,&
-               make_connect=.false.
+    logical :: overwrite    = .false. ,&
+               make_connect = .false. ,&
+               use_elements = .false. ,&
+               remove_cog   = .false.
     !Swap related counters
     integer :: iat_new, iat_orig, nswap
     !=============
@@ -80,7 +86,8 @@ program fchk2gro
 
 
     ! 0. GET COMMAND LINE ARGUMENTS
-    call parse_input(inpfile,filetype_inp,outfile,filetype_out,overwrite,make_connect,resname,swapfile)
+    call parse_input(inpfile,filetype_inp,outfile,filetype_out,overwrite,make_connect,&
+                     use_elements,remove_cog,resname,swapfile)
 
  
     ! 1. READ INPUT
@@ -96,6 +103,7 @@ program fchk2gro
 
     ! 2. MAKE CHANGES IF REQUIRED
     ! -------------------------------
+    !Swaping atoms
     if (adjustl(swapfile) /= "none") then
         open(I_SWP,file=swapfile,status='old',iostat=IOstatus)
         if (IOstatus /= 0) call alert_msg( "fatal","Unable to open "//trim(adjustl(swapfile)) )
@@ -107,6 +115,16 @@ program fchk2gro
         enddo
         molec = molec_aux
         close(I_SWP)
+    endif
+    !Forcing element names (no FF labels)
+    if (use_elements) molec%atom(:)%name = molec%atom(:)%element
+    !Removing center of gravity
+    if (remove_cog) then
+        call get_cog(molec)
+        i=molec%natoms
+        molec%atom(1:i)%x = molec%atom(1:i)%x - molec%cogX
+        molec%atom(1:i)%y = molec%atom(1:i)%y - molec%cogY
+        molec%atom(1:i)%z = molec%atom(1:i)%z - molec%cogZ
     endif
 
     ! 3. WRITE OUTPUT
@@ -132,7 +150,8 @@ program fchk2gro
     contains
     !=============================================
 
-    subroutine parse_input(inpfile,filetype_inp,outfile,filetype_out,overwrite,make_connect,resname,swapfile)
+    subroutine parse_input(inpfile,filetype_inp,outfile,filetype_out,overwrite,make_connect,&
+                           use_elements,remove_cog,resname,swapfile)
     !==================================================
     ! My input parser (gromacs style)
     !==================================================
@@ -141,7 +160,8 @@ program fchk2gro
         character(len=*),intent(inout) :: inpfile,outfile,&
                                           filetype_inp,filetype_out, &
                                           resname,swapfile
-        logical,intent(inout) :: overwrite, make_connect
+        logical,intent(inout) :: overwrite, make_connect, use_elements, &
+                                 remove_cog
         ! Local
         logical :: argument_retrieved,  &
                    need_help = .false.
@@ -180,6 +200,12 @@ program fchk2gro
                 case ("-connect")
                     make_connect=.true.
 
+                case ("-use-elems")
+                    use_elements=.true.
+
+                case ("-rmcog")
+                    remove_cog=.true.
+
                 case ("-swap")
                     call getarg(i+1, swapfile)
                     argument_retrieved=.true.
@@ -204,7 +230,7 @@ program fchk2gro
         write(0,'(/,A)') '--------------------------------------------------'
         write(0,'(/,A)') '        F O R M A T    C O N V E R T E R '    
         write(0,'(/,A)') '        Convert between geometry formats '  
-        write(0,'(/,A)') '         Revision: fchk2gro-140225               '         
+        write(0,'(/,A)') '         Revision: fchk2gro-150129               '         
         write(0,'(/,A)') '--------------------------------------------------'
         write(0,*) '-f              ', trim(adjustl(inpfile))
         write(0,*) '-fti            ', trim(adjustl(filetype_inp))
@@ -214,6 +240,8 @@ program fchk2gro
         write(0,*) '-swap           ',  trim(adjustl(swapfile))
         write(0,*) '-rn             ',  trim(adjustl(resname))
         write(0,*) '-connect       ',  make_connect
+        write(0,*) '-use-elems     ',  use_elements
+        write(0,*) '-rmcog         ',  remove_cog
         write(0,*) '-h             ',  need_help
         write(0,*) '--------------------------------------------------'
         if (need_help) call alert_msg("fatal", 'There is no manual (for the moment)' )
@@ -259,6 +287,8 @@ program fchk2gro
              molec%atom(:)%resseq = 1
             case("UnSym")
              call read_molcas_geom(unt,molec)
+            case("molden")
+             call read_molden(unt,molec)
             case default
              call alert_msg("fatal","File type not supported: "//filetype)
         end select
