@@ -87,16 +87,22 @@ program normal_modes_Cartesian
     character(len=10) :: filetype="guess"
     character(len=200):: inpfile ="input.fchk"
     character(len=100),dimension(1:1000) :: grofile
-    character(len=100) :: nmfile='none', g09file,qfile,numfile
+    character(len=100) :: nmfile='none', g09file,qfile,numfile,tmpfile
     !Control of stdout
     logical :: verbose=.false.
 
+    !MOVIE things
+    integer :: movie_cycles, movie_steps
+
+    !===============================================
+
     !Defaults
     Amplitude = 1.d0
+    movie_cycles = 0 !No movie
 
     !Get options from command line
     nm(1) = 0
-    call parse_input(inpfile,nmfile,nm,Nsel,Amplitude,filetype,verbose,call_vmd)
+    call parse_input(inpfile,nmfile,nm,Nsel,Amplitude,filetype,verbose,call_vmd,movie_cycles)
 
 
     ! 1. CARTESIAN VIBRATIONAL ANALYSIS -- done by G09 (just read it) 
@@ -365,6 +371,7 @@ program normal_modes_Cartesian
         close(O_NUM)
     enddo
 
+
     if (call_vmd) then
         open(S_VMD,file="vmd_conf.dat",status="replace")
         !Set general display settings (mimic gv)
@@ -398,7 +405,70 @@ program normal_modes_Cartesian
         call system(vmdcall)
     endif
 
-
+    if (movie_cycles > 0) then
+        open(S_VMD,file="vmd_movie.dat",status="replace")
+        !Set general display settings (mimic gv)
+        write(S_VMD,*) "color Display Background white"
+        write(S_VMD,*) "color Name {C} silver"
+        write(S_VMD,*) "axes location off"
+        write(S_VMD,*) "display projection Orthographic"
+        !Set molecule representation
+        do i=0,Nsel-1
+            j = nm(i+1)
+            write(S_VMD,*) "mol representation CPK"
+            write(S_VMD,*) "molinfo ", i, " set drawn 0"
+            write(S_VMD,*) "mol addrep ", i
+            write(dummy_char,'(A,I4,X,F8.2,A)') "{Mode",j, Freq(j),"cm-1}"
+            dummy_char=trim(adjustl(dummy_char))
+            write(S_VMD,*) "mol rename ", i, trim(dummy_char)
+            vmdcall = trim(adjustl(vmdcall))//" "//trim(adjustl(grofile(i+1)))
+        enddo
+        write(S_VMD,'(A)') "#====================="
+        write(S_VMD,'(A)') "# Start movies"
+        write(S_VMD,'(A)') "#====================="
+        !Set length of the movie
+        movie_steps = movie_cycles*20
+        do i=0,Nsel-1
+            j = nm(i+1)
+            write(S_VMD,'(A,I4)') "# Mode", j
+            write(tmpfile,*) j
+            tmpfile="Mode"//trim(adjustl(tmpfile))
+            write(S_VMD,*) "molinfo ", i, " set drawn 1"
+            write(S_VMD,*) "set figfile "//trim(adjustl(tmpfile))
+            write(S_VMD,'(A,I3,A)') "for {set xx 0} {$xx <=", movie_steps,&
+                                    "} {incr xx} {"
+            write(S_VMD,*) "set x [expr {($xx-($xx/20)*20)*10}]"
+            write(S_VMD,*) 'echo "step $x"'
+            write(S_VMD,*) "animate goto $x"
+            write(S_VMD,*) "render Tachyon $figfile-$xx.dat"
+            write(S_VMD,'(A)') '"/usr/local/lib/vmd/tachyon_LINUX" -aasamples 12 '//& 
+                           '$figfile-$xx.dat -format TARGA -o $figfile-$xx.tga'
+            write(S_VMD,'(A)') 'convert -font URW-Palladio-Roman -pointsize 30 -draw '//&
+                           '"text 30,70 '//"'"//trim(adjustl(tmpfile))//"'"//&
+                           '" $figfile-$xx.tga $figfile-$xx.jpg'
+            write(S_VMD,'(A)') "}"
+            write(S_VMD,'(A)') 'ffmpeg -i $figfile-%d.jpg -vcodec mpeg4 $figfile.avi'
+            write(S_VMD,*) "molinfo ", i, " set drawn 0"
+        enddo
+        write(S_VMD,*) "exit"
+        close(S_VMD)
+        !Call vmd
+        vmdcall = 'vmd -m '
+        do i=1,Nsel
+        vmdcall = trim(adjustl(vmdcall))//" "//trim(adjustl(grofile(i)))
+        enddo
+        vmdcall = trim(adjustl(vmdcall))//" -e vmd_movie.dat -size 500 500"
+        open(O_LIS,file="movie.cmd",status="replace")
+        write(O_LIS,'(A)') trim(adjustl(vmdcall))
+        write(O_LIS,'(A)') "rm Mode*jpg Mode*dat Mode*tga"
+        close(O_LIS)
+        print*, ""
+        print*, "============================================================"
+        print*, "TO GENERATE THE MOVIES (AVI) EXECUTE COMMANDS IN 'movie.cmd'"
+        print*, "(you may want to edit 'vmd_movie.dat'  first)"
+        print*, "============================================================"
+        print*, ""
+    endif
 
 
     stop
@@ -407,7 +477,7 @@ program normal_modes_Cartesian
     contains
     !=============================================
 
-    subroutine parse_input(inpfile,nmfile,nm,Nsel,Amplitude,filetype,verbose,call_vmd)
+    subroutine parse_input(inpfile,nmfile,nm,Nsel,Amplitude,filetype,verbose,call_vmd,movie_cycles)
     !==================================================
     ! My input parser (gromacs style)
     !==================================================
@@ -416,7 +486,7 @@ program normal_modes_Cartesian
         character(len=*),intent(inout) :: inpfile,nmfile,filetype
         logical,intent(inout) ::  verbose, call_vmd
         integer,dimension(:),intent(inout) :: nm
-        integer,intent(out) :: Nsel
+        integer,intent(inout) :: Nsel, movie_cycles
         real(8),intent(out) :: Amplitude
         ! Local
         logical :: argument_retrieved,  &
@@ -459,6 +529,11 @@ program normal_modes_Cartesian
                 case ("-vmd")
                     call_vmd=.true.
 
+                case ("-movie")
+                    call getarg(i+1, arg)
+                    read(arg,*) movie_cycles
+                    argument_retrieved=.true.
+
                 case ("-nosym")
                     write(0,*) trim(adjustl(arg))//" is not a valid option for Cartesian"
                 case ("-sym")
@@ -499,6 +574,7 @@ program normal_modes_Cartesian
         write(0,*) '-nm            ', nm(1),"-",nm(Nsel)
 !         write(0,*) '-nmf           ', nm(1:Nsel)
         write(0,*) '-vmd           ',  call_vmd
+        write(0,*) '-movie (cycles)',  movie_cycles
         write(0,*) '-maxd          ',  Amplitude
         write(0,*) '-v             ', verbose
         write(0,*) '-h             ',  need_help

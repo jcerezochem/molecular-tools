@@ -35,6 +35,7 @@ module constants
                            UMAtoAU   = 1.82288839d3,    &
                            AUtoKG    = 9.10938291d-31,  &
                            BOHRtoM   = 5.291772083d-11, &
+                           BOHRtoNM  = 5.291772083d-2,  &
                            AMStoM    = 1.d-10,          &
                            ANGStoM   = 1.d-10,          &
                            HARTtoJ   = 4.3597482d-18,   &
@@ -42,6 +43,8 @@ module constants
                            CALtoJ    = 4.184,           &
                            HtoeV     = 27.2114,         &
                            autown    = 2.1947463068d5    !From FCclasses Freq from AU to cm-1
+
+
 
         !AtNum to element name conversion
         character(len=5),dimension(103) :: atom_names_from_atnum_new

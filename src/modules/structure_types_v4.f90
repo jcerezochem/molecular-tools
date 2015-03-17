@@ -87,7 +87,7 @@ module structure_types
         !Normal mode analysis
         double precision,dimension(1:1000) :: freq,grad
         double precision,dimension(1:1000,1:1000) :: L
-        double precision,dimension(1:100000) :: H
+        double precision,dimension(1:1000000) :: H
 #else
         !Electronic properties (GS and TD)
         real,dimension(1:3) :: dip, trans_dip
@@ -97,7 +97,7 @@ module structure_types
         !Normal mode analysis
         real,dimension(1:1000) :: freq,grad
         real,dimension(1:1000,1:1000) :: L
-        real,dimension(1:100000) :: H
+        real,dimension(1:1000000) :: H
 #endif
     end type str_molprops
 
@@ -105,8 +105,8 @@ module structure_types
     type str_job
 !--------------------------
         character(len=100) :: title=""
-        character(len=20)  :: type="XX"
-        character(len=20)  :: method=""
+        character(len=10)  :: type="XX"
+        character(len=60)  :: method=""
         character(len=20)  :: basis=""
     end type str_job
 

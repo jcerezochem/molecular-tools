@@ -126,7 +126,7 @@ program internal_duschinski
     !Save definitio of the modes in character
     character(len=100),dimension(NDIM) :: ModeDef
     !VECTORS
-    real(8),dimension(NDIM) :: Freq, S1, S2, Vec, Vec2, mu
+    real(8),dimension(NDIM) :: Freq, S1, S2, Vec, Vec2, mu, Factor
     integer,dimension(NDIM) :: S_sym, bond_sym,angle_sym,dihed_sym
     !Shifts
     real(8),dimension(NDIM) :: Delta
@@ -170,6 +170,8 @@ program internal_duschinski
                I_ZMAT=11, &
                I_SYM=12,  &
                I_RED=13,  &
+               I_ADD=14,  &
+               I_AD2=15,  &
                O_DUS=20,  &
                O_DIS=21,  &
                O_DMAT=22, &
@@ -177,9 +179,12 @@ program internal_duschinski
                O_DIS2=24, &
                O_STAT=25
     !files
-    character(len=10) :: filetype="guess", ft
+    character(len=10) :: filetype="guess", ft, &
+                         filetype2="guess"
     character(len=200):: inpfile ="input.fchk",  &
                          inpfile2="input2.fchk", &
+                         addfile="no", &
+                         addfile2="no", &
                          zmatfile="NO", &
                          symm_file="NO"
     !Control of stdout
@@ -199,7 +204,8 @@ program internal_duschinski
     call cpu_time(ti)
 
     ! 0. GET COMMAND LINE ARGUMENTS
-    call parse_input(inpfile,inpfile2,filetype,nosym,zmat,verbose,tswitch,symaddapt,zmatfile,vertical,symm_file)
+    call parse_input(inpfile,inpfile2,filetype,filetype2,nosym,zmat,verbose,tswitch,symaddapt,zmatfile,vertical,symm_file,&
+                     addfile,addfile2)
 
 
     ! 1. INTERNAL VIBRATIONAL ANALYSIS ON STATE1 AND STATE2
@@ -218,6 +224,9 @@ program internal_duschinski
     if (IOstatus /= 0) call alert_msg( "fatal","Unable to open "//trim(adjustl(inpfile)) )
 
     !Read structure
+    if (adjustl(filetype) == "guess") then
+        call split_line_back(inpfile,".",null,filetype)
+    endif
     ft=filetype
     call generic_strfile_read(I_INP,ft,state1)
     !Shortcuts
@@ -244,7 +253,7 @@ program internal_duschinski
         enddo
         deallocate(props)
 
-    else
+    else if (adjustl(ft) == "fchk") then
         !Read Hessian from fchk
         call read_fchk(I_INP,"Cartesian Force Constants",dtype,N,A,IA,error)
         ! RECONSTRUCT THE FULL HESSIAN
@@ -261,6 +270,15 @@ program internal_duschinski
 !         call read_fchk(I_INP,"Vib-E2",dtype,N,A,IA,error)
 !         mu(1:Nvib) = A(Nvib+1:Nvib+Nvib)
 !         deallocate(A)
+    else if (adjustl(ft) == "g96") then
+        !The hessian should be given as additional input
+        if (adjustl(addfile) == "no") &
+         call alert_msg("fatal","With a g96, and additional file should be provided with the Hessian")
+        open(I_ADD,file=addfile,status="old")
+        call read_gro_hess(I_ADD,N,Hess,error)
+        close(I_ADD)
+    else
+        call alert_msg("fatal","Unkown file to get the Hessian: "//ft)
     endif
 
 
@@ -269,12 +287,13 @@ program internal_duschinski
 
           call alert_msg("fatal","GRADIENT from log files still under constructions (perdone las molestias)")
 
-    else
+    else if (adjustl(ft) == "fchk") then
         !Read gradient from fchk
         call read_fchk(I_INP,"Cartesian Gradient",dtype,N,A,IA,error)
         Grad(1:N) = A(1:N)
         deallocate(A)
-
+    else
+        call alert_msg("note","Gradient could not be read")
     endif
     close(I_INP)
 
@@ -393,6 +412,11 @@ program internal_duschinski
 !         call gf_method_V(Hess,Grad,state1,S_sym,ModeDef,L1,B1,Bder,G1,Freq,Asel1,X1,X1inv,verbose) 
 !     else
         call gf_method(Hess,state1,S_sym,ModeDef,L1,B1,G1,Freq,Asel1,X1,X1inv,verbose)
+        !Define the Factor to convert into shift into addimensional displacements
+        ! for the shift in SI units:
+        Factor(1:Nvib) = dsqrt(dabs(Freq(1:Nvib))*1.d2*clight*2.d0*PI/plankbar)
+        ! but we have it in au
+        Factor(1:Nvib)=Factor(1:Nvib)*BOHRtoM*dsqrt(AUtoKG)
 !     endif 
 
     !Compute new state_file for 2
@@ -488,10 +512,13 @@ program internal_duschinski
     ! 1. READ DATA
     ! ---------------------------------
     open(I_INP,file=inpfile2,status='old',iostat=IOstatus)
-    if (IOstatus /= 0) call alert_msg( "fatal","Unable to open "//trim(adjustl(inpfile)) )
+    if (IOstatus /= 0) call alert_msg( "fatal","Unable to open "//trim(adjustl(inpfile2)) )
 
     !Read Structure
-    ft=filetype
+    if (adjustl(filetype2) == "guess") then
+        call split_line_back(inpfile2,".",null,filetype2)
+    endif
+    ft=filetype2
     call generic_strfile_read(I_INP,ft,state2)
 
     ! READ HESSIAN
@@ -514,6 +541,13 @@ program internal_duschinski
         enddo
         deallocate(props)
 
+    else if (adjustl(ft) == "g96") then
+        !The hessian should be given as additional input
+        if (adjustl(addfile2) == "no") &
+         call alert_msg("fatal","With a g96, and additional file should be provided with the Hessian")
+        open(I_ADD,file=addfile2,status="old")
+        call read_gro_hess(I_ADD,N,Hess,error)
+        close(I_ADD)
     else
         !Read Hessian from fchk
         call read_fchk(I_INP,"Cartesian Force Constants",dtype,N,A,IA,error)
@@ -538,12 +572,13 @@ program internal_duschinski
 
           call alert_msg("fatal","GRADIENT from log files still under constructions (perdone las molestias)")
 
-    else
+    else if (adjustl(ft) == "fchk") then
         !Read gradient from fchk
         call read_fchk(I_INP,"Cartesian Gradient",dtype,N,A,IA,error)
         Grad(1:N) = A(1:N)
         deallocate(A)
-
+    else
+        call alert_msg("note","Gradient could not be read")
     endif
     close(I_INP)
 
@@ -1050,11 +1085,11 @@ program internal_duschinski
       enddo
 
       print*, ""
-      print*, "======================================================================="
+      print*, "========================================================================="
       print*, " DUSCHINSKI MATRIX (STATE1 WITH RESPECT TO STATE2) (SUMMARY)"
-      print*, "======================================================================="
-      print*, "         NM      I1     C1^2        I90     I95     I99      K  "
-      print*, "-----------------------------------------------------------------------"
+      print*, "========================================================================="
+      print*, "         NM      I1     C1^2        I90     I95     I99      K   Adim-K"
+      print*, "-------------------------------------------------------------------------"
       do i=1,Nvib
           k90=0
           k95=0
@@ -1083,7 +1118,7 @@ program internal_duschinski
               Theta = Theta + G(i,jj)**2
               k99=k99+1
           enddo 
-          print'(6X,2(I5,3X),F7.2,5X,3(I5,3X),F7.2)', i, ipiv(1),G(i,ipiv(1))**2, k90, k95, k99, Vec(i)
+          print'(6X,2(I5,3X),F7.2,5X,3(I5,3X),F7.2,X,F9.4)', i, ipiv(1),G(i,ipiv(1))**2, k90, k95, k99, Vec(i), Vec(i)*Factor(i)
       enddo
       print*, "======================================================================="
       print*, ""
@@ -1116,13 +1151,15 @@ program internal_duschinski
     contains
     !=============================================
 
-    subroutine parse_input(inpfile,inpfile2,filetype,nosym,zmat,verbose,tswitch,symaddapt,zmatfile,vertical,symm_file)
+    subroutine parse_input(inpfile,inpfile2,filetype,filetype2,nosym,zmat,verbose,tswitch,symaddapt,zmatfile,vertical,symm_file,&
+                           addfile,addfile2)
     !==================================================
     ! My input parser (gromacs style)
     !==================================================
         implicit none
 
-        character(len=*),intent(inout) :: inpfile,inpfile2,filetype,zmatfile,symm_file
+        character(len=*),intent(inout) :: inpfile,inpfile2,filetype,filetype2,zmatfile,symm_file,&
+                                          addfile, addfile2
         logical,intent(inout) :: nosym, verbose, zmat, tswitch, symaddapt, vertical
         ! Localconsole in kate
         logical :: argument_retrieved,  &
@@ -1147,6 +1184,17 @@ program internal_duschinski
 
                 case ("-f2") 
                     call getarg(i+1, inpfile2)
+                    argument_retrieved=.true.
+                case ("-ft2") 
+                    call getarg(i+1, filetype)
+                    argument_retrieved=.true.
+
+                case ("-add") 
+                    call getarg(i+1, addfile)
+                    argument_retrieved=.true.
+
+                case ("-add2") 
+                    call getarg(i+1, addfile2)
                     argument_retrieved=.true.
 
                 case ("-nosym")
@@ -1206,7 +1254,9 @@ program internal_duschinski
         write(6,'(/,A)') '            internal coordinates (D-V9.1)'        
         write(6,'(/,A)') '--------------------------------------------------'
         write(6,*) '-f              ', trim(adjustl(inpfile))
+        write(6,*) '-add            ', trim(adjustl(addfile))
         write(6,*) '-f2             ', trim(adjustl(inpfile2))
+        write(6,*) '-add2           ', trim(adjustl(addfile2))
         if (nosym) dummy_char="NO "
         if (.not.nosym) dummy_char="YES"
         write(6,*) '-[no]sym        ', dummy_char
@@ -1239,36 +1289,14 @@ program internal_duschinski
         !local
         type(str_molprops) :: props
 
-        if (adjustl(filetype) == "guess") then
-        ! Guess file type
-        call split_line(inpfile,".",null,filetype)
-        select case (adjustl(filetype))
-            case("gro")
-             call read_gro(I_INP,molec)
-             call atname2element(molec)
-             call assign_masses(molec)
-            case("pdb")
-             call read_pdb_new(I_INP,molec)
-             call atname2element(molec)
-             call assign_masses(molec)
-            case("log")
-             call parse_summary(I_INP,molec,props,"struct_only")
-             call atname2element(molec)
-             call assign_masses(molec)
-            case("fchk")
-             call read_fchk_geom(I_INP,molec)
-             call atname2element(molec)
-!              call assign_masses(molec) !read_fchk_geom includes the fchk masses
-            case default
-             call alert_msg("fatal","Trying to guess, but file type but not known: "//adjustl(trim(filetype))&
-                        //". Try forcing the filetype with -ft flag (available: log, fchk)")
-        end select
-
-        else
         ! Predefined filetypes
         select case (adjustl(filetype))
             case("gro")
              call read_gro(I_INP,molec)
+             call atname2element(molec)
+             call assign_masses(molec)
+            case("g96")
+             call read_g96(I_INP,molec)
              call atname2element(molec)
              call assign_masses(molec)
             case("pdb")
@@ -1286,8 +1314,6 @@ program internal_duschinski
             case default
              call alert_msg("fatal","File type not supported: "//filetype)
         end select
-        endif
-
 
         return
 

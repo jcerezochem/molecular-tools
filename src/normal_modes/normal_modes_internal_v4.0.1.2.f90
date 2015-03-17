@@ -58,6 +58,7 @@ program normal_modes_animation
     use gaussian_fchk_manage
     use xyz_manage
     use molcas_unsym_manage
+    use psi4_manage
 !   Structural parameters
     use molecular_structure
     use ff_build
@@ -151,7 +152,8 @@ program normal_modes_animation
     !Moving normal modes
     integer,dimension(1:1000) :: nm=0
     real(8) :: Qstep, d, rmsd1, rmsd2
-    logical :: call_vmd = .false.
+    logical :: call_vmd = .false., &
+               movie_vmd = .false.
     character(len=10000) :: vmdcall
     integer :: Nsteps, Nsel, istep
 
@@ -167,18 +169,21 @@ program normal_modes_animation
     !units
     integer :: I_INP=10,  &
                I_ZMAT=11, &
+               I_ADD=12,  &
                O_GRO=20,  &
                O_G09=21,  &
                O_Q  =22,  &
                O_NUM=23,  &
+               O_LIS=24,  &
                S_VMD=30
     !files
     character(len=10) :: filetype="guess"
     character(len=200):: inpfile ="input.fchk",  &
+                         addfile = "additional.input", &
                          zmatfile="NO",          &
                          numfile       
     character(len=100),dimension(1:1000) :: grofile
-    character(len=100) :: nmfile='none', g09file,qfile
+    character(len=100) :: nmfile='none', g09file,qfile, tmpfile
     !Control of stdout
     logical :: verbose=.false.
     !status
@@ -190,6 +195,12 @@ program normal_modes_animation
     real(8) :: ti, tf
     !===================
 
+    !===================
+    !MOVIE things
+    integer :: movie_cycles=0,& !this means no movie
+               movie_steps
+    !===================
+
 ! (End of variables declaration) 
 !==================================================================================
     call cpu_time(ti)
@@ -197,8 +208,8 @@ program normal_modes_animation
     ! 0. GET COMMAND LINE ARGUMENTS
     nm(1) = 0
     icoord=-1
-    call parse_input(inpfile,nmfile,nm,Nsel,Amplitude,filetype,nosym,zmat,verbose,tswitch,symaddapt,zmatfile,&
-                     icoord,showZ,call_vmd)
+    call parse_input(inpfile,addfile,nmfile,nm,Nsel,Amplitude,filetype,nosym,zmat,verbose,tswitch,symaddapt,&
+                     zmatfile,icoord,showZ,call_vmd,movie_cycles)
     if (icoord /= -1) scan_internal=.true.
 ! Por qué estaba este switch????
 !    if (showZ) scan_internal=.false.
@@ -213,6 +224,7 @@ program normal_modes_animation
     if (IOstatus /= 0) call alert_msg( "fatal","Unable to open "//trim(adjustl(inpfile)) )
 
     !Read structure
+    if (adjustl(filetype) == "guess") call split_line_back(inpfile,".",null,filetype)
     call generic_strfile_read(I_INP,filetype,molecule)
     !Shortcuts
     Nat = molecule%natoms
@@ -260,6 +272,16 @@ program normal_modes_animation
 
         else if (adjustl(filetype) == "UnSym") then
             call read_molcas_hess(I_INP,N,Hess,error)
+        else if (adjustl(filetype) == "psi4") then
+            N=molecule%natoms*3
+            call read_psi_hess(I_INP,N,Hess,error)
+        else if (adjustl(filetype) == "g96") then
+            !The hessian should be given as additional input
+            if (adjustl(addfile) == "additional.input") &
+             call alert_msg("fatal","With a g96, and additional file should be provided with the Hessian")
+            open(I_ADD,file=addfile,status="old")
+            call read_gro_hess(I_ADD,N,Hess,error)
+            close(I_ADD)
         endif
     endif
     close(I_INP)
@@ -802,6 +824,71 @@ program normal_modes_animation
         vmdcall = trim(adjustl(vmdcall))//" -e vmd_conf.dat"
         call system(vmdcall)
     endif
+
+    if (movie_cycles > 0) then
+        open(S_VMD,file="vmd_movie.dat",status="replace")
+        !Set general display settings (mimic gv)
+        write(S_VMD,*) "color Display Background white"
+        write(S_VMD,*) "color Name {C} silver"
+        write(S_VMD,*) "axes location off"
+        write(S_VMD,*) "display projection Orthographic"
+        !Set molecule representation
+        do i=0,Nsel-1
+            j = nm(i+1)
+            write(S_VMD,*) "mol representation CPK"
+            write(S_VMD,*) "molinfo ", i, " set drawn 0"
+            write(S_VMD,*) "mol addrep ", i
+            write(dummy_char,'(A,I4,X,F8.2,A)') "{Mode",j, Freq(j),"cm-1}"
+            dummy_char=trim(adjustl(dummy_char))
+            write(S_VMD,*) "mol rename ", i, trim(dummy_char)
+            vmdcall = trim(adjustl(vmdcall))//" "//trim(adjustl(grofile(i+1)))
+        enddo
+        write(S_VMD,'(A)') "#====================="
+        write(S_VMD,'(A)') "# Start movies"
+        write(S_VMD,'(A)') "#====================="
+        !Set length of the movie
+        movie_steps = movie_cycles*20
+        do i=0,Nsel-1
+            j = nm(i+1)
+            write(S_VMD,'(A,I4)') "# Mode", j
+            write(tmpfile,*) j
+            tmpfile="Mode"//trim(adjustl(tmpfile))
+            write(S_VMD,*) "molinfo ", i, " set drawn 1"
+            write(S_VMD,*) "set figfile "//trim(adjustl(tmpfile))
+            write(S_VMD,'(A,I3,A)') "for {set xx 0} {$xx <=", movie_steps,&
+                                    "} {incr xx} {"
+            write(S_VMD,*) "set x [expr {($xx-($xx/20)*20)*10}]"
+            write(S_VMD,*) 'echo "step $x"'
+            write(S_VMD,*) "animate goto $x"
+            write(S_VMD,*) "render Tachyon $figfile-$xx.dat"
+            write(S_VMD,'(A)') '"/usr/local/lib/vmd/tachyon_LINUX" -aasamples 12 '//& 
+                           '$figfile-$xx.dat -format TARGA -o $figfile-$xx.tga'
+            write(S_VMD,'(A)') 'convert -font URW-Palladio-Roman -pointsize 30 -draw '//&
+                           '"text 30,70 '//"'"//trim(adjustl(tmpfile))//"'"//&
+                           '" $figfile-$xx.tga $figfile-$xx.jpg'
+            write(S_VMD,'(A)') "}"
+            write(S_VMD,'(A)') 'ffmpeg -i $figfile-%d.jpg -vcodec mpeg4 $figfile.avi'
+            write(S_VMD,*) "molinfo ", i, " set drawn 0"
+        enddo
+        write(S_VMD,*) "exit"
+        close(S_VMD)
+        !Call vmd
+        vmdcall = 'vmd -m '
+        do i=1,Nsel
+        vmdcall = trim(adjustl(vmdcall))//" "//trim(adjustl(grofile(i)))
+        enddo
+        vmdcall = trim(adjustl(vmdcall))//" -e vmd_movie.dat -size 500 500"
+        open(O_LIS,file="movie.cmd",status="replace")
+        write(O_LIS,'(A)') trim(adjustl(vmdcall))
+        write(O_LIS,'(A)') "rm Mode*jpg Mode*dat Mode*tga"
+        close(O_LIS)
+        print*, ""
+        print*, "============================================================"
+        print*, "TO GENERATE THE MOVIES (AVI) EXECUTE COMMANDS IN 'movie.cmd'"
+        print*, "(you may want to edit 'vmd_movie.dat'  first)"
+        print*, "============================================================"
+        print*, ""
+    endif
     
     call cpu_time(tf)
     write(0,'(/,A,X,F12.3,/)') "CPU time (s)", tf-ti
@@ -813,17 +900,17 @@ program normal_modes_animation
     contains
     !=============================================
 
-    subroutine parse_input(inpfile,nmfile,nm,Nsel,Amplitude,filetype,nosym,zmat,verbose,tswitch,symaddapt,zmatfile,&
-                           icoord,showZ,call_vmd)
+    subroutine parse_input(inpfile,addfile,nmfile,nm,Nsel,Amplitude,filetype,nosym,zmat,verbose,tswitch,symaddapt,&
+                           zmatfile,icoord,showZ,call_vmd,movie_cycles)
     !==================================================
     ! My input parser (gromacs style)
     !==================================================
         implicit none
 
-        character(len=*),intent(inout) :: inpfile,nmfile,filetype,zmatfile
+        character(len=*),intent(inout) :: inpfile,addfile,nmfile,filetype,zmatfile
         logical,intent(inout) :: nosym, verbose, zmat, tswitch, symaddapt,showZ,call_vmd
         integer,dimension(:),intent(inout) :: nm
-        integer,intent(inout) :: icoord
+        integer,intent(inout) :: icoord, movie_cycles
         integer,intent(out) :: Nsel
         real(8),intent(out) :: Amplitude
         ! Local
@@ -850,6 +937,10 @@ program normal_modes_animation
                     call getarg(i+1, filetype)
                     argument_retrieved=.true.
 
+                case ("-add") 
+                    call getarg(i+1, addfile)
+                    argument_retrieved=.true.
+
                 case ("-nm") 
                     call getarg(i+1, arg)
                     argument_retrieved=.true.
@@ -866,6 +957,11 @@ program normal_modes_animation
 
                 case ("-vmd")
                     call_vmd=.true.
+
+                case ("-movie")
+                    call getarg(i+1, arg)
+                    read(arg,*) movie_cycles
+                    argument_retrieved=.true.
 
                 case ("-nosym")
                     nosym=.true.
@@ -926,9 +1022,11 @@ program normal_modes_animation
        write(0,'(/,A)') '--------------------------------------------------'
         write(0,*) '-f              ', trim(adjustl(inpfile))
         write(0,*) '-ft             ', trim(adjustl(filetype))
+        write(0,*) '-add            ', trim(adjustl(addfile))
         write(0,*) '-nm            ', nm(1),"-",nm(Nsel)
 !         write(0,*) '-nmf           ', nm(1:Nsel)
         write(0,*) '-vmd           ',  call_vmd
+        write(0,*) '-movie (cycles)',  movie_cycles
         write(0,*) '-maxd          ',  Amplitude
         if (nosym) dummy_char="NO "
         if (.not.nosym) dummy_char="YES"
@@ -963,12 +1061,13 @@ program normal_modes_animation
         !local
         type(str_molprops) :: props
 
-        if (adjustl(filetype) == "guess") then
-        ! Guess file type
-        call split_line(inpfile,".",null,filetype)
         select case (adjustl(filetype))
             case("gro")
              call read_gro(I_INP,molec)
+             call atname2element(molec)
+             call assign_masses(molec)
+            case("g96")
+             call read_g96(I_INP,molec)
              call atname2element(molec)
              call assign_masses(molec)
             case("pdb")
@@ -987,38 +1086,13 @@ program normal_modes_animation
              call read_molcas_geom(I_INP,molec)
              call atname2element(molec)
              call assign_masses(molec)
-            case default
-             call alert_msg("fatal","Trying to guess, but file type but not known: "//adjustl(trim(filetype))&
-                        //". Try forcing the filetype with -ft flag (available: log, fchk)")
-        end select
-
-        else
-        ! Predefined filetypes
-        select case (adjustl(filetype))
-            case("gro")
-             call read_gro(I_INP,molec)
-             call atname2element(molec)
-             call assign_masses(molec)
-            case("pdb")
-             call read_pdb_new(I_INP,molec)
-             call atname2element(molec)
-             call assign_masses(molec)
-            case("log")
-             call parse_summary(I_INP,molec,props,"struct_only")
-             call atname2element(molec)
-             call assign_masses(molec)
-            case("fchk")
-             call read_fchk_geom(I_INP,molec)
-             call atname2element(molec)
-!              call assign_masses(molec) !read_fchk_geom includes the fchk masses
-            case("UnSym")
-             call read_molcas_geom(I_INP,molec)
+            case("psi4")
+             call read_psi_geom(I_INP,molec)
              call atname2element(molec)
              call assign_masses(molec)
             case default
              call alert_msg("fatal","File type not supported: "//filetype)
         end select
-        endif
 
 
         return

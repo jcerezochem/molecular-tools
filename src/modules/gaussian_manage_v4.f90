@@ -618,6 +618,150 @@ module gaussian_manage
 
     end subroutine read_charge
 
+    subroutine read_charge_new(unt,molec,dens_type,q_type)
+
+        !==============================================================
+        ! This code is part of MOLECULAR_TOOLS (version 0.4/February 2014)
+        !==============================================================
+        !Description
+        ! Read charge from the last population analysis in a log file
+        ! Charges can be selected between the electronic potential fit
+        ! (e.g. Merz-Kollman) or Mulliken population analysis. This 
+        ! subroutine can also be used to set all charges to zero
+        !Arguments
+        ! unt (int;in): unit number of the log file
+        ! molec (str_resmol,inout): molecule 
+        ! dens_type (char,in): type of density (SCF, CI)
+        ! q_type (char,in): indicate charges to be read
+        !==============================================================
+
+        integer,intent(in) :: unt
+        type(str_resmol),intent(inout) :: molec
+        character(len=*),intent(in) :: q_type, dens_type      
+
+        !Lookup auxiliar variables
+        character(len=50) :: header_of_section, &
+                             header, &
+                             end_of_section, &
+                             end_of_section2
+        character(len=240) :: line, pop_header
+        integer :: n_useles_lines
+#ifdef DOUBLE
+        double precision :: q_tot
+#else
+        real :: q_tot
+#endif
+
+        !Logical switchs
+        logical :: found_charge_table, final_section
+
+        !Counters and dummies (TODO: dummies module)
+        character(len=50) :: dummy_char
+        integer :: i,j, IOstatus
+
+
+        if (adjustl(dens_type) == "SCF") then
+            pop_header = "Population analysis using the SCF density."
+        elseif (adjustl(dens_type) == "CI") then
+            pop_header = "Population analysis using the CI density."
+        elseif (adjustl(dens_type) == "SAC") then
+            pop_header = "Population analysis using the QCI/CC density."
+        else   
+            call alert_msg("fatal","Unsupported density"//trim(adjustl(dens_type)))
+        endif
+
+        if (q_type == "mulliken") then
+            ! MULLIKEN
+            header_of_section="Mulliken charges"
+            end_of_section="Sum of Mulliken"
+            end_of_section2="Sum of Mulliken"
+            n_useles_lines = 1
+        elseif (q_type == "elec_pot") then
+            ! ELECTRIC POTENTIAL DERIVED CHARGES
+            header_of_section="Charges from ESP fit"
+            end_of_section="---------------------"
+            end_of_section2="Sum of ESP charges"
+            n_useles_lines = 2
+        elseif (q_type == "all_zero") then
+            molec%atom(:)%q = 0
+            rewind(unt)
+            return
+        else
+            call alert_msg("warning","Unrecognize q_type: "//q_type//" All charges set to zero")
+            molec%atom(:)%q = 0
+            rewind(unt)
+            return
+        endif
+         
+        q_tot=0.
+        final_section=.false.
+        found_charge_table = .false.
+        do
+
+            ! Locate charge section identifier
+            header="X_X_X_X_X_X_X_X_X_X_X_X_X_X_X_X_X_X_X_X_X_X_X_X_X"
+            do 
+                read(unt,'(X,A)',IOSTAT=IOstatus) line
+                ! Three possible scenarios while reading:
+                ! 1) End of file
+                if ( IOstatus < 0 ) call alert_msg("fatal","Unexpected end of file")
+                ! 2) Final section reached
+                if ( INDEX(line,"GINC") /= 0 ) then
+                    final_section=.true.
+                    exit
+                endif
+                ! 3a) Found a charge section
+                if ( INDEX(line,trim(adjustl(pop_header))) /= 0 ) then
+                    header=header_of_section
+print*, "Found", pop_header
+                endif
+                ! 3b) Found a charge section
+                if ( INDEX(line,trim(adjustl(header))) /= 0 ) then
+                    found_charge_table = .true.
+                    exit
+                endif
+
+            enddo
+            !In case 2) leave the main loop
+            if ( final_section ) exit
+
+            ! Overpass lines until reaching the target table
+            do j=1,n_useles_lines
+                read(unt,'(X,A)',IOSTAT=IOstatus) line 
+            enddo
+
+            ! Read charge table to a predefined end of table
+            q_tot=0.
+            do
+                read(unt,'(X,A)',IOSTAT=IOstatus) line
+                ! Three possible scenarios while reading:
+                ! 1) End of file:
+                if ( IOstatus < 0 ) call alert_msg("fatal","Unexpected end of file while reading charges")
+                ! 2) End of table:
+                if ( INDEX(line,trim(adjustl(end_of_section))) /= 0 .or. &
+                     INDEX(line,trim(adjustl(end_of_section2))) /= 0) exit    
+                ! 3) Table entry:
+                read(line,*) i, dummy_char, molec%atom(i)%q
+                ! Monitor total charge:
+                q_tot=q_tot+molec%atom(i)%q
+            enddo
+
+        enddo
+
+        if (.not.found_charge_table) then
+            call alert_msg( "error", 'Charge table not found for q_type "'//trim(adjustl(q_type))//&
+                                     '", all charges set to zero' )  
+            molec%atom(:)%q = 0
+            rewind(unt)
+            return 
+        endif
+
+        if ( q_tot > ZERO ) then
+             write(dummy_char,*) q_tot
+             call alert_msg("note", "Non-zero total charge ("//trim(adjustl(dummy_char))//")" )
+        endif
+
+    end subroutine read_charge_new
 
     subroutine parse_summary(unt,molec,props,tune_access)
 
@@ -644,7 +788,7 @@ module gaussian_manage
         character(len=*),intent(in) :: tune_access
 
         integer,parameter :: SECTION_LENGTH=6000, &
-                             LONG_SECTION_LENGTH=600000
+                             LONG_SECTION_LENGTH=1100000
 
         !Calculation info (not stored in "system")
         character(len=20) :: jobtype, method, basis, formula
@@ -653,10 +797,11 @@ module gaussian_manage
         !Lookup auxiliar variables
         character(len=240) :: line, subline
         character(len=20) :: property
-        character(len=50000) :: value !Can be as long as 3Natoms (dipole derivatives)
+!         character(len=50000) :: value !Can be as long as 3Natoms (dipole derivatives)
+        character (len=:), allocatable :: value
         !Log sections can be huge if the hessian is read
         !Thus, we allocate a (huge) character 
-        character(len=LONG_SECTION_LENGTH) :: log_section
+        character(len=:),allocatable :: log_section
 
         !Counters and dummies (TODO: dummies module)
         character(len=50) :: dummy_char
@@ -676,6 +821,7 @@ module gaussian_manage
 
 
         !The summary is read section by section
+        ALLOCATE(character(len=LONG_SECTION_LENGTH) :: log_section)
         line=""
         log_section=""
 
@@ -694,6 +840,7 @@ module gaussian_manage
         !---------------------------------------
         !SECTION 1: job type
         !---------------------------------------
+        ALLOCATE(character(len=50000) :: value)
         do
             log_section=adjustl(trim(log_section))//line
             if ( INDEX(log_section,'\\') /= 0 ) then
@@ -817,8 +964,8 @@ module gaussian_manage
                 !Better to read it with string2vector_geom, an add-hoc modification of the general roitine (in this file)
                 call string2vector_geom(subline, &
                                         molec%atom(i)%name, &
-                                        molec%atom(i)%x, &
-                                        molec%atom(i)%y, &
+                                        molec%atom(i)%x,    &
+                                        molec%atom(i)%y,    &
                                         molec%atom(i)%z)
             enddo
             molec%natoms=i
@@ -940,6 +1087,8 @@ module gaussian_manage
             end select
         enddo
         log_section=""
+        DEALLOCATE(value)
+        ALLOCATE(character(len=500) :: value)
 
         ! J O B S   W I T H O U T  F R E Q U E N C I E S: leave now
         if (trim(adjustl(line)) == "@" ) then
@@ -949,6 +1098,7 @@ module gaussian_manage
         !Hessian is not read by default (very ineficient algorithm makes the IO proccess too costly)
         if ( trim(adjustl(tune_access)) /= "read_hess" ) then
             rewind(unt)
+            DEALLOCATE(log_section)
             return
         endif
 
@@ -957,6 +1107,7 @@ module gaussian_manage
         !---------------------------------------
         !SECTION6: Hessian (upper triangular form)
         !---------------------------------------
+        print*, "Len:", len_trim(log_section)
         do
             log_section=adjustl(trim(log_section))//line
             if ( INDEX(log_section,'\\') /= 0 ) then
@@ -964,15 +1115,19 @@ module gaussian_manage
                 exit
             endif
             read(unt,'(X,A)',IOSTAT=IOstatus) line
+            print*, "Len:", len_trim(log_section)
             if ( IOstatus < 0 ) call alert_msg("fatal","Unexpected end of file reading log section 6")
         enddo
-
+        print*, "Ahora a leer el chorizaco"
         !Read the hessian, here:
         i=0
         do while ( len_trim(log_section) /= 0 )
             i=i+1
             call split_line(log_section,',',value,log_section)
-            read(value,*) props%H(i)
+           print*, "Len rest:", len_trim(log_section)
+            read(value,*,iostat=IOstatus) props%H(i)
+           print*, i
+            if (IOstatus /= 0) call alert_msg("fatal","Died of too much reading")
         enddo
         write(0,*) i, "hessian elements read in lower triangular form"
         log_section=""
@@ -1001,6 +1156,7 @@ module gaussian_manage
         write(0,*) i, "Gradient elements read"
         rewind(unt)
 
+        DEALLOCATE(log_section)
         return
 
         contains

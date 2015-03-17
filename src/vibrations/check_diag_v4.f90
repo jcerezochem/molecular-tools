@@ -11,13 +11,16 @@ program check_diag
     use gro_manage
     use gaussian_fchk_manage
     use molcas_UnSym_manage
+    use psi4_manage
+    use gamess_manage
     use MatrixMod
 
-    integer,parameter :: NDIM=5000, NDIM2=600
+    integer,parameter :: NDIM=1000, NDIM2=300
 
     type(str_resmol) ::  molec
 
-    real(8),dimension(NDIM) :: H_lt, freq, amass
+    real(8),dimension(NDIM) :: freq, amass
+    real(8),dimension(320000) :: H_lt
     real(8),dimension(NDIM2,NDIM2) :: H, L
     integer :: Nat, Nvib
 
@@ -30,16 +33,28 @@ program check_diag
     logical :: debug = .false.
 
     !Commandline input stuff
-     character(len=100) :: input
-     character(len=6) :: ext
+     character(len=100) :: input, input_add
+     character(len=6) :: ext, ext_add
+     character :: cnull
 
     call getarg(1, input) 
     open(10,file=input,status="old")
 
-    call split_line(input,".",input,ext)
+    call split_line_back(input,".",input,ext)
 
-    if (iargc() > 1) call getarg(2, input)
-    if (adjustl(input) == "dbg") debug=.true.
+    if (iargc() > 1) then
+        call getarg(2, input)
+        if (adjustl(input) == "dbg") then
+            debug=.true.
+        else
+            call getarg(2, input_add)
+            open(11,file=input_add,status="old")
+            call split_line_back(input_add,".",input_add,ext_add)
+            if (iargc() > 2) call getarg(3, input)
+            if (adjustl(input) == "dbg") debug=.true.
+        endif
+    endif
+
 
     if (adjustl(ext) == "UnSym") then
 
@@ -90,7 +105,6 @@ program check_diag
             deallocate(A)
         endif
 
-
         call read_fchk(10,"Cartesian Force Constants",dtype,N,A,IA,error)
         if (error == 0) then
             k=0
@@ -116,6 +130,95 @@ program check_diag
             deallocate(A)
         endif
 
+    elseif (adjustl(ext) == "ghess") then
+        !you should add a g96 file with the structure
+        if (adjustl(ext_add) /= "g96") &
+         call alert_msg("fatal","With ghess you should provide a g96 structure file as second input")
+
+        call read_g96(11,molec)
+
+        call atname2element(molec)
+        call assign_masses(molec)
+        Nat=molec%natoms
+
+        call read_gro_hess(10,N,H,error)
+
+        k=0
+        do i=1,Nat
+        do j=1,3
+            k=k+1
+            amass(k) = molec%atom(i)%mass
+        enddo
+        enddo
+
+        k=0
+        do i=1,3*Nat
+            do j=1,i
+                k=k+1
+                H(i,j) = H(i,j)/dsqrt(amass(i))/dsqrt(amass(j))
+                H(j,i) = H(i,j)
+                H_lt(k) = H(i,j)
+            enddo
+        enddo
+
+    elseif (adjustl(ext) == "psi4") then
+
+        call read_psi_geom(10,molec)
+        !Get mass...
+        call atname2element(molec)
+        call assign_masses(molec)
+        Nat=molec%natoms
+        N=3*Nat
+
+        call read_psi_hess(10,N,H,error)
+
+        k=0
+        do i=1,Nat
+        do j=1,3
+            k=k+1
+            amass(k) = molec%atom(i)%mass
+        enddo
+        enddo
+
+        k=0
+        do i=1,3*Nat
+            do j=1,i
+                k=k+1
+                H(i,j) = H(i,j)/dsqrt(amass(i))/dsqrt(amass(j))
+                H(j,i) = H(i,j)
+                H_lt(k) = H(i,j)
+            enddo
+        enddo
+
+    elseif (adjustl(ext) == "gamess") then
+
+        call read_gamess_geom(10,molec)
+        !Get mass...
+        call atname2element(molec)
+        call assign_masses(molec)
+        Nat=molec%natoms
+        N=3*Nat
+
+        call read_gamess_hess(10,N,H,error)
+
+        k=0
+        do i=1,Nat
+        do j=1,3
+            k=k+1
+            amass(k) = molec%atom(i)%mass
+        enddo
+        enddo
+
+        k=0
+        do i=1,3*Nat
+            do j=1,i
+                k=k+1
+                H(i,j) = H(i,j)/dsqrt(amass(i))/dsqrt(amass(j))
+                H(j,i) = H(i,j)
+                H_lt(k) = H(i,j)
+            enddo
+        enddo
+
     else
 
         call alert_msg("fatal","Qué carajo me das para leer")
@@ -127,6 +230,10 @@ program check_diag
     print*, "H="
     do i=1,3*Nat
         print'(100(F10.3,2X))', H(i,1:3*Nat)
+    enddo 
+    print*, "mass="
+    do i=1,Nat
+        print'(100(F10.3,2X))', amass(i)
     enddo 
     endif
 

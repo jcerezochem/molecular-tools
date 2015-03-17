@@ -37,6 +37,7 @@ module gro_manage
 
     !Common modules for all subroutines
     use structure_types
+    use constants
     implicit none
 
     contains
@@ -759,5 +760,47 @@ module gro_manage
         end subroutine read_top_recurs
 
     end subroutine read_top
+
+    subroutine read_gro_hess(unt,N,Hess,error)
+
+        !Description
+        ! Read Hessian from ascii file generated from an .mtx file (with gmxdump)
+        ! 
+        ! Error codes: 
+        !  1: not square matrix
+
+        integer,intent(in)::unt
+#ifdef DOUBLE
+        real(8),dimension(:,:),intent(out)::Hess
+#else
+        real(4),dimension(:,:),intent(out)::Hess
+#endif 
+        integer,intent(out)::N
+        integer,intent(out)::error
+        
+        !local
+        character :: cnull
+        !Counter
+        integer::i, j
+         
+        read(unt,'(A)') cnull
+        read(unt,*) N, i
+        if (N /= i) then
+            error = 1
+            return
+        endif
+
+        !Read in triangular form
+        j=1
+        do i=1,N
+            read(unt,*) Hess(i,1:N)
+        enddo
+
+        ! UNIT CONVERSION                                        ! GROMACS       --> Atomic Units  
+        Hess(1:N,1:N)=Hess(1:N,1:N)/CALtoJ/HtoKCALM*BOHRtoNM**2  ! KJ/mol * nm-2 --> Hartree * bohr-2
+
+        return
+
+    end subroutine read_gro_hess
 
 end module gro_manage

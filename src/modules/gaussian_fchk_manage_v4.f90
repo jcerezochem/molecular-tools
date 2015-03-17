@@ -663,12 +663,16 @@ module gaussian_fchk_manage
 #endif
         character :: vartype
         character(len=43) :: section
+        character(len=90) :: job_sect
         
         !Title
          write(unt,'(A)') "File converted to fchk. Title:"//trim(adjustl(system%title))//&
                                                  " Name:"//trim(adjustl(system%name))
         !jog type and method
-         write(unt,'(A)') "Freq      RB3LYP                                                      6-31G(d)"
+         job_sect=adjustl(system%job%type)//&
+                  adjustl(system%job%method)//&
+                  adjustl(system%job%basis)
+         write(unt,'(A)') job_sect
 
         !Number of atoms
         section="Number of atoms"
