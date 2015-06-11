@@ -45,6 +45,7 @@ program projection_normal_modes_int
     use gaussian_fchk_manage
     use xyz_manage
     use molcas_unsym_manage
+    use psi4_manage
 !   Structural parameters
     use molecular_structure
     use ff_build
@@ -157,6 +158,7 @@ program projection_normal_modes_int
                I_ZMAT=11, & 
                I_STR=12,  &
                I_RED=13,  &
+               I_ADD=14,  &
                O_GRO=20,  &
                O_G09=21,  &
                O_Q  =22,  &
@@ -166,6 +168,7 @@ program projection_normal_modes_int
     character(len=10) :: filetype="guess", &
                          filetype_str="guess"
     character(len=200):: inpfile ="input.fchk",  &
+                         addfile ="additional.input", &
                          strfile ="struct.pdb",  &
                          zmatfile="NO",          &
                          numfile       
@@ -190,7 +193,7 @@ program projection_normal_modes_int
     nm(1) = 0
     icoord=-1
     call parse_input(inpfile,strfile,nm,Nsel,Amplitude,filetype,filetype_str,nosym,zmat,verbose,tswitch,symaddapt,zmatfile,&
-                     icoord,showZ,call_vmd)
+                     addfile,icoord,showZ,call_vmd)
     if (icoord /= -1) scan_internal=.true.
     if (showZ) scan_internal=.false.
 
@@ -250,6 +253,16 @@ program projection_normal_modes_int
 
     else if (adjustl(filetype) == "UnSym") then
         call read_molcas_hess(I_INP,N,Hess,error)
+    else if (adjustl(filetype) == "psi4") then
+        N=molecule%natoms*3
+        call read_psi_hess(I_INP,N,Hess,error)
+    else if (adjustl(filetype) == "g96") then
+        !The hessian should be given as additional input
+        if (adjustl(addfile) == "additional.input") &
+         call alert_msg("fatal","With a g96, and additional file should be provided with the Hessian")
+        open(I_ADD,file=addfile,status="old")
+        call read_gro_hess(I_ADD,N,Hess,error)
+        close(I_ADD)
     endif
     close(I_INP)
 
@@ -286,11 +299,12 @@ program projection_normal_modes_int
 
     !GEN BONDED SET FOR INTERNAL COORD
     if (.not.zmat) then
-        print*, "Custom internal coordianates"
-        open(I_RED,file="modred.dat") 
-        call modredundant(I_RED,molecule)
-        close(I_RED)
-        zmat=.false.
+!         print*, "Custom internal coordianates"
+!         open(I_RED,file="modred.dat") 
+!         call modredundant(I_RED,molecule)
+!         close(I_RED)
+!         zmat=.false.
+        print*, "Using all internals"
 ! print*, "Review"
 !         do i=1,molecule%geom%ndihed
 !             i1=molecule%geom%dihed(i,1)
@@ -319,32 +333,32 @@ program projection_normal_modes_int
         molecule%geom%nangles = Nat-2
         molecule%geom%ndihed  = Nat-3
     endif !otherwise all parameters are used
-!     !Set number of redundant
-!     Nred = molecule%geom%nbonds  + &
-!            molecule%geom%nangles + &
-!            molecule%geom%ndihed
+    !Set number of redundant
+    Nred = molecule%geom%nbonds  + &
+           molecule%geom%nangles + &
+           molecule%geom%ndihed
 
     !Set symmetry of internal (only if symmetry is detected)
-    if (adjustl(PG) == "C1") then
-        S_sym(3*Nat) = 1
-    else
-        do i=1,Nat-1
-            S_sym(i) = bond_sym(i+1)-1
-        enddo
-        do i=1,Nat-2
-            S_sym(i+Nat-1) = angle_sym(i+2)+Nat-3
-        enddo
-        do i=1,Nat-3
-            S_sym(i+2*Nat-3) = dihed_sym(i+3)+2*Nat-6
-        enddo
-    endif
+!     if (adjustl(PG) == "C1") then
+!         S_sym(3*Nat) = 1
+!     else
+!         do i=1,Nat-1
+!             S_sym(i) = bond_sym(i+1)-1
+!         enddo
+!         do i=1,Nat-2
+!             S_sym(i+Nat-1) = angle_sym(i+2)+Nat-3
+!         enddo
+!         do i=1,Nat-3
+!             S_sym(i+2*Nat-3) = dihed_sym(i+3)+2*Nat-6
+!         enddo
+!     endif
 
-    !We send the option -sa within S_sym (confflict with redundant coord!!)
-    if (symaddapt) then
-        S_sym(3*Nat) = 1
-    else
-        S_sym(3*Nat) = 0
-    endif
+!     !We send the option -sa within S_sym (confflict with redundant coord!!)
+!     if (symaddapt) then
+!         S_sym(3*Nat) = 1
+!     else
+!         S_sym(3*Nat) = 0
+!     endif
 
 !     print*, "Internal symm"
 !     do i=1,Nvib
@@ -484,13 +498,13 @@ program projection_normal_modes_int
     !=============================================
 
     subroutine parse_input(inpfile,strfile,nm,Nsel,Amplitude,filetype,filetype_str,nosym,zmat,verbose,tswitch,symaddapt,zmatfile,&
-                           icoord,showZ,call_vmd)
+                           addfile,icoord,showZ,call_vmd)
     !==================================================
     ! My input parser (gromacs style)
     !==================================================
         implicit none
 
-        character(len=*),intent(inout) :: inpfile,strfile,filetype,filetype_str,zmatfile
+        character(len=*),intent(inout) :: inpfile,strfile,filetype,filetype_str,zmatfile,addfile
         logical,intent(inout) :: nosym, verbose, zmat, tswitch, symaddapt,showZ,call_vmd
         integer,dimension(:),intent(inout) :: nm
         integer,intent(inout) :: icoord
@@ -518,6 +532,10 @@ program projection_normal_modes_int
                     argument_retrieved=.true.
                 case ("-ft") 
                     call getarg(i+1, filetype)
+                    argument_retrieved=.true.
+
+                case ("-add") 
+                    call getarg(i+1, addfile)
                     argument_retrieved=.true.
 
                 case ("-nm") 
@@ -599,6 +617,7 @@ program projection_normal_modes_int
        write(0,'(/,A)') '--------------------------------------------------'
         write(0,*) '-f              ', trim(adjustl(inpfile))
         write(0,*) '-ft             ', trim(adjustl(filetype))
+        write(0,*) '-add            ', trim(adjustl(addfile))
 !         write(0,*) '-nm            ', nm(1),"-",nm(Nsel)
         write(0,*) '-fs             ', trim(adjustl(strfile))
         write(0,*) '-fts            ', trim(adjustl(filetype_str))
@@ -646,6 +665,10 @@ program projection_normal_modes_int
              call read_gro(I_INP,molec)
              call atname2element(molec)
              call assign_masses(molec)
+            case("g96")
+             call read_g96(I_INP,molec)
+             call atname2element(molec)
+             call assign_masses(molec)
             case("pdb")
              call read_pdb_new(I_INP,molec)
              call atname2element(molec)
@@ -664,7 +687,7 @@ program projection_normal_modes_int
              call assign_masses(molec)
             case default
              call alert_msg("fatal","Trying to guess, but file type but not known: "//adjustl(trim(filetype))&
-                        //". Try forcing the filetype with -ft flag (available: log, fchk)")
+                        //". Try forcing the filetype with -ft flag")
         end select
 
 

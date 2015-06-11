@@ -1,7 +1,7 @@
 module MatrixMod
 
     !==============================================================
-    ! This code is part of MOLECULAR_TOOLS (version 0.4/February 2014)
+    ! This code is part of MOLECULAR_TOOLS
     !==============================================================
     !
     ! Despription
@@ -371,9 +371,9 @@ module MatrixMod
      !---------------------------------------------------------!
          implicit none 
 
+         integer,intent(in) :: n
          real(8),dimension(N,N),intent(inout) :: a
          real(8),dimension(N),intent(out) :: eig
-         integer,intent(in) :: n
          !Local
          integer l,inf
          real*8  work(n*(3+n/2)) 

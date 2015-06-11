@@ -43,6 +43,8 @@ program fchk2gro
     use xyz_manage
     use molden_manage
     use molcas_unsym_manage
+    use psi4_manage
+    use gamess_manage
     use ff_build
     use molecular_structure
 
@@ -61,7 +63,7 @@ program fchk2gro
     logical :: overwrite    = .false. ,&
                make_connect = .false. ,&
                use_elements = .false. ,&
-               remove_cog   = .false.
+               remove_com   = .false.
     !Swap related counters
     integer :: iat_new, iat_orig, nswap
     !=============
@@ -87,7 +89,7 @@ program fchk2gro
 
     ! 0. GET COMMAND LINE ARGUMENTS
     call parse_input(inpfile,filetype_inp,outfile,filetype_out,overwrite,make_connect,&
-                     use_elements,remove_cog,resname,swapfile)
+                     use_elements,remove_com,resname,swapfile)
 
  
     ! 1. READ INPUT
@@ -119,12 +121,14 @@ program fchk2gro
     !Forcing element names (no FF labels)
     if (use_elements) molec%atom(:)%name = molec%atom(:)%element
     !Removing center of gravity
-    if (remove_cog) then
-        call get_cog(molec)
+    if (remove_com) then
+        call atname2element(molec)
+        call assign_masses(molec)
+        call get_com(molec)
         i=molec%natoms
-        molec%atom(1:i)%x = molec%atom(1:i)%x - molec%cogX
-        molec%atom(1:i)%y = molec%atom(1:i)%y - molec%cogY
-        molec%atom(1:i)%z = molec%atom(1:i)%z - molec%cogZ
+        molec%atom(1:i)%x = molec%atom(1:i)%x - molec%comX
+        molec%atom(1:i)%y = molec%atom(1:i)%y - molec%comY
+        molec%atom(1:i)%z = molec%atom(1:i)%z - molec%comZ
     endif
 
     ! 3. WRITE OUTPUT
@@ -151,7 +155,7 @@ program fchk2gro
     !=============================================
 
     subroutine parse_input(inpfile,filetype_inp,outfile,filetype_out,overwrite,make_connect,&
-                           use_elements,remove_cog,resname,swapfile)
+                           use_elements,remove_com,resname,swapfile)
     !==================================================
     ! My input parser (gromacs style)
     !==================================================
@@ -161,7 +165,7 @@ program fchk2gro
                                           filetype_inp,filetype_out, &
                                           resname,swapfile
         logical,intent(inout) :: overwrite, make_connect, use_elements, &
-                                 remove_cog
+                                 remove_com
         ! Local
         logical :: argument_retrieved,  &
                    need_help = .false.
@@ -203,8 +207,8 @@ program fchk2gro
                 case ("-use-elems")
                     use_elements=.true.
 
-                case ("-rmcog")
-                    remove_cog=.true.
+                case ("-rmcom")
+                    remove_com=.true.
 
                 case ("-swap")
                     call getarg(i+1, swapfile)
@@ -218,9 +222,10 @@ program fchk2gro
             end select
         enddo 
 
+        !The default output is now xyz
         if (adjustl(outfile) == "default") then
             call split_line_back(inpfile,".",outfile,null)
-            outfile=trim(adjustl(outfile))//".gro"
+            outfile=trim(adjustl(outfile))//".xyz"
         endif
 
         ! Some checks on the input
@@ -241,7 +246,7 @@ program fchk2gro
         write(0,*) '-rn             ',  trim(adjustl(resname))
         write(0,*) '-connect       ',  make_connect
         write(0,*) '-use-elems     ',  use_elements
-        write(0,*) '-rmcog         ',  remove_cog
+        write(0,*) '-rmcom         ',  remove_com
         write(0,*) '-h             ',  need_help
         write(0,*) '--------------------------------------------------'
         if (need_help) call alert_msg("fatal", 'There is no manual (for the moment)' )
@@ -289,6 +294,10 @@ program fchk2gro
              call read_molcas_geom(unt,molec)
             case("molden")
              call read_molden(unt,molec)
+            case("psi4")
+             call read_psi_geom(unt,molec)
+            case("gamess")
+             call read_gamess_geom(unt,molec)
             case default
              call alert_msg("fatal","File type not supported: "//filetype)
         end select

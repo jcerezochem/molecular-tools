@@ -10,6 +10,7 @@ program check_diag
     use constants
     use gro_manage
     use gaussian_fchk_manage
+    use gaussian_manage_lowlevel
     use molcas_UnSym_manage
     use psi4_manage
     use gamess_manage
@@ -21,7 +22,10 @@ program check_diag
 
     real(8),dimension(NDIM) :: freq, amass
     real(8),dimension(320000) :: H_lt
-    real(8),dimension(NDIM2,NDIM2) :: H, L
+    real(8),dimension(NDIM2,NDIM2) :: H, L, D
+    real(8),dimension(3,3) :: MI, X
+    real(8),dimension(3) :: R
+    real(8) :: Px, Py, Pz, det, pes
     integer :: Nat, Nvib
 
     !Stuf for fchk reading
@@ -29,6 +33,8 @@ program check_diag
     real(8),dimension(:),allocatable :: A
     integer :: N, error, N_lt
     character(len=1) :: dtype
+    character(len=700000) :: string
+    character(len=50) :: geom_char
 
     logical :: debug = .false.
 
@@ -129,6 +135,185 @@ program check_diag
             enddo
             deallocate(A)
         endif
+
+
+    elseif (adjustl(ext) == "log") then
+
+        ! Natoms
+        call read_gausslog_natoms(10,Nat,error)
+        molec%natoms = Nat
+
+        !Geom
+        call summary_parser(10,4,string,error)
+        !Throw "charge mult" away
+        call split_line(string,'\',geom_char,string)
+        do i=1,Nat
+            call split_line(string,'\',geom_char,string)
+            read(geom_char,*) molec%atom(i)%name, &
+                              molec%atom(i)%x,    &
+                              molec%atom(i)%y,    &
+                              molec%atom(i)%z
+        enddo
+        !Get mass...
+        call atname2element(molec)
+        call assign_masses(molec)
+        k=0
+        do i=1,Nat
+        do j=1,3
+            k=k+1
+            amass(k) = molec%atom(i)%mass
+        enddo
+        enddo
+
+        !Place at COM 
+        call get_com(molec)
+        do i=1,molec%natoms
+            molec%atom(i)%x = molec%atom(i)%x - molec%comX
+            molec%atom(i)%y = molec%atom(i)%y - molec%comY
+            molec%atom(i)%z = molec%atom(i)%z - molec%comZ
+        enddo
+
+        !Get moment of intertia
+        call inertia(molec,MI)
+
+        call diagonalize_full(MI(1:3,1:3),3,X(1:3,1:3),freq(1:3),"lapack")
+
+        X=transpose(X)
+
+        !Following G09 white paper
+        ! Note that there is a typo:
+        !  * Rotational coordinates should have m^1/2 factor multiplied, not divided
+        ! Furthermore, there additional issues are  
+        !  * Confusing  matrix indices. Note that X should be transposed first to use the
+        !    orther they use
+        D(1:3*Nat,1:3*Nat) = 0.d0
+        !Traslation
+        do i=1,3*Nat,3
+            D(i  ,1) = dsqrt(amass(i)) 
+            D(i+1,2) = dsqrt(amass(i+1)) 
+            D(i+2,3) = dsqrt(amass(i+2)) 
+        enddo
+        !Rotation
+        do i=1,3*Nat,3
+            j=(i-1)/3+1
+            R=(/molec%atom(j)%x,molec%atom(j)%y,molec%atom(j)%z/)
+            Px=dot_product(R(1:3),X(1,1:3))
+            Py=dot_product(R(1:3),X(2,1:3))
+            Pz=dot_product(R(1:3),X(3,1:3))
+
+            D(i  ,4) = (Py*X(3,1) - Pz*X(2,1))*dsqrt(amass(i))
+            D(i+1,4) = (Py*X(3,2) - Pz*X(2,2))*dsqrt(amass(i))
+            D(i+2,4) = (Py*X(3,3) - Pz*X(2,3))*dsqrt(amass(i))
+
+            D(i  ,5) = (Pz*X(1,1) - Px*X(3,1))*dsqrt(amass(i))
+            D(i+1,5) = (Pz*X(1,2) - Px*X(3,2))*dsqrt(amass(i))
+            D(i+2,5) = (Pz*X(1,3) - Px*X(3,3))*dsqrt(amass(i))
+
+            D(i  ,6) = (Px*X(2,1) - Py*X(1,1))*dsqrt(amass(i))
+            D(i+1,6) = (Px*X(2,2) - Py*X(1,2))*dsqrt(amass(i))
+            D(i+2,6) = (Px*X(2,3) - Py*X(1,3))*dsqrt(amass(i))
+        enddo
+
+! print*, ""
+!         print'(F9.5)', dot_product(D(1:3*Nat,1),D(1:3*Nat,4))
+!         print'(F9.5)', dot_product(D(1:3*Nat,1),D(1:3*Nat,5))
+!         print'(F9.5)', dot_product(D(1:3*Nat,1),D(1:3*Nat,6))
+! print*, ""
+!         print'(F9.5)', dot_product(D(1:3*Nat,2),D(1:3*Nat,4))
+!         print'(F9.5)', dot_product(D(1:3*Nat,2),D(1:3*Nat,5))
+!         print'(F9.5)', dot_product(D(1:3*Nat,2),D(1:3*Nat,6))
+! print*, ""
+!         print'(F9.5)', dot_product(D(1:3*Nat,3),D(1:3*Nat,4))
+!         print'(F9.5)', dot_product(D(1:3*Nat,3),D(1:3*Nat,5))
+!         print'(F9.5)', dot_product(D(1:3*Nat,3),D(1:3*Nat,6))
+! print*, ""
+!         print'(F15.5)', dot_product(D(1:3*Nat,4),D(1:3*Nat,5))
+!         print'(F15.5)', dot_product(D(1:3*Nat,4),D(1:3*Nat,6))
+!         print'(F15.5)', dot_product(D(1:3*Nat,5),D(1:3*Nat,6))
+! print*, ""
+! print*, "Rotations:"
+!         print'(F15.5)', dot_product(D(1:3*Nat,4),D(1:3*Nat,4))
+!         print'(F15.5)', dot_product(D(1:3*Nat,5),D(1:3*Nat,5))
+!         print'(F15.5)', dot_product(D(1:3*Nat,6),D(1:3*Nat,6))
+
+        !Normalize
+        D(1:3*Nat,1) = D(1:3*Nat,1)/sqrt(dot_product(D(1:3*Nat,1),D(1:3*Nat,1)))
+        D(1:3*Nat,2) = D(1:3*Nat,2)/sqrt(dot_product(D(1:3*Nat,2),D(1:3*Nat,2)))
+        D(1:3*Nat,3) = D(1:3*Nat,3)/sqrt(dot_product(D(1:3*Nat,3),D(1:3*Nat,3)))
+        D(1:3*Nat,4) = D(1:3*Nat,4)/sqrt(dot_product(D(1:3*Nat,4),D(1:3*Nat,4)))
+        D(1:3*Nat,5) = D(1:3*Nat,5)/sqrt(dot_product(D(1:3*Nat,5),D(1:3*Nat,5)))
+        D(1:3*Nat,6) = D(1:3*Nat,6)/sqrt(dot_product(D(1:3*Nat,6),D(1:3*Nat,6)))
+
+
+        !Get remaining vectors by G-S orthogonalization
+        ! We add a complete canonical basis in R^N.
+        ! The additional 6 (5) vectors are set to zero
+        ! by the G-S procedure
+        nd = 0
+        do i=7,3*Nat+6
+            ii = i - nd
+            D(i-6,ii) = 1.d0
+            Freq(1:3*Nat) = D(1:3*Nat,ii)
+            do j=1,ii-1
+                Freq(1:3*Nat) = Freq(1:3*Nat) - dot_product(D(1:3*Nat,ii),D(1:3*Nat,j))*D(1:3*Nat,j)
+            enddo
+            D(1:3*Nat,ii) = Freq(1:3*Nat)
+            pes = dot_product(D(1:3*Nat,ii),D(1:3*Nat,ii))
+            if (pes < 1.d-5) then
+                print*, "Discarded",i,  pes
+                nd = nd + 1
+            else 
+                D(1:3*Nat,ii) = D(1:3*Nat,ii)/sqrt(pes)
+            endif
+        enddo
+        print*, ""
+        print*, "Discarded vectors:", nd
+        print*, ""
+
+        !Hessian
+        call summary_parser(10,6,string,error)
+        if (error /= 0) call alert_msg("fatal","Error on summary_parser")
+        allocate(A(1:3*Nat*(3*Nat+1)/2))
+        read(string,*) A(1:3*Nat*(3*Nat+1)/2)
+
+        k=0
+        do i=1,3*Nat
+            do j=1,i
+                k=k+1
+                H(i,j) = A(k)/dsqrt(amass(i))/dsqrt(amass(j))
+                H(j,i) = H(i,j)
+                H_lt(k) = H(i,j)
+            enddo
+        enddo
+        deallocate(A)
+
+        !Rotate Hessian
+        H(1:3*Nat,1:3*Nat-6) = matmul(H(1:3*Nat,1:3*Nat),D(1:3*Nat,7:3*Nat))
+        D = transpose(D)
+        H(1:3*Nat-6,1:3*Nat-6) = matmul(D(7:3*Nat,1:3*Nat),H(1:3*Nat,1:3*Nat-6))
+
+
+    print*, ""
+    print*, "==================="
+    print*, " FULL - lapack"
+    print*, "==================="
+    call diagonalize_full(H(1:3*Nat-6,1:3*Nat-6),3*Nat-6,L(1:3*Nat-6,1:3*Nat-6),freq(1:3*Nat-6),"lapack")
+
+    if (debug) then
+    print*, ""
+    print*, "L="
+    do i=1,3*Nat
+        print'(100(F10.3,2X))', L(i,1:3*Nat)
+    enddo 
+    endif
+
+    call sort_vec(Freq,3*Nat-6)
+    print*, ""
+    print*, "Freq="
+    do i=1,3*Nat-6
+        print'(100(F10.3,2X))', dsign(dsqrt(dabs(Freq(i))*HARTtoJ/BOHRtoM**2/UMAtoKG)/2.d0/pi/clight/1.d2,Freq(i))
+    enddo 
+
 
     elseif (adjustl(ext) == "ghess") then
         !you should add a g96 file with the structure

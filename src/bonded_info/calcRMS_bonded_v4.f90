@@ -44,7 +44,7 @@ program calcRMS_bonded
 
     !====================== 
     !Options 
-    logical :: debug=.false., nonH=.false.
+    logical :: debug=.false., nonH=.false., include_hbonds=.false.
     ! Those related to ff_type
     logical :: do_refine_charges=.false.,rename_atoms=.false.
     integer :: I_DB = -1 !This is to use hybridization database
@@ -87,7 +87,7 @@ program calcRMS_bonded
     real :: calc, ref, dev, rmsd, dif
 
     ! 0. GET COMMAND LINE ARGUMENTS
-    call parse_input(inpfile,reffile,ft,ft_ref,debug,nonH)
+    call parse_input(inpfile,reffile,ft,ft_ref,debug,nonH,include_hbonds)
 
     ! 1. READ DATA
     ! ---------------------------------
@@ -119,7 +119,7 @@ program calcRMS_bonded
     !Print info for debug
 
     ! Get connectivity from the residue
-    call guess_connect(ref_molec)
+    call guess_connect(ref_molec,include_hbonds)
     call gen_bonded(ref_molec)
 
     dev = 0.0
@@ -261,14 +261,14 @@ program calcRMS_bonded
     contains
     !=============================================
 
-    subroutine parse_input(inpfile,reffile,ft,ft_ref,debug,nonH)
+    subroutine parse_input(inpfile,reffile,ft,ft_ref,debug,nonH,include_hbonds)
     !==================================================
     ! My input parser (gromacs style)
     !==================================================
         implicit none
 
         character(len=*),intent(inout) :: inpfile,ft,ft_ref,reffile
-        logical,intent(inout) :: debug, nonH
+        logical,intent(inout) :: debug, nonH, include_hbonds
         ! Local
         logical :: argument_retrieved,  &
                    need_help = .false.
@@ -302,6 +302,9 @@ program calcRMS_bonded
 
                 case ("-nonH")
                     nonH=.true.
+
+                case ("-include_hb")
+                    include_hbonds=.true.
         
                 case ("-h")
                     need_help=.true.
@@ -325,6 +328,7 @@ program calcRMS_bonded
         write(0,*) '-ftr            ', trim(adjustl(ft_ref))
         write(0,*) '-dbg           ',  debug
         write(0,*) '-nonH          ',  nonH
+        write(0,*) '-include_hb    ',  include_hbonds
         write(0,*) '-h             ',  need_help
         write(0,*) '--------------------------------------------------'
         if (need_help) call alert_msg("fatal", 'There is no manual (for the moment)' )

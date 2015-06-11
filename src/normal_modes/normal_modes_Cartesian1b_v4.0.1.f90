@@ -82,6 +82,7 @@ program normal_modes_Cartesian
                O_G09=21,  &
                O_Q  =22,  &
                O_NUM=23,  &
+               O_LIS=24,  &
                S_VMD=30
     !files
     character(len=10) :: filetype="guess"
@@ -447,7 +448,8 @@ program normal_modes_Cartesian
                            '"text 30,70 '//"'"//trim(adjustl(tmpfile))//"'"//&
                            '" $figfile-$xx.tga $figfile-$xx.jpg'
             write(S_VMD,'(A)') "}"
-            write(S_VMD,'(A)') 'ffmpeg -i $figfile-%d.jpg -vcodec mpeg4 $figfile.avi'
+            !Updated ffmpeg call. The output is now loadable from ipynb
+            write(S_VMD,'(A)') 'ffmpeg -i $figfile-%d.jpg -vcodec libx264 -s 640x360 $figfile.mp4'
             write(S_VMD,*) "molinfo ", i, " set drawn 0"
         enddo
         write(S_VMD,*) "exit"

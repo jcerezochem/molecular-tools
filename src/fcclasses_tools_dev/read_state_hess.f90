@@ -1,4 +1,4 @@
-program normal_modes_animation
+program read_state_hess
 
 
     !==============================================================
@@ -54,6 +54,8 @@ program normal_modes_animation
     use gaussian_fchk_manage
     use xyz_manage
     use molcas_unsym_manage
+!     use psi4_manage
+    use gamess_manage
 !   Structural parameters
     use molecular_structure
     use ff_build
@@ -182,6 +184,10 @@ program normal_modes_animation
     if (IOstatus /= 0) call alert_msg( "fatal","Unable to open "//trim(adjustl(inpfile)) )
 
     !Read structure
+    if (adjustl(filetype) == "guess") then
+        ! Guess file type
+        call split_line_back(inpfile,".",null,filetype)
+    endif
     call generic_strfile_read(I_INP,filetype,molecule)
     !Shortcuts
     Nat = molecule%natoms
@@ -226,6 +232,12 @@ program normal_modes_animation
 
     else if (adjustl(filetype) == "UnSym") then
         call read_molcas_hess(I_INP,N,Hess,error)
+!     else if (adjustl(filetype) == "psi4") then
+!         N=3*Nat
+!         call read_psi_hess(I_INP,N,Hess,error)
+    else if (adjustl(filetype) == "gamess") then
+        N=3*Nat
+        call read_gamess_hess(I_INP,N,Hess,error)
     endif
     close(I_INP)
 
@@ -370,9 +382,6 @@ program normal_modes_animation
         !local
         type(str_molprops) :: props
 
-        if (adjustl(filetype) == "guess") then
-        ! Guess file type
-        call split_line(inpfile,".",null,filetype)
         select case (adjustl(filetype))
             case("gro")
              call read_gro(I_INP,molec)
@@ -394,39 +403,13 @@ program normal_modes_animation
              call read_molcas_geom(I_INP,molec)
              call atname2element(molec)
              call assign_masses(molec)
-            case default
-             call alert_msg("fatal","Trying to guess, but file type but not known: "//adjustl(trim(filetype))&
-                        //". Try forcing the filetype with -ft flag (available: log, fchk)")
-        end select
-
-        else
-        ! Predefined filetypes
-        select case (adjustl(filetype))
-            case("gro")
-             call read_gro(I_INP,molec)
-             call atname2element(molec)
-             call assign_masses(molec)
-            case("pdb")
-             call read_pdb_new(I_INP,molec)
-             call atname2element(molec)
-             call assign_masses(molec)
-            case("log")
-             call parse_summary(I_INP,molec,props,"struct_only")
-             call atname2element(molec)
-             call assign_masses(molec)
-            case("fchk")
-             call read_fchk_geom(I_INP,molec)
-             call atname2element(molec)
-!              call assign_masses(molec) !read_fchk_geom includes the fchk masses
-            case("UnSym")
-             call read_molcas_geom(I_INP,molec)
+            case("gamess")
+             call read_gamess_geom(I_INP,molec)
              call atname2element(molec)
              call assign_masses(molec)
             case default
-             call alert_msg("fatal","File type not supported: "//filetype)
+             call alert_msg("fatal","File type not known: "//adjustl(trim(filetype)))
         end select
-        endif
-
 
         return
 
@@ -434,5 +417,5 @@ program normal_modes_animation
     end subroutine generic_strfile_read
        
 
-end program normal_modes_animation
+end program read_state_hess
 

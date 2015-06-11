@@ -79,7 +79,8 @@ program normal_modes_animation
     logical :: nosym=.true.   ,&
                zmat=.true.    ,&
                tswitch=.false.,&
-               symaddapt=.false.
+               symaddapt=.false., &
+               include_hbonds=.false.
     !======================
 
     !====================== 
@@ -209,7 +210,7 @@ program normal_modes_animation
     nm(1) = 0
     icoord=-1
     call parse_input(inpfile,addfile,nmfile,nm,Nsel,Amplitude,filetype,nosym,zmat,verbose,tswitch,symaddapt,&
-                     zmatfile,icoord,showZ,call_vmd,movie_cycles)
+                     zmatfile,icoord,showZ,call_vmd,movie_cycles,include_hbonds)
     if (icoord /= -1) scan_internal=.true.
 ! Por qué estaba este switch????
 !    if (showZ) scan_internal=.false.
@@ -302,7 +303,7 @@ program normal_modes_animation
     !====================================
     ! Get connectivity from the residue (needs to be in ANGS, as it is -- default coord. output)
     ! Setting element from atom names is mandatory to use guess_connect
-    call guess_connect(molecule)
+    call guess_connect(molecule,include_hbonds)
     if (nosym) then
         PG="C1"
     else
@@ -867,7 +868,8 @@ program normal_modes_animation
                            '"text 30,70 '//"'"//trim(adjustl(tmpfile))//"'"//&
                            '" $figfile-$xx.tga $figfile-$xx.jpg'
             write(S_VMD,'(A)') "}"
-            write(S_VMD,'(A)') 'ffmpeg -i $figfile-%d.jpg -vcodec mpeg4 $figfile.avi'
+            !Updated ffmpeg call. The output is now loadable from ipynb
+            write(S_VMD,'(A)') 'ffmpeg -i $figfile-%d.jpg -vcodec libx264 -s 640x360 $figfile.mp4'
             write(S_VMD,*) "molinfo ", i, " set drawn 0"
         enddo
         write(S_VMD,*) "exit"
@@ -901,14 +903,14 @@ program normal_modes_animation
     !=============================================
 
     subroutine parse_input(inpfile,addfile,nmfile,nm,Nsel,Amplitude,filetype,nosym,zmat,verbose,tswitch,symaddapt,&
-                           zmatfile,icoord,showZ,call_vmd,movie_cycles)
+                           zmatfile,icoord,showZ,call_vmd,movie_cycles,include_hbonds)
     !==================================================
     ! My input parser (gromacs style)
     !==================================================
         implicit none
 
         character(len=*),intent(inout) :: inpfile,addfile,nmfile,filetype,zmatfile
-        logical,intent(inout) :: nosym, verbose, zmat, tswitch, symaddapt,showZ,call_vmd
+        logical,intent(inout) :: nosym, verbose, zmat, tswitch, symaddapt,showZ,call_vmd,include_hbonds
         integer,dimension(:),intent(inout) :: nm
         integer,intent(inout) :: icoord, movie_cycles
         integer,intent(out) :: Nsel
@@ -988,6 +990,9 @@ program normal_modes_animation
                 case ("-tswitch")
                     tswitch=.true.
 
+                case ("-include_hb")
+                    include_hbonds=.true.
+
                 case ("-int")
                     call getarg(i+1, arg)
                     read(arg,*) icoord
@@ -1039,6 +1044,7 @@ program normal_modes_animation
         if (tswitch) dummy_char="YES"
         if (.not.tswitch) dummy_char="NO "
         write(0,*) '-tswitch        ', dummy_char
+        write(0,*) '-include_hb    ',  include_hbonds
         if (symaddapt) dummy_char="YES"
         if (.not.symaddapt) dummy_char="NO "
         write(0,*) '-sa             ', dummy_char

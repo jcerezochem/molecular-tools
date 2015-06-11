@@ -145,16 +145,21 @@ module molecular_structure
 
    !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-    subroutine guess_connect(molec)
+    subroutine guess_connect(molec,inc_hbond)
 
         implicit none
         type(str_resmol),intent(inout) :: molec
+        logical,optional               :: inc_hbond
         !local
         real :: av_len, dist
         integer :: i,j, i_cnx
+        logical :: include_hbond=.false.
 
         !InOut, better reassigned
         molec=molec
+
+        !Set include_hbond
+        if (present(inc_hbond)) include_hbond=inc_hbond
 
         !Loop over all atoms. This is not optimal, distance matrix is symmetric
         !(nor it is not costly, anyway)
@@ -174,16 +179,18 @@ module molecular_structure
 
                 !Get default bond length from database
                 
-                av_len=bond_length_db(molec%atom(i),molec%atom(j))
+                av_len=bond_length_db(molec%atom(i),molec%atom(j),include_hbond)
                 ! Criterium: dist < av. length +10% --increased from 5% (17/12/12) due to H2O2
                 ! a more sophiticated data base might include hibridization
                 av_len=av_len*1.1
 
                 if (dist < av_len) then
+! if (i==45) then
 ! print*, "Connection"
 ! print*, molec%atom(i)%name,molec%atom(j)%name
 ! print*, i,j,av_len
 ! print*, ""
+! endif
                     i_cnx=i_cnx+1
                     molec%atom(i)%connect(i_cnx)=j
                 endif
@@ -191,13 +198,13 @@ module molecular_structure
             enddo
             molec%atom(i)%nbonds=i_cnx
         enddo
-   
+
         return
 
     end subroutine guess_connect
 
 
-    function bond_length_db(atom1,atom2) result(av_len)
+    function bond_length_db(atom1,atom2,inc_hbond) result(av_len)
 
         !=======================================================================
         !Description
@@ -221,13 +228,15 @@ module molecular_structure
         real :: db_length
 
         type(str_atom),intent(in) :: atom1, atom2
+        logical,optional          :: inc_hbond
         !Local atoms
         type(str_atom) :: Latom1, Latom2
         real :: av_len
         !local
         character(len=14),dimension(100) :: database
         integer :: n_entries, i
-        logical :: external_DB=.false.
+        logical :: external_DB    = .false., &
+                   include_hbond  = .false.
 
         !Set local atoms
         Latom1%element = adjustl(atom1%element)
@@ -251,7 +260,7 @@ module molecular_structure
                     "C    H    1.07",      & !4
                     "O    O    1.34",      & !5 was 1.32, but was not enough for H2O2 (1.47 needed 1.337)
                     "O    S    1.67",      & !6
-                    "O    H    1.80",      & !7 !to include Hbonds use 1.80, else use 1.07
+                    "O    H    1.07",      & !7 !to include Hbonds use 1.80 > optional argument below
                     "S    S    2.02",      & !8
                     "S    H    1.31",      & !9
                     "H    H    0.60",      & !10
@@ -275,6 +284,8 @@ module molecular_structure
                     "Pt   N    2.20"       & !28
                     /)                       
         endif
+        if (present(inc_hbond)) include_hbond=inc_hbond
+        if (include_hbond) database(7)="O    H    1.80"
 
         ! SELECTION LOOPS 
         av_len=0.
@@ -289,7 +300,6 @@ module molecular_structure
                    Latom2%element(1:2) == adjustl(elementA) )     &
                 ) then
                    av_len=db_length
-!                    print*, "Found ", db_entry%A," ", db_entry%B," ", Latom1%name(1:1)," ", Latom2%name(1:1)
             endif
        enddo     
 
@@ -324,7 +334,6 @@ module molecular_structure
                 call alert_msg("note","CA atom name treated as carbon for atom "//dummy_char)
             endif
         enddo
-
 
 
         return
@@ -380,10 +389,14 @@ module molecular_structure
                     select case (atname(2:2))
                         case ("e")
                             atom%element = "He"
+                            call alert_msg("warning","He taken as helium")
                         case ("f")
                             atom%element = "Hf"
+                            call alert_msg("warning","He taken as hafnium")
                         case default
                             atom%element = "H"
+                            if (adjustl(atom%element) /= adjustl(atom%name) ) &
+                             call alert_msg("note",trim(adjustl(atom%name))//" taken as hydrogen")
                     end select
                     return
                !==========
@@ -395,16 +408,21 @@ module molecular_structure
                             atom%element = "Ba"
                         case ("A")
                             atom%element = "Ba"
+                            call alert_msg("note","BA taken as barium")
                         case ("e")
                             atom%element = "Be"
                         case ("E")
                             atom%element = "Be"
+                            call alert_msg("note","BE taken as berium")
                         case ("r")
                             atom%element = "Br"
                         case ("R")
                             atom%element = "Br"
+                            call alert_msg("note","BR taken as bromine")
                         case default
                             atom%element = "B"
+                            if (adjustl(atom%element) /= adjustl(atom%name) ) &
+                             call alert_msg("warning",trim(adjustl(atom%name))//" taken as borium")
                     end select
                     return
                !==========
@@ -422,25 +440,36 @@ module molecular_structure
                     select case (atname(2:2))
                         case ("d")
                             atom%element = "Cd"
+                            call alert_msg("warning","Cd taken as cadmium")
                         case ("r")
                             atom%element = "Cr"
+                            call alert_msg("warning","Cd taken as chromium")
                         case ("R")
                             atom%element = "Cr"
+                            call alert_msg("warning","CR taken as chromium")
                         case ("s")
                             atom%element = "Cs"
+                            call alert_msg("warning","Cs taken as cesium")
                         case ("S")
                             atom%element = "Cs"
+                            call alert_msg("warning","CS taken as cesium")
                         case ("l")
                             atom%element = "Cl"
+                            call alert_msg("warning","Cl taken as chlorine")
                         case ("L")
                             atom%element = "Cl"
+                            call alert_msg("warning","CL taken as chlorine")
                         case ("a")
                             atom%element = "Ca"
+                            call alert_msg("warning","Ca taken as calcium")
                         case ("A")
                             !This case can be either C"A" or Ca. Mark with x to check later
-                            atom%element = "Cx"
+                            atom%element = "C"
+                            call alert_msg("note","CA taken as carbone")
                         case default
                             atom%element = "C"
+                            if (adjustl(atom%element) /= adjustl(atom%name) ) &
+                             call alert_msg("note",trim(adjustl(atom%name))//" taken as carbone")
                     end select
                     return
                !==========
@@ -492,10 +521,14 @@ module molecular_structure
                     select case (atname(2:2))
                         case ("e")
                             atom%element = "Fe"
+                            call alert_msg("warning","Fe taken as iron")
                         case ("E")
                             atom%element = "Fe"
+                            call alert_msg("warning","FE taken as iron")
                         case default
                             atom%element = "F"
+                            if (adjustl(atom%element) /= adjustl(atom%name) ) &
+                             call alert_msg("note",trim(adjustl(atom%name))//" taken as fluorine")
                     end select
                     return
                !==========
@@ -507,12 +540,12 @@ module molecular_structure
                     !  Po is polonium
                     !  PO is P labeled "O"
                     select case (atname(2:2))
-                        case ("e")
-                            atom%element = "Fe"
-                        case ("E")
-                            atom%element = "Fe"
                         case ("o")
                             atom%element = "Po"
+                        case ("O")
+                            atom%element = "Po"
+                        case ("t")
+                            atom%element = "Pt"
                         case ("T")
                             atom%element = "Pt"
                         case default
@@ -529,20 +562,29 @@ module molecular_structure
                     select case (atname(2:2))
                         case ("i")
                             atom%element = "Si"
+                            call alert_msg("warning","Si taken as silicon")
                         case ("I")
                             atom%element = "Si"
+                            call alert_msg("warning","SI taken as silicon")
                         case ("r")
                             atom%element = "Sr"
+                            call alert_msg("warning","Sr taken as strontium")
                         case ("R")
                             atom%element = "Sr"
+                            call alert_msg("warning","SR taken as strontium")
                         case ("n")
                             atom%element = "Sn"
+                            call alert_msg("warning","Sn taken as tin (Sn)")
                         case ("N")
                             atom%element = "Sn"
+                            call alert_msg("warning","SN taken as tin (Sn)")
                         case ("b")
                             atom%element = "Sb"
+                            call alert_msg("warning","Sb taken as antimony")
                         case default
                             atom%element = "S"
+                            if (adjustl(atom%element) /= adjustl(atom%name) ) &
+                             call alert_msg("note",trim(adjustl(atom%name))//" taken as sulfur")
                     end select
                     return
                !==========
@@ -609,6 +651,349 @@ module molecular_structure
 
     end subroutine atname2element
 
+    subroutine atname2element_light(molec)
+
+    ! Subroutine to generate element names from atom names
+
+        type(str_resmol_light),intent(inout) :: molec
+
+        !local
+        integer :: i
+        character(len=3) :: dummy_char
+
+        do i=1,molec%natoms
+            call get_element_from_name(molec%atom(i))
+
+            !Conflicting cases (for the moment not using additional info)
+            if (molec%atom(i)%element == "Nx") then
+                molec%atom(i)%element = "N"
+                write(dummy_char,'(I3)') i 
+                call alert_msg("note","NA atom name treated as nitrogen for atom "//dummy_char)
+            elseif (molec%atom(i)%element == "Cx") then
+                molec%atom(i)%element = "C"
+                write(dummy_char,'(I3)') i 
+                call alert_msg("note","CA atom name treated as carbon for atom "//dummy_char)
+            endif
+        enddo
+
+
+        return
+
+        contains
+
+        subroutine get_element_from_name(atom)
+
+            type(str_atom_light),intent(inout) :: atom
+
+            !local
+            character(len=5) :: atname
+
+            !1. Process atom name 
+            atname = atom%name
+            atname = adjustl(atname)
+
+            ! Sometimes, H atoms start with a number in PDB, GRO..
+            if (atname(1:1) == "1" .or. &
+                atname(1:1) == "2" .or. &
+                atname(1:1) == "3" .or. &
+                atname(1:1) == "4" .or. &
+                atname(1:1) == "5" .or. &
+                atname(1:1) == "6" .or. &
+                atname(1:1) == "7" .or. &
+                atname(1:1) == "8" .or. &
+                atname(1:1) == "9") then
+                if (atname(2:2) == "H" .or. &
+                    atname(2:2) == "h") then
+                    atom%element="H"
+                    return
+                else
+                    !Then we simply remove the number and go on
+                    atname(1:4) = atname(2:5)
+                    atname(5:5) = ""
+                endif
+            endif
+
+            !Set first letter to upper case
+            call set_upper_case(atname(1:1))
+
+            !First solve conflicts with one-letter elements
+            select case (atname(1:1))
+               !==========
+                case ("H")
+               !==========
+                !It can be H, He, Hf (not considered the lanthanide: Ho)
+                    ! We consider that:
+                    !  HE is hidrogen labeled as "E" (strange, though)
+                    !  He is helium
+                    !  HF is hidrogen labeled as "F" (strange, though)
+                    !  Hf is hafnium
+                    select case (atname(2:2))
+                        case ("e")
+                            atom%element = "He"
+                            call alert_msg("warning","He taken as helium")
+                        case ("f")
+                            atom%element = "Hf"
+                            call alert_msg("warning","He taken as hafnium")
+                        case default
+                            atom%element = "H"
+                            if (adjustl(atom%element) /= adjustl(atom%name) ) &
+                             call alert_msg("note",trim(adjustl(atom%name))//" taken as hydrogen")
+                    end select
+                    return
+               !==========
+                case ("B")
+               !==========
+                !It can be B, Be, Br, Ba
+                    select case (atname(2:2))
+                        case ("a")
+                            atom%element = "Ba"
+                        case ("A")
+                            atom%element = "Ba"
+                            call alert_msg("note","BA taken as barium")
+                        case ("e")
+                            atom%element = "Be"
+                        case ("E")
+                            atom%element = "Be"
+                            call alert_msg("note","BE taken as berium")
+                        case ("r")
+                            atom%element = "Br"
+                        case ("R")
+                            atom%element = "Br"
+                            call alert_msg("note","BR taken as bromine")
+                        case default
+                            atom%element = "B"
+                            if (adjustl(atom%element) /= adjustl(atom%name) ) &
+                             call alert_msg("warning",trim(adjustl(atom%name))//" taken as borium")
+                    end select
+                    return
+               !==========
+                case ("C")
+               !==========
+                    !C is a nightmare... It can be C Cl Cd Ca Cr Cs (not considered the lanthanide/actinides: Ce, Cm, Cf)
+                    ! We consider that:
+                    !  CD is carbon labeled as "D"
+                    !  Cd is Cadmium
+                    !  CL and Cl are chlorine (there is not usually an "L" label)
+                    !  CR and Cr are chromium (WARNING: chirality label?)
+                    !  CS and Cs are cesium (WARNING: chirality label?)
+                    !  CA is carbon labeled as "A" or or calcium: use more info later
+                    !  Ca is calcium
+                    select case (atname(2:2))
+                        case ("d")
+                            atom%element = "Cd"
+                            call alert_msg("warning","Cd taken as cadmium")
+                        case ("r")
+                            atom%element = "Cr"
+                            call alert_msg("warning","Cd taken as chromium")
+                        case ("R")
+                            atom%element = "Cr"
+                            call alert_msg("warning","CR taken as chromium")
+                        case ("s")
+                            atom%element = "Cs"
+                            call alert_msg("warning","Cs taken as cesium")
+                        case ("S")
+                            atom%element = "Cs"
+                            call alert_msg("warning","CS taken as cesium")
+                        case ("l")
+                            atom%element = "Cl"
+                            call alert_msg("warning","Cl taken as chlorine")
+                        case ("L")
+                            atom%element = "Cl"
+                            call alert_msg("warning","CL taken as chlorine")
+                        case ("a")
+                            atom%element = "Ca"
+                            call alert_msg("warning","Ca taken as calcium")
+                        case ("A")
+                            !This case can be either C"A" or Ca. Mark with x to check later
+                            atom%element = "C"
+                            call alert_msg("note","CA taken as carbone")
+                        case default
+                            atom%element = "C"
+                            if (adjustl(atom%element) /= adjustl(atom%name) ) &
+                             call alert_msg("note",trim(adjustl(atom%name))//" taken as carbone")
+                    end select
+                    return
+               !==========
+                case ("N")
+               !==========
+                !It can be N, Na, Ni, Nb (not considered the lanthanide/actinides: Nd, Np, No)
+                    ! We consider that:
+                    !  NB is carbon labeled as "B"
+                    !  Nb is niobium
+                    !  Ni and NI are nickel (there is not usually an "I" label)
+                    !  NA is nitrogen labeled as "A" or or sodium: use more info later
+                    !  Na is sodium
+                    select case (atname(2:2))
+                        case ("b")
+                            atom%element = "Nb"
+                        case ("i")
+                            atom%element = "Ni"
+                        case ("I")
+                            atom%element = "Ni"
+                        case ("a")
+                            atom%element = "Na"
+                        case ("A")
+                            !This case can be either C"A" or Ca. Mark with x to check later
+                            atom%element = "Nx"
+                        case default
+                            atom%element = "N"
+                    end select
+                    return
+               !==========
+                case ("O")
+               !==========
+                !It can be O, Os
+                    ! We consider that:
+                    !  OS is carbon labeled as "S" (strange, although Os is more strange)
+                    !  Os is osmium
+                    select case (atname(2:2))
+                        case ("s")
+                            atom%element = "Os"
+                        case default
+                            atom%element = "O"
+                    end select
+                    return
+               !==========
+                case ("F")
+               !==========
+                !It can be F, Fe
+                    ! We consider that:
+                    !  Fe and FE are iron
+                    select case (atname(2:2))
+                        case ("e")
+                            atom%element = "Fe"
+                            call alert_msg("warning","Fe taken as iron")
+                        case ("E")
+                            atom%element = "Fe"
+                            call alert_msg("warning","FE taken as iron")
+                        case default
+                            atom%element = "F"
+                            if (adjustl(atom%element) /= adjustl(atom%name) ) &
+                             call alert_msg("note",trim(adjustl(atom%name))//" taken as fluorine")
+                    end select
+                    return
+               !==========
+                case ("P")
+               !==========
+                !It can be P, Pb, Po
+                    ! We consider that:
+                    !  Pb and PB are lead
+                    !  Po is polonium
+                    !  PO is P labeled "O"
+                    select case (atname(2:2))
+                        case ("o")
+                            atom%element = "Po"
+                        case ("O")
+                            atom%element = "Po"
+                        case ("t")
+                            atom%element = "Pt"
+                        case ("T")
+                            atom%element = "Pt"
+                        case default
+                            atom%element = "P"
+                    end select
+                    return
+               !==========
+                case ("S")
+               !==========
+                !It can be S, Sr, Se, Sn, Si
+                    ! We consider that:
+                    !  Sb is antimonium 
+                    !  SB sulfur labeled as "B"
+                    select case (atname(2:2))
+                        case ("i")
+                            atom%element = "Si"
+                            call alert_msg("warning","Si taken as silicon")
+                        case ("I")
+                            atom%element = "Si"
+                            call alert_msg("warning","SI taken as silicon")
+                        case ("r")
+                            atom%element = "Sr"
+                            call alert_msg("warning","Sr taken as strontium")
+                        case ("R")
+                            atom%element = "Sr"
+                            call alert_msg("warning","SR taken as strontium")
+                        case ("n")
+                            atom%element = "Sn"
+                            call alert_msg("warning","Sn taken as tin (Sn)")
+                        case ("N")
+                            atom%element = "Sn"
+                            call alert_msg("warning","SN taken as tin (Sn)")
+                        case ("b")
+                            atom%element = "Sb"
+                            call alert_msg("warning","Sb taken as antimony")
+                        case default
+                            atom%element = "S"
+                            if (adjustl(atom%element) /= adjustl(atom%name) ) &
+                             call alert_msg("note",trim(adjustl(atom%name))//" taken as sulfur")
+                    end select
+                    return
+               !==========
+                case ("K")
+               !==========
+                !It can be K, Kr
+                    select case (atname(2:2))
+                        case ("r")
+                            atom%element = "Kr"
+                        case ("R")
+                            atom%element = "Kr"
+                        case default
+                            atom%element = "K"
+                    end select
+                    return
+               !==========
+                case ("V")
+               !==========
+                !It can only be V
+                    atom%element = "V"
+                    return
+               !==========
+                case ("W")
+               !==========
+                !It can only be W
+                    atom%element = "W"
+                    return
+               !==========
+                case ("Y")
+               !==========
+                !It can only be Y
+                    atom%element = "Y"
+                    return
+               !==========
+                case ("U")
+               !==========
+                !It can only be U
+                    atom%element = "U"
+                    return
+               !==========
+                case ("I")
+               !==========
+                !It can be I, Ir
+                    ! We consider that:
+                    !  Ir and IR are iridium
+                    select case (atname(2:2))
+                        case ("r")
+                            atom%element = "Ir"
+                        case ("R")
+                            atom%element = "Ir"
+                        case default
+                            atom%element = "I"
+                    end select
+                    return
+            end select
+
+            !Once one-letter conflicts are solved, the rest are trivial
+            call set_lower_case(atname(2:2))
+            atom%element = atname(1:2)
+
+            return
+
+        end subroutine get_element_from_name
+
+    end subroutine atname2element_light
+
+
+
 !======================================
 
     subroutine element2AtNum(molec)
@@ -644,7 +1029,7 @@ module molecular_structure
 
         do i=1,molec%natoms
             do iel=1,103
-                if (adjustl(molec%atom(i)%name) == &
+                if (adjustl(molec%atom(i)%element) == &
                     adjustl(atom_names_from_atnum(iel))) then
                     molec%atom(i)%AtNum = iel
                     exit
@@ -685,6 +1070,75 @@ module molecular_structure
         return
 
     end subroutine get_cog
+
+!%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+    subroutine get_com(molec)
+
+        !--------------------------------------------------------------------------
+        ! Compute the center of mass and store it in molec%com
+        !--------------------------------------------------------------------------
+        
+        type(str_resmol),intent(inout)::molec
+
+        !Local
+        integer :: i
+#ifdef DOUBLE
+        real(8) :: Mass
+#else
+        real :: Mass
+#endif
+        
+
+        molec%comX = 0.d0
+        molec%comY = 0.d0
+        molec%comZ = 0.d0
+        Mass       = 0.d0
+        do i=1,molec%natoms
+            molec%comX = molec%comX + molec%atom(i)%x*molec%atom(i)%mass
+            molec%comY = molec%comY + molec%atom(i)%y*molec%atom(i)%mass
+            molec%comZ = molec%comZ + molec%atom(i)%z*molec%atom(i)%mass
+            Mass = Mass + molec%atom(i)%mass
+        enddo
+        molec%comX = molec%comX/Mass
+        molec%comY = molec%comY/Mass
+        molec%comZ = molec%comZ/Mass
+
+        return
+
+    end subroutine get_com
+
+!%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+    subroutine inertia(molec,IM)
+
+        type(str_resmol),intent(in) :: molec
+        double precision,dimension(1:3,1:3),intent(out) :: IM 
+
+        !Counters
+        integer :: i, j
+
+
+        !Moment of inertia
+        IM=0.d0
+        do i=1,molec%natoms
+            IM(1,1)=IM(1,1)+molec%atom(i)%mass*(molec%atom(i)%y**2+molec%atom(i)%z**2)
+            IM(2,2)=IM(2,2)+molec%atom(i)%mass*(molec%atom(i)%x**2+molec%atom(i)%z**2)
+            IM(3,3)=IM(3,3)+molec%atom(i)%mass*(molec%atom(i)%x**2+molec%atom(i)%y**2)
+
+            IM(2,1)=IM(2,1)-molec%atom(i)%mass*(molec%atom(i)%y*molec%atom(i)%x)
+            IM(3,1)=IM(3,1)-molec%atom(i)%mass*(molec%atom(i)%z*molec%atom(i)%x)
+            IM(3,2)=IM(3,2)-molec%atom(i)%mass*(molec%atom(i)%z*molec%atom(i)%y)
+       enddo
+       do i=1,3
+          do j=1,i-1
+              IM(j,i) = IM(i,j)
+          enddo
+        enddo
+
+        return
+
+    end subroutine inertia
 
 !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 

@@ -83,6 +83,7 @@ prj_nm_internal_SOURCES = ../modules/alerts.f90\
                       ../modules/symmetry_mod_v4.f90\
                       ../modules/internal_SR8_v4.0.2.f90\
                       ../modules/zmat_manage_v4.f90\
+                      ../modules/psi4_manage.f90\
                       project_normal_modes_internal.f90
 prj_nm_internal_LDFLAGS = @LIBS@
 prj_nm_internal_FCFLAGS = -cpp -DDOUBLE -DUSE_LAPACK

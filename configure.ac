@@ -82,5 +82,9 @@ AC_CONFIG_FILES([Makefile
                  src/wf_analysis/Makefile
                  src/gen_oniom/Makefile
                  src/internal_duschisky/Makefile
+                 src/ad_hoc_utilities/Makefile
+                 src/fcclasses_tools/Makefile
+                 src/fcclasses_tools_dev/Makefile
+                 src/cube_tools/Makefile
 ])        
 AC_OUTPUT                                  

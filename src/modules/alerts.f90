@@ -14,16 +14,16 @@ module alerts
     !  2012/06/22  Messages output to stderr
     !-----------------------------------------------------
 
+    integer, save :: n_notes=0,&
+                     n_errors=0
+
     contains
 
     subroutine alert_msg(attype,SENTENCE)
 
         implicit none
 
-        common /ALERT_COUNT/ n_notes, n_errors
-
         character(len=*),intent(in):: attype, SENTENCE
-        integer :: n_notes, n_errors
 
         select case (adjustl(attype))
             case ("note")

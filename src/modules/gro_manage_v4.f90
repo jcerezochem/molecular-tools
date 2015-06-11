@@ -631,9 +631,9 @@ module gro_manage
                 write(22,*) residue(i)%atom(ii)%attype//" "//residue(i)%atom(jj)%attype//" "//residue(i)%atom(kk)%attype//&
                             " ",ift, a, b 
             else if (adjustl(section) == "dihedrals") then
-                read(line,*) ii, jj, kk, ll, ift, a, b, c, d, e, f
+                read(line,*) ii, jj, kk, ll, ift!, a, b, c, d, e, f
                 write(23,*) residue(i)%atom(ii)%attype//" "//residue(i)%atom(jj)%attype//" "//residue(i)%atom(kk)%attype//&
-                            " "//residue(i)%atom(ll)%attype//"",ift, a, b, c, d, e, f 
+                            " "//residue(i)%atom(ll)%attype//"",ift!, a, b, c, d, e, f 
             else if (adjustl(section) == "molecules") then
                 read(line,*) molmap(nmol+1), imol
                 do j=nmol+2,nmol+imol

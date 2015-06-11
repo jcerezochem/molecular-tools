@@ -10,6 +10,7 @@ check_diag_SOURCES =  ../modules/alerts.f90\
                       ../modules/molecular_structure.f90\
                       ../modules/gro_manage_v4.f90\
                       ../modules/gaussian_fchk_manage_v4.f90\
+                      ../modules/gaussian_manage_lowlevel.f90\
                       ../modules/molcas_unsym_manage_v4.f90\
                       ../modules/psi4_manage.f90\
                       ../modules/gamess_manage.f90\

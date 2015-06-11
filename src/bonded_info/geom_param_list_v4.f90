@@ -60,9 +60,6 @@ program geom_param_list
     endif
 
     call generic_strfile_read(IGeom,filetype,molecule)
-         
-
-    call write_gro(99,molecule)
     close(IGeom)
 
     !Read input list

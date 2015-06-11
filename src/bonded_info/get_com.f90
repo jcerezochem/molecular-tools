@@ -82,15 +82,20 @@ program get_centers_mg
     close(I_INP)
     !Option to specify the resname from command line
     if (adjustl(resname) /= "read") molec%atom(:)%resname=resname
+    !Get massses
+    call atname2element(molec)
+    call assign_masses(molec)
 
     ! 2. MAKE THE THING
     ! ------------------------------
     call get_cog(molec)
+    call get_com(molec)
 
     print*, "CENTER OF GEOMETRY"
     print*, molec%cogX, molec%cogY, molec%cogZ
     print*, "-"
-    print*, "CENTER OF MASS (to be implemented)"
+    print*, "CENTER OF MASS"
+    print*, molec%comX, molec%comY, molec%comZ
 
     stop
 

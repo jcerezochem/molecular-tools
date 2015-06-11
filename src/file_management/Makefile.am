@@ -13,6 +13,8 @@ fchk2gro_SOURCES = ../modules/alerts.f90\
                       ../modules/xyz_manage_v4.f90\
                       ../modules/molden_manage.f90\
                       ../modules/molcas_unsym_manage_v4.f90\
+                      ../modules/psi4_manage.f90\
+                      ../modules/gamess_manage.f90\
                       ../modules/molecular_structure.f90\
                       ../modules/ff_build_module_v4.f90\
                       fchk2gro_v4.1.f90

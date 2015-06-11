@@ -148,7 +148,7 @@ module structure_types
         type(str_atom),dimension(1:MAX_ATM_RES)::atom
         integer::frst_atom,lst_atom
         !If connected to other residues
-        integer,dimension(1:MAX_CONNEXIONS) :: connect
+!         integer,dimension(1:MAX_CONNEXIONS) :: connect
         integer::nbonds
         !If it contains several residues
         integer:: nres
