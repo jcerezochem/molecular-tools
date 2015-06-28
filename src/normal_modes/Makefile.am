@@ -40,6 +40,7 @@ nm_cartesian_SOURCES =../modules/alerts.f90\
                       ../modules/gaussian_manage_v4.f90\
                       ../modules/gaussian_manage_vNoTypes.f90\
                       ../modules/gaussian_fchk_manage_v4.f90\
+                      ../modules/fcc_manage.f90\
                       ../modules/xyz_manage_v4.f90\
                       ../modules/molecular_structure.f90\
                       ../modules/ff_build_module_v4.f90\

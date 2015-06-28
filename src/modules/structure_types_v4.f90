@@ -52,9 +52,10 @@ module structure_types
     ! (14/02/14) TESTING: new str_type: str_internal to store internal coordinates
     ! (27/02/14) Added str_job and included molec%job and molec%props(allocatable)
     ! (20/06/14) Version3.2 (in internal project): add impropers to geom
+    !            Version4: as 4 but with added str_atom_light
     !---------------------------------------------------------
 
-    !SIZES (defaults)
+    !SIZES
     integer,parameter:: MAX_ATOMS = 100000, &
                         MAX_ATM_RES = 400,  &
                         MAX_CONNEXIONS = 6, &
@@ -87,7 +88,7 @@ module structure_types
         !Normal mode analysis
         double precision,dimension(1:1000) :: freq,grad
         double precision,dimension(1:1000,1:1000) :: L
-        double precision,dimension(1:1000000) :: H
+        double precision,dimension(1:100000) :: H
 #else
         !Electronic properties (GS and TD)
         real,dimension(1:3) :: dip, trans_dip
@@ -97,7 +98,7 @@ module structure_types
         !Normal mode analysis
         real,dimension(1:1000) :: freq,grad
         real,dimension(1:1000,1:1000) :: L
-        real,dimension(1:1000000) :: H
+        real,dimension(1:100000) :: H
 #endif
     end type str_molprops
 
@@ -105,8 +106,8 @@ module structure_types
     type str_job
 !--------------------------
         character(len=100) :: title=""
-        character(len=10)  :: type="XX"
-        character(len=60)  :: method=""
+        character(len=20)  :: type="XX"
+        character(len=20)  :: method=""
         character(len=20)  :: basis=""
     end type str_job
 
@@ -139,6 +140,29 @@ module structure_types
     end type str_atom
 
 !===========================
+    type str_atom_light
+!===========================
+        character(len=6)::attype="ATOM  "
+        character::fftype*6
+        character::name*5
+        character::resname*5="UNK"
+        character(len=1)::chain=" ",alter_loc=" ", ins_code=" "
+        character(len=2) :: element=""
+        integer  ::resseq=1, AtNum
+#ifdef DOUBLE
+        !-------------------------------------------------------------
+        double precision:: x, y, z
+        !-------------------------------------------------------------
+        double precision:: mass, q
+#else
+        !-------------------------------------------------------------
+        real:: x, y, z 
+        !-------------------------------------------------------------
+        real:: mass, q
+#endif
+    end type str_atom_light
+
+!===========================
     type str_resmol
 !===========================
         ! This type can represent:
@@ -150,7 +174,7 @@ module structure_types
         type(str_atom),dimension(1:MAX_ATM_RES)::atom
         integer::frst_atom,lst_atom
         !If connected to other residues
-        integer,dimension(1:MAX_CONNEXIONS) :: connect
+!         integer,dimension(1:MAX_CONNEXIONS) :: connect
         integer::nbonds
         !If it contains several residues
         integer:: nres
@@ -188,6 +212,57 @@ module structure_types
 !       using an array of resmol types
 
     end type str_resmol
+
+!===========================
+    type str_resmol_light
+!===========================
+        ! This type can represent:
+        ! * A residue (within a multiple residue system)
+        ! * A molecule that can contain residues
+        character::PG*5="XX" !Default for unknown
+        character::name*5="UNK"
+        integer::natoms
+        type(str_atom_light),dimension(1:MAX_ATM_RES)::atom
+        integer::frst_atom,lst_atom
+        !If connected to other residues
+!         integer,dimension(1:MAX_CONNEXIONS) :: connect
+        integer::nbonds
+        !If it contains several residues
+        integer:: nres
+        !Other info that can be read from structure files
+        character(len=100) :: title=""
+#ifdef DOUBLE
+        double precision::boxX,boxY,boxZ
+#else
+        real::boxX,boxY,boxZ
+#endif
+!         !Include job info (allocatable, so it need to be "activated" before use)
+!         type(str_molprops),allocatable :: props
+        !Include job info (should be allocatable?) 
+        type(str_job) :: job
+        !Include bonded info (useful for force field management) (should be allocatable?)
+        type(str_bonded) :: geom
+        !Including com and cog (c. of geometry)
+#ifdef DOUBLE
+        double precision::cogX,cogY,cogZ, &
+                          comX,comY,comZ
+#else
+        real::cogX,cogY,cogZ, & 
+              comX,comY,comZ
+#endif
+!===================================
+        !Make it recursive
+!         type(str_resmol),dimension(:),allocatable :: residue
+!.........................................................................
+!       ERROR: gfortran complaints with:
+!               type(str_resmol),dimension(:),allocatable :: residue
+!                                                                   1
+!               Error: El componente en (1) debe tener el atributo POINTER
+!.........................................................................
+!       This feature is not vital, though. The same behaviour is obtained 
+!       using an array of resmol types
+
+    end type str_resmol_light
 
 
 !   NEW INTERNAL STRUCTURE TYPE

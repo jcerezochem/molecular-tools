@@ -1,10 +1,26 @@
+# Compilation subproducts
 *.[oa]
 *~
 *.exe
-*.log
 *.aux
 *.mod
+
+# ac/am things
+config.status
+config.log
+missing
+install-sh
+Makefile
+Makefile.in
+configure
+depcomp
+.dirstamp
+
+# m4 things
 autom4te.cache
+aclocal.m4
+
+# binaries
 src/bonded_info/calcRMS_bonded
 src/bonded_info/geom_param_list
 src/bonded_info/get_com
@@ -29,12 +45,21 @@ src/ad_hoc_utilities/*
 src/gen_oniom/gen_oniom
 src/wf_analysis/contribMO
 src/wf_analysis/get_NTO_coef
+src/joyce_tools/jpp
+src/internal_duschisky/zmat2modredundant
+src/cube_tools/density_3D
+src/cube_tools/charges_potential
+
+# output from test calcs
 *output.?
 *m4
+
+# The tar files are not in the repo
 *gz
-*swp
+
+# Other aux files that do not go
 tmp
-src/fcclasses_tools/*
-*status
-*missing
-*install-sh
+
+# fcclasses_tools (and _dev) is not tracked
+src/fcclasses_tools*
+

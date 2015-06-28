@@ -1,6 +1,6 @@
 AUTOMAKE_OPTIONS = subdir-objects
 
-bin_PROGRAMS = calcRMS_bonded geom_param_list get_com calcRMS_bonded_NMT
+bin_PROGRAMS = calcRMS_bonded geom_param_list get_com
 
 calcRMS_bonded_SOURCES = ../modules/alerts.f90\
                       ../modules/line_preprocess.f90\
@@ -18,17 +18,6 @@ calcRMS_bonded_SOURCES = ../modules/alerts.f90\
                       calcRMS_bonded_v4.f90
 calcRMS_bonded_LDFLAGS = @LIBS@
 calcRMS_bonded_FCFLAGS = -cpp -DDOUBLE
-
-calcRMS_bonded_NMT_SOURCES = ../modules/alerts.f90\
-                      ../modules/line_preprocess.f90\
-                      ../modules/constants_mod.f90\
-                      ../modules/MatrixMod.f90\
-                      ../modules/NMT_metrics.f90\
-                      ../modules/NMT_bonded_info.f90\
-                      ../modules/NMT_gro_manage.f90\
-                      calcRMS_bonded_NMT.f90
-calcRMS_bonded_NMT_LDFLAGS = @LIBS@
-calcRMS_bonded_NMT_FCFLAGS = -cpp -DDOUBLE
 
 
 geom_param_list_SOURCES = ../modules/alerts.f90\

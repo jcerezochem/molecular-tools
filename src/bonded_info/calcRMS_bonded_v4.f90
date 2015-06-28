@@ -34,13 +34,7 @@ program calcRMS_bonded
 
     implicit none
 
-    common /ALERT_COUNT/ n_notes, n_errors
     common /GLOBAL_OPTS/ do_refine_charges, I_DB, rename_atoms
-
-    !====================== 
-    !Number of error/notes
-    integer :: n_notes=0, n_errors=0
-    !====================== 
 
     !====================== 
     !Options 
