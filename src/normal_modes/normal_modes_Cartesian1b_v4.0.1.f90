@@ -39,6 +39,7 @@ program normal_modes_Cartesian
     use gaussian_manage_notypes
     use gaussian_fchk_manage
     use xyz_manage
+    use fcc_manage
 !   Structural parameters
     use molecular_structure
     use ff_build
@@ -58,6 +59,7 @@ program normal_modes_Cartesian
     !Auxiliars
     character(1) :: null
     character(len=50) :: dummy_char
+    real(8) :: Tmwc_ij
     ! Reading FCHK part
     character(len=100) :: section
     integer :: N, N_T
@@ -79,13 +81,14 @@ program normal_modes_Cartesian
     !I/O
     integer :: I_INP=10,  &
                O_GRO=20,  &
-               O_G09=21,  &
+               O_G09=21,  & 
                O_Q  =22,  &
                O_NUM=23,  &
                O_LIS=24,  &
                S_VMD=30
     !files
-    character(len=10) :: filetype="guess"
+    character(len=20) :: filetype="guess"
+    character(len=20) :: addfile=""
     character(len=200):: inpfile ="input.fchk"
     character(len=100),dimension(1:1000) :: grofile
     character(len=100) :: nmfile='none', g09file,qfile,numfile,tmpfile
@@ -103,7 +106,7 @@ program normal_modes_Cartesian
 
     !Get options from command line
     nm(1) = 0
-    call parse_input(inpfile,nmfile,nm,Nsel,Amplitude,filetype,verbose,call_vmd,movie_cycles)
+    call parse_input(inpfile,addfile,nmfile,nm,Nsel,Amplitude,filetype,verbose,call_vmd,movie_cycles)
 
 
     ! 1. CARTESIAN VIBRATIONAL ANALYSIS -- done by G09 (just read it) 
@@ -117,10 +120,9 @@ program normal_modes_Cartesian
     call generic_strfile_read(I_INP,filetype,molec)
     !Shortcuts
     Nat = molec%natoms
-    !Cution if linear...
+    !Caution if linear...
     Nvib = 3*Nat-6
 
-    !Read the Hessian: only two possibilities supported
     if (adjustl(filetype) == "log") then
         !Gaussian logfile (directly read vibronic analysis by Gaussian)
         N = 3*Nat * Nvib
@@ -154,7 +156,50 @@ program normal_modes_Cartesian
 !                 Hess(j,i) = Hess(i,j)
 !             enddo
 !         enddo
-!         deallocate(props)
+!         deallocate(props)zz
+    !Read the Hessian: only two possibilities supported
+    else if (adjustl(filetype) == "fcc") then
+        !Need to read also the input file
+        if (len_trim(addfile) == 0) then
+            print*, "Need to set the fcc input file with the hidded -add flag"
+            stop
+        endif
+        !-------- read input ------------
+        open(I_ADD,file=addfile)
+        read(I_ADD,*) molec%natoms
+        read(I_ADD,*) Nvib
+        do i=1,molec%natoms
+            read(I_ADD,*) molec%atom(i)%mass
+        enddo
+        close(I_ADD)
+        N = 3*Nat * Nvib
+        allocate( A(1:N) )
+        !----------------------------------
+        call read_fccstate_freq(I_INP,Nvib,Nat,Freq(1:Nvib),A(1:N))
+        ! Reconstruct Lcart (non-symmetric) [in T]
+        l=0
+        do k=1,3*molec%natoms
+            do j=1,Nvib
+                l=l+1
+                T(j,k) = A(l)
+            enddo
+        enddo
+        deallocate(A)
+        !Compute reduced masses
+        do k=1,Nvib
+            kk=0
+            RedMass(k)=0.d0
+            do i=1,Nat
+            do j=1,3
+                kk=kk+1
+                Tmwc_ij=T(k,kk)*dsqrt(molec%atom(i)%mass)
+                RedMass(k)=RedMass(k)+Tmwc_ij**2
+            enddo
+            enddo
+        enddo
+        !Reduced masses (to account for the normalization factor in Tcart)
+        RedMass(1:Nvib) = RedMass(1:Nvib)*UMAtoAU
+
     else if (adjustl(filetype) == "fchk") then
         !FCHK file: READ VIB ANALYSIS
         ! L_cart matrix
@@ -175,7 +220,7 @@ program normal_modes_Cartesian
             deallocate(A)
         else
             print*, "You likely missed 'SaveNM' keyword"
-            print*, "Run 'frechk -save' utility and come back"
+            print*, "Run 'freqchk -save' utility and come back"
             stop
         endif
 
@@ -189,12 +234,11 @@ program normal_modes_Cartesian
             deallocate(A)
         else
             print*, "You likely missed 'SaveNM' keyword"
-            print*, "Run 'frechk -save' utility and come back"
+            print*, "Run 'freqchk -save' utility and come back"
             stop
         endif
         close(I_INP)
     endif
-
 
     !Transoform "Gaussian normalized" L'cart to "real" Lcart
     !   Lcart = L'cart/sqrt(mu)
@@ -479,13 +523,13 @@ program normal_modes_Cartesian
     contains
     !=============================================
 
-    subroutine parse_input(inpfile,nmfile,nm,Nsel,Amplitude,filetype,verbose,call_vmd,movie_cycles)
+    subroutine parse_input(inpfile,addfile,nmfile,nm,Nsel,Amplitude,filetype,verbose,call_vmd,movie_cycles)
     !==================================================
     ! My input parser (gromacs style)
     !==================================================
         implicit none
 
-        character(len=*),intent(inout) :: inpfile,nmfile,filetype
+        character(len=*),intent(inout) :: inpfile,addfile,nmfile,filetype
         logical,intent(inout) ::  verbose, call_vmd
         integer,dimension(:),intent(inout) :: nm
         integer,intent(inout) :: Nsel, movie_cycles
@@ -512,6 +556,9 @@ program normal_modes_Cartesian
                     argument_retrieved=.true.
                 case ("-ft") 
                     call getarg(i+1, filetype)
+                    argument_retrieved=.true.
+                case ("-add") 
+                    call getarg(i+1, addfile)
                     argument_retrieved=.true.
 
                 case ("-nm") 
@@ -628,6 +675,10 @@ program normal_modes_Cartesian
              call read_gro(I_INP,molec)
              call atname2element(molec)
              call assign_masses(molec)
+            case("fcc")
+             molec%natoms = -1
+             call read_fccstate_atoms(I_INP,molec)
+             molec%atom(1:molec%natoms)%name="X"
             case("pdb")
              call read_pdb_new(I_INP,molec)
              call atname2element(molec)
