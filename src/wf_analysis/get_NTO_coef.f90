@@ -29,6 +29,7 @@ program get_NTO_coef
     integer :: I_FCHK=10
 
     real(8),dimension(1000) :: C_NTO
+    real(8)                 :: Ctot_NTO
     integer :: i
 
     call getarg(1, fileinp)
@@ -43,10 +44,12 @@ program get_NTO_coef
     if (N/=0) then
         print*, "Alpha"
         call sort_vec_max(C_NTO,N)
+        Ctot_NTO = 0.d0
         do i=1,N,2
-            if (C_NTO(i) < 0.1d0) exit
-            print*,  C_NTO(i)
+            if (C_NTO(i) >= 0.1d0) print'(F15.4)',  C_NTO(i)
+            Ctot_NTO = Ctot_NTO + C_NTO(i)
         enddo
+        print'(A, F15.4)', "Tot  ", Ctot_NTO
 
     endif
 
@@ -59,10 +62,12 @@ program get_NTO_coef
     if (N/=0) then
         print*, "Beta"
         call sort_vec_max(C_NTO,N)
+        Ctot_NTO = 0.d0
         do i=1,N,2
-            if (C_NTO(i) < 0.1d0) exit
-            print*,  C_NTO(i)
+            if (C_NTO(i) >= 0.1d0) print'(F15.4)',  C_NTO(i)
+            Ctot_NTO = Ctot_NTO + C_NTO(i)
         enddo
+        print'(A, F15.4)', "Tot  ", Ctot_NTO
 
     endif
     
