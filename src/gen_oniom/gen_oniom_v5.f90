@@ -28,6 +28,7 @@ program gen_oniom
     !     Add plain option, to get a "plain" input file (not oniom)
     ! Version 5
     !  Use light types
+    !==============================================================
 
     use structure_types
     use line_preprocess
@@ -62,7 +63,8 @@ program gen_oniom
     integer :: nelements
     character(len=1) :: null
     character(len=4) :: atname
-    character(len=16) :: dummy_char
+    character(len=20) :: dummy_char
+    character(len=50) :: connectivity
     integer :: dummy_int
     logical :: is_done
     !====================== 
@@ -78,12 +80,14 @@ program gen_oniom
     integer :: I_INP=10,  &
                I_TOP=11,  &
                I_NDX=12,  &
+               I_FRZ=13,  &
                O_GJF=20
     !files
     character(len=10) :: filetype="guess"
     character(len=200):: inpfile="input.gro",  &
                          topfile="topol.top",  &
                          ndxfile="none",       &
+                         frzfile="none",       &
                          outgau="out.com" 
     !reading
     character(len=20000) :: ndxrecord    
@@ -106,10 +110,11 @@ program gen_oniom
     I_INP=10
     I_TOP=11
     I_NDX=12
+    I_FRZ=13
     O_GJF=20
 
     ! 0. GET COMMAND LINE ARGUMENTS AND OPEN FILES
-    call parse_input(inpfile,filetype,topfile,ndxfile,resname,jobspec,outgau,nproc,&
+    call parse_input(inpfile,filetype,topfile,ndxfile,frzfile,resname,jobspec,outgau,nproc,&
                      mm_file,chrgspin_h,chrgspin_l,pointcharges,plain,verbose)
     !Check conflicts
     if (plain .and. pointcharges) then
@@ -160,17 +165,18 @@ program gen_oniom
                     residue(i)%atom(j)%resseq=ires
                     residue(i)%atom(j)%element=molec%atom(k)%element
                     !Get atom (need to be explicit, since in molec is light)
-                    molec%atom(k)%x      = residue(i)%atom(j)%x      
-                    molec%atom(k)%y      = residue(i)%atom(j)%y      
-                    molec%atom(k)%z      = residue(i)%atom(j)%z      
-                    molec%atom(k)%attype = residue(i)%atom(j)%attype 
-                    molec%atom(k)%fftype = residue(i)%atom(j)%fftype 
-                    molec%atom(k)%name   = residue(i)%atom(j)%name   
-                    molec%atom(k)%chain  = residue(i)%atom(j)%chain  
-                    molec%atom(k)%element= residue(i)%atom(j)%element
-                    molec%atom(k)%AtNum  = residue(i)%atom(j)%AtNum  
-                    molec%atom(k)%mass   = residue(i)%atom(j)%mass   
-                    molec%atom(k)%q      = residue(i)%atom(j)%q      
+                    molec%atom(k)%x        = residue(i)%atom(j)%x      
+                    molec%atom(k)%y        = residue(i)%atom(j)%y      
+                    molec%atom(k)%z        = residue(i)%atom(j)%z      
+                    molec%atom(k)%attype   = residue(i)%atom(j)%attype 
+                    molec%atom(k)%fftype   = residue(i)%atom(j)%fftype 
+                    molec%atom(k)%name     = residue(i)%atom(j)%name   
+                    molec%atom(k)%chain    = residue(i)%atom(j)%chain  
+                    molec%atom(k)%ins_code = residue(i)%atom(j)%ins_code
+                    molec%atom(k)%element  = residue(i)%atom(j)%element
+                    molec%atom(k)%AtNum    = residue(i)%atom(j)%AtNum  
+                    molec%atom(k)%mass     = residue(i)%atom(j)%mass   
+                    molec%atom(k)%q        = residue(i)%atom(j)%q      
                 enddo
             enddo
             enddo
@@ -186,6 +192,7 @@ program gen_oniom
             else
                 molec%atom(i)%chain="L"
             endif
+            molec%atom(i)%ins_code = "0"
         enddo
         !Use ndxfile
         if (adjustl(ndxfile) /= "none") then
@@ -203,6 +210,7 @@ program gen_oniom
                 if (line(1:1) == '[') exit
                 ndxrecord=trim(adjustl(ndxrecord))//" "//trim(adjustl(line))
             enddo
+            close(I_NDX)
             if ( trim(adjustl(ndxrecord)) /= "" ) then
                 call read_list_int(ndxrecord,nelements,molmap)
 !             !Set the ndx-selected atoms and corresponing molec to H (ensures whole residues, even if they are not in the ndx!)
@@ -233,6 +241,37 @@ program gen_oniom
             endif
 !             call sort_vec_int(selres,nelements) !it is already ordered in ndx file
         endif
+    endif
+    !Use freezing ndxfile
+    if (adjustl(frzfile) /= "none") then
+        write(0,'(/,X,A,/)') "Using freeze groups"
+        ndxrecord=""
+        open(I_FRZ,file=frzfile,status="old",iostat=IOstatus)
+        if (IOstatus /= 0) call alert_msg("fatal","Unable to open "//trim(adjustl(frzfile)))
+        !Read file
+        read(I_FRZ,'(A)') line
+        line=adjustl(line)
+        if (line(1:1) /= '[') call alert_msg("warning","Unexpected begining of ndx file")
+        do 
+            read(I_FRZ,'(A)',iostat=IOstatus) line
+            if (IOstatus /= 0) exit
+            line=adjustl(line)
+            if (line(1:1) == '[') exit
+            ndxrecord=trim(adjustl(ndxrecord))//" "//trim(adjustl(line))
+        enddo
+        close(I_FRZ)
+        if ( trim(adjustl(ndxrecord)) /= "" ) then
+            call read_list_int(ndxrecord,nelements,molmap)
+            !Set the ndx-selected atoms and corresponing molec to H (assuming whole residues in ndx (more efficient...)
+            imap=0
+            do i=1,nelements
+                j=molmap(i)
+                if (verbose) print'(A,I5,A)', "Adding atom ",j," to the freeze group"
+                molec%atom(j)%ins_code='1'
+            enddo
+        endif
+    else
+        molec%atom(1:molec%natoms)%ins_code = ""
     endif
         
     ! 3. WRITE OUT FILE (gaussian)
@@ -265,7 +304,7 @@ program gen_oniom
                 write(dummy_char,'(F8.4)') molec%atom(i)%q
                 dummy_char = adjustl(trim(molec%atom(i)%name))//"-"//&
                              adjustl(trim(molec%atom(i)%attype))//"-"//&
-                             adjustl(trim(dummy_char))
+                             adjustl(trim(dummy_char))//"  "//molec%atom(i)%ins_code
                 write(O_GJF,100) dummy_char, molec%atom(i)%x,molec%atom(i)%y,molec%atom(i)%z,molec%atom(i)%chain
             endif
         endif
@@ -312,7 +351,7 @@ program gen_oniom
     contains
     !=============================================
 
-    subroutine parse_input(inpfile,filetype,topfile,ndxfile,resname,jobspec,outfile,nproc,&
+    subroutine parse_input(inpfile,filetype,topfile,ndxfile,frzfile,resname,jobspec,outfile,nproc,&
                            mm_file,chrgspin_h,chrgspin_l,pointcharges,plain,verbose)
     !==================================================
     ! My input parser (gromacs style)
@@ -321,7 +360,7 @@ program gen_oniom
 
         common /GLOBAL_OPTS/ do_refine_charges
 
-        character(len=*),intent(inout) :: inpfile,topfile,filetype,ndxfile,outfile,&
+        character(len=*),intent(inout) :: inpfile,topfile,filetype,ndxfile,frzfile,outfile,&
                                           resname,jobspec,nproc,mm_file,chrgspin_h,&
                                           chrgspin_l
         logical,intent(inout) :: verbose, pointcharges, plain
@@ -357,6 +396,10 @@ program gen_oniom
 
                 case ("-n") 
                     call getarg(i+1, ndxfile)
+                    argument_retrieved=.true.
+
+                case ("-frz") 
+                    call getarg(i+1, frzfile)
                     argument_retrieved=.true.
 
                 case ("-job") 
@@ -410,6 +453,7 @@ program gen_oniom
         write(0,*) '-ft             ', trim(adjustl(filetype))
         write(0,*) '-p              ', trim(adjustl(topfile))
         write(0,*) '-n              ', trim(adjustl(ndxfile))
+        write(0,*) '-frz            ', trim(adjustl(frzfile))
         write(0,*) '-o              ', trim(adjustl(outfile))
         write(0,*) '-job            ', trim(adjustl(jobspec))
         write(0,*) '-res            ', trim(adjustl(resname))
@@ -425,6 +469,7 @@ program gen_oniom
 
         return
     end subroutine parse_input
+
 
     subroutine generic_strfile_read(unt,filetype,molec)
 
