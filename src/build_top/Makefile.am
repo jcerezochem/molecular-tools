@@ -17,7 +17,6 @@ build_top_SOURCES = ../modules/alerts.f90\
                       ../modules/atomic_geom_v2.f90\
                       build_top_v4.f90
 build_top_LDFLAGS = @LIBS@
-build_top_FCFLAGS = -cpp -DDOUBLE
 
 CLEANFILES =*.mod 
 

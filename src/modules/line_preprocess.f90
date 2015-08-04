@@ -294,4 +294,77 @@ module line_preprocess
     end subroutine string2vector_char
 
 
+    ! Functions that get character from numbers
+
+    function int20char(i,length) result(c)
+
+        integer,intent(in)    :: i
+        integer,intent(in)    :: length
+        character(len=length) :: c
+        ! Local
+        character(len=10) :: fmt
+        integer           :: ilength, j
+        character(len=10) :: dummy_char
+
+        !If length<number of digits, rise an error
+        ilength = int(log10(float(i)))+1
+        if (ilength>length) then
+            write(0,*) "Error in int20char: more digits in number than character size"
+            stop
+        endif
+        ! otherwise fill head with zeroes
+        dummy_char = ""
+        do j=1,length-ilength
+            dummy_char = trim(dummy_char)//"0"
+        enddo
+
+        ! Write format
+        write(fmt,'(a,i0,a)') '(A,I',ilength,')'
+        write(c,fmt) trim(dummy_char), i
+
+        return
+
+    end function int20char
+
+    function int2char(i,length) result(c)
+
+        integer,intent(in)    :: i
+        integer,intent(in)    :: length
+        character(len=length) :: c
+        ! Local
+        character(len=10) :: fmt
+        integer           :: ilength
+
+        !If length<number of digits, rise an error
+        ilength = int(log10(float(i)))+1
+        if (ilength>length) then
+            write(0,*) "Error in int2char: more digits in number than character size"
+            stop
+        endif
+
+        ! Write format 
+        write(fmt,'(a,i0,a)') '(I',length,')'
+        write(c,fmt) i
+
+        return
+
+    end function int2char
+
+    function real2char(r,length,decimals) result(c)
+
+        real(8),intent(in)    :: r
+        integer,intent(in)    :: length, decimals
+        character(len=length) :: c
+        ! Local
+        character(len=10) :: fmt
+
+        ! Write format 
+        write(fmt,'(a,i0,a,i0,a)') '(F',length,'.',decimals,')'
+        write(c,fmt) r
+
+        return
+
+    end function real2char
+
+
 end module line_preprocess

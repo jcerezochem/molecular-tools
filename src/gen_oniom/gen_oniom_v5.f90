@@ -64,7 +64,6 @@ program gen_oniom
     character(len=1) :: null
     character(len=4) :: atname
     character(len=20) :: dummy_char
-    character(len=50) :: connectivity
     integer :: dummy_int
     logical :: is_done
     !====================== 

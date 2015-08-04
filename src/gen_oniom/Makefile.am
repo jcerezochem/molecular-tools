@@ -15,7 +15,6 @@ gen_oniom_SOURCES = ../modules/alerts.f90\
                       ../modules/molecular_structure.f90\
                       gen_oniom_v5.f90
 gen_oniom_LDFLAGS = @LIBS@
-gen_oniom_FCFLAGS = -cpp -DDOUBLE
 
 CLEANFILES =*.mod 
 

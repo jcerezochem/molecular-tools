@@ -1,10 +1,12 @@
-SUBDIRS = src/normal_modes\
-          src/bonded_info\
-          src/build_top\
-          src/file_management\
-          src/vibrations\
-          src/internal_duschisky\
-          src/gen_oniom\
-          src/wf_analysis\
+SUBDIRS =                        \
+          src/modules            \
+          src/file_management    \
+          src/bonded_info        \
+          src/normal_modes       \
+          src/build_top          \
+          src/vibrations         \
+          src/internal_duschisky \
+          src/gen_oniom          \
+          src/wf_analysis        \
           src/ad_hoc_utilities
 

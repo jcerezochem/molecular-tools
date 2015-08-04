@@ -17,7 +17,6 @@ calcRMS_bonded_SOURCES = ../modules/alerts.f90\
                       ../modules/atomic_geom_v2.f90\
                       calcRMS_bonded_v4.f90
 calcRMS_bonded_LDFLAGS = @LIBS@
-calcRMS_bonded_FCFLAGS = -cpp -DDOUBLE
 
 
 geom_param_list_SOURCES = ../modules/alerts.f90\
@@ -33,7 +32,6 @@ geom_param_list_SOURCES = ../modules/alerts.f90\
                       ../modules/atomic_geom_v2.f90\
                       geom_param_list_v4.f90
 geom_param_list_LDFLAGS = @LIBS@
-geom_param_list_FCFLAGS = -cpp -DDOUBLE
 
 get_com_SOURCES = ../modules/alerts.f90\
                       ../modules/line_preprocess.f90\
@@ -50,7 +48,6 @@ get_com_SOURCES = ../modules/alerts.f90\
                       ../modules/ff_build_module_v4.f90\
                       get_com.f90
 get_com_LDFLAGS = @LIBS@
-get_com_FCFLAGS = -cpp -DDOUBLE 
 
 CLEANFILES =*.mod 
 

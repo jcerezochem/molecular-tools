@@ -6,16 +6,23 @@ AC_INIT([MolecularTools],[2.2.1],[jcb1@um.es])
 AM_INIT_AUTOMAKE([foreign])
 AC_CONFIG_SRCDIR(src/)
 AC_LANG([Fortran])
+
+# # Using Libtool to pack all module objects
+# AC_CONFIG_MACRO_DIR([m4])
+# LT_INIT
+# Or using ranlig
+AC_PROG_RANLIB([ranlib])
+
 # Javier specific things
 AC_PREFIX_DEFAULT(/home/cerezo/Programas/MolecularTools)
 
 # Checks for programs.
 # Prevent autoconf from adding flags automatically  (e.g. -g)
 if test -z $FFLAGS; then
-    FFLAGS=''
+    FFLAGS='-I../modules/'
 fi
 if test -z $FCFLAGS; then
-    FCFLAGS=''
+    FCFLAGS='-cpp -DDOUBLE -DUSE_LAPCK -I../modules/'
 fi
 # AC_PROG_F77([ifort,gfortran])
  # ifort compiler works, but gfortran does not!
@@ -74,10 +81,10 @@ AM_CONDITIONAL([FFTW],[test x$use_fftw = xyes])
 # Checks for library functions.
 
 AC_CONFIG_FILES([Makefile
-                 src/normal_modes/Makefile         
-                 src/bonded_info/Makefile          
-                 src/build_top/Makefile            
-                 src/file_management/Makefile     
+                 src/modules/Makefile
+                 src/file_management/Makefile          
+                 src/bonded_info/Makefile  
+                 src/normal_modes/Makefile          
                  src/vibrations/Makefile           
                  src/wf_analysis/Makefile
                  src/gen_oniom/Makefile
@@ -85,6 +92,10 @@ AC_CONFIG_FILES([Makefile
                  src/ad_hoc_utilities/Makefile
                  src/fcclasses_tools/Makefile
                  src/fcclasses_tools_dev/Makefile
-                 src/cube_tools/Makefile
+                 src/cube_tools/Makefile                                    
+                 src/build_top/Makefile    
 ])        
-AC_OUTPUT                                  
+AC_OUTPUT    
+        
+
+  

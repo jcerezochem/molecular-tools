@@ -16,7 +16,6 @@ bin_PROGRAMS = charges_potential density_3D
 #                      ../modules/molecular_structure.f90\
 #                      solvent_potential.f90
 #solvent_potential_LDFLAGS = @LIBS@
-#solvent_potential_FCFLAGS = -cpp -DDOUBLE -O3
 
 
 charges_potential_SOURCES = charges_potential.f90

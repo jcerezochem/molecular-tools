@@ -21,7 +21,6 @@ internal_duschinsky_SOURCES = ../modules/alerts.f90\
                       ../modules/zmat_manage_v4.f90\
                       internal_duschinski_v13_v4.f90
 internal_duschinsky_LDFLAGS = @LIBS@
-internal_duschinsky_FCFLAGS = -cpp -DDOUBLE -DUSE_LAPACK
 
 
 zmat2modredundant_SOURCES = ../modules/alerts.f90\
@@ -43,7 +42,6 @@ zmat2modredundant_SOURCES = ../modules/alerts.f90\
                       ../modules/zmat_manage_v4.f90\
                       zmat2modredundant.f90
 zmat2modredundant_LDFLAGS = @LIBS@
-zmat2modredundant_FCFLAGS = -cpp -DDOUBLE 
 
 CLEANFILES =*.mod 
 

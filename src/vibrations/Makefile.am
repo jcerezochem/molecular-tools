@@ -16,7 +16,6 @@ check_diag_SOURCES =  ../modules/alerts.f90\
                       ../modules/gamess_manage.f90\
                       check_diag_v4.f90
 check_diag_LDFLAGS = @LIBS@
-check_diag_FCFLAGS = -cpp -DDOUBLE -DUSE_LAPACK
 
 
 CLEANFILES =*.mod 

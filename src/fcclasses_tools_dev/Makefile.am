@@ -22,7 +22,6 @@ read_state_hess_SOURCES = ../modules/alerts.f90\
                        ../modules/zmat_manage_v4.f90\
                        read_state_hess.f90
  read_state_hess_LDFLAGS = @LIBS@
- read_state_hess_FCFLAGS = -cpp -DDOUBLE -DUSE_LAPACK
 
 
 CLEANFILES =*.mod 

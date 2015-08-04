@@ -46,6 +46,7 @@ program get_gscan
                i1,i2,i3,i4
     character(len=1) :: ctype, null
     character(len=20) :: dummy_char
+    integer :: ilength
     character(len=180) :: line
     !=============
 
@@ -114,20 +115,18 @@ program get_gscan
         if ( INDEX(line,"-- Stationary point found.") /= 0 ) then
             i=i+1
             !xyz structure
+            ! Get file name from inpfile
             call split_line_back(inpfile,".",outfile,null)
-            write(dummy_char,*) i
-            if (i<10) dummy_char="0"//trim(adjustl(dummy_char))
-            outfile=trim(adjustl(outfile))//"_step"//&
-                    trim(adjustl(dummy_char))//".xyz"
+            outfile=trim(adjustl(outfile))//"_step"//int20char(i,2)//".xyz"
             open(O_STR,file=outfile)           
+            ! Update molec title with step and energy
+            molec%title="Step "//int2char(i,2)//"  E = "//real2char(E,17,12)
             call write_xyz(O_STR,molec)
             close(O_STR)
             !FCHK file
+            ! Get file name from inpfile
             call split_line_back(inpfile,".",outfile,null)
-            write(dummy_char,*) i
-            if (i<10) dummy_char="0"//trim(adjustl(dummy_char))
-            outfile=trim(adjustl(outfile))//"_step"//&
-                    trim(adjustl(dummy_char))//".fchk"
+            outfile=trim(adjustl(outfile))//"_step"//int20char(i,2)//".fchk"
             open(O_FCHK,file=outfile)           
             call write_fchk_E(O_FCHK,molec,E)
             close(O_FCHK)
