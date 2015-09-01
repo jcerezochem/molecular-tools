@@ -1,4 +1,4 @@
-module structure_types
+module structure_types_v5
 
     !==============================================================
     ! This code is part of MOLECULAR_TOOLS (version 0.4/February 2014)
@@ -279,4 +279,4 @@ module structure_types
 
 
 
-end module structure_types
+end module structure_types_v5

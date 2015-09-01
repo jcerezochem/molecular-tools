@@ -40,9 +40,9 @@ libmoleculartools_a_SOURCES =        \
     psi4_manage.f90                   \
     symmetry_mod_v4.f90               \
     xyz_manage_v4.f90                 \
-    zmat_manage_v4.f90                \
-\
-    sizes.f90                         \
-    structure_types_v5.f90            
+    zmat_manage_v4.f90                
+
+#    sizes.f90                         \
+#    structure_types_v5.f90            
 
  
