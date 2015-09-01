@@ -48,7 +48,7 @@ program joyce_preprocessor
 
     !Variables to deal with reading/parsing
     character(len=200) :: line, subline, ff_entry
-    character(len=50)  :: section, ICdescription, aux_char
+    character(len=100) :: section, ICdescription, aux_char
     character(len=3)   :: jpp_mark
     character :: cnull
     logical :: track
@@ -157,7 +157,7 @@ program joyce_preprocessor
             if (adjustl(section)=="angles")    nDel_angle=nDel_angle+1
             if (adjustl(section)=="dihedrals") nDel_dihed=nDel_dihed+1
             !Get mapping
-            read(subline,*) i_old
+            read(subline,*,iostat=ios) i_old
             if (ios /= 0) call alert_msg("fatal","Error reading topology. Check the format")
             ICmap(i_old) = 0
             cycle
@@ -166,7 +166,7 @@ program joyce_preprocessor
             nIC = nIC + 1
             nIC_old = nIC_old + 1
             !Get mapping
-            read(subline,*) i_old
+            read(subline,*,iostat=ios) i_old
             if (ios /= 0) call alert_msg("fatal","Error reading topology. Check the format")
             ICmap(i_old) = nIC
             !Counters tracking updates

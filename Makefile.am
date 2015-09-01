@@ -8,5 +8,6 @@ SUBDIRS =                        \
           src/internal_duschisky \
           src/gen_oniom          \
           src/wf_analysis        \
-          src/ad_hoc_utilities
+          src/ad_hoc_utilities   \
+          src/joyce_tools
 
