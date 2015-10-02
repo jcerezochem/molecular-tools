@@ -17,10 +17,13 @@ internal_duschinsky_SOURCES = ../modules/alerts.f90\
                       ../modules/ff_build_module_v4.f90\
                       ../modules/atomic_geom_v2.f90\
                       ../modules/symmetry_mod_v4.f90\
-                      ../modules/internal_SR9_v4.f90\
+                      ../modules/internal_SR9_v4_NvibAdd.f90\
                       ../modules/zmat_manage_v4.f90\
                       internal_duschinski_v13_v4.f90
 internal_duschinsky_LDFLAGS = @LIBS@
+# This enforces to recompile all modules (like that we avoid conflicting with internal_SR9_v4
+# RECOMPILE is only a dummy flag
+internal_duschinsky_FCFLAGS = -DRECOMPILE
 
 
 zmat2modredundant_SOURCES = ../modules/alerts.f90\

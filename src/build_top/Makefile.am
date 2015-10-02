@@ -3,6 +3,7 @@ AUTOMAKE_OPTIONS = subdir-objects
 bin_PROGRAMS = build_top
 
 build_top_SOURCES = ../modules/alerts.f90\
+                      ../modules/MatrixMod.f90\
                       ../modules/line_preprocess.f90\
                       ../modules/constants_mod.f90\
                       ../modules/structure_types_v4.f90\

@@ -82,7 +82,7 @@ module symmetry_mod
 
         use structure_types
         use alerts
-        use MatrixMod, only:sort_vec_int
+        use MatrixMod, only:sort_ivec
 
         real(8),parameter :: THRS=1.d-1 !loose
 
@@ -293,7 +293,7 @@ module symmetry_mod
                 molec%PG="C1"
             else
                 do i=1,molec%natoms
-                    call sort_vec_int(isym_v2(i,1:nsym),nsym)
+                    call sort_ivec(isym_v2(i,1:nsym),nsym)
                     isym(i) = isym_v2(i,1)
                 enddo
             endif

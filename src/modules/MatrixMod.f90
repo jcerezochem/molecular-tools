@@ -1668,7 +1668,7 @@ END SUBROUTINE RMS
     end subroutine sort_vec_max        
 
 
-    subroutine sort_vec_int(V,N)
+    subroutine sort_ivec(V,N)
 
         !Integer version of sort_vec subroutine
 
@@ -1691,7 +1691,33 @@ END SUBROUTINE RMS
 
         return
 
-    end subroutine sort_vec_int                                   
+    end subroutine sort_ivec
+
+    subroutine sort_ivec_max(V,N)
+
+        !Integer version of sort_vec_max subroutine
+
+        implicit none
+
+        integer,dimension(:),intent(inout) :: V
+        integer :: aux
+        integer,intent(in) :: N
+        integer :: i,j
+
+        do i=1,N-1
+            do j=i+1,N
+                if (V(j)>V(i)) then
+                    aux=V(i)
+                    V(i) = V(j)
+                    V(j) = aux
+                endif
+            enddo
+        enddo
+
+        return
+
+    end subroutine sort_ivec_max                                
+                                   
 
 
 end module MatrixMod

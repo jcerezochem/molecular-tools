@@ -155,6 +155,10 @@ program internal_duschinski
     real(8) :: Theta, Theta2, Theta3
     !Read gaussian log auxiliars
     type(str_molprops),allocatable :: props
+    ! RMZ things
+    character :: rm_type
+    integer :: rm_zline, Nrm, nbonds_rm, nangles_rm, ndiheds_rm
+    integer,dimension(100) :: bond_rm, angle_rm, dihed_rm
     !====================== 
 
     !=============
@@ -172,6 +176,7 @@ program internal_duschinski
                I_RED=13,  &
                I_ADD=14,  &
                I_AD2=15,  &
+               I_RMF=16,  &
                O_DUS=20,  &
                O_DIS=21,  &
                O_DMAT=22, &
@@ -186,6 +191,7 @@ program internal_duschinski
                          addfile="no", &
                          addfile2="no", &
                          zmatfile="NO", &
+                         rmzfile="NO", &
                          symm_file="NO"
     !Control of stdout
     logical :: verbose=.false.
@@ -205,7 +211,7 @@ program internal_duschinski
 
     ! 0. GET COMMAND LINE ARGUMENTS
     call parse_input(inpfile,inpfile2,filetype,filetype2,nosym,zmat,verbose,tswitch,symaddapt,zmatfile,vertical,symm_file,&
-                     addfile,addfile2)
+                     addfile,addfile2,rmzfile)
 
 
     ! 1. INTERNAL VIBRATIONAL ANALYSIS ON STATE1 AND STATE2
@@ -354,6 +360,16 @@ program internal_duschinski
 !             print*, "Improper", i1, i2, i3, i4
 !             print*, calc_improper(state1%atom(i1),state1%atom(i2),state1%atom(i3),state1%atom(i4))*180.d0/PI
 !         enddo
+
+        ! If the number bonds+angles+dihed+.. is less than Nvib, we are in a reduced space
+        ! if so, set Nvib to the new dimension
+        if (Nvib > state1%geom%nbonds  + &
+                   state1%geom%nangles + &
+                   state1%geom%ndihed) then
+            Nvib = state1%geom%nbonds  + &
+                   state1%geom%nangles + &
+                   state1%geom%ndihed 
+        endif
     elseif (zmat) then
         if (adjustl(zmatfile) == "NO") then
             call build_Z(state1,bond_s,angle_s,dihed_s,PG,isym,bond_sym,angle_sym,dihed_sym)
@@ -372,6 +388,64 @@ program internal_duschinski
         state1%geom%nbonds  = Nat-1
         state1%geom%nangles = Nat-2
         state1%geom%ndihed  = Nat-3
+        if (rmzfile /= "NO") then
+            state1 = state1
+            open(I_RMF,file=rmzfile,status='old')
+            read(I_RMF,*) Nrm
+            ! First, read lines to remove
+            nbonds_rm  = 0
+            nangles_rm = 0
+            ndiheds_rm = 0
+            do i=1,Nrm
+                read(I_RMF,*) rm_zline, rm_type
+                if (rm_type == "B") then
+                    nbonds_rm = nbonds_rm + 1
+                    bond_rm(nbonds_rm) = rm_zline
+                elseif (rm_type == "A") then
+                    nangles_rm = nangles_rm + 1
+                    angle_rm(nangles_rm) = rm_zline
+                elseif (rm_type == "D") then
+                    ndiheds_rm = ndiheds_rm + 1
+                    dihed_rm(ndiheds_rm) = rm_zline
+                endif
+            enddo
+            ! Short remove lists
+            call sort_ivec_max(bond_rm(1:nbonds_rm),nbonds_rm)
+            call sort_ivec_max(angle_rm(1:nangles_rm),nangles_rm)
+            call sort_ivec_max(dihed_rm(1:ndiheds_rm),ndiheds_rm)
+            ! The remove
+            print*, "Removing bonds from lines:"
+            do i=1,nbonds_rm
+                print*, bond_rm(i)
+                rm_zline = bond_rm(i) - 1
+                do ii = rm_zline, state1%geom%nbonds-1
+                    state1%geom%bond(ii,1:2) = state1%geom%bond(ii+1,1:2)
+                enddo
+                state1%geom%nbonds  = state1%geom%nbonds  - 1
+                Nvib = Nvib - 1
+            enddo
+            print*, "Removing angles from lines:"
+            do i=1,nangles_rm
+                print*, angle_rm(i)
+                rm_zline = angle_rm(i) - 2
+                do ii = rm_zline, state1%geom%nangles-1
+                    state1%geom%angle(ii,1:3) = state1%geom%angle(ii+1,1:3)
+                enddo
+                state1%geom%nangles  = state1%geom%nangles  - 1
+                Nvib = Nvib - 1
+            enddo
+            print*, "Removing dihedrals from lines:"
+            do i=1,ndiheds_rm
+                print*, dihed_rm(i)
+                rm_zline = dihed_rm(i) - 3
+                do ii = rm_zline, state1%geom%ndihed-1
+                    state1%geom%dihed(ii,1:4) = state1%geom%dihed(ii+1,1:4)
+                enddo
+                state1%geom%ndihed  = state1%geom%ndihed  - 1
+                Nvib = Nvib - 1
+            enddo
+            print*, " "
+        endif
     endif !otherwise all parameters are used
 
     !Set symmetry of internal (only if symmetry is detected)
@@ -406,12 +480,12 @@ program internal_duschinski
     !the redundant ones. The coefficients for the combination are stored in Asel
     !as they must be used for state 2 (not rederived!).
     Asel1(1,1) = 99.d0 !out-of-range, as Asel is normalized -- this option is not tested
-    call internal_Wilson(state1,S1,S_sym,ModeDef,B1,G1,Asel1,verbose)
+    call internal_Wilson(state1,Nvib,S1,S_sym,ModeDef,B1,G1,Asel1,verbose)
 !     if (vertical) then
 !         call NumBder(state1,S_sym,Bder)
 !         call gf_method_V(Hess,Grad,state1,S_sym,ModeDef,L1,B1,Bder,G1,Freq,Asel1,X1,X1inv,verbose) 
 !     else
-        call gf_method(Hess,state1,S_sym,ModeDef,L1,B1,G1,Freq,Asel1,X1,X1inv,verbose)
+        call gf_method(Hess,state1,Nvib,S_sym,ModeDef,L1,B1,G1,Freq,Asel1,X1,X1inv,verbose)
         !Define the Factor to convert into shift into addimensional displacements
         ! for the shift in SI units:
         Factor(1:Nvib) = dsqrt(dabs(Freq(1:Nvib))*1.d2*clight*2.d0*PI/plankbar)
@@ -661,25 +735,25 @@ program internal_duschinski
         zmat=.false.
     elseif (zmat) then
         !Z-mat: the same from state 1 is used
-        state2%geom%bond(1:Nat-1,1:2) = bond_s(2:Nat,1:2)
-        state2%geom%angle(1:Nat-2,1:3) = angle_s(3:Nat,1:3)
-        state2%geom%dihed(1:Nat-3,1:4) = dihed_s(4:Nat,1:4)
-        state2%geom%nbonds  = Nat-1
-        state2%geom%nangles = Nat-2
-        state2%geom%ndihed  = Nat-3
+        state2%geom%bond(1:Nat-1,1:2)  = state1%geom%bond(1:Nat-1,1:2)  !bond_s(2:Nat,1:2)
+        state2%geom%angle(1:Nat-2,1:3) = state1%geom%angle(1:Nat-2,1:3) !angle_s(3:Nat,1:3)
+        state2%geom%dihed(1:Nat-3,1:4) = state1%geom%dihed(1:Nat-3,1:4) !dihed_s(4:Nat,1:4)
+        state2%geom%nbonds  = state1%geom%nbonds  !Nat-1
+        state2%geom%nangles = state1%geom%nangles !Nat-2
+        state2%geom%ndihed  = state1%geom%ndihed  !Nat-3
      endif !otherwise all parameters are used
      Nred = state2%geom%nbonds+state2%geom%nangles+state2%geom%ndihed
 
 
     !SOLVE GF METHOD TO GET NM AND FREQ
     Asel2 = Asel1
-    call internal_Wilson(state2,S2,S_sym,ModeDef,B2,G2,Asel2,verbose)
+    call internal_Wilson(state2,Nvib,S2,S_sym,ModeDef,B2,G2,Asel2,verbose)
     if (vertical) then
         call NumBder(state2,S_sym,Bder)
         call gf_method_V(Hess,Grad,state2,S_sym,ModeDef,L2,B2,Bder,G2,Freq,Asel2,X2,X2inv,verbose)
 !         call gf_method(Hess,state2,S_sym,ModeDef,L2,B2,G2,Freq,Asel2,X2,X2inv,verbose)
     else
-        call gf_method(Hess,state2,S_sym,ModeDef,L2,B2,G2,Freq,Asel2,X2,X2inv,verbose)
+        call gf_method(Hess,state2,Nvib,S_sym,ModeDef,L2,B2,G2,Freq,Asel2,X2,X2inv,verbose)
     endif 
 
     if (vertical) then
@@ -879,7 +953,7 @@ program internal_duschinski
     ! PREPARE  FOR  DUSCHINSKI
     !============================================
     Nat = state1%natoms
-    Nvib = 3*Nat-6
+!     Nvib = 3*Nat-6
 
     !--------------------------
     ! Orthogonal Duschinski
@@ -1152,14 +1226,14 @@ program internal_duschinski
     !=============================================
 
     subroutine parse_input(inpfile,inpfile2,filetype,filetype2,nosym,zmat,verbose,tswitch,symaddapt,zmatfile,vertical,symm_file,&
-                           addfile,addfile2)
+                           addfile,addfile2,rmzfile)
     !==================================================
     ! My input parser (gromacs style)
     !==================================================
         implicit none
 
         character(len=*),intent(inout) :: inpfile,inpfile2,filetype,filetype2,zmatfile,symm_file,&
-                                          addfile, addfile2
+                                          addfile, addfile2,rmzfile
         logical,intent(inout) :: nosym, verbose, zmat, tswitch, symaddapt, vertical
         ! Localconsole in kate
         logical :: argument_retrieved,  &
@@ -1216,6 +1290,10 @@ program internal_duschinski
                     call getarg(i+1, zmatfile)
                     argument_retrieved=.true.
 
+                case ("-rmz") 
+                    call getarg(i+1, rmzfile)
+                    argument_retrieved=.true.
+
                 case ("-zmat")
                     zmat=.true.
                 case ("-nozmat")
@@ -1265,6 +1343,7 @@ program internal_duschinski
         write(6,*) '-symfile        ', trim(adjustl(symm_file))
         write(6,*) '-[no]zmat       ', dummy_char
         write(6,*) '-readz          ', trim(adjustl(zmatfile))
+        write(6,*) '-rmz            ', trim(adjustl(rmzfile))
         if (tswitch) dummy_char="YES"
         if (.not.tswitch) dummy_char="NO "
         write(6,*) '-tswitch        ', dummy_char
