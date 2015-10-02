@@ -276,7 +276,8 @@ program joyce_preprocessor
             call split_line(line,"*",ff_entry,aux_char)
             read(ff_entry,*) i, cnull, j
             if (ICmap(i) /= 0) &
-             write(O_INP,*) ICmap(i), cnull, ICmap(j), "*", aux_char
+             write(O_INP,'(2X,I0,X,A,X,I0,X,A,A)') &
+                         ICmap(i), cnull, ICmap(j), "*", aux_char
             if (ICmap(j) == 0 .and. ICmap(i) /= 0) &
              call alert_msg("warning","Dependecy on a deleted atom")
         else if (adjustl(section) == "assign") then

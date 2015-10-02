@@ -188,6 +188,34 @@ module line_preprocess
 
     end subroutine set_lower_case
 
+    subroutine set_word_lower_case(word)
+
+        character(len=*),intent(inout) :: word
+        !Local
+        integer :: i
+
+        do i=1,len_trim(word)
+            call set_lower_case(word(i:i))
+        enddo
+        
+        return
+
+    end subroutine set_word_lower_case
+
+    subroutine set_word_upper_case(word)
+
+        character(len=*),intent(inout) :: word
+        !Local
+        integer :: i
+
+        do i=1,len_trim(word)
+            call set_upper_case(word(i:i))
+        enddo
+        
+        return
+
+    end subroutine set_word_upper_case
+
 
     subroutine string2vector(raw_vector,array_vector,n_elem)
 
@@ -292,6 +320,50 @@ module line_preprocess
         return
 
     end subroutine string2vector_char
+
+    subroutine string2vector_char_new(raw_vector,array_vector,n_elem,sep)
+
+        !Description
+        ! Tranforms a string of <sep> sepparated values into an
+        ! array of such characters 
+        ! This version also allows to use blank spaces as separator
+
+        character(len=*),intent(in) :: raw_vector
+        character(len=*),dimension(:),intent(out) :: array_vector
+        integer,intent(out) :: n_elem
+        character(len=*) :: sep !separador
+
+        !Local
+        character(len=len_trim(raw_vector)) :: raw_vector_copy
+        character(len=240) :: auxchar
+        integer :: i
+    
+        
+        !Copy the original vector to avoid modifying it
+        raw_vector_copy = trim(adjustl(raw_vector))
+
+        !Read unknown length vector
+        i=0
+        do 
+            i=i+1
+            if (len_trim(raw_vector_copy) == 0) then
+                i=i-1
+                exit
+            else if ( INDEX(raw_vector_copy,sep) /= 0 ) then
+                call split_line(raw_vector_copy,sep,auxchar,raw_vector_copy)
+                read(auxchar,*) array_vector(i)
+                ! By adjustl-ing every time we avoid double counting blank spaces
+                raw_vector_copy = adjustl(raw_vector_copy)
+            else 
+                read(raw_vector_copy,*) array_vector(i)
+                exit
+            endif
+        enddo  
+        n_elem=i
+
+        return
+
+    end subroutine string2vector_char_new
 
 
     ! Functions that get character from numbers

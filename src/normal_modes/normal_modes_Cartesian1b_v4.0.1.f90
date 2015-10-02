@@ -52,6 +52,8 @@ program normal_modes_Cartesian
     integer :: Nat, Nvib
     real(8),dimension(1:1000) :: GEOM, RedMass, Freq, Factor
     real(8),dimension(1:1000,1:1000) :: T
+    character(len=2) :: atname 
+    integer          :: Zat
 
     real(8) :: Amplitude, qcoord
     
@@ -117,11 +119,30 @@ program normal_modes_Cartesian
     if (IOstatus /= 0) call alert_msg( "fatal","Unable to open "//trim(adjustl(inpfile)) )
 
     !Read structure
+    ! If fcc state file, we also need the input to get natoms, nvib and atom info
+    if (filetype == "fcc") then
+        !Need to read also the input file
+        if (len_trim(addfile) == 0) then
+            print*, "Need to set the fcc input file with the hidded -add flag"
+            stop
+        endif
+        !-------- read input ------------
+        open(I_ADD,file=addfile)
+        read(I_ADD,*) molec%natoms
+        read(I_ADD,*) Nvib
+        do i=1,molec%natoms
+            read(I_ADD,*) molec%atom(i)%mass
+        enddo
+        close(I_ADD)
+        !----------------------------------
+    endif
     call generic_strfile_read(I_INP,filetype,molec)
     !Shortcuts
     Nat = molec%natoms
-    !Caution if linear...
-    Nvib = 3*Nat-6
+    if (filetype /= "fcc") then
+        !Caution if linear...
+        Nvib = 3*Nat-6
+    endif
 
     if (adjustl(filetype) == "log") then
         !Gaussian logfile (directly read vibronic analysis by Gaussian)
@@ -159,22 +180,8 @@ program normal_modes_Cartesian
 !         deallocate(props)zz
     !Read the Hessian: only two possibilities supported
     else if (adjustl(filetype) == "fcc") then
-        !Need to read also the input file
-        if (len_trim(addfile) == 0) then
-            print*, "Need to set the fcc input file with the hidded -add flag"
-            stop
-        endif
-        !-------- read input ------------
-        open(I_ADD,file=addfile)
-        read(I_ADD,*) molec%natoms
-        read(I_ADD,*) Nvib
-        do i=1,molec%natoms
-            read(I_ADD,*) molec%atom(i)%mass
-        enddo
-        close(I_ADD)
         N = 3*Nat * Nvib
         allocate( A(1:N) )
-        !----------------------------------
         call read_fccstate_freq(I_INP,Nvib,Nat,Freq(1:Nvib),A(1:N))
         ! Reconstruct Lcart (non-symmetric) [in T]
         l=0
@@ -199,6 +206,13 @@ program normal_modes_Cartesian
         enddo
         !Reduced masses (to account for the normalization factor in Tcart)
         RedMass(1:Nvib) = RedMass(1:Nvib)*UMAtoAU
+        !Get atom names from masses
+        do i=1,molec%natoms
+            call atominfo_from_atmass(molec%atom(i)%mass,Zat,atname)
+            molec%atom(i)%name    = atname
+            molec%atom(i)%element = atname
+            molec%atom(i)%AtNum   = Zat
+        enddo
 
     else if (adjustl(filetype) == "fchk") then
         !FCHK file: READ VIB ANALYSIS
@@ -645,7 +659,7 @@ program normal_modes_Cartesian
 
         if (adjustl(filetype) == "guess") then
         ! Guess file type
-        call split_line(inpfile,".",null,filetype)
+        call split_line_back(inpfile,".",null,filetype)
         select case (adjustl(filetype))
             case("gro")
              call read_gro(I_INP,molec)
@@ -676,7 +690,6 @@ program normal_modes_Cartesian
              call atname2element(molec)
              call assign_masses(molec)
             case("fcc")
-             molec%natoms = -1
              call read_fccstate_atoms(I_INP,molec)
              molec%atom(1:molec%natoms)%name="X"
             case("pdb")

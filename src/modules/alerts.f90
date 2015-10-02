@@ -16,6 +16,8 @@ module alerts
 
     integer, save :: n_notes=0,&
                      n_errors=0
+    ! Silent will mute the NOTES
+    logical, save :: silent = .true.
 
     contains
 
@@ -27,6 +29,7 @@ module alerts
 
         select case (adjustl(attype))
             case ("note")
+                if (.not.silent) &
                 write(0,'(/,A,A,/)') "NOTE: ",SENTENCE
                 n_notes = n_notes + 1
 

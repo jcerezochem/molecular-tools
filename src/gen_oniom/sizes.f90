@@ -8,7 +8,7 @@ module sizes
 
     !SIZES (defaults)
     integer,parameter:: MAX_ATOMS = 1, &
-                        MAX_ATM_RES = 40000,  &
+                        MAX_ATM_RES = 36000,  &
                         MAX_CONNEXIONS = 1, &
                         MAX_DERIVED_CNX = 1
 

@@ -1,4 +1,4 @@
-module gro_manage
+module gro_manage_go
 
     !==============================================================
     ! This code is part of MOLECULAR_TOOLS (version 0.4/February 2014)
@@ -803,4 +803,4 @@ module gro_manage
 
     end subroutine read_gro_hess
 
-end module gro_manage
+end module gro_manage_go

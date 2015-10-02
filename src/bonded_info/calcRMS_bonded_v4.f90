@@ -232,7 +232,7 @@ program calcRMS_bonded
     rmsd = sqrt(dev/k)
     print'(A,/)', '---------------------' 
 
-    print'(X,A,X,F8.3,/)', "RMSD-struct (AA):", rmsd
+    print'(X,A,X,F8.3,/)', "RMSD_struct (AA):", rmsd
    
 
     ! 9999. CHECK ERROR/NOTES

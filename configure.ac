@@ -22,7 +22,7 @@ if test -z $FFLAGS; then
     FFLAGS='-I../modules/'
 fi
 if test -z $FCFLAGS; then
-    FCFLAGS='-cpp -DDOUBLE -DUSE_LAPCK -I../modules/'
+    FCFLAGS='-cpp -DDOUBLE -DUSE_LAPACK -I../modules/'
 fi
 # AC_PROG_F77([ifort,gfortran])
  # ifort compiler works, but gfortran does not!

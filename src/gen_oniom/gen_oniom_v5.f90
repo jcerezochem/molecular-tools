@@ -32,7 +32,7 @@ program gen_oniom
 
     use structure_types
     use line_preprocess
-    use gro_manage
+    use gro_manage_go
     use gaussian_manage, only : parse_summary
     use pdb_manage
     use alerts

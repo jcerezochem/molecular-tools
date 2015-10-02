@@ -202,7 +202,7 @@ module MatrixMod
               if (WK(1) > 100.d0) call alert_msg("fatal","Poor diagonalization: PI = "//trim(adjustl(dummy_char)))
 
             case default
-              call alert_msg("fatal","Diagonalize_full subroutine called with an unsupported option."//trim(adjustl(alg)))
+              call alert_msg("fatal","Diagonalize_full subroutine called with an unsupported option: "//trim(adjustl(alg)))
 
         end select   
 

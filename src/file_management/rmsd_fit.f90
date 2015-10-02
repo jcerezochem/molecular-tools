@@ -1,4 +1,4 @@
-program fchk2gro
+program rmsd_fit
 
 
     !==============================================================
@@ -52,8 +52,8 @@ program fchk2gro
 
     !====================== 
     !System variables
-    type(str_resmol) :: molec, &
-                        molec_aux
+    type(str_resmol) :: molec, molecRef, &
+                        molec_filt, molecRef_filt
     !====================== 
 
     !=============
@@ -62,10 +62,17 @@ program fchk2gro
     character(len=1) :: null
     logical :: overwrite    = .false. ,&
                make_connect = .false. ,&
-               use_elements = .false. ,&
-               remove_com   = .false.
-    !Swap related counters
-    integer :: iat_new, iat_orig, nswap
+               use_elements = .false. 
+    character(len=3) :: remove_mode = "COM"
+    !filter related
+    character(len=50) :: filter="all"
+    integer,dimension(100) :: listfilter
+    integer :: Nfilter
+    ! Rot matri
+    real(8),dimension(3,3) :: Rot
+    ! COM for reference (to restore at the end)
+    real(8) :: Xref, Yref, Zref, &
+               Xmol, Ymol, Zmol
     !=============
 
     !================
@@ -75,13 +82,13 @@ program fchk2gro
                I_SWP=11, &
                O_OUT=20  
     !files
-    character(len=5)   :: resname="read"
-    character(len=200) :: title="read"
+    character(len=5) :: resname="read"
     character(len=10) :: filetype_inp="guess",&
+                         filetype_ref="guess",&
                          filetype_out="guess"
     character(len=200):: inpfile="input.fchk",&
-                         outfile="default"   ,&
-                         swapfile="none"  
+                         reffile="ref.fchk"  ,&
+                         outfile="default"   
     !status
     integer :: IOstatus
     character(len=7) :: stat="new" !do not overwrite when writting
@@ -89,12 +96,15 @@ program fchk2gro
 
 
     ! 0. GET COMMAND LINE ARGUMENTS
-    call parse_input(inpfile,filetype_inp,outfile,filetype_out,overwrite,make_connect,&
-                     use_elements,remove_com,resname,swapfile,title)
-
+    call parse_input(inpfile,filetype_inp,reffile,filetype_ref,  &
+                     outfile,filetype_out,overwrite,make_connect,&
+                     use_elements,remove_mode,resname,filter)
+    ! Set options to upper case
+    call set_word_upper_case(remove_mode)
  
     ! 1. READ INPUT
     ! ---------------------------------
+    ! 1a. Rotable molecule
     open(I_INP,file=inpfile,status='old',iostat=IOstatus)
     if (IOstatus /= 0) call alert_msg( "fatal","Unable to open "//trim(adjustl(inpfile)) )
 
@@ -104,40 +114,113 @@ program fchk2gro
     !Option to specify the resname from command line
     if (adjustl(resname) /= "read") molec%atom(:)%resname=resname
 
+    ! 1b. Refence molecule
+    open(I_INP,file=reffile,status='old',iostat=IOstatus)
+    if (IOstatus /= 0) call alert_msg( "fatal","Unable to open "//trim(adjustl(reffile)) )
+
+    if (adjustl(filetype_ref) == "guess") call split_line_back(reffile,".",null,filetype_ref)
+    call generic_strfile_read(I_INP,filetype_ref,molecRef)
+    close(I_INP)
+    !Option to specify the resname from command line
+    if (adjustl(resname) /= "read") molecRef%atom(:)%resname=resname
+
     ! 2. MAKE CHANGES IF REQUIRED
     ! -------------------------------
-    !Swaping atoms
-    if (adjustl(swapfile) /= "none") then
-        open(I_SWP,file=swapfile,status='old',iostat=IOstatus)
-        if (IOstatus /= 0) call alert_msg( "fatal","Unable to open "//trim(adjustl(swapfile)) )
-        read(I_SWP,*) nswap
-        molec_aux = molec
-        do i=1,nswap
-            read(I_SWP,*) iat_orig, iat_new
-            molec_aux%atom(iat_new)=molec%atom(iat_orig)
-        enddo
-        molec = molec_aux
-        close(I_SWP)
-    endif
     !Forcing element names (no FF labels)
     if (use_elements) molec%atom(:)%name = molec%atom(:)%element
-    !Removing center of gravity
-    if (remove_com) then
-        call atname2element(molec)
-        call assign_masses(molec)
-        call get_com(molec)
-        i=molec%natoms
-        molec%atom(1:i)%x = molec%atom(1:i)%x - molec%comX
-        molec%atom(1:i)%y = molec%atom(1:i)%y - molec%comY
-        molec%atom(1:i)%z = molec%atom(1:i)%z - molec%comZ
+
+    ! Filtering if needed
+    if (adjustl(filter) == "all") then
+        molec_filt = molec
+        molecRef_filt = molecRef
+    else
+        call selection2intlist(filter,listfilter,Nfilter)
+        do i=1,Nfilter
+            j = listfilter(i)
+            molec_filt%atom(i) = molec%atom(j)
+            molecRef_filt%atom(i) = molecRef%atom(j)
+        enddo
+        molec_filt%natoms = Nfilter
+        molecRef_filt%natoms = Nfilter
     endif
 
-    ! 3. WRITE OUTPUT
+    !Removing center of gravity
+    if (remove_mode == "COM") then
+        call atname2element(molec_filt)
+        call assign_masses(molec_filt)
+        call atname2element(molecRef_filt)
+        call assign_masses(molecRef_filt)
+        call get_com(molec_filt)
+        call get_com(molecRef_filt)
+        i=molec_filt%natoms
+        molec_filt%atom(1:i)%x = molec_filt%atom(1:i)%x - molec_filt%comX
+        molec_filt%atom(1:i)%y = molec_filt%atom(1:i)%y - molec_filt%comY
+        molec_filt%atom(1:i)%z = molec_filt%atom(1:i)%z - molec_filt%comZ
+        Xmol = molec_filt%comX
+        Ymol = molec_filt%comY
+        Zmol = molec_filt%comZ
+        molecRef_filt%atom(1:i)%x = molecRef_filt%atom(1:i)%x - molecRef_filt%comX
+        molecRef_filt%atom(1:i)%y = molecRef_filt%atom(1:i)%y - molecRef_filt%comY
+        molecRef_filt%atom(1:i)%z = molecRef_filt%atom(1:i)%z - molecRef_filt%comZ
+        Xref = molecRef_filt%comX
+        Yref = molecRef_filt%comY
+        Zref = molecRef_filt%comZ
+    else if (remove_mode == "COG") then
+        call get_cog(molec_filt)
+        call get_cog(molecRef_filt)
+        i=molec_filt%natoms
+        molec_filt%atom(1:i)%x = molec_filt%atom(1:i)%x - molec_filt%cogX
+        molec_filt%atom(1:i)%y = molec_filt%atom(1:i)%y - molec_filt%cogY
+        molec_filt%atom(1:i)%z = molec_filt%atom(1:i)%z - molec_filt%cogZ
+        Xmol = molec_filt%cogX
+        Ymol = molec_filt%cogY
+        Zmol = molec_filt%cogZ
+        molecRef_filt%atom(1:i)%x = molecRef_filt%atom(1:i)%x - molecRef_filt%cogX
+        molecRef_filt%atom(1:i)%y = molecRef_filt%atom(1:i)%y - molecRef_filt%cogY
+        molecRef_filt%atom(1:i)%z = molecRef_filt%atom(1:i)%z - molecRef_filt%cogZ
+        Xref = molecRef_filt%cogX
+        Yref = molecRef_filt%cogY
+        Zref = molecRef_filt%cogZ
+    else
+        Xref = 0.d0
+        Yref = 0.d0
+        Zref = 0.d0
+        Xmol = 0.d0
+        Ymol = 0.d0
+        Zmol = 0.d0
+    endif
+
+
+    ! 3. FITTING
+    ! ---------------------------------
+    call ROTATA1(molec_filt,molecRef_filt,Rot)
+    print*, "Rotation matrix: "
+    do i=1,3
+        print'(3F10.3)', Rot(1:3,i)
+    enddo
+    print*, ""
+    ! Place the whole molec according to COM mol
+    do i=1,molec%natoms
+        molec%atom(i)%x = molec%atom(i)%x - Xmol
+        molec%atom(i)%y = molec%atom(i)%y - Ymol
+        molec%atom(i)%z = molec%atom(i)%z - Zmol
+    enddo
+    ! Rotate
+    call rotate_molec(molec,Rot)
+    call rotate_molec(molec_filt,Rot)
+    ! Restore to ref original position
+    do i=1,molec%natoms
+        molec%atom(i)%x = molec%atom(i)%x + Xref
+        molec%atom(i)%y = molec%atom(i)%y + Yref
+        molec%atom(i)%z = molec%atom(i)%z + Zref
+    enddo
+
+    ! 4. WRITE OUTPUT
     ! ---------------------------------
     if (overwrite) stat="unknown"
     open(O_OUT,file=outfile,status=stat,iostat=IOstatus)
     if (IOstatus /= 0) call alert_msg( "fatal","Cannot write in "//trim(adjustl(outfile))//&
-                                                            ". Already exists? Use -r to overwrite" )
+                                                            ". Already exists? Use -ow to overwrite" )
 
     if (adjustl(filetype_out) == "guess") call split_line_back(outfile,".",null,filetype_out)
     !If PDB check if connections are requested
@@ -145,9 +228,11 @@ program fchk2gro
         call guess_connect(molec)
         filetype_out="pdb-c"
     endif
-    if (adjustl(title) /= "read") molec%title = trim(adjustl(title))
     call generic_strfile_write(O_OUT,filetype_out,molec) 
     close(O_OUT)
+
+    call generic_strfile_write(80,"xyz",molec_filt)
+    call generic_strfile_write(90,"xyz",molecRef_filt)
 
     stop
 
@@ -156,18 +241,19 @@ program fchk2gro
     contains
     !=============================================
 
-    subroutine parse_input(inpfile,filetype_inp,outfile,filetype_out,overwrite,make_connect,&
-                           use_elements,remove_com,resname,swapfile,title)
+    subroutine parse_input(inpfile,filetype_inp,reffile,filetype_ref,  &
+                           outfile,filetype_out,overwrite,make_connect,&
+                           use_elements,remove_mode,resname,filter)
     !==================================================
     ! My input parser (gromacs style)
     !==================================================
         implicit none
 
-        character(len=*),intent(inout) :: inpfile,outfile,&
+        character(len=*),intent(inout) :: inpfile,outfile,reffile, &
                                           filetype_inp,filetype_out, &
-                                          resname,swapfile,title
-        logical,intent(inout) :: overwrite, make_connect, use_elements, &
-                                 remove_com
+                                          filetype_ref,&
+                                          resname,remove_mode, filter
+        logical,intent(inout) :: overwrite, make_connect, use_elements
         ! Local
         logical :: argument_retrieved,  &
                    need_help = .false.
@@ -189,6 +275,13 @@ program fchk2gro
                     call getarg(i+1, filetype_inp)
                     argument_retrieved=.true.
 
+                case ("-r") 
+                    call getarg(i+1, reffile)
+                    argument_retrieved=.true.
+                case ("-ftr") 
+                    call getarg(i+1, filetype_ref)
+                    argument_retrieved=.true.
+
                 case ("-o") 
                     call getarg(i+1, outfile)
                     argument_retrieved=.true.
@@ -196,7 +289,11 @@ program fchk2gro
                     call getarg(i+1, filetype_out)
                     argument_retrieved=.true.
 
-                case ("-r")
+                case ("-filter") 
+                    call getarg(i+1, filter)
+                    argument_retrieved=.true.
+
+                case ("-ow")
                     overwrite=.true.
 
                 case ("-rn")
@@ -209,15 +306,8 @@ program fchk2gro
                 case ("-use-elems")
                     use_elements=.true.
 
-                case ("-rmcom")
-                    remove_com=.true.
-
-                case ("-swap")
-                    call getarg(i+1, swapfile)
-                    argument_retrieved=.true.
-
-                case ("-title")
-                    call getarg(i+1, title)
+                case ("-rmode")
+                    call getarg(i+1, remove_mode)
                     argument_retrieved=.true.
         
                 case ("-h")
@@ -231,7 +321,7 @@ program fchk2gro
         !The default output is now xyz
         if (adjustl(outfile) == "default") then
             call split_line_back(inpfile,".",outfile,null)
-            outfile=trim(adjustl(outfile))//".xyz"
+            outfile=trim(adjustl(outfile))//"_rot.xyz"
         endif
 
         ! Some checks on the input
@@ -239,21 +329,21 @@ program fchk2gro
 
        !Print options (to stderr)
         write(0,'(/,A)') '--------------------------------------------------'
-        write(0,'(/,A)') '        F O R M A T    C O N V E R T E R '    
-        write(0,'(/,A)') '        Convert between geometry formats '  
-        write(0,'(/,A)') '         Revision: fchk2gro-150129               '         
+        write(0,'(/,A)') '         R M S D   F I T '    
+        write(0,'(/,A)') '         Fit with ROTATA '  
+        write(0,'(/,A)') '       Revision: rmsd_fit-150911                  '         
         write(0,'(/,A)') '--------------------------------------------------'
         write(0,*) '-f              ', trim(adjustl(inpfile))
         write(0,*) '-fti            ', trim(adjustl(filetype_inp))
         write(0,*) '-o              ', trim(adjustl(outfile))
         write(0,*) '-fto            ', trim(adjustl(filetype_out))
-        write(0,*) '-r             ',  overwrite
-        write(0,*) '-swap           ',  trim(adjustl(swapfile))
+        write(0,*) '-r              ', trim(adjustl(reffile))
+        write(0,*) '-ftr            ', trim(adjustl(filetype_ref))
         write(0,*) '-rn             ',  trim(adjustl(resname))
+        write(0,*) '-filter         ', trim(adjustl(filter))
         write(0,*) '-connect       ',  make_connect
         write(0,*) '-use-elems     ',  use_elements
-        write(0,*) '-rmcom         ',  remove_com
-        write(0,*) ' -title         ', trim(adjustl(title))
+        write(0,*) '-rmode          ', remove_mode
         write(0,*) '-h             ',  need_help
         write(0,*) '--------------------------------------------------'
         if (need_help) call alert_msg("fatal", 'There is no manual (for the moment)' )
@@ -265,7 +355,7 @@ program fchk2gro
     subroutine generic_strfile_read(unt,filetype,molec)
 
         integer, intent(in) :: unt
-        character(len=*),intent(inout) :: filetype
+        character(len=*),intent(in) :: filetype
         type(str_resmol),intent(inout) :: molec
 
         !Local
@@ -319,7 +409,7 @@ program fchk2gro
     subroutine generic_strfile_write(unt,filetype,molec)
 
         integer, intent(in) :: unt
-        character(len=*),intent(inout) :: filetype
+        character(len=*),intent(in) :: filetype
         type(str_resmol),intent(inout) :: molec
 
         ! Predefined filetypes
@@ -348,5 +438,90 @@ program fchk2gro
     end subroutine generic_strfile_write 
 
 
-end program fchk2gro
+    subroutine stringbl2vector_char(raw_vector,array_vector,n_elem,sep)
+
+        !Description
+        ! Tranforms a string of <sep> sepparated values into an
+        ! array of such characters 
+
+        character(len=*),intent(in) :: raw_vector
+        character(len=*),dimension(:),intent(out) :: array_vector
+        integer,intent(out) :: n_elem
+        character(len=*) :: sep !separador
+
+        !Local
+        character(len=len_trim(raw_vector)) :: raw_vector_copy
+        character(len=240) :: auxchar
+        integer :: i
+    
+        
+        !Copy the original vector to avoid modifying it
+        raw_vector_copy = trim(adjustl(raw_vector))
+
+        !Read unknown length vector
+        i=0
+        do 
+            i=i+1
+            if (len_trim(raw_vector_copy) == 0) then
+                i=i-1
+                exit
+            else if ( INDEX(raw_vector_copy,sep) /= 0 ) then
+                call split_line(raw_vector_copy,sep,auxchar,raw_vector_copy)
+                read(auxchar,*) array_vector(i)
+                ! By adjustl-ing every time we avoid double counting blank spaces
+                raw_vector_copy = adjustl(raw_vector_copy)
+            else 
+                read(raw_vector_copy,*) array_vector(i)
+                exit
+            endif
+        enddo  
+        n_elem=i
+
+        return
+
+    end subroutine stringbl2vector_char
+
+
+    subroutine selection2intlist(selection,list,Nlist)
+
+        character(len=*), intent(in) :: selection
+        integer, intent(out) :: Nlist
+        integer,dimension(1:100) :: list
+        !local 
+        character(len=5),dimension(100) :: selection_split
+        integer :: i, j 
+        integer :: N, range_last, range_width
+        logical :: is_range
+
+        call stringbl2vector_char(selection,selection_split,N," ")
+
+        is_range = .false.
+        j = 0
+        do i=1,N
+            if (selection_split(i) == "to") then
+                is_range =  .true.
+                cycle
+            endif
+            ! Read number
+            if (.not.is_range) then
+                j = j+1
+                read(selection_split(i),*) list(j)
+            else
+                read(selection_split(i),*) range_last
+                range_width = range_last - list(j)
+                do jj = 1, range_width
+                    j = j + 1
+                    list(j) = list(j-1) + 1
+                enddo
+                is_range = .false.
+            endif
+        enddo
+        Nlist = j
+
+        return
+
+    end subroutine selection2intlist
+
+
+end program rmsd_fit
 

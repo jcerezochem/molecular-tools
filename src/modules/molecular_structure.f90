@@ -247,7 +247,7 @@ module molecular_structure
         if (external_DB) then
             print*, "External DB not yet supported"
         else
-            n_entries=28
+            n_entries=29
             ! Default implementation
             ! Taken from CRC Handbook of Chemistry and Physics
             !(that's a good plan, for the moment, they're gv defaults)
@@ -281,7 +281,8 @@ module molecular_structure
                     "Cl   C    1.80",      & !25  Larger than gv standard (1.76)
                     "P    O    1.71",      & !26
                     "P    H    1.35",      & !27
-                    "Pt   N    2.20"       & !28
+                    "Pt   N    2.20",      & !28
+                    "X    X    1.50"       & !29  (used to add connectivity to PCM cavity)
                     /)                       
         endif
         if (present(inc_hbond)) include_hbond=inc_hbond
@@ -1115,7 +1116,7 @@ module molecular_structure
         type(str_resmol),intent(in) :: molec
         double precision,dimension(1:3,1:3),intent(out) :: IM 
 
-        !Counters
+        !Co6ers
         integer :: i, j
 
 
@@ -1195,7 +1196,7 @@ module molecular_structure
 
 
         !Encontramos los residuos
-        !Para ello aplicamos conjuntamente los dos siguientes criterios:
+        !Para ello aplicamos conj6amente los dos siguientes criterios:
         resI_test=-1     !criterio 1: cambio en res.seq
         resA_test='???'  !criterio 2: cambio en res.name
         ires=0
@@ -1246,7 +1247,7 @@ module molecular_structure
 
 
         !Encontramos los residuos
-        !Para ello aplicamos conjuntamente los dos siguientes criterios:
+        !Para ello aplicamos conj6amente los dos siguientes criterios:
         resI_test=-1     !criterio 1: cambio en res.seq
         resA_test='???'  !criterio 2: cambio en res.name
         ires=0
@@ -1457,6 +1458,247 @@ print*, sistema%nres
 
     end subroutine res1_2_sist
 
+
+    SUBROUTINE ROTATA1(molec,molecRef,Rot)
+
+        !============================================================
+        ! Description
+        ! ------------
+        !  routine that rotates one molecRot to minimize the
+        !  RMSD with molecRef based on quaternion formalism
+        !
+        ! This version is addapted from FCclasses2, interfaced 
+        ! with structure_types (v4)
+        !============================================================
+
+        use MatrixMod
+        use structure_types
+        
+        type(str_resmol),intent(in)            :: molec
+        type(str_resmol),intent(in)            :: molecRef
+        real(8),dimension(1:3,1:3),intent(out) :: rot
+        !Local
+        ! scalar
+        integer :: i, j, k, ii, jj, kk, l, m, kin, imax, jmax, kmax, ivm
+        integer :: n, n3
+        real(8) :: aa, dist, dist0, pos, diff, diffmax, distmin, distmin0, distmin1, ppp
+        real(8) :: aaa, aaam
+        ! static arrays
+        real(8),dimension(1:4,1:4) :: ar1, al2, aaq, aaqs, cvec
+        real(8),dimension(1:4) :: e
+        ! allocatable
+        real(8),dimension(:),   allocatable :: disvet
+        real(8),dimension(:,:), allocatable :: dist1, dist2
+        ! interface specific
+        real(8),dimension(:), allocatable :: geo1,geo2
+
+
+        !interface with structure_types
+        n= molecRef%natoms
+
+        !allocation
+        allocate(disvet(1:N))
+        allocate(dist1(1:N,1:N), dist2(1:N,1:N))
+        allocate(geo1(1:3*N),geo2(1:3*N))
+       
+        ! geo1 -> molec
+        ! geo2 -> molecRef
+        do i=1,3*N,3
+            j = (i-1)/3 + 1
+            geo1(i  ) = molec%atom(j)%x
+            geo1(i+1) = molec%atom(j)%y
+            geo1(i+2) = molec%atom(j)%z
+            geo2(i  ) = molecRef%atom(j)%x
+            geo2(i+1) = molecRef%atom(j)%y
+            geo2(i+2) = molecRef%atom(j)%z
+        enddo
+
+
+        do k=1,n
+            disvet(k)=0.d0
+            kk=3*(k-1)
+            do i=1,n
+                ii=3*(i-1)
+                aa=0.d0
+                do j=1,3
+                    aa=aa+(geo1(kk+j)-geo1(ii+j))**2
+                enddo
+                dist1(i,k)=dsqrt(aa)
+            enddo
+        enddo
+        do k=1,n
+            kk=3*(k-1)
+            do i=1,n
+                ii=3*(i-1)
+                aa=0.d0
+                do j=1,3
+                    aa=aa+(geo2(kk+j)-geo2(ii+j))**2
+                enddo
+                dist2(i,k)=dsqrt(aa)
+            enddo
+        enddo
+
+        k=0
+        dist=0.d0
+        do i=1,n
+        do j=1,3
+            k=k+1
+            dist=dist+(geo1(k)-geo2(k))**2
+        enddo
+        enddo
+
+            dist0=dist
+            do k=1,4
+            do kk=1,k
+            aaq(kk,k)=0.d0
+            enddo
+            enddo
+            do i=1,n
+                k=3*(i-1)
+                ar1(1,1)=0.d0
+                ar1(2,1)=geo1(k+1)
+                ar1(3,1)=geo1(k+2)
+                ar1(4,1)=geo1(k+3)
+                ar1(1,2)=-geo1(k+1)
+                ar1(2,2)=0.d0
+                ar1(3,2)=-geo1(k+3)
+                ar1(4,2)=geo1(k+2)
+                ar1(1,3)=-geo1(k+2)
+                ar1(2,3)=geo1(k+3)
+                ar1(3,3)=0.d0
+                ar1(4,3)=-geo1(k+1)
+                ar1(1,4)=-geo1(k+3)
+                ar1(2,4)=-geo1(k+2)
+                ar1(3,4)=geo1(k+1)
+                ar1(4,4)=0.d0
+! c     
+                al2(1,1)=0.d0
+                al2(2,1)=geo2(k+1)
+                al2(3,1)=geo2(k+2)
+                al2(4,1)=geo2(k+3)
+                al2(1,2)=-geo2(k+1)
+                al2(2,2)=0.d0
+                al2(3,2)=geo2(k+3)
+                al2(4,2)=-geo2(k+2)
+                al2(1,3)=-geo2(k+2)
+                al2(2,3)=-geo2(k+3)
+                al2(3,3)=0.d0
+                al2(4,3)=geo2(k+1)
+                al2(1,4)=-geo2(k+3)
+                al2(2,4)=geo2(k+2)
+                al2(3,4)=-geo2(k+1)
+                al2(4,4)=0.d0
+! c     
+                do kk=1,4
+                do l=1,4
+                do m=1,4
+                aaq(kk,l)=aaq(kk,l)+al2(kk,m)*ar1(m,l)
+                enddo
+                enddo
+                enddo 
+! c     
+            enddo
+            do kk=1,4
+            do l=1,4
+            aaq(kk,l)=-aaq(kk,l)
+            aaqs(kk,l)=aaq(kk,l)*1.d-6
+            enddo
+            enddo
+
+        ! Diagonalize (original eigen call chaged to:)
+        call diagonalize_full(aaq,4,cvec,e,"lapack")
+
+        do i=1,4
+        do j=1,4
+        ar1(i,j)=0.d0
+        do k=1,4
+        ar1(i,j)=ar1(i,j)+aaq(i,k)*cvec(k,j)
+        enddo
+        enddo
+        enddo
+        do i=1,4
+        do j=1,4
+        aaq(i,j)=0.d0
+        do k=1,4
+        aaq(i,j)=aaq(i,j)+cvec(k,i)*ar1(k,j)
+        enddo
+        aaqs(i,j)=aaq(i,j)*1.d-6
+        enddo
+        enddo
+
+        distmin0=0.d0
+        do k=1,3*n
+        distmin0=distmin0+geo1(k)**2+geo2(k)**2
+        enddo
+        
+        distmin=distmin0-2.d0*e(4)   
+        write(0,*) 'minimal distance =',distmin        
+        if (-e(1)-e(4).gt.1.d-6) then
+            write(0,*) 'should consider reflection'
+            distmin1=distmin0+2.d0*e(1)
+            write(0,*) 'the minimal distance would be', distmin1
+        endif
+        write(0,*) ""
+        rot(1,1)=cvec(1,4)**2+cvec(2,4)**2-cvec(3,4)**2-cvec(4,4)**2
+        rot(2,1)=2.d0*(cvec(2,4)*cvec(3,4)+cvec(1,4)*cvec(4,4))
+        rot(3,1)=2.d0*(cvec(2,4)*cvec(4,4)-cvec(1,4)*cvec(3,4))
+        rot(1,2)=2.d0*(cvec(2,4)*cvec(3,4)-cvec(1,4)*cvec(4,4))
+        rot(2,2)=cvec(1,4)**2-cvec(2,4)**2+cvec(3,4)**2-cvec(4,4)**2
+        rot(3,2)=2.d0*(cvec(3,4)*cvec(4,4)+cvec(1,4)*cvec(2,4))
+        rot(1,3)=2.d0*(cvec(2,4)*cvec(4,4)+cvec(1,4)*cvec(3,4))
+        rot(2,3)=2.d0*(cvec(3,4)*cvec(4,4)-cvec(1,4)*cvec(2,4))
+        rot(3,3)=cvec(1,4)**2-cvec(2,4)**2-cvec(3,4)**2+cvec(4,4)**2
+             
+        return
+      end subroutine ROTATA1
+
+
+      subroutine rotate_molec(molec,Rot)
+
+        type(str_resmol),intent(inout)         :: molec
+        real(8),dimension(1:3,1:3),intent(in)  :: rot
+        !Local
+        ! scalar
+        integer :: i, j, k, kin
+        integer :: n
+        ! interface specific
+        real(8),dimension(:), allocatable :: geo1,geo1r
+
+        !interface with structure_types
+        n= molec%natoms
+
+        !allocation
+        allocate(geo1(1:3*N),geo1r(1:3*N))
+
+        ! molec -> geo1
+        do i=1,3*N,3
+            j = (i-1)/3 + 1
+            geo1(i  ) = molec%atom(j)%x
+            geo1(i+1) = molec%atom(j)%y
+            geo1(i+2) = molec%atom(j)%z
+        enddo
+          
+          DO  I=1,N
+           kin=(i-1)*3
+            DO  J=1,3
+             geo1r(kin+j)=0.d0
+              do k=1,3
+               geo1r(kin+j)=geo1r(kin+j)+ROT(j,k)*geo1(kin+k)
+              enddo
+            enddo
+           enddo  
+
+        ! geo1r -> molec
+        do i=1,3*N,3
+            j = (i-1)/3 + 1
+            molec%atom(j)%x = geo1r(i  )
+            molec%atom(j)%y = geo1r(i+1)
+            molec%atom(j)%z = geo1r(i+2)
+        enddo
+
+          return
+
+      end subroutine rotate_molec
 
 
 end module molecular_structure

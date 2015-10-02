@@ -45,4 +45,5 @@ libmoleculartools_a_SOURCES =        \
 #    sizes.f90                         \
 #    structure_types_v5.f90            
 
+CLEANFILES =*.mod 
  

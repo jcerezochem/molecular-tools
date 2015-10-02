@@ -50,6 +50,8 @@ src/internal_duschisky/zmat2modredundant
 src/cube_tools/density_3D
 src/cube_tools/charges_potential
 src/file_management/reform_fchk
+src/file_management/rmsd_fit
+src/bonded_info/max_dist_to_center
 
 # output from test calcs
 *output.?

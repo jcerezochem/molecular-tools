@@ -39,17 +39,18 @@ module fcc_manage
                 if (len_trim(line) == 0 .or. IOstatus /= 0) exit
                 i=i+1
             enddo
-        endif
-        natoms_real = (12.d0+dsqrt(12.0**2+36.d0*(6.d0+float(i))))/18.d0
-        if (natoms_real - int(natoms_real) /= 0) then
-            print*, "Error: cannot guess the number of atoms from the state", natoms, natoms_real
-            stop
-        endif
-        natoms = int(natoms_real)
-        system%natoms=natoms
-        rewind(unt)
 
-        do i=1,natoms
+            natoms_real = (12.d0+dsqrt(12.0**2+36.d0*(6.d0+float(i))))/18.d0
+            if (natoms_real - int(natoms_real) /= 0) then
+                print*, "ERROR: cannot guess the number of atoms from the state", natoms, natoms_real
+                stop
+            endif
+            natoms = int(natoms_real)
+            system%natoms=natoms
+            rewind(unt)
+        endif
+
+        do i=1,system%natoms
             read(unt,*) system%atom(i)%x         
             read(unt,*) system%atom(i)%y  
             read(unt,*) system%atom(i)%z

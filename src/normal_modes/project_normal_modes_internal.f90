@@ -207,7 +207,7 @@ program projection_normal_modes_int
     !Read structure
     if (adjustl(filetype) == "guess") then
         ! Guess file type
-        call split_line(inpfile,".",null,filetype)
+        call split_line_back(inpfile,".",null,filetype)
     endif
     call generic_strfile_read(I_INP,filetype,molecule)
     !Shortcuts
@@ -425,7 +425,7 @@ program projection_normal_modes_int
     if (IOstatus /= 0) call alert_msg( "fatal","Unable to open "//trim(adjustl(strfile)) )
     if (adjustl(filetype_str) == "guess") then
         ! Guess file type
-        call split_line(strfile,".",null,filetype_str)
+        call split_line_back(strfile,".",null,filetype_str)
     endif
     call generic_strfile_read(I_INP,filetype_str,molec_aux)
     !From now on, we'll use atomic units
