@@ -66,7 +66,7 @@ max_dist_to_center_SOURCES = ../modules/alerts.f90\
                       ../modules/molecular_structure.f90\
                       ../modules/ff_build_module_v4.f90\
                       max_dist_to_center.f90
-get_com_LDFLAGS = @LIBS@
+max_dist_to_center_LDFLAGS = @LIBS@
 
 CLEANFILES =*.mod 
 
