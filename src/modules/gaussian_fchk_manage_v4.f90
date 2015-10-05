@@ -397,9 +397,9 @@ module gaussian_fchk_manage
         !Local stuff
         !=============
         character(len=240) :: line=""
-        character(len=1) :: sep="-"
+        character(len=1) :: sep
         integer :: n_elem, i
-        character(len=20),dimension(1:5) :: dummy_char_array
+        character(len=100),dimension(1:5) :: dummy_char_array
         !I/O
         integer :: IOstatus
 
@@ -411,7 +411,21 @@ module gaussian_fchk_manage
             rewind(unt)
             return
         endif
-        read(unt,*,IOSTAT=IOstatus) job%type,job%method,job%basis
+!         read(unt,*,IOSTAT=IOstatus) job%type,job%method,job%basis
+        ! We cannot make a standard read since basis includes ","
+        ! and fortran would think they separate entries. So read and 
+        ! split the line
+        read(unt,'(A)',IOSTAT=IOstatus) line
+        sep=" "
+        call string2vector_char_new(line,dummy_char_array,n_elem,sep)
+        if (n_elem /= 3) then
+            call alert_msg("note","Cannot read job info from fchk file")
+            error_flag=-1
+            return
+        endif
+        job%type   = trim(adjustl(dummy_char_array(1)))
+        job%method = trim(adjustl(dummy_char_array(2)))
+        job%basis  = trim(adjustl(dummy_char_array(3)))
         if ( IOstatus < 0 ) then
             call alert_msg("note","Cannot read FCHK file (line 2). Exiting subroutine")
             error_flag=1
@@ -421,6 +435,7 @@ module gaussian_fchk_manage
 
         !Refine method info
         ! It can be a dash separated list: TD-B3LYP-FC...
+        sep="-"
         call string2vector_char(job%method,dummy_char_array,n_elem,sep)
 
         if (n_elem > 1) then

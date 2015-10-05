@@ -351,11 +351,13 @@ module line_preprocess
                 exit
             else if ( INDEX(raw_vector_copy,sep) /= 0 ) then
                 call split_line(raw_vector_copy,sep,auxchar,raw_vector_copy)
-                read(auxchar,*) array_vector(i)
+                ! We need to read with format 'A', not default 
+                ! to catch the ","
+                read(auxchar,'(A)') array_vector(i)
                 ! By adjustl-ing every time we avoid double counting blank spaces
                 raw_vector_copy = adjustl(raw_vector_copy)
             else 
-                read(raw_vector_copy,*) array_vector(i)
+                read(raw_vector_copy,'(A)') array_vector(i)
                 exit
             endif
         enddo  

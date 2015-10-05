@@ -213,7 +213,7 @@ program projection_normal_modes_int
     !Shortcuts
     Nat = molecule%natoms
     Nvib = 3*Nat-6
-    !Read the Hessian: only two possibilities supported
+    !Read the Hessian
     if (adjustl(filetype) == "log") then
         !Gaussian logfile
         allocate(props)

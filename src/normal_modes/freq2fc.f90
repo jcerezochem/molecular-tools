@@ -52,6 +52,8 @@ program freq2fc
         !convert freq to fc
         fc = (2.d0*pi*clight*1.d2*freq)**2 * BOHRtoM**2*AUtoKG/HARTtoJ
         print'(A,G15.7)', "FC(a.u.) =", fc
+        fc = fc * HtoKCALM * CALtoJ
+        print'(A,G15.7)', "FC(kJ/mol bohr^-1) =", fc
         fc = plank * clight * freq*1.d2 /HARTtoJ * HtoeV
         print'(A,G15.7)', "h\nu(eV) = ", fc
     else

@@ -1509,6 +1509,70 @@ subroutine check_ori3(molec,molec2,info)
 
 end subroutine check_ori3
 
+subroutine check_ori4(molec,molec2,info)
+
+    ! Check if two molecules share the same orientation and, if not, reorinent molec to fit molec2
+    ! Thia version (4) uses ROTATA to get a first stimation of the rotation
+    ! and then converts it to a rotation keeping the same axis
+
+    use structure_types
+    use molecular_structure
+
+    implicit none
+
+    type(str_resmol),intent(inout) :: molec
+    type(str_resmol),intent(in)    :: molec2
+    integer,intent(out) :: info
+
+    type(str_resmol)    :: molec_aux
+    real(8),dimension(3,3) :: T0, R
+    real(8),dimension(3) :: Vec2
+
+    integer :: i,j, Nat
+    real(8) :: xaux, yaux, zaux, x2aux, y2aux, z2aux,&
+               ux,uy,uz, umod, baux, baux2, Theta, costheta, dist
+
+    Nat = molec%natoms
+    info=0
+
+    ! Get rotation to minimize RMSD
+    call ROTATA1(molec,molec2,R)
+
+    ! Analyze the rotation
+    print*, "R (to minimize RMSD)"
+    do i=1,3
+        print'(100(F8.3,2X))', R(i,1:3)
+        Theta=0.d0
+        do j=1,3
+            if (abs(R(i,j)) > 0.8) then
+                T0(i,j) = sign(1.d0,R(i,j))
+                Theta = Theta + 1.d0
+            else 
+                T0(i,j) = 0.d0
+            endif
+        enddo
+        if (Theta /= 1.d0) info=-1
+    enddo
+    print*, ""
+    print*, "T0 (keeping stdori frame)"
+    do i=1,3
+        print'(100(F8.3,2X))', T0(i,1:3)
+    enddo
+
+    ! If successful, rotate the molecule
+    if (info /= 0) then
+        print*, "New fast method failed..."
+    else
+        ! Rotate
+        call rotate_molec(molec,T0)
+    endif
+    
+
+    return
+
+end subroutine check_ori4
+
+
 subroutine check_Ci(molec,molecP,molec2)
 
     !Compare which one, molec or molecP, is more similar to molec2

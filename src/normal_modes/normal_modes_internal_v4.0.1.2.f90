@@ -457,7 +457,12 @@ program normal_modes_animation
         enddo
 
        !Use freqs. to make displacements equivalent in dimensionless units
-        Factor(1:Nvib) = dsqrt(dabs(Freq(1:Nvib)))/5.d3
+!         Factor(1:Nvib) = dsqrt(dabs(Freq(1:Nvib)))/5.d3
+        !Define the Factor to convert shift into addimensional displacements
+        ! from the shift in SI units:
+        Factor(1:Nvib) = dsqrt(dabs(Freq(1:Nvib))*1.d2*clight*2.d0*PI/plankbar)
+        ! but we need it from au not SI
+        Factor(1:Nvib)=Factor(1:Nvib)*BOHRtoM*dsqrt(AUtoKG)
 
     endif
 
@@ -563,8 +568,8 @@ program normal_modes_animation
             molecule%atom(1:Nat)%x = molecule%atom(1:Nat)%x*BOHRtoANGS
             molecule%atom(1:Nat)%y = molecule%atom(1:Nat)%y*BOHRtoANGS
             molecule%atom(1:Nat)%z = molecule%atom(1:Nat)%z*BOHRtoANGS
-            !call check_ori3(state,ref): efficient but not always works. If so, it uses check_ori2(state,ref)
-            call check_ori3(molecule,molec_aux,info)
+            !call check_ori4(state,ref): efficient but not always works. If so, it uses check_ori2(state,ref)
+            call check_ori4(molecule,molec_aux,info)
             if (info /= 0 .or. istep==1) then
                 call check_ori2b(molecule,molec_aux,dist)
                 !The threshold in 5% avobe the last meassured distance
@@ -576,7 +581,7 @@ program normal_modes_animation
                 molecule%job%title=trim(adjustl(grofile(jj)))//".step "//trim(adjustl(dummy_char))
                 molecule%title=trim(adjustl(g09file))
                 call write_gcom(O_G09,molecule)
-                write(O_Q,*) qcoord
+                write(O_Q,*) qcoord, qcoord*Factor(j)
             endif
             !Save last step in molec_aux (in AA)
             molec_aux=molecule
@@ -617,7 +622,7 @@ program normal_modes_animation
             molecule%atom(1:Nat)%y = molecule%atom(1:Nat)%y*BOHRtoANGS
             molecule%atom(1:Nat)%z = molecule%atom(1:Nat)%z*BOHRtoANGS
 
-            call check_ori3(molecule,molec_aux,info)
+            call check_ori4(molecule,molec_aux,info)
             if (info /= 0) then
                 call check_ori2b(molecule,molec_aux,dist)
                 !The threshold in 5% avobe the last meassured distance
@@ -628,7 +633,7 @@ program normal_modes_animation
                 molecule%job%title=trim(adjustl(grofile(jj)))//".step "//trim(adjustl(dummy_char))
                 molecule%title=trim(adjustl(g09file))
                 call write_gcom(O_G09,molecule)
-                write(O_Q,*) qcoord
+                write(O_Q,*) qcoord, qcoord*Factor(j)
             endif
             !Save last step in molec_aux (in AA)
             molec_aux=molecule
@@ -670,7 +675,7 @@ program normal_modes_animation
             molecule%atom(1:Nat)%y = molecule%atom(1:Nat)%y*BOHRtoANGS
             molecule%atom(1:Nat)%z = molecule%atom(1:Nat)%z*BOHRtoANGS
 
-            call check_ori3(molecule,molec_aux,info)
+            call check_ori4(molecule,molec_aux,info)
             if (info /= 0) then
                 call check_ori2b(molecule,molec_aux,dist)
                 !The threshold in 5% avobe the last meassured distance
@@ -685,7 +690,7 @@ program normal_modes_animation
             molecule%job%title = "Displacement = "//trim(adjustl(dummy_char))
             molecule%title=trim(adjustl(numfile))
             call write_gcom(O_NUM,molecule)
-            write(O_Q,*) qcoord
+            write(O_Q,*) qcoord, qcoord*Factor(j)
             molec_aux=molecule
         enddo
 !         ! Numerical stimation of the second derivative
@@ -731,7 +736,7 @@ program normal_modes_animation
             molecule%atom(1:Nat)%y = molecule%atom(1:Nat)%y*BOHRtoANGS
             molecule%atom(1:Nat)%z = molecule%atom(1:Nat)%z*BOHRtoANGS
 
-            call check_ori3(molecule,molec_aux,info)
+            call check_ori4(molecule,molec_aux,info)
             if (info /= 0) then
                 call check_ori2b(molecule,molec_aux,dist)
                 !The threshold in 5% avobe the last meassured distance
@@ -742,7 +747,7 @@ program normal_modes_animation
                 molecule%job%title=trim(adjustl(grofile(jj)))//".step "//trim(adjustl(dummy_char))
                 molecule%title=trim(adjustl(g09file))
                 call write_gcom(O_G09,molecule)
-                write(O_Q,*) qcoord
+                write(O_Q,*) qcoord, qcoord*Factor(j)
             endif
             molec_aux=molecule
         enddo
@@ -779,7 +784,7 @@ program normal_modes_animation
             molecule%atom(1:Nat)%y = molecule%atom(1:Nat)%y*BOHRtoANGS
             molecule%atom(1:Nat)%z = molecule%atom(1:Nat)%z*BOHRtoANGS
 
-            call check_ori3(molecule,molec_aux,info)
+            call check_ori4(molecule,molec_aux,info)
             if (info /= 0) then
                 call check_ori2b(molecule,molec_aux,dist)
                 !The threshold in 5% avobe the last meassured distance
@@ -920,6 +925,7 @@ program normal_modes_animation
                    need_help = .false.
         integer:: i
         character(len=200) :: arg
+        real(8) :: maxd
 
         !Prelimirary defaults
         Nsel = 0
@@ -954,7 +960,9 @@ program normal_modes_animation
 
                 case ("-maxd") 
                     call getarg(i+1, arg)
-                    read(arg,*) Amplitude
+                    read(arg,*) maxd
+                    !The whole Amplitude is twide the max displacement
+                    Amplitude = maxd*2
                     argument_retrieved=.true.
 
                 case ("-vmd")
@@ -1032,7 +1040,7 @@ program normal_modes_animation
 !         write(0,*) '-nmf           ', nm(1:Nsel)
         write(0,*) '-vmd           ',  call_vmd
         write(0,*) '-movie (cycles)',  movie_cycles
-        write(0,*) '-maxd          ',  Amplitude
+        write(0,*) '-maxd          ',  maxd
         if (nosym) dummy_char="NO "
         if (.not.nosym) dummy_char="YES"
         write(0,*) '-[no]sym        ', dummy_char

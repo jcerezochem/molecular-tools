@@ -264,8 +264,11 @@ program normal_modes_Cartesian
         !      unclear. This should be carrefully revised!
     enddo
 
-   !Use freqs. to make displacements equivalent in dimensionless units
-    Factor(1:Nvib) = dsqrt(dabs(Freq(1:Nvib)))/5.d3
+    !Define the Factor to convert shift into addimensional displacements
+    ! from the shift in SI units:
+    Factor(1:Nvib) = dsqrt(dabs(Freq(1:Nvib))*1.d2*clight*2.d0*PI/plankbar)
+    ! but we need it from au not SI
+    Factor(1:Nvib)=Factor(1:Nvib)*BOHRtoM*dsqrt(AUtoKG)
  
 
     !NORMAL MODES SELECTION SWITCH
@@ -332,7 +335,7 @@ program normal_modes_Cartesian
             !Write the max amplitude step to G09 scan
             if (kk==nsteps/2) then
                 call write_gcom(O_G09,molec)
-                write(O_Q,*) qcoord
+                write(O_Q,*) qcoord, qcoord*Factor(j)
             endif
         enddo
         !=======================================
@@ -356,7 +359,7 @@ program normal_modes_Cartesian
                 molec%job%title=trim(adjustl(grofile(jj)))//".step "//trim(adjustl(dummy_char))
                 molec%title=trim(adjustl(g09file))
                 call write_gcom(O_G09,molec)
-                write(O_Q,*) qcoord
+                write(O_Q,*) qcoord, qcoord*Factor(j)
             endif
         enddo
         !=======================================
@@ -385,7 +388,7 @@ program normal_modes_Cartesian
             molec%job%title = "Displacement = "//trim(adjustl(dummy_char))
             molec%title=trim(adjustl(numfile))
             call write_gcom(O_NUM,molec)
-            write(O_Q,*) qcoord
+            write(O_Q,*) qcoord, qcoord*Factor(j)
         enddo
         !=======================================
         ! Continue Back oscillation
@@ -406,7 +409,7 @@ program normal_modes_Cartesian
             call write_gro(O_GRO,molec)
             if (mod(kk,10) == 0) then
                 call write_gcom(O_G09,molec)
-                write(O_Q,*) qcoord
+                write(O_Q,*) qcoord, qcoord*Factor(j)
             endif
         enddo
         !=======================================
@@ -553,6 +556,7 @@ program normal_modes_Cartesian
                    need_help = .false.
         integer:: i
         character(len=200) :: arg
+        real(8) :: maxd
 
         !Prelimirary defaults
         Nsel = 0
@@ -586,7 +590,9 @@ program normal_modes_Cartesian
 
                 case ("-maxd") 
                     call getarg(i+1, arg)
-                    read(arg,*) Amplitude
+                    read(arg,*) maxd
+                    !The whole Amplitude is twide the max displacement
+                    Amplitude = maxd*2
                     argument_retrieved=.true.
 
                 case ("-vmd")
