@@ -233,7 +233,7 @@ program joyce_preprocessor
 
         !Leave unchanged empty lines
         if (len_trim(line) ==  0) then
-            write(O_TOP,'(A)') trim(line)
+            write(O_INP,'(A)') trim(line)
             cycle
         endif
 
