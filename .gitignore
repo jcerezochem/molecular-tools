@@ -46,6 +46,7 @@ src/gen_oniom/gen_oniom
 src/wf_analysis/contribMO
 src/wf_analysis/get_NTO_coef
 src/joyce_tools/jpp
+src/joyce_tools/modify_fchk
 src/internal_duschisky/zmat2modredundant
 src/cube_tools/density_3D
 src/cube_tools/charges_potential

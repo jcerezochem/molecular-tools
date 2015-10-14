@@ -461,8 +461,15 @@ module molecular_structure
                             atom%element = "Cl"
                             call alert_msg("warning","CL taken as chlorine")
                         case ("a")
-                            atom%element = "Ca"
-                            call alert_msg("warning","Ca taken as calcium")
+                            ! If it has additional labels (e.g. Ca1), 
+                            ! this is probably not Ca but Carbon
+                            if (len_trim(atname) > 2) then
+                                atom%element = "C"
+                                call alert_msg("warning",trim(atname)//" taken as carbon")
+                            else
+                                atom%element = "Ca"
+                                call alert_msg("warning",trim(atname)//" taken as calcium")
+                            endif
                         case ("A")
                             !This case can be either C"A" or Ca. Mark with x to check later
                             atom%element = "C"
