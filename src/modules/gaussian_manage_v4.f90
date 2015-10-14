@@ -156,6 +156,8 @@ module gaussian_manage
         ! molec (str_resmol,inout): molecule 
         !==============================================================
 
+        use constants
+
         !Practically zero charge
 #ifdef DOUBLE
         double precision,parameter :: ZERO_q = 2.d-6
@@ -189,13 +191,6 @@ module gaussian_manage
         !status
         integer :: IOstatus
         !===================
-
-        character(len=5),dimension(100) :: atom_names_from_atnum
- 
-        !This should be elsewhere (constants_mod?)
-        data atom_names_from_atnum(1:18) &
-         /'H','He','Li','Be','B','C','N','O','F','Ne','Na','Mg','Al','Si','P','S','Cl','Ar'/
-
 
         !Set variables
         header_of_section="Standard orientation"
@@ -242,7 +237,7 @@ module gaussian_manage
         molec%natoms = i
 
         do i=1,molec%natoms
-            molec%atom(i)%name = atom_names_from_atnum(molec%atom(i)%AtNum)
+            molec%atom(i)%name = atname_from_atnum(molec%atom(i)%AtNum)
         enddo
 
         if ( .not.found_standard_orientation ) call alert_msg("warning","No Standard orientation retrieved")
@@ -264,6 +259,8 @@ module gaussian_manage
         ! unt (int;in): unit number of the log file
         ! molec (str_resmol,inout): molecule 
         !==============================================================
+
+        use constants
 
         !Practically zero charge
 #ifdef DOUBLE
@@ -298,12 +295,6 @@ module gaussian_manage
         !status
         integer :: IOstatus
         !===================
-
-        character(len=5),dimension(100) :: atom_names_from_atnum
- 
-        !This should be elsewhere (constants_mod?)
-        data atom_names_from_atnum(1:18) &
-         /'H','He','Li','Be','B','C','N','O','F','Ne','Na','Mg','Al','Si','P','S','Cl','Ar'/
 
 
         !Set variables
@@ -351,7 +342,7 @@ module gaussian_manage
         molec%natoms = i
 
         do i=1,molec%natoms
-            molec%atom(i)%name = atom_names_from_atnum(molec%atom(i)%AtNum)
+            molec%atom(i)%name = atname_from_atnum(molec%atom(i)%AtNum)
         enddo
 
         if ( .not.found_standard_orientation ) call alert_msg("warning","No Standard orientation retrieved")
@@ -373,6 +364,8 @@ module gaussian_manage
         ! unt (int;in): unit number of the log file
         ! molec (str_resmol,inout): molecule 
         !==============================================================
+
+        use constants
 
         !Practically zero charge
 #ifdef DOUBLE
@@ -408,28 +401,6 @@ module gaussian_manage
         !status
         integer :: IOstatus
         !===================
-
-        character(len=5),dimension(104) :: atom_names_from_atnum
- 
-        !This should be elsewhere (constants_mod?)
-        data atom_names_from_atnum(1:103) &
-         /'H' ,                                                                                'He',&
-          'Li','Be',                                                  'B' ,'C' ,'N' ,'O' ,'F' ,'Ne',&
-          'Na','Mg',                                                  'Al','Si','P' ,'S' ,'Cl','Ar',&
-          'K' ,'Ca','Sc','Ti','V' ,'Cr','Mn','Fe','Co','Ni','Cu','Zn','Ga','Ge','As','Se','Br','Kr',&
-          'Rb','Sr','Y' ,'Zr','Nb','Mo','Tc','Ru','Rh','Pd','Ag','Cd','In','Sn','Sb','Te','I' ,'Xe',&
-          'Cs','Ba','La',& !Lantanides:  
-!                  ---------------------------------------------------
-                    'Ce','Pr','Nd','Pm','Sm','Eu','Gd',&
-                    'Tb','Dy','Ho','Er','Tm','Yb','Lu',&
-!                  ---------------------------------------------------
-                         'Hf','Ta','W' ,'Re','Os','Ir','Pt','Au','Hg','Tl','Pb','Bi','Po','At','Rn',&
-         'Fr','Ra','Ac',& !Actinides:
-!                  ---------------------------------------------------
-                   'Th','Pa','U' ,'Np','Pu','Am','Cm',&
-                   'Bk','Cf','Es','Fm','Md','No','Lr'&
-!                  ---------------------------------------------------
-         /
 
 
         !Set variables
@@ -479,7 +450,7 @@ module gaussian_manage
         molec%natoms = i
 
         do i=1,molec%natoms
-            molec%atom(i)%name = atom_names_from_atnum(molec%atom(i)%AtNum)
+            molec%atom(i)%name = atname_from_atnum(molec%atom(i)%AtNum)
         enddo
 
         if ( .not.found_standard_orientation ) call alert_msg("warning","No Standard orientation retrieved")

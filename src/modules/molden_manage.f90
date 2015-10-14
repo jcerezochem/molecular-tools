@@ -73,7 +73,7 @@ module molden_manage
                                   system%atom(i)%y,      &
                                   system%atom(i)%z
                      !Get elements from AtNum
-                     system%atom(i)%element = atom_names_from_atnum_new(system%atom(i)%AtNum)
+                     system%atom(i)%element = atname_from_atnum(system%atom(i)%AtNum)
                      
                 enddo
                 if (i /= system%natoms) call alert_msg("note","[N_ATOMS] not found of conflictive in molden file")
