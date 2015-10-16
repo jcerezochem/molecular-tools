@@ -374,7 +374,7 @@ subroutine internal_Wilson(molec,Nvib,S,S_sym,ModeDef,B,G,Asel,verbose)
 !     B(5,1:3*Nat) = Aux(2,1:3*Nat)
     if (S_sym(3*Nat) /= 0) then
          print*, ""
-         print*, "Symmetry addapted coordinates will be used"
+         print*, "Symmetry addapted coordinates will be used **"
          do i=1,Nvib
              if (S_sym(i) <= i) cycle
              j=S_sym(i)
@@ -435,7 +435,7 @@ subroutine internal_Wilson(molec,Nvib,S,S_sym,ModeDef,B,G,Asel,verbose)
     !COMBINATION FROM THE NON-ZERO EIGENVALUES OF G (Reimers 2001, JCP)
     !--- this is not tested for new versions and must not be used ---
     if (Nred-Nvib /= 0) then    
-!         if (Asel(1,1) == 99.d0) then
+        if (Asel(1,1) == 99.d0) then
             Asel = 0.d0
             !Get a non-redundant set from the non-zero eigenvalues of G
             call diagonalize_full(G(1:Nred,1:Nred),Nred,Aux(1:Nred,1:Nred),Vec(1:Nred),"lapack")
@@ -478,10 +478,9 @@ subroutine internal_Wilson(molec,Nvib,S,S_sym,ModeDef,B,G,Asel,verbose)
                 stop
             endif
             print*, "New set of non-redundant internal coordinates", kk
-!         else
-!             print'(/,X,A,/)', "Using A determined for other state."
-! ! print*, "Asel(1,1)", Asel(1,1)
-!         endif
+        else
+            print'(/,X,A,/)', "Using A determined for other state."
+        endif
 
 
         !Definitions of the modes are no longer valid
@@ -1359,13 +1358,18 @@ subroutine gf_method(Hess,molec,Nvib,S_sym,ModeDef,L,B,G,Freq,Asel,X,Xinv,verbos
     ! No, they should not be changed since the ones finally used are the "original" ones, not this orthogonalized set 
 
     !The non-unitary rotation which orthogonalize G^-1 could be X=G^(1/2)  (inverse compared with the case of Roothan eqs)
-    ! where G^{1/2} = Ug^{1/2}U^T
+    ! where G^{1/2} = Ug^{1/2}U^t
     !Store the rotation (X) in AuxT    !G. Note X=X^T
     do i=1,Nvib
         do j=1,Nvib
             X(i,j) = 0.d0
             do k=1,Nvib
-                X(i,j) = X(i,j) + Aux(i,k)*dsqrt(Freq(k))*Aux(j,k)
+                if (abs(Freq(k)) < 1.d-12) then
+                    Theta = 0.d0
+                else
+                    Theta = Freq(k)
+                endif
+                X(i,j) = X(i,j) + Aux(i,k)*dsqrt(Theta)*Aux(j,k)
             enddo
         enddo
     enddo
@@ -1374,7 +1378,12 @@ subroutine gf_method(Hess,molec,Nvib,S_sym,ModeDef,L,B,G,Freq,Asel,X,Xinv,verbos
         do j=1,Nvib
             Xinv(i,j) = 0.d0
             do k=1,Nvib
-                Xinv(i,j) = Xinv(i,j) + Aux(i,k)/dsqrt(Freq(k))*Aux(j,k)
+                if (abs(Freq(k)) < 1.d-12) then
+                    Theta = 0.d0
+                else
+                    Theta = 1.d0/dsqrt(Freq(k))
+                endif
+                Xinv(i,j) = Xinv(i,j) + Aux(i,k)*Theta*Aux(j,k)
             enddo
         enddo
     enddo
@@ -1385,14 +1394,41 @@ subroutine gf_method(Hess,molec,Nvib,S_sym,ModeDef,L,B,G,Freq,Asel,X,Xinv,verbos
     do i=1,Nvib
         print'(100(F10.3,2X))', X(i,1:Nvib)
     enddo
+    print*, ""
+    print*, "Xinv="
+    do i=1,Nvib
+        print'(100(F10.3,2X))', Xinv(i,1:Nvib)
+    enddo
+    print*, ""
+    print*, "diag="
+    do i=1,Nvib
+        print*, Freq(i)
+    enddo
+    Aux3 = matmul(X(1:Nvib,1:Nvib),Xinv(1:Nvib,1:Nvib))
+    print*, ""
+    print*, "X X^-1="
+    do i=1,Nvib
+        print'(100(F7.2))', Aux3(i,1:Nvib)
+    enddo
+    AuxT(1:Nvib,1:Nvib) = transpose(Aux(1:Nvib,1:Nvib))
+    Aux3 = matmul(AuxT(1:Nvib,1:Nvib),Aux3(1:Nvib,1:Nvib))
+    Aux3 = matmul(Aux3(1:Nvib,1:Nvib),Aux(1:Nvib,1:Nvib))
+    print*, ""
+    print*, "V^t [X X^-1] V="
+    do i=1,Nvib
+        print'(100(F7.2))', Aux3(i,1:Nvib)
+    enddo
     endif
 
-    !Now rotate F, F'=X^TFX. Store the rotated matrix in Aux3 (temporary array)
+    ! Re-define the rotation matrix 
+    X(1:Nvib,1:Nvib) = matmul(X(1:Nvib,1:Nvib),Aux(1:Nvib,1:Nvib))
+
+    !Now rotate F, F'=X^tFX. Store the rotated matrix in Aux3 (temporary array)
     do i=1,Nvib
         do j=1,Nvib
-            Aux(i,j) = 0.d0
+            AuxT(i,j) = 0.d0
             do k=1,Nvib
-                Aux(i,j) = Aux(i,j) + X(k,i)*Hess(k,j)
+                AuxT(i,j) = AuxT(i,j) + X(k,i)*Hess(k,j)
             enddo
         enddo
     enddo
@@ -1400,10 +1436,14 @@ subroutine gf_method(Hess,molec,Nvib,S_sym,ModeDef,L,B,G,Freq,Asel,X,Xinv,verbos
         do j=1,Nvib
             Aux3(i,j) = 0.d0
             do k=1,Nvib
-                Aux3(i,j) = Aux3(i,j) + Aux(i,k)*X(k,j)
+                Aux3(i,j) = Aux3(i,j) + AuxT(i,k)*X(k,j)
             enddo
         enddo
     enddo
+!     ! If we are in a redundat space, we still need to make another rotation
+!     AuxT(1:Nvib,1:Nvib) = transpose(Aux(1:Nvib,1:Nvib))
+!     Aux3 = matmul(AuxT(1:Nvib,1:Nvib),Aux3(1:Nvib,1:Nvib))
+!     Aux3 = matmul(Aux3(1:Nvib,1:Nvib),Aux(1:Nvib,1:Nvib))
 
     !We can now diagonalize F
     call diagonalize_full(Aux3(1:Nvib,1:Nvib),Nvib,L(1:Nvib,1:Nvib),Freq(1:Nvib),"lapack")
@@ -1424,7 +1464,11 @@ subroutine gf_method(Hess,molec,Nvib,S_sym,ModeDef,L,B,G,Freq,Asel,X,Xinv,verbos
     do i=1,Nvib
           Freq(i) = sign(dsqrt(abs(Freq(i))*HARTtoJ/BOHRtoM**2/AUtoKG)/2.d0/pi/clight/1.d2,&
                          Freq(i))
-          write(6,*) Freq(i)
+          write(6,'(F12.4)') Freq(i)
+    enddo
+    Aux3 = 0.d0
+    do i=1,Nvib
+        Aux3(i,i) = Freq(i)
     enddo
 !     print*, "L'="
 !     do i=1,Nvib
@@ -1558,6 +1602,7 @@ subroutine gf_method(Hess,molec,Nvib,S_sym,ModeDef,L,B,G,Freq,Asel,X,Xinv,verbos
           Theta = 0.d0
           kk=0
           do j=1,Nvib
+              ! Sort contributions up to 90%
               if (Theta > 0.9d0) exit
               jj = ipiv(j)
               Theta = Theta + Aux3(1,j)!**2

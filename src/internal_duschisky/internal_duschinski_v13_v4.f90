@@ -91,11 +91,12 @@ program internal_duschinski
 
     !====================== 
     !Options 
-    logical :: nosym=.true.   ,&
-               zmat=.true.    ,&
-               tswitch=.false.,&
-               symaddapt=.false.,&
+    logical :: nosym=.true.      ,&
+               modred=.false.    ,&
+               tswitch=.false.   ,&
+               symaddapt=.false. ,&
                vertical=.false.
+    character(len=4) :: internal_set='zmat'
     !======================
 
     !====================== 
@@ -192,7 +193,8 @@ program internal_duschinski
                          addfile2="no", &
                          zmatfile="NO", &
                          rmzfile="NO", &
-                         symm_file="NO"
+                         symm_file="NO", &
+                         selfile="modred.dat"
     !Control of stdout
     logical :: verbose=.false.
     !status
@@ -210,9 +212,9 @@ program internal_duschinski
     call cpu_time(ti)
 
     ! 0. GET COMMAND LINE ARGUMENTS
-    call parse_input(inpfile,inpfile2,filetype,filetype2,nosym,zmat,verbose,tswitch,symaddapt,zmatfile,vertical,symm_file,&
-                     addfile,addfile2,rmzfile)
-
+    call parse_input(inpfile,inpfile2,filetype,filetype2,nosym,verbose,tswitch,symaddapt,vertical,symm_file,&
+                     addfile,addfile2,zmatfile,rmzfile,internal_set,selfile)
+    call set_word_upper_case(internal_set)
 
     ! 1. INTERNAL VIBRATIONAL ANALYSIS ON STATE1 AND STATE2
 
@@ -323,6 +325,9 @@ program internal_duschinski
         call symm_atoms(state1,isym)
         PG=state1%PG
     endif
+    if (adjustl(state1%PG) /= "XX") then
+        print'(/,X,A,/)', "Symmetry "//state1%PG 
+    endif
     !From now on, we'll use atomic units
     state1%atom(:)%x = state1%atom(:)%x/BOHRtoANGS
     state1%atom(:)%y = state1%atom(:)%y/BOHRtoANGS
@@ -345,12 +350,12 @@ program internal_duschinski
    
 
     !GEN BONDED SET FOR INTERNAL COORD
-    if (.not.zmat) then
+    if (adjustl(internal_set) == "SEL") then
         print*, "Custom internal coordianates"
-        open(I_RED,file="modred.dat") 
+        open(I_RED,file=selfile,iostat=IOstatus) 
+        if (IOstatus /= 0) call alert_msg("fatal","Cannot open file: "//trim(adjustl(selfile)))
         call modredundant(I_RED,state1)
         close(I_RED)
-        zmat=.false.
 ! print*, "Review"
 !         do i=1,state1%geom%nimprop
 !             i1=state1%geom%improp(i,1)
@@ -363,14 +368,14 @@ program internal_duschinski
 
         ! If the number bonds+angles+dihed+.. is less than Nvib, we are in a reduced space
         ! if so, set Nvib to the new dimension
-        if (Nvib > state1%geom%nbonds  + &
-                   state1%geom%nangles + &
-                   state1%geom%ndihed) then
-            Nvib = state1%geom%nbonds  + &
-                   state1%geom%nangles + &
-                   state1%geom%ndihed 
+        Nred = state1%geom%nbonds  + &
+               state1%geom%nangles + &
+               state1%geom%ndihed
+        if (Nvib > Nred) then
+            Nvib = Nred
+            print*, "Working with a reduced space"
         endif
-    elseif (zmat) then
+    elseif (adjustl(internal_set) == "ZMAT") then
         if (adjustl(zmatfile) == "NO") then
             call build_Z(state1,bond_s,angle_s,dihed_s,PG,isym,bond_sym,angle_sym,dihed_sym)
         else
@@ -379,7 +384,7 @@ program internal_duschinski
             call read_Z(state1,bond_s,angle_s,dihed_s,PG,isym,bond_sym,angle_sym,dihed_sym,I_ZMAT)
             close(I_ZMAT)
             !Deactivate symaddapt (for the moment)
-            PG = "C1"
+!             PG = "C1"
         endif
         !Z-mat
         state1%geom%bond(1:Nat-1,1:2) = bond_s(2:Nat,1:2)
@@ -446,7 +451,14 @@ program internal_duschinski
             enddo
             print*, " "
         endif
-    endif !otherwise all parameters are used
+    else if (adjustl(internal_set) == "ALL") then!otherwise all parameters are used
+        print*, "Using all internal coordinates", state1%geom%nangles
+        Nred = state1%geom%nbonds  + &
+               state1%geom%nangles + &
+               state1%geom%ndihed
+    else
+        call alert_msg("fatal","Unkownn option for -intset. Valid options are 'zmat', 'sel', 'all'")
+    endif 
 
     !Set symmetry of internal (only if symmetry is detected)
     if (adjustl(PG) == "C1") then
@@ -548,7 +560,7 @@ program internal_duschinski
     do i=1,3*Nat
         theta=theta+Aux2(i,j)**2
     enddo
-    print*, theta
+    print'(F15.8)', theta
     enddo
     print*, ""
     !Print state
@@ -727,21 +739,23 @@ program internal_duschinski
     state2%geom%nbonds = k
     
     !GEN BONDED SET FOR INTERNAL COORD
-    if (.not.zmat) then
-        print*, "Custom internal coordianates"
-        open(I_RED,file="modred.dat") 
-        call modredundant(I_RED,state2)
-        close(I_RED)
-        zmat=.false.
-    elseif (zmat) then
-        !Z-mat: the same from state 1 is used
-        state2%geom%bond(1:Nat-1,1:2)  = state1%geom%bond(1:Nat-1,1:2)  !bond_s(2:Nat,1:2)
-        state2%geom%angle(1:Nat-2,1:3) = state1%geom%angle(1:Nat-2,1:3) !angle_s(3:Nat,1:3)
-        state2%geom%dihed(1:Nat-3,1:4) = state1%geom%dihed(1:Nat-3,1:4) !dihed_s(4:Nat,1:4)
+!     if (modred) then
+!         print*, "Custom internal coordianates"
+!         open(I_RED,file="modred.dat") 
+!         call modredundant(I_RED,state2)
+!         close(I_RED)
+!     else!if (zmat) then
+        ! USING THOSE FROM STATE1
         state2%geom%nbonds  = state1%geom%nbonds  !Nat-1
         state2%geom%nangles = state1%geom%nangles !Nat-2
         state2%geom%ndihed  = state1%geom%ndihed  !Nat-3
-     endif !otherwise all parameters are used
+        N = state2%geom%nbonds
+        state2%geom%bond(1:N,1:2)  = state1%geom%bond(1:N,1:2)  !bond_s(2:Nat,1:2)
+        N = state2%geom%nangles
+        state2%geom%angle(1:N,1:3) = state1%geom%angle(1:N,1:3) !angle_s(3:Nat,1:3)
+        N = state2%geom%ndihed
+        state2%geom%dihed(1:N,1:4) = state1%geom%dihed(1:N,1:4) !dihed_s(4:Nat,1:4)
+!      endif !otherwise all parameters are used
      Nred = state2%geom%nbonds+state2%geom%nangles+state2%geom%ndihed
 
 
@@ -848,7 +862,7 @@ program internal_duschinski
     do i=1,3*Nat
         theta=theta+Aux2(i,j)**2
     enddo
-    print*, theta
+    print'(F15.8)', theta
     enddo
     print*, ""
     !Print state
@@ -1078,16 +1092,21 @@ program internal_duschinski
 
     if (S_sym(3*Nat) == 1) then
         print*, ""
-        print*, "Using symmetry addapted displacements"
-        print*, ""
+        print*, "Using symmetry addapted coordinates"
+        print*, "                     Coord                          Displacement"
+        print*, "  ---------------------------------------------------------------"
         do i=1,Nvib
             if (S_sym(i) <= i) cycle
             j=S_sym(i)
             Vec(1) = Delta(i)+Delta(j)
             Vec(2) = Delta(i)-Delta(j)
             Delta(i) = Vec(1)
-            Delta(i) = Vec(2)
+            Delta(j) = Vec(2)
         enddo
+        do i=1,Nvib
+            print'(X,A45,3X,F12.5)', trim(adjustl(ModeDef(i))), Delta(i)
+        enddo
+        print*, "  ---------------------------------------------------------------"
 
     elseif (Asel1(1,1) /= 99.d0) then
         do i=1,Nred
@@ -1225,16 +1244,16 @@ program internal_duschinski
     contains
     !=============================================
 
-    subroutine parse_input(inpfile,inpfile2,filetype,filetype2,nosym,zmat,verbose,tswitch,symaddapt,zmatfile,vertical,symm_file,&
-                           addfile,addfile2,rmzfile)
+    subroutine parse_input(inpfile,inpfile2,filetype,filetype2,nosym,verbose,tswitch,symaddapt,vertical,symm_file,&
+                           addfile,addfile2,zmatfile,rmzfile,internal_set,selfile)
     !==================================================
     ! My input parser (gromacs style)
     !==================================================
         implicit none
 
         character(len=*),intent(inout) :: inpfile,inpfile2,filetype,filetype2,zmatfile,symm_file,&
-                                          addfile, addfile2,rmzfile
-        logical,intent(inout) :: nosym, verbose, zmat, tswitch, symaddapt, vertical
+                                          addfile, addfile2,rmzfile, internal_set, selfile
+        logical,intent(inout) :: nosym, verbose, tswitch, symaddapt, vertical
         ! Localconsole in kate
         logical :: argument_retrieved,  &
                    need_help = .false.
@@ -1286,18 +1305,21 @@ program internal_duschinski
                 case ("-nosa")
                     symaddapt=.false.
 
-                case ("-readz") 
+                case ("-zfile") 
                     call getarg(i+1, zmatfile)
+                    argument_retrieved=.true.
+
+                case ("-sfile") 
+                    call getarg(i+1, selfile)
                     argument_retrieved=.true.
 
                 case ("-rmz") 
                     call getarg(i+1, rmzfile)
                     argument_retrieved=.true.
 
-                case ("-zmat")
-                    zmat=.true.
-                case ("-nozmat")
-                    zmat=.false.
+                case ("-intset")
+                    call getarg(i+1, internal_set)
+                    argument_retrieved=.true.
 
                 case ("-tswitch")
                     tswitch=.true.
@@ -1338,11 +1360,10 @@ program internal_duschinski
         if (nosym) dummy_char="NO "
         if (.not.nosym) dummy_char="YES"
         write(6,*) '-[no]sym        ', dummy_char
-        if (zmat) dummy_char="YES"
-        if (.not.zmat) dummy_char="NO "
         write(6,*) '-symfile        ', trim(adjustl(symm_file))
-        write(6,*) '-[no]zmat       ', dummy_char
-        write(6,*) '-readz          ', trim(adjustl(zmatfile))
+        write(6,*) '-intset         ', trim(adjustl(internal_set))
+        write(6,*) '-zfile          ', trim(adjustl(zmatfile))
+        write(6,*) '-sfile          ', trim(adjustl(selfile))
         write(6,*) '-rmz            ', trim(adjustl(rmzfile))
         if (tswitch) dummy_char="YES"
         if (.not.tswitch) dummy_char="NO "

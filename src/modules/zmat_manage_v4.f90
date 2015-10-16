@@ -201,7 +201,9 @@ subroutine build_Z(molec,bond_s,angle_s,dihed_s,PG,isym,bond_sym,angle_sym,dihed
                     if (k == isym(i)) then
                         print*, "Fisrt bond will be", i, "--", isym(i)
                         print*, ""
-                        i_1 = i
+                        i_1 = i 
+                        ! And we know that the first bond have not symmetric
+                        bond_sym(2) = 2
                         exit
                     endif
                     if (i_1>0) exit
@@ -226,6 +228,9 @@ subroutine build_Z(molec,bond_s,angle_s,dihed_s,PG,isym,bond_sym,angle_sym,dihed
                             i_1 = i
                             i_2 = m
                             i_3 = isym(i)
+                            ! And we know that the bonds are symmetric
+                            bond_sym(2) = 3
+                            bond_sym(3) = 2
                             exit
                         endif
                         if (i_1>0) exit
@@ -267,10 +272,6 @@ subroutine build_Z(molec,bond_s,angle_s,dihed_s,PG,isym,bond_sym,angle_sym,dihed
     !===========================
     molec%atom(i_2)%chain = "P"
     molec%atom(i_2)%resseq = k 
-    if (adjustl(PG) == "CI" .or. adjustl(PG) == "C02" .or. adjustl(PG) == "CUS") then
-        !This has not symmetric... (only if it is not at the centre of symmetry!!!) -- to be fixed
-        bond_sym(k) = k
-    endif
 
     if (molec%natoms == 2) return
 
@@ -330,7 +331,10 @@ subroutine build_Z(molec,bond_s,angle_s,dihed_s,PG,isym,bond_sym,angle_sym,dihed
     molec%atom(i_3)%chain = "P"
     molec%atom(i_3)%resseq = k
 
-    if (molec%natoms == 3) return
+    if (molec%natoms == 3) then
+        angle_sym(3) = 3 
+        return
+    endif
 
     !Only for symmetric if natoms is even!
     if ((adjustl(PG) == "CI" .or. adjustl(PG) == "C02" .or. adjustl(PG) == "CUS") &
