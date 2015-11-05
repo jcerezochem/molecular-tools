@@ -108,7 +108,7 @@ program reorder_fchk
     character(1) :: null
     character(len=50) :: dummy_char
     character(len=240):: line
-    integer :: iat_new, iat_orig, j_orig, j_new
+    integer :: iat_new, iat_orig, j_orig, j_new, nswap
     !====================== 
 
     !=============
@@ -208,7 +208,11 @@ program reorder_fchk
     !CHANGE ORDER
     open(I_ORD,file=orderfile,status="old")
     molec_aux = molecule
-    do i=1,molecule%natoms
+    ! Only change the selected ones
+    read(I_ORD,*) nswap
+    ! initialize iord
+    iord(1:3*molecule%natoms) = [ (i, i=1,3*molecule%natoms) ]
+    do i=1,nswap !molecule%natoms
         read(I_ORD,*) iat_orig, iat_new
         molec_aux%atom(iat_new)=molecule%atom(iat_orig)
         !Build an ordering array with the 3N elements: (x1,y1,z1,x2,y2...) -> (x1',y1',z1',x2',y2'...)
@@ -218,6 +222,11 @@ program reorder_fchk
         iord(j_new-1) = j_orig-1
         iord(j_new)   = j_orig
     enddo
+!     do i=1,molecule%natoms
+!         print*, i, 3*i-2, iord(3*i-2) 
+!         print*, i, 3*i-1, iord(3*i-1) 
+!         print*, i, 3*i-0, iord(3*i-0) 
+!     enddo
     do i=1,3*molecule%natoms
         Grad(i) = Grad_aux(iord(i))
         do j=1,i
