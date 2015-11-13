@@ -298,6 +298,12 @@ program reorder_fchk
         call write_fchk(O_FCHK,"SCF Energy",dtype,N,A,IA,error)
         deallocate(A)
     endif
+    call read_fchk(I_INP,"CIS Energy",dtype,N,A,IA,error)
+    if (error == 0) then
+        N=0
+        call write_fchk(O_FCHK,"CIS Energy",dtype,N,A,IA,error)
+        deallocate(A)
+    endif
     call read_fchk(I_INP,"Total Energy",dtype,N,A,IA,error)
     if (error == 0) then
         N=0

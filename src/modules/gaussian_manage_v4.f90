@@ -1089,15 +1089,15 @@ print*, "Found", pop_header
             print*, "Len:", len_trim(log_section)
             if ( IOstatus < 0 ) call alert_msg("fatal","Unexpected end of file reading log section 6")
         enddo
-        print*, "Ahora a leer el chorizaco"
+!         print*, "Ahora a leer el chorizaco"
         !Read the hessian, here:
         i=0
         do while ( len_trim(log_section) /= 0 )
             i=i+1
             call split_line(log_section,',',value,log_section)
-           print*, "Len rest:", len_trim(log_section)
+!            print*, "Len rest:", len_trim(log_section)
             read(value,*,iostat=IOstatus) props%H(i)
-           print*, i
+!            print*, i
             if (IOstatus /= 0) call alert_msg("fatal","Died of too much reading")
         enddo
         write(0,*) i, "hessian elements read in lower triangular form"

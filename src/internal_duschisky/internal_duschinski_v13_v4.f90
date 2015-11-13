@@ -188,7 +188,7 @@ program internal_duschinski
     character(len=10) :: filetype="guess", ft, &
                          filetype2="guess"
     character(len=200):: inpfile ="input.fchk",  &
-                         inpfile2="input2.fchk", &
+                         inpfile2="none", &
                          addfile="no", &
                          addfile2="no", &
                          zmatfile="NO", &
@@ -290,19 +290,19 @@ program internal_duschinski
     endif
 
 
-    ! READ GRADIENT
-    if (trim(adjustl(ft)) == "log") then
-
-          call alert_msg("fatal","GRADIENT from log files still under constructions (perdone las molestias)")
-
-    else if (adjustl(ft) == "fchk") then
-        !Read gradient from fchk
-        call read_fchk(I_INP,"Cartesian Gradient",dtype,N,A,IA,error)
-        Grad(1:N) = A(1:N)
-        deallocate(A)
-    else
-        call alert_msg("note","Gradient could not be read")
-    endif
+!     ! READ GRADIENT
+!     if (trim(adjustl(ft)) == "log") then
+! 
+!           call alert_msg("fatal","GRADIENT from log files still under constructions (perdone las molestias)")
+! 
+!     else if (adjustl(ft) == "fchk") then
+!         !Read gradient from fchk
+!         call read_fchk(I_INP,"Cartesian Gradient",dtype,N,A,IA,error)
+!         Grad(1:N) = A(1:N)
+!         deallocate(A)
+!     else
+!         call alert_msg("note","Gradient could not be read")
+!     endif
     close(I_INP)
 
     ! Get connectivity from the residue (needs to be in ANGS)
@@ -587,6 +587,9 @@ program internal_duschinski
     enddo
     endif
 
+    ! If only one state is give, exit now
+    if (adjustl(inpfile2) == "none") stop
+
     !===========
     !State 2
     !===========
@@ -654,17 +657,19 @@ program internal_duschinski
     endif
 
     ! READ GRADIENT
-    if (trim(adjustl(ft)) == "log") then
-
-          call alert_msg("fatal","GRADIENT from log files still under constructions (perdone las molestias)")
-
-    else if (adjustl(ft) == "fchk") then
-        !Read gradient from fchk
-        call read_fchk(I_INP,"Cartesian Gradient",dtype,N,A,IA,error)
-        Grad(1:N) = A(1:N)
-        deallocate(A)
-    else
-        call alert_msg("note","Gradient could not be read")
+    if (vertical) then
+        if (trim(adjustl(ft)) == "log") then
+        
+              call alert_msg("fatal","GRADIENT from log files still under constructions (perdone las molestias)")
+        
+        else if (adjustl(ft) == "fchk") then
+            !Read gradient from fchk
+            call read_fchk(I_INP,"Cartesian Gradient",dtype,N,A,IA,error)
+            Grad(1:N) = A(1:N)
+            deallocate(A)
+        else
+            call alert_msg("note","Gradient could not be read")
+        endif
     endif
     close(I_INP)
 

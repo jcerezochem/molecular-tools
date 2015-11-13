@@ -247,7 +247,7 @@ module molecular_structure
         if (external_DB) then
             print*, "External DB not yet supported"
         else
-            n_entries=29
+            n_entries=31
             ! Default implementation
             ! Taken from CRC Handbook of Chemistry and Physics
             !(that's a good plan, for the moment, they're gv defaults)
@@ -282,7 +282,9 @@ module molecular_structure
                     "P    O    1.71",      & !26
                     "P    H    1.35",      & !27
                     "Pt   N    2.20",      & !28
-                    "X    X    1.50"       & !29  (used to add connectivity to PCM cavity)
+                    "X    X    1.50",      & !29  (used to add connectivity to PCM cavity)
+                    "B    F    1.46",      & !30  
+                    "B    N    1.58"       & !31
                     /)                       
         endif
         if (present(inc_hbond)) include_hbond=inc_hbond

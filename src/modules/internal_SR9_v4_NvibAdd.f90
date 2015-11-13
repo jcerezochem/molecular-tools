@@ -135,7 +135,7 @@ subroutine internal_Wilson(molec,Nvib,S,S_sym,ModeDef,B,G,Asel,verbose)
         i_2 = bond_s(i,2)
         r21 = calc_dist(molec%atom(i_1),molec%atom(i_2))
         S(k) = r21
-        write(6,'(A,2(I3,A),2F15.8)') trim(adjustl(molec%atom(i_1)%name))//"(",i_1,") -- "//&
+        write(6,'(I5,X,A,2(I3,A),2F15.8)') k, trim(adjustl(molec%atom(i_1)%name))//"(",i_1,") -- "//&
                             trim(adjustl(molec%atom(i_2)%name))//"(",i_2,")", &
                             r21*BOHRtoAMS, r21
         write(ModeDef(k),'(A,2(I3,A))') trim(adjustl(molec%atom(i_1)%name))//"(",i_1,") -- "//&
@@ -166,7 +166,7 @@ subroutine internal_Wilson(molec,Nvib,S,S_sym,ModeDef,B,G,Asel,verbose)
         i_2 = angle_s(i,3)
         ang1 = calc_angle(molec%atom(i_1),molec%atom(i_3),molec%atom(i_2))
         S(k) = ang1
-        write(6,'(A,3(I3,A),F15.8)') trim(adjustl(molec%atom(i_1)%name))//"(",i_1,") -- "//&
+        write(6,'(I5,X,A,3(I3,A),F15.8)') k, trim(adjustl(molec%atom(i_1)%name))//"(",i_1,") -- "//&
                             trim(adjustl(molec%atom(i_3)%name))//"(",i_3,") -- "//&
                             trim(adjustl(molec%atom(i_2)%name))//"(",i_2,")", &
                             ang1*360.d0/2.d0/pi
@@ -211,7 +211,7 @@ subroutine internal_Wilson(molec,Nvib,S,S_sym,ModeDef,B,G,Asel,verbose)
         i_4 = dihed_s(i,4)
         ang1 = calc_dihed_new(molec%atom(i_1),molec%atom(i_2),molec%atom(i_3),molec%atom(i_4))
         S(k) = ang1
-        write(6,'(A,4(I3,A),F15.8)') trim(adjustl(molec%atom(i_1)%name))//"(",i_1,") -- "//&
+        write(6,'(I5,X,A,4(I3,A),F15.8)') k, trim(adjustl(molec%atom(i_1)%name))//"(",i_1,") -- "//&
                             trim(adjustl(molec%atom(i_2)%name))//"(",i_2,") -- "//&
                             trim(adjustl(molec%atom(i_3)%name))//"(",i_3,") -- "//&
                             trim(adjustl(molec%atom(i_4)%name))//"(",i_4,")", &
@@ -1218,6 +1218,7 @@ subroutine gf_method(Hess,molec,Nvib,S_sym,ModeDef,L,B,G,Freq,Asel,X,Xinv,verbos
     use constants
     use atomic_geom
     use MatrixMod
+    use matrix_print
 
     implicit none
 
@@ -1344,6 +1345,21 @@ subroutine gf_method(Hess,molec,Nvib,S_sym,ModeDef,L,B,G,Freq,Asel,X,Xinv,verbos
     enddo 
     endif
     test1(1:Nvib,1:Nvib) = Hess(1:Nvib,1:Nvib)
+
+    ! Print to file
+    print*, "Printing FC in internal coords to file: HessianInternal.dat"
+    open(70,file="HessianInternal.dat")
+    call MAT0(70,Hess,Nvib,Nvib,"F MATRIX (AU)")
+    close(70)
+    open(70,file="HDiagInternal.dat")
+    print*, "Printing diagonal FC in internal coords to file: HDiagInternal.dat"
+    write(70,*) "F MATRIX, diagonal elements (AU)"
+    do i=1,Nvib
+        write(70,'(I6,G15.8)') i, Hess(i,i)
+    enddo
+    close(70)
+
+
 
 
     !FG PROCEDURE (Wilson, Decius and Cross, Section 4.3)
