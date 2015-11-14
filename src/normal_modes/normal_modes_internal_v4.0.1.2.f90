@@ -149,7 +149,7 @@ program normal_modes_animation
     !=================================
     !NM stuff
     !=================================
-    real(8) :: Amplitude = 1.d0, qcoord
+    real(8) :: Amplitude = 4.d0, qcoord
     !Moving normal modes
     integer,dimension(1:1000) :: nm=0
     real(8) :: Qstep, d, rmsd1, rmsd2
@@ -176,15 +176,16 @@ program normal_modes_animation
                O_Q  =22,  &
                O_NUM=23,  &
                O_LIS=24,  &
+               O_G96=25,  &
                S_VMD=30
     !files
     character(len=10) :: filetype="guess"
     character(len=200):: inpfile ="input.fchk",  &
                          addfile = "additional.input", &
                          zmatfile="NO",          &
-                         numfile       
+                         numfile
     character(len=100),dimension(1:1000) :: grofile
-    character(len=100) :: nmfile='none', g09file,qfile, tmpfile
+    character(len=100) :: nmfile='none', g09file,qfile, tmpfile, g96file
     !Control of stdout
     logical :: verbose=.false.
     !status
@@ -495,6 +496,7 @@ program normal_modes_animation
 !             qcoord=0.d0
             molecule%title = "Animation of internal coordinate "//trim(adjustl(ModeDef(j)))
             g09file="Coord"//trim(adjustl(dummy_char))//"_int.com"
+            g96file="Coord"//trim(adjustl(dummy_char))//"_int.g96"
             qfile="Coord"//trim(adjustl(dummy_char))//"_int_steps.dat"
             grofile(jj) = "Coord"//trim(adjustl(dummy_char))//"_int.gro" 
             numfile="Coord"//trim(adjustl(dummy_char))//"_int_num.com"
@@ -502,6 +504,7 @@ program normal_modes_animation
             qcoord=0.d0
             molecule%title = "Animation of normal mode "//trim(adjustl(grofile(jj)))
             g09file="Mode"//trim(adjustl(dummy_char))//"_int.com"
+            g96file="Mode"//trim(adjustl(dummy_char))//"_int.g96"
             qfile="Mode"//trim(adjustl(dummy_char))//"_int_steps.dat"
             grofile(jj) = "Mode"//trim(adjustl(dummy_char))//"_int.gro"
             numfile="Mode"//trim(adjustl(dummy_char))//"_int_num.com"
@@ -509,6 +512,7 @@ program normal_modes_animation
         print*, "Writting results to: "//trim(adjustl(grofile(jj)))
         open(O_GRO,file=grofile(jj))
         open(O_G09,file=g09file)
+        open(O_G96,file=g96file)
         open(O_Q  ,file=qfile)
 
         !===========================
@@ -576,11 +580,13 @@ program normal_modes_animation
                 dist = dist*1.05
             endif
             call write_gro(O_GRO,molecule)
-            !Write the max amplitude step to G09 scan
+            !Write the max amplitude step to G09 and G96 scan
             if (k==nsteps/2) then
                 molecule%job%title=trim(adjustl(grofile(jj)))//".step "//trim(adjustl(dummy_char))
                 molecule%title=trim(adjustl(g09file))
                 call write_gcom(O_G09,molecule)
+                write(molecule%title,'(A,I0,A,2(X,F12.6))') "Step ",k," Disp = ", qcoord, qcoord*Factor(j)
+                call write_g96(O_G96,molecule)
                 write(O_Q,*) qcoord, qcoord*Factor(j)
             endif
             !Save last step in molec_aux (in AA)
@@ -629,6 +635,9 @@ program normal_modes_animation
                 dist = dist*1.05
             endif
             call write_gro(O_GRO,molecule)
+            ! Write G09 scan every 10 steps and G96 every step
+            write(molecule%title,'(A,I0,A,2(X,F12.6))') "Step ",k," Disp = ", qcoord, qcoord*Factor(j)
+            call write_g96(O_G96,molecule)
             if (mod(k,10) == 0) then
                 molecule%job%title=trim(adjustl(grofile(jj)))//".step "//trim(adjustl(dummy_char))
                 molecule%title=trim(adjustl(g09file))
@@ -690,6 +699,8 @@ program normal_modes_animation
             molecule%job%title = "Displacement = "//trim(adjustl(dummy_char))
             molecule%title=trim(adjustl(numfile))
             call write_gcom(O_NUM,molecule)
+            write(molecule%title,'(A,I0,A,2(X,F12.6))') "Step ",k," Disp = ", qcoord, qcoord*Factor(j)
+            call write_g96(O_G96,molecule)
             write(O_Q,*) qcoord, qcoord*Factor(j)
             molec_aux=molecule
         enddo
@@ -743,6 +754,9 @@ program normal_modes_animation
                 dist = dist*1.05
             endif
             call write_gro(O_GRO,molecule)
+            ! Write G09 scan every 10 steps and G96 every step
+            write(molecule%title,'(A,I0,A,2(X,F12.6))') "Step ",k," Disp = ", qcoord, qcoord*Factor(j)
+            call write_g96(O_G96,molecule)
             if (mod(k,10) == 0) then
                 molecule%job%title=trim(adjustl(grofile(jj)))//".step "//trim(adjustl(dummy_char))
                 molecule%title=trim(adjustl(g09file))
@@ -929,6 +943,7 @@ program normal_modes_animation
 
         !Prelimirary defaults
         Nsel = 0
+        maxd = Amplitude*2.d0
 
         argument_retrieved=.false.
         do i=1,iargc()

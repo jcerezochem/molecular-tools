@@ -45,17 +45,23 @@ program normal_modes_Cartesian
     use ff_build
 !   Bond/angle/dihed meassurement
     use atomic_geom
+!   vibrational analysis
+    use vibrational_analysis
 
     type(str_resmol) :: molec
+    type(str_molprops),allocatable :: props
 
     !Interesting info..
     integer :: Nat, Nvib
     real(8),dimension(1:1000) :: GEOM, RedMass, Freq, Factor
     real(8),dimension(1:1000,1:1000) :: T
+    real(8),dimension(1:500500) :: Hlt
     character(len=2) :: atname 
     integer          :: Zat
 
     real(8) :: Amplitude, qcoord
+
+    logical :: is_g09_modetype
     
 
     !Auxiliars
@@ -87,13 +93,14 @@ program normal_modes_Cartesian
                O_Q  =22,  &
                O_NUM=23,  &
                O_LIS=24,  &
+               O_G96=25,  &
                S_VMD=30
     !files
-    character(len=20) :: filetype="guess"
-    character(len=20) :: addfile=""
+    character(len=20) :: filetype="guess", ft
+    character(len=200):: addfile=""
     character(len=200):: inpfile ="input.fchk"
     character(len=100),dimension(1:1000) :: grofile
-    character(len=100) :: nmfile='none', g09file,qfile,numfile,tmpfile
+    character(len=100) :: nmfile='none', g09file,qfile,numfile,tmpfile, g96file
     !Control of stdout
     logical :: verbose=.false.
 
@@ -103,7 +110,7 @@ program normal_modes_Cartesian
     !===============================================
 
     !Defaults
-    Amplitude = 1.d0
+    Amplitude = 4.d0
     movie_cycles = 0 !No movie
 
     !Get options from command line
@@ -136,7 +143,13 @@ program normal_modes_Cartesian
         close(I_ADD)
         !----------------------------------
     endif
-    call generic_strfile_read(I_INP,filetype,molec)
+    ! Guess file type if requested
+    if (adjustl(filetype) == "guess") &
+    call split_line_back(inpfile,".",null,filetype)
+    ! For filetypes with -old suffix, use the standard one 
+    ! for the structure reader
+    call split_line(filetype,"-old",ft,null)
+    call generic_strfile_read(I_INP,ft,molec)
     !Shortcuts
     Nat = molec%natoms
     if (filetype /= "fcc") then
@@ -144,8 +157,9 @@ program normal_modes_Cartesian
         Nvib = 3*Nat-6
     endif
 
-    if (adjustl(filetype) == "log") then
+    if (adjustl(filetype) == "log-old") then
         !Gaussian logfile (directly read vibronic analysis by Gaussian)
+        is_g09_modetype=.true.
         N = 3*Nat * Nvib
         allocate( A(1:N) )
         call read_freq_NT(I_INP,Nvib,Nat,Freq(1:Nvib),RedMass(1:Nvib),A(1:N),error)
@@ -165,21 +179,9 @@ program normal_modes_Cartesian
         deallocate(A)
        !Reduced masses (to account for the normalization factor in Tcart)
         RedMass(1:Nvib) = RedMass(1:Nvib)*UMAtoAU
-!         !In the future, that would be good to perform the vib analysis here, instead
-!         allocate(props)
-!         call parse_summary(I_INP,molec,props,"read_hess")
-!         ! RECONSTRUCT THE FULL HESSIAN
-!         k=0
-!         do i=1,3*Nat
-!             do j=1,i
-!                 k=k+1
-!                 Hess(i,j) = props%H(k) 
-!                 Hess(j,i) = Hess(i,j)
-!             enddo
-!         enddo
-!         deallocate(props)zz
-    !Read the Hessian: only two possibilities supported
+
     else if (adjustl(filetype) == "fcc") then
+        is_g09_modetype=.true.
         N = 3*Nat * Nvib
         allocate( A(1:N) )
         call read_fccstate_freq(I_INP,Nvib,Nat,Freq(1:Nvib),A(1:N))
@@ -214,13 +216,14 @@ program normal_modes_Cartesian
             molec%atom(i)%AtNum   = Zat
         enddo
 
-    else if (adjustl(filetype) == "fchk") then
+    else if (adjustl(filetype) == "fchk-old") then
         !FCHK file: READ VIB ANALYSIS
         ! L_cart matrix
         !from the fchk a vector is read where T(Nvib,3N) is stored as
         ! T(1,1:3N), T(2,1:3N), ..., T(Nvib,1:3N)
         ! but FCclasses needs a vector where the fast index is the first:
         ! T(1:Nvib,1), ..., T(1:Nvib,3N)
+        is_g09_modetype=.true.
         call read_fchk(I_INP,"Vib-Modes",dtype,N,A,IA,error)
         if (error == 0) then
             ! Reconstruct Lcart (non-symmetric) [in T]
@@ -251,18 +254,68 @@ program normal_modes_Cartesian
             print*, "Run 'freqchk -save' utility and come back"
             stop
         endif
-        close(I_INP)
-    endif
 
-    !Transoform "Gaussian normalized" L'cart to "real" Lcart
-    !   Lcart = L'cart/sqrt(mu)
-    do j=1,Nvib
-        !Note is stored as the transpose, i.e. T(Nvib x 3Nat)
-        !     RedMass in atomic units
-        T(j,:) = T(j,:)/dsqrt(RedMass(j))/1.895d0
-        !NOTE: the factor 1.89 has been empirically identified as necessary, but its origin is
-        !      unclear. This should be carrefully revised!
-    enddo
+    ! PERFORM THE VIBRATIONAL ANALYSIS HERE FOR FILES CONTAINING THE HESS
+    ! SO ONLY TAKE THE HESSIAN FROM THE FILE
+    elseif (adjustl(filetype) == "log") then
+        !Gaussian logfile (reading the hessian)
+        is_g09_modetype=.false.
+        !In the future, that would be good to perform the vib analysis here, instead
+        allocate(props)
+        call parse_summary(I_INP,molec,props,"read_hess")
+        ! GET lt elements of the Hessian (reconstructed in the vib analysis)
+        N=3*Nat*(3*Nat+1)/2
+        Hlt(1:N) = props%H(1:N)
+        deallocate(props)
+
+    elseif (adjustl(filetype) == "fchk") then
+        is_g09_modetype=.false.
+        !FCHK file    
+        call read_fchk(I_INP,"Cartesian Force Constants",dtype,N,A,IA,error)
+        if (error == 0) then
+            ! GET lt elements of the Hessian (reconstructed in the vib analysis)
+            Hlt(1:N) = A(1:N)
+            deallocate(A)
+        else
+            print*, "ERROR: 'Cartesian Force Constants' not found in fchk"
+            stop     
+        endif       
+    endif
+    close(I_INP)
+
+
+    if (is_g09_modetype) then
+        !Transoform "Gaussian normalized" L'cart to "real" Lcart
+        !   Lcart = L'cart/sqrt(mu)
+        do j=1,Nvib
+            !Note is stored as the transpose, i.e. T(Nvib x 3Nat)
+            !     RedMass in atomic units
+            T(j,:) = T(j,:)/dsqrt(RedMass(j))/1.895d0
+            !NOTE: the factor 1.89 has been empirically identified as necessary, but its origin is
+            !      unclear. This should be carrefully revised!
+        enddo
+    else
+        !Perform vibrational analysis
+        print*, "Diagonalizing Hessian..."
+        call diag_int(Nat,molec%atom(1:Nat)%x,   &
+                          molec%atom(1:Nat)%y,   & 
+                          molec%atom(1:Nat)%z,   &
+                          molec%atom(1:Nat)%mass,&
+                          Hlt,Nvib,T,Freq,error)
+        if (error /= 0) then
+            print*, "Error in the diagonalization"
+            stop
+        endif
+        !Transform Force Constants to Freq
+        do i=1,Nvib
+            Freq(i) = dsign(dsqrt(dabs(Freq(i))*HARTtoJ/BOHRtoM**2/UMAtoKG)/2.d0/pi/clight/1.d2,Freq(i))
+        enddo
+        !Transform L to Cartesian/Normalized
+        call Lmwc_to_Lcart(Nat,Nvib,molec%atom(1:Nat)%mass,T,T)
+        T(1:Nvib,:) = T(1:Nvib,:)
+        !We are using the oppsed indexes as in vibrational_analysis module, so fix it
+        T=transpose(T)
+    endif
 
     !Define the Factor to convert shift into addimensional displacements
     ! from the shift in SI units:
@@ -302,6 +355,7 @@ program normal_modes_Cartesian
         write(grofile(jj),*) j
         molec%title = "Animation of normal mode "//trim(adjustl(grofile(jj)))
         g09file="Mode"//trim(adjustl(grofile(jj)))//"_cart.com" 
+        g96file="Coord"//trim(adjustl(dummy_char))//"_int.g96"
         numfile="Mode"//trim(adjustl(grofile(jj)))//"_cart_num.com"
         qfile="Mode"//trim(adjustl(grofile(jj)))//"_cart_steps.dat"
         grofile(jj) = "Mode"//trim(adjustl(grofile(jj)))//"_cart.gro"
@@ -309,6 +363,7 @@ program normal_modes_Cartesian
         open(O_GRO,file=grofile(jj))
         open(O_Q  ,file=qfile)
         open(O_G09,file=g09file)
+        open(O_G09,file=g96file)
 
         !===========================
         !Start from equilibrium. 
@@ -355,10 +410,15 @@ program normal_modes_Cartesian
                 !Note: itcould be reduced-mass weighted by mult * dsqrt(Freq(j)
             enddo
             call write_gro(O_GRO,molec)
+            ! Write G09 scan every 10 steps and G96 every step
+            write(molec%title,'(A,I0,A,2(X,F12.6))') "Step ",k," Disp = ", qcoord, qcoord*Factor(j)
+            call write_g96(O_G96,molec)
             if (mod(kk,10) == 0) then
                 molec%job%title=trim(adjustl(grofile(jj)))//".step "//trim(adjustl(dummy_char))
                 molec%title=trim(adjustl(g09file))
                 call write_gcom(O_G09,molec)
+                write(molec%title,'(A,I0,A,2(X,F12.6))') "Step ",k," Disp = ", qcoord, qcoord*Factor(j)
+                call write_g96(O_G96,molec)
                 write(O_Q,*) qcoord, qcoord*Factor(j)
             endif
         enddo
@@ -388,6 +448,8 @@ program normal_modes_Cartesian
             molec%job%title = "Displacement = "//trim(adjustl(dummy_char))
             molec%title=trim(adjustl(numfile))
             call write_gcom(O_NUM,molec)
+            write(molec%title,'(A,I0,A,2(X,F12.6))') "Step ",k," Disp = ", qcoord, qcoord*Factor(j)
+            call write_g96(O_G96,molec)
             write(O_Q,*) qcoord, qcoord*Factor(j)
         enddo
         !=======================================
@@ -407,6 +469,9 @@ program normal_modes_Cartesian
                 !Note: itcould be reduced-mass weighted by mult * dsqrt(Freq(j)
             enddo
             call write_gro(O_GRO,molec)
+            ! Write G09 scan every 10 steps and G96 every step
+            write(molec%title,'(A,I0,A,2(X,F12.6))') "Step ",k," Disp = ", qcoord, qcoord*Factor(j)
+            call write_g96(O_G96,molec)
             if (mod(kk,10) == 0) then
                 call write_gcom(O_G09,molec)
                 write(O_Q,*) qcoord, qcoord*Factor(j)
@@ -560,6 +625,7 @@ program normal_modes_Cartesian
 
         !Prelimirary defaults
         Nsel = 0
+        maxd=Amplitude*2.d0
 
         argument_retrieved=.false.
         do i=1,iargc()
@@ -657,39 +723,12 @@ program normal_modes_Cartesian
     subroutine generic_strfile_read(unt,filetype,molec)
 
         integer, intent(in) :: unt
-        character(len=*),intent(inout) :: filetype
+        character(len=*),intent(in) :: filetype
         type(str_resmol),intent(inout) :: molec
 
         !local
         type(str_molprops) :: props
 
-        if (adjustl(filetype) == "guess") then
-        ! Guess file type
-        call split_line_back(inpfile,".",null,filetype)
-        select case (adjustl(filetype))
-            case("gro")
-             call read_gro(I_INP,molec)
-             call atname2element(molec)
-             call assign_masses(molec)
-            case("pdb")
-             call read_pdb_new(I_INP,molec)
-             call atname2element(molec)
-             call assign_masses(molec)
-            case("log")
-             call parse_summary(I_INP,molec,props,"struct_only")
-             call atname2element(molec)
-             call assign_masses(molec)
-            case("fchk")
-             call read_fchk_geom(I_INP,molec)
-             call atname2element(molec)
-!              call assign_masses(molec) !read_fchk_geom includes the fchk masses
-            case default
-             call alert_msg("fatal","Trying to guess, but file type but not known: "//adjustl(trim(filetype))&
-                        //". Try forcing the filetype with -ft flag (available: log, fchk)")
-        end select
-
-        else
-        ! Predefined filetypes
         select case (adjustl(filetype))
             case("gro")
              call read_gro(I_INP,molec)
@@ -713,7 +752,6 @@ program normal_modes_Cartesian
             case default
              call alert_msg("fatal","File type not supported: "//filetype)
         end select
-        endif
 
 
         return
