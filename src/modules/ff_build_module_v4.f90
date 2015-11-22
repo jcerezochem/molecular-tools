@@ -437,7 +437,8 @@ module ff_build
 
     subroutine build_ff(residue)
 
-        common /GLOBAL_OPTS/ do_refine_charges, I_DB, rename_atoms
+          !The commons are set to fix values..
+!         common /GLOBAL_OPTS/ do_refine_charges, I_DB, rename_atoms
 
         type(str_resmol),intent(inout) :: residue
 
@@ -449,7 +450,7 @@ module ff_build
         integer,dimension(1000) :: non_H, list_H
         integer,dimension(6) :: hbond
         integer :: n_nonH, n_H, imp_bonds, numH
-        integer :: I_DB
+        integer :: I_DB=0
         !Contadores
         integer :: i,j,k, jj
         !Aux
@@ -459,8 +460,8 @@ module ff_build
         character(len=6) :: H_fftype, atom_name
 
         !Switching features on/off
-        logical ::  do_refine_charges, &
-                    rename_atoms 
+        logical ::  do_refine_charges=.false., &
+                    rename_atoms=.false. 
 
 
         !Form the connexion matrix and nbonds vector

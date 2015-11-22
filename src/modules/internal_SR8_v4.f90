@@ -50,7 +50,7 @@ subroutine internal_Wilson(molec,S,S_sym,ModeDef,B,G,Asel,verbose)
 
     implicit none
 
-    integer,parameter :: NDIM = 800
+    integer,parameter :: NDIM = 600
     real(8),parameter :: ZEROp = 1.d-10 !practically zero
 
     !====================== 
@@ -604,7 +604,7 @@ subroutine internal_Wilson_fc(molec,S,S_sym,ModeDef,B,G,Asel,verbose)
 
     implicit none
 
-    integer,parameter :: NDIM = 800
+    integer,parameter :: NDIM = 600
     real(8),parameter :: ZEROp = 1.d-10 !practically zero
 
     !====================== 
@@ -1005,7 +1005,7 @@ subroutine internal_fc(Hess,molec,S_sym,ModeDef,B,G,verbose)
 
     implicit none
 
-    integer,parameter :: NDIM = 800
+    integer,parameter :: NDIM = 600
 
     !====================== 
     !ARGUMENTS
@@ -1238,7 +1238,7 @@ subroutine gf_method(Hess,molec,S_sym,ModeDef,L,B,G,Freq,Asel,X,Xinv,verbose)
 
     implicit none
 
-    integer,parameter :: NDIM = 800
+    integer,parameter :: NDIM = 600
 
     !====================== 
     !ARGUMENTS

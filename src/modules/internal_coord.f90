@@ -39,7 +39,7 @@ module internal_module
     
         implicit none
     
-        integer,parameter :: NDIM = 400
+        integer,parameter :: NDIM = 600
         real(8),parameter :: ZEROp = 1.d-10 !practically zero
     
         !ARGUMENTS
@@ -457,7 +457,7 @@ module internal_module
     
         implicit none
     
-        integer,parameter :: NDIM = 400
+        integer,parameter :: NDIM = 600
         real(8),parameter :: ZEROp = 1.d-10 !practically zero
     
         !====================== 
@@ -858,7 +858,7 @@ module internal_module
     
         implicit none
     
-        integer,parameter :: NDIM = 400
+        integer,parameter :: NDIM = 600
     
         !====================== 
         !ARGUMENTS
@@ -1091,7 +1091,7 @@ module internal_module
     
         implicit none
     
-        integer,parameter :: NDIM = 400
+        integer,parameter :: NDIM = 600
     
         !====================== 
         !ARGUMENTS
@@ -1535,7 +1535,7 @@ module internal_module
     
         implicit none
     
-        integer,parameter :: NDIM = 400
+        integer,parameter :: NDIM = 600
     
         !====================== 
         !ARGUMENTS
@@ -3300,7 +3300,7 @@ module internal_module
     !     use parameters
         use structure_types
     
-        integer,parameter :: NDIM = 400
+        integer,parameter :: NDIM = 600
         real(8),parameter :: delta = 1.889726133d-3 !for numerical ders, in bohr(=10^-3 \AA, as Num freq in G09)
     
         type(str_resmol),intent(in) :: molec

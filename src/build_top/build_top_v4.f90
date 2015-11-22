@@ -33,7 +33,7 @@ program build_top
 
     implicit none
 
-    common /GLOBAL_OPTS/ do_refine_charges, I_DB, rename_atoms
+!     common /GLOBAL_OPTS/ do_refine_charges, I_DB, rename_atoms
 
     !====================== 
     !Options 
@@ -116,7 +116,6 @@ program build_top
         endif
 
         call sist2res(molec,residue)
-print*, molec%nres
 !         call sist_nres(molec)
 
         !Only one residue supported (for the momenfor the moment)
@@ -207,14 +206,11 @@ print*, molec%nres
     !==================================================
         implicit none
 
-        common /GLOBAL_OPTS/ do_refine_charges
-
         character(len=*),intent(inout) :: inpfile,filetype,outfile,outfile2,resname,q_type,database
         logical,intent(inout) :: call_vmd, united_atom
         ! Local
         logical :: argument_retrieved,  &
-                   need_help = .false., &
-                   do_refine_charges
+                   need_help = .false.
         integer:: i
         character(len=200) :: arg
 
@@ -284,8 +280,8 @@ print*, molec%nres
              q_type /= "all_zero" ) then
             call alert_msg("fatal", 'Options for charges (-chrg) are "mulliken", "elec_pot" and "all_zero", select one of these')
         endif
-
-        if ( q_type == "all_zero" ) do_refine_charges=.false.
+! 
+!         if ( q_type == "all_zero" ) do_refine_charges=.false.
           
 
        !Print options (to stderr)

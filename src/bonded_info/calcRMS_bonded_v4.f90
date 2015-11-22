@@ -34,14 +34,9 @@ program calcRMS_bonded
 
     implicit none
 
-    common /GLOBAL_OPTS/ do_refine_charges, I_DB, rename_atoms
-
     !====================== 
     !Options 
     logical :: debug=.false., nonH=.false., include_hbonds=.false.
-    ! Those related to ff_type
-    logical :: do_refine_charges=.false.,rename_atoms=.false.
-    integer :: I_DB = -1 !This is to use hybridization database
     !======================
 
     !====================== 

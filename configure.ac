@@ -44,7 +44,7 @@ AS_IF([test "x$with_mkl" = "xyes"],
 
 AS_IF([test "x$use_lapack" = "xyes"],
       [AC_CHECK_LIB([lapack],[zsytrf],
-                    [have_lapack_funct=yes;LIBS=-llapack],
+                    [have_lapack_funct=yes;LIBS="-llapack -lblas"],
                     [have_lapack_funct=no])],
       [have_lapack_funct=yes])
 

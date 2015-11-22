@@ -72,7 +72,7 @@ program normal_modes_animation
 
     implicit none
 
-    integer,parameter :: NDIM = 800
+    integer,parameter :: NDIM = 600
 
     !====================== 
     !Options 

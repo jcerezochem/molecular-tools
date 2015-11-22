@@ -317,6 +317,13 @@ program normal_modes_Cartesian
         T=transpose(T)
     endif
 
+    print*, ""
+    print*, "FREQUENCIES (cm-1)"
+    do i=1,Nvib
+        print*, Freq(i)
+    enddo
+    print*, ""
+
     !Define the Factor to convert shift into addimensional displacements
     ! from the shift in SI units:
     Factor(1:Nvib) = dsqrt(dabs(Freq(1:Nvib))*1.d2*clight*2.d0*PI/plankbar)
@@ -570,6 +577,9 @@ program normal_modes_Cartesian
             write(S_VMD,*) "render Tachyon $figfile-$xx.dat"
             write(S_VMD,'(A)') '"/usr/local/lib/vmd/tachyon_LINUX" -aasamples 12 '//& 
                            '$figfile-$xx.dat -format TARGA -o $figfile-$xx.tga'
+            ! Add frequency infor 
+            write(tmpfile,'(A,F7.1,A)') &
+                  trim(adjustl(tmpfile))//" (Freq = ", Freq(j), " cm-1)"
             write(S_VMD,'(A)') 'convert -font URW-Palladio-Roman -pointsize 30 -draw '//&
                            '"text 30,70 '//"'"//trim(adjustl(tmpfile))//"'"//&
                            '" $figfile-$xx.tga $figfile-$xx.jpg'

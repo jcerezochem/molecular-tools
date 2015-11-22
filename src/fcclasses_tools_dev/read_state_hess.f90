@@ -69,7 +69,7 @@ program read_state_hess
 
     implicit none
 
-    integer,parameter :: NDIM = 800
+    integer,parameter :: NDIM = 600
 
     !====================== 
     !System variables

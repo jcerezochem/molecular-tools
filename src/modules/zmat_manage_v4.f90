@@ -536,7 +536,7 @@ subroutine zmat2cart(molec,bond_s,angle_s,dihed_s,S,verbose)
     use constants
     use MatrixMod
 
-    integer,parameter :: NDIM = 800
+    integer,parameter :: NDIM = 600
     logical,intent(in) :: verbose
 
     real(8) :: det
@@ -734,7 +734,7 @@ subroutine zmat2cart_ori(molec,bond_s,angle_s,dihed_s,S,T,info2,verbose)
     use constants
     use MatrixMod
 
-    integer,parameter :: NDIM = 800
+    integer,parameter :: NDIM = 600
     logical,intent(in) :: verbose
 
     real(8) :: det
@@ -944,7 +944,7 @@ subroutine addcart(atom_1,atom_2,atom_3,&
 
     implicit none
 
-    integer,parameter :: NDIM = 800
+    integer,parameter :: NDIM = 600
     real(8),parameter :: ZERO = 1.d-10
 
     type(str_atom),intent(in) :: atom_1,atom_2,atom_3

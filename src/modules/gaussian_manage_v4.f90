@@ -1078,7 +1078,7 @@ print*, "Found", pop_header
         !---------------------------------------
         !SECTION6: Hessian (upper triangular form)
         !---------------------------------------
-        print*, "Len:", len_trim(log_section)
+!         print*, "Len:", len_trim(log_section)
         do
             log_section=adjustl(trim(log_section))//line
             if ( INDEX(log_section,'\\') /= 0 ) then
@@ -1086,7 +1086,7 @@ print*, "Found", pop_header
                 exit
             endif
             read(unt,'(X,A)',IOSTAT=IOstatus) line
-            print*, "Len:", len_trim(log_section)
+!             print*, "Len:", len_trim(log_section)
             if ( IOstatus < 0 ) call alert_msg("fatal","Unexpected end of file reading log section 6")
         enddo
 !         print*, "Ahora a leer el chorizaco"

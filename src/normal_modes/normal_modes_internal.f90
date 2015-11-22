@@ -27,6 +27,10 @@ program normal_modes_animation
     !v4 releases:
     !v4.0.1:
     ! -use redundant coordinates
+    !v4.0.1.1:
+    ! - include UnSym (MOLCAS) file as input (freqs and nm)
+    !v4.0.1.2:
+    ! - if the calculation is only a internal scan, do not need the hessian (so do not try to read it)
     !
     !============================================================================    
 
@@ -53,6 +57,8 @@ program normal_modes_animation
     use gaussian_manage
     use gaussian_fchk_manage
     use xyz_manage
+    use molcas_unsym_manage
+    use psi4_manage
 !   Structural parameters
     use molecular_structure
     use ff_build
@@ -66,14 +72,15 @@ program normal_modes_animation
 
     implicit none
 
-    integer,parameter :: NDIM = 800
+    integer,parameter :: NDIM = 600
 
     !====================== 
     !Options 
     logical :: nosym=.true.   ,&
                zmat=.true.    ,&
                tswitch=.false.,&
-               symaddapt=.false.
+               symaddapt=.false., &
+               include_hbonds=.false.
     !======================
 
     !====================== 
@@ -142,11 +149,12 @@ program normal_modes_animation
     !=================================
     !NM stuff
     !=================================
-    real(8) :: Amplitude = 1.d0, qcoord
+    real(8) :: Amplitude = 4.d0, qcoord
     !Moving normal modes
     integer,dimension(1:1000) :: nm=0
     real(8) :: Qstep, d, rmsd1, rmsd2
-    logical :: call_vmd = .false.
+    logical :: call_vmd = .false., &
+               movie_vmd = .false.
     character(len=10000) :: vmdcall
     integer :: Nsteps, Nsel, istep
 
@@ -162,18 +170,22 @@ program normal_modes_animation
     !units
     integer :: I_INP=10,  &
                I_ZMAT=11, &
+               I_ADD=12,  &
                O_GRO=20,  &
                O_G09=21,  &
                O_Q  =22,  &
                O_NUM=23,  &
+               O_LIS=24,  &
+               O_G96=25,  &
                S_VMD=30
     !files
     character(len=10) :: filetype="guess"
     character(len=200):: inpfile ="input.fchk",  &
+                         addfile = "additional.input", &
                          zmatfile="NO",          &
-                         numfile       
+                         numfile
     character(len=100),dimension(1:1000) :: grofile
-    character(len=100) :: nmfile='none', g09file,qfile
+    character(len=100) :: nmfile='none', g09file,qfile, tmpfile, g96file
     !Control of stdout
     logical :: verbose=.false.
     !status
@@ -185,6 +197,12 @@ program normal_modes_animation
     real(8) :: ti, tf
     !===================
 
+    !===================
+    !MOVIE things
+    integer :: movie_cycles=0,& !this means no movie
+               movie_steps
+    !===================
+
 ! (End of variables declaration) 
 !==================================================================================
     call cpu_time(ti)
@@ -192,10 +210,13 @@ program normal_modes_animation
     ! 0. GET COMMAND LINE ARGUMENTS
     nm(1) = 0
     icoord=-1
-    call parse_input(inpfile,nmfile,nm,Nsel,Amplitude,filetype,nosym,zmat,verbose,tswitch,symaddapt,zmatfile,&
-                     icoord,showZ,call_vmd)
+    call parse_input(inpfile,addfile,nmfile,nm,Nsel,Amplitude,filetype,nosym,zmat,verbose,tswitch,symaddapt,&
+                     zmatfile,icoord,showZ,call_vmd,movie_cycles,include_hbonds)
     if (icoord /= -1) scan_internal=.true.
-    if (showZ) scan_internal=.false.
+! Por qué estaba este switch????
+!    if (showZ) scan_internal=.false.
+! Más bien debería ser al contrario, para que le deje hacer el internal analisys aunque no haya Hessiana
+   if (showZ) scan_internal=.true.
 
     ! 1. INTERNAL VIBRATIONAL ANALYSIS 
  
@@ -205,49 +226,67 @@ program normal_modes_animation
     if (IOstatus /= 0) call alert_msg( "fatal","Unable to open "//trim(adjustl(inpfile)) )
 
     !Read structure
+    if (adjustl(filetype) == "guess") call split_line_back(inpfile,".",null,filetype)
     call generic_strfile_read(I_INP,filetype,molecule)
     !Shortcuts
     Nat = molecule%natoms
     Nvib = 3*Nat-6
-    !Read the Hessian: only two possibilities supported
-    if (adjustl(filetype) == "log") then
-        !Gaussian logfile
-        allocate(props)
-        call parse_summary(I_INP,molecule,props,"read_hess")
-        !Caution: we NEED to read the Freq summary section
-        if (adjustl(molecule%job%type) /= "Freq") &
-          call alert_msg( "fatal","Section from the logfile is not a Freq calculation")
-        ! RECONSTRUCT THE FULL HESSIAN
-        k=0
-        do i=1,3*Nat
-            do j=1,i
-                k=k+1
-                Hess(i,j) = props%H(k) 
-                Hess(j,i) = Hess(i,j)
+
+    !ONLY READ HESSIAN IF NM ANALYSIS IS REQUIRED
+    if (.not.scan_internal) then
+        !Read the Hessian: only two possibilities supported
+        if (adjustl(filetype) == "log") then
+            !Gaussian logfile
+            allocate(props)
+            call parse_summary(I_INP,molecule,props,"read_hess")
+            !Caution: we NEED to read the Freq summary section
+            if (adjustl(molecule%job%type) /= "Freq") &
+              call alert_msg( "fatal","Section from the logfile is not a Freq calculation")
+            ! RECONSTRUCT THE FULL HESSIAN
+            k=0
+            do i=1,3*Nat
+                do j=1,i
+                    k=k+1
+                    Hess(i,j) = props%H(k) 
+                    Hess(j,i) = Hess(i,j)
+                enddo
             enddo
-        enddo
-        deallocate(props)
-        !No job info read for the moment. Use "sensible" defaults
-        molecule%job%title = ""
-        molecule%job%type= "SP"
-    else if (adjustl(filetype) == "fchk") then
-        !FCHK file    
-        call read_fchk(I_INP,"Cartesian Force Constants",dtype,N,A,IA,error)
-        ! RECONSTRUCT THE FULL HESSIAN
-        k=0
-        do i=1,3*Nat
-            do j=1,i
-                k=k+1
-                Hess(i,j) = A(k) 
-                Hess(j,i) = Hess(i,j)
+            deallocate(props)
+            !No job info read for the moment. Use "sensible" defaults
+            molecule%job%title = ""
+            molecule%job%type= "SP"
+        else if (adjustl(filetype) == "fchk") then
+            !FCHK file    
+            call read_fchk(I_INP,"Cartesian Force Constants",dtype,N,A,IA,error)
+            ! RECONSTRUCT THE FULL HESSIAN
+            k=0
+            do i=1,3*Nat
+                do j=1,i
+                    k=k+1
+                    Hess(i,j) = A(k) 
+                    Hess(j,i) = Hess(i,j)
+                enddo
             enddo
-        enddo
-        deallocate(A)
-        !Read job info
-        call get_jobtype_fchk(I_INP,molecule%job,error)
-        molecule%job%type= "SP"
-        close(I_INP)
+            deallocate(A)
+            !Read job info
+            call get_jobtype_fchk(I_INP,molecule%job,error)
+            molecule%job%type= "SP"
+
+        else if (adjustl(filetype) == "UnSym") then
+            call read_molcas_hess(I_INP,N,Hess,error)
+        else if (adjustl(filetype) == "psi4") then
+            N=molecule%natoms*3
+            call read_psi_hess(I_INP,N,Hess,error)
+        else if (adjustl(filetype) == "g96") then
+            !The hessian should be given as additional input
+            if (adjustl(addfile) == "additional.input") &
+             call alert_msg("fatal","With a g96, and additional file should be provided with the Hessian")
+            open(I_ADD,file=addfile,status="old")
+            call read_gro_hess(I_ADD,N,Hess,error)
+            close(I_ADD)
+        endif
     endif
+    close(I_INP)
 
     !NORMAL MODES SELECTION SWITCH
     if (Nsel == 0) then
@@ -265,7 +304,7 @@ program normal_modes_animation
     !====================================
     ! Get connectivity from the residue (needs to be in ANGS, as it is -- default coord. output)
     ! Setting element from atom names is mandatory to use guess_connect
-    call guess_connect(molecule)
+    call guess_connect(molecule,include_hbonds)
     if (nosym) then
         PG="C1"
     else
@@ -419,7 +458,12 @@ program normal_modes_animation
         enddo
 
        !Use freqs. to make displacements equivalent in dimensionless units
-        Factor(1:Nvib) = dsqrt(dabs(Freq(1:Nvib)))/5.d3
+!         Factor(1:Nvib) = dsqrt(dabs(Freq(1:Nvib)))/5.d3
+        !Define the Factor to convert shift into addimensional displacements
+        ! from the shift in SI units:
+        Factor(1:Nvib) = dsqrt(dabs(Freq(1:Nvib))*1.d2*clight*2.d0*PI/plankbar)
+        ! but we need it from au not SI
+        Factor(1:Nvib)=Factor(1:Nvib)*BOHRtoM*dsqrt(AUtoKG)
 
     endif
 
@@ -452,6 +496,7 @@ program normal_modes_animation
 !             qcoord=0.d0
             molecule%title = "Animation of internal coordinate "//trim(adjustl(ModeDef(j)))
             g09file="Coord"//trim(adjustl(dummy_char))//"_int.com"
+            g96file="Coord"//trim(adjustl(dummy_char))//"_int.g96"
             qfile="Coord"//trim(adjustl(dummy_char))//"_int_steps.dat"
             grofile(jj) = "Coord"//trim(adjustl(dummy_char))//"_int.gro" 
             numfile="Coord"//trim(adjustl(dummy_char))//"_int_num.com"
@@ -459,6 +504,7 @@ program normal_modes_animation
             qcoord=0.d0
             molecule%title = "Animation of normal mode "//trim(adjustl(grofile(jj)))
             g09file="Mode"//trim(adjustl(dummy_char))//"_int.com"
+            g96file="Mode"//trim(adjustl(dummy_char))//"_int.g96"
             qfile="Mode"//trim(adjustl(dummy_char))//"_int_steps.dat"
             grofile(jj) = "Mode"//trim(adjustl(dummy_char))//"_int.gro"
             numfile="Mode"//trim(adjustl(dummy_char))//"_int_num.com"
@@ -466,6 +512,7 @@ program normal_modes_animation
         print*, "Writting results to: "//trim(adjustl(grofile(jj)))
         open(O_GRO,file=grofile(jj))
         open(O_G09,file=g09file)
+        open(O_G96,file=g96file)
         open(O_Q  ,file=qfile)
 
         !===========================
@@ -485,6 +532,7 @@ program normal_modes_animation
         molecule%atom(1:Nat)%x = molecule%atom(1:Nat)%x*BOHRtoANGS
         molecule%atom(1:Nat)%y = molecule%atom(1:Nat)%y*BOHRtoANGS
         molecule%atom(1:Nat)%z = molecule%atom(1:Nat)%z*BOHRtoANGS
+        write(molecule%title,'(A,I0,A,2(X,F12.6))') "Step ",k," Disp = ", qcoord, qcoord*Factor(j)
         call write_gro(O_GRO,molecule)
         molec_aux=molecule
         !===========================
@@ -525,20 +573,23 @@ program normal_modes_animation
             molecule%atom(1:Nat)%x = molecule%atom(1:Nat)%x*BOHRtoANGS
             molecule%atom(1:Nat)%y = molecule%atom(1:Nat)%y*BOHRtoANGS
             molecule%atom(1:Nat)%z = molecule%atom(1:Nat)%z*BOHRtoANGS
-            !call check_ori3(state,ref): efficient but not always works. If so, it uses check_ori2(state,ref)
-            call check_ori3(molecule,molec_aux,info)
+            !call check_ori4(state,ref): efficient but not always works. If so, it uses check_ori2(state,ref)
+            call check_ori4(molecule,molec_aux,info)
             if (info /= 0 .or. istep==1) then
                 call check_ori2b(molecule,molec_aux,dist)
                 !The threshold in 5% avobe the last meassured distance
                 dist = dist*1.05
             endif
+            write(molecule%title,'(A,I0,A,2(X,F12.6))') "Step ",k," Disp = ", qcoord, qcoord*Factor(j)
             call write_gro(O_GRO,molecule)
-            !Write the max amplitude step to G09 scan
+            !Write the max amplitude step to G09 and G96 scan
             if (k==nsteps/2) then
                 molecule%job%title=trim(adjustl(grofile(jj)))//".step "//trim(adjustl(dummy_char))
                 molecule%title=trim(adjustl(g09file))
                 call write_gcom(O_G09,molecule)
-                write(O_Q,*) qcoord
+                write(molecule%title,'(A,I0,A,2(X,F12.6))') "Step ",k," Disp = ", qcoord, qcoord*Factor(j)
+                call write_g96(O_G96,molecule)
+                write(O_Q,*) qcoord, qcoord*Factor(j)
             endif
             !Save last step in molec_aux (in AA)
             molec_aux=molecule
@@ -579,18 +630,22 @@ program normal_modes_animation
             molecule%atom(1:Nat)%y = molecule%atom(1:Nat)%y*BOHRtoANGS
             molecule%atom(1:Nat)%z = molecule%atom(1:Nat)%z*BOHRtoANGS
 
-            call check_ori3(molecule,molec_aux,info)
+            call check_ori4(molecule,molec_aux,info)
             if (info /= 0) then
                 call check_ori2b(molecule,molec_aux,dist)
                 !The threshold in 5% avobe the last meassured distance
                 dist = dist*1.05
             endif
+            write(molecule%title,'(A,I0,A,2(X,F12.6))') "Step ",k," Disp = ", qcoord, qcoord*Factor(j)
             call write_gro(O_GRO,molecule)
+            ! Write G09 scan every 10 steps and G96 every step
+            write(molecule%title,'(A,I0,A,2(X,F12.6))') "Step ",k," Disp = ", qcoord, qcoord*Factor(j)
+            call write_g96(O_G96,molecule)
             if (mod(k,10) == 0) then
                 molecule%job%title=trim(adjustl(grofile(jj)))//".step "//trim(adjustl(dummy_char))
                 molecule%title=trim(adjustl(g09file))
                 call write_gcom(O_G09,molecule)
-                write(O_Q,*) qcoord
+                write(O_Q,*) qcoord, qcoord*Factor(j)
             endif
             !Save last step in molec_aux (in AA)
             molec_aux=molecule
@@ -632,12 +687,13 @@ program normal_modes_animation
             molecule%atom(1:Nat)%y = molecule%atom(1:Nat)%y*BOHRtoANGS
             molecule%atom(1:Nat)%z = molecule%atom(1:Nat)%z*BOHRtoANGS
 
-            call check_ori3(molecule,molec_aux,info)
+            call check_ori4(molecule,molec_aux,info)
             if (info /= 0) then
                 call check_ori2b(molecule,molec_aux,dist)
                 !The threshold in 5% avobe the last meassured distance
                 dist = dist*1.05
             endif
+            write(molecule%title,'(A,I0,A,2(X,F12.6))') "Step ",k," Disp = ", qcoord, qcoord*Factor(j)
             call write_gro(O_GRO,molecule)
             !This time write all five numbers
             molecule%job%title=trim(adjustl(grofile(jj)))//".step "//trim(adjustl(dummy_char))
@@ -647,7 +703,9 @@ program normal_modes_animation
             molecule%job%title = "Displacement = "//trim(adjustl(dummy_char))
             molecule%title=trim(adjustl(numfile))
             call write_gcom(O_NUM,molecule)
-            write(O_Q,*) qcoord
+            write(molecule%title,'(A,I0,A,2(X,F12.6))') "Step ",k," Disp = ", qcoord, qcoord*Factor(j)
+            call write_g96(O_G96,molecule)
+            write(O_Q,*) qcoord, qcoord*Factor(j)
             molec_aux=molecule
         enddo
 !         ! Numerical stimation of the second derivative
@@ -693,18 +751,22 @@ program normal_modes_animation
             molecule%atom(1:Nat)%y = molecule%atom(1:Nat)%y*BOHRtoANGS
             molecule%atom(1:Nat)%z = molecule%atom(1:Nat)%z*BOHRtoANGS
 
-            call check_ori3(molecule,molec_aux,info)
+            call check_ori4(molecule,molec_aux,info)
             if (info /= 0) then
                 call check_ori2b(molecule,molec_aux,dist)
                 !The threshold in 5% avobe the last meassured distance
                 dist = dist*1.05
             endif
+            write(molecule%title,'(A,I0,A,2(X,F12.6))') "Step ",k," Disp = ", qcoord, qcoord*Factor(j)
             call write_gro(O_GRO,molecule)
+            ! Write G09 scan every 10 steps and G96 every step
+            write(molecule%title,'(A,I0,A,2(X,F12.6))') "Step ",k," Disp = ", qcoord, qcoord*Factor(j)
+            call write_g96(O_G96,molecule)
             if (mod(k,10) == 0) then
                 molecule%job%title=trim(adjustl(grofile(jj)))//".step "//trim(adjustl(dummy_char))
                 molecule%title=trim(adjustl(g09file))
                 call write_gcom(O_G09,molecule)
-                write(O_Q,*) qcoord
+                write(O_Q,*) qcoord, qcoord*Factor(j)
             endif
             molec_aux=molecule
         enddo
@@ -741,12 +803,13 @@ program normal_modes_animation
             molecule%atom(1:Nat)%y = molecule%atom(1:Nat)%y*BOHRtoANGS
             molecule%atom(1:Nat)%z = molecule%atom(1:Nat)%z*BOHRtoANGS
 
-            call check_ori3(molecule,molec_aux,info)
+            call check_ori4(molecule,molec_aux,info)
             if (info /= 0) then
                 call check_ori2b(molecule,molec_aux,dist)
                 !The threshold in 5% avobe the last meassured distance
                 dist = dist*1.05
             endif
+            write(molecule%title,'(A,I0,A,2(X,F12.6))') "Step ",k," Disp = ", qcoord, qcoord*Factor(j)
             call write_gro(O_GRO,molecule)
             molec_aux=molecule
         enddo
@@ -765,7 +828,7 @@ program normal_modes_animation
         do i=0,Nsel-1
             j = nm(i+1)
             write(S_VMD,*) "mol representation CPK"
-            write(S_VMD,*) "mol addrep 0"
+!            write(S_VMD,*) "mol addrep 0"
             if (i==0) then
                 write(S_VMD,*) "molinfo ", i, " set drawn 1"
             else
@@ -787,6 +850,72 @@ program normal_modes_animation
         vmdcall = trim(adjustl(vmdcall))//" -e vmd_conf.dat"
         call system(vmdcall)
     endif
+
+    if (movie_cycles > 0) then
+        open(S_VMD,file="vmd_movie.dat",status="replace")
+        !Set general display settings (mimic gv)
+        write(S_VMD,*) "color Display Background white"
+        write(S_VMD,*) "color Name {C} silver"
+        write(S_VMD,*) "axes location off"
+        write(S_VMD,*) "display projection Orthographic"
+        !Set molecule representation
+        do i=0,Nsel-1
+            j = nm(i+1)
+            write(S_VMD,*) "mol representation CPK"
+            write(S_VMD,*) "molinfo ", i, " set drawn 0"
+            write(S_VMD,*) "mol addrep ", i
+            write(dummy_char,'(A,I4,X,F8.2,A)') "{Mode",j, Freq(j),"cm-1}"
+            dummy_char=trim(adjustl(dummy_char))
+            write(S_VMD,*) "mol rename ", i, trim(dummy_char)
+            vmdcall = trim(adjustl(vmdcall))//" "//trim(adjustl(grofile(i+1)))
+        enddo
+        write(S_VMD,'(A)') "#====================="
+        write(S_VMD,'(A)') "# Start movies"
+        write(S_VMD,'(A)') "#====================="
+        !Set length of the movie
+        movie_steps = movie_cycles*20
+        do i=0,Nsel-1
+            j = nm(i+1)
+            write(S_VMD,'(A,I4)') "# Mode", j
+            write(tmpfile,*) j
+            tmpfile="Mode"//trim(adjustl(tmpfile))
+            write(S_VMD,*) "molinfo ", i, " set drawn 1"
+            write(S_VMD,*) "set figfile "//trim(adjustl(tmpfile))
+            write(S_VMD,'(A,I3,A)') "for {set xx 0} {$xx <=", movie_steps,&
+                                    "} {incr xx} {"
+            write(S_VMD,*) "set x [expr {($xx-($xx/20)*20)*10}]"
+            write(S_VMD,*) 'echo "step $x"'
+            write(S_VMD,*) "animate goto $x"
+            write(S_VMD,*) "render Tachyon $figfile-$xx.dat"
+            write(S_VMD,'(A)') '"/usr/local/lib/vmd/tachyon_LINUX" -aasamples 12 '//& 
+                           '$figfile-$xx.dat -format TARGA -o $figfile-$xx.tga'
+            write(S_VMD,'(A)') 'convert -font URW-Palladio-Roman -pointsize 30 -draw '//&
+                           '"text 30,70 '//"'"//trim(adjustl(tmpfile))//"'"//&
+                           '" $figfile-$xx.tga $figfile-$xx.jpg'
+            write(S_VMD,'(A)') "}"
+            !Updated ffmpeg call. The output is now loadable from ipynb
+            write(S_VMD,'(A)') 'ffmpeg -i $figfile-%d.jpg -vcodec libx264 -s 640x360 $figfile.mp4'
+            write(S_VMD,*) "molinfo ", i, " set drawn 0"
+        enddo
+        write(S_VMD,*) "exit"
+        close(S_VMD)
+        !Call vmd
+        vmdcall = 'vmd -m '
+        do i=1,Nsel
+        vmdcall = trim(adjustl(vmdcall))//" "//trim(adjustl(grofile(i)))
+        enddo
+        vmdcall = trim(adjustl(vmdcall))//" -e vmd_movie.dat -size 500 500"
+        open(O_LIS,file="movie.cmd",status="replace")
+        write(O_LIS,'(A)') trim(adjustl(vmdcall))
+        write(O_LIS,'(A)') "rm Mode*jpg Mode*dat Mode*tga"
+        close(O_LIS)
+        print*, ""
+        print*, "============================================================"
+        print*, "TO GENERATE THE MOVIES (AVI) EXECUTE COMMANDS IN 'movie.cmd'"
+        print*, "(you may want to edit 'vmd_movie.dat'  first)"
+        print*, "============================================================"
+        print*, ""
+    endif
     
     call cpu_time(tf)
     write(0,'(/,A,X,F12.3,/)') "CPU time (s)", tf-ti
@@ -798,17 +927,17 @@ program normal_modes_animation
     contains
     !=============================================
 
-    subroutine parse_input(inpfile,nmfile,nm,Nsel,Amplitude,filetype,nosym,zmat,verbose,tswitch,symaddapt,zmatfile,&
-                           icoord,showZ,call_vmd)
+    subroutine parse_input(inpfile,addfile,nmfile,nm,Nsel,Amplitude,filetype,nosym,zmat,verbose,tswitch,symaddapt,&
+                           zmatfile,icoord,showZ,call_vmd,movie_cycles,include_hbonds)
     !==================================================
     ! My input parser (gromacs style)
     !==================================================
         implicit none
 
-        character(len=*),intent(inout) :: inpfile,nmfile,filetype,zmatfile
-        logical,intent(inout) :: nosym, verbose, zmat, tswitch, symaddapt,showZ,call_vmd
+        character(len=*),intent(inout) :: inpfile,addfile,nmfile,filetype,zmatfile
+        logical,intent(inout) :: nosym, verbose, zmat, tswitch, symaddapt,showZ,call_vmd,include_hbonds
         integer,dimension(:),intent(inout) :: nm
-        integer,intent(inout) :: icoord
+        integer,intent(inout) :: icoord, movie_cycles
         integer,intent(out) :: Nsel
         real(8),intent(out) :: Amplitude
         ! Local
@@ -816,9 +945,11 @@ program normal_modes_animation
                    need_help = .false.
         integer:: i
         character(len=200) :: arg
+        real(8) :: maxd
 
         !Prelimirary defaults
         Nsel = 0
+        maxd = Amplitude*2.d0
 
         argument_retrieved=.false.
         do i=1,iargc()
@@ -835,6 +966,10 @@ program normal_modes_animation
                     call getarg(i+1, filetype)
                     argument_retrieved=.true.
 
+                case ("-add") 
+                    call getarg(i+1, addfile)
+                    argument_retrieved=.true.
+
                 case ("-nm") 
                     call getarg(i+1, arg)
                     argument_retrieved=.true.
@@ -846,11 +981,18 @@ program normal_modes_animation
 
                 case ("-maxd") 
                     call getarg(i+1, arg)
-                    read(arg,*) Amplitude
+                    read(arg,*) maxd
+                    !The whole Amplitude is twide the max displacement
+                    Amplitude = maxd*2
                     argument_retrieved=.true.
 
                 case ("-vmd")
                     call_vmd=.true.
+
+                case ("-movie")
+                    call getarg(i+1, arg)
+                    read(arg,*) movie_cycles
+                    argument_retrieved=.true.
 
                 case ("-nosym")
                     nosym=.true.
@@ -876,6 +1018,9 @@ program normal_modes_animation
 
                 case ("-tswitch")
                     tswitch=.true.
+
+                case ("-include_hb")
+                    include_hbonds=.true.
 
                 case ("-int")
                     call getarg(i+1, arg)
@@ -911,10 +1056,12 @@ program normal_modes_animation
        write(0,'(/,A)') '--------------------------------------------------'
         write(0,*) '-f              ', trim(adjustl(inpfile))
         write(0,*) '-ft             ', trim(adjustl(filetype))
+        write(0,*) '-add            ', trim(adjustl(addfile))
         write(0,*) '-nm            ', nm(1),"-",nm(Nsel)
 !         write(0,*) '-nmf           ', nm(1:Nsel)
         write(0,*) '-vmd           ',  call_vmd
-        write(0,*) '-maxd          ',  Amplitude
+        write(0,*) '-movie (cycles)',  movie_cycles
+        write(0,*) '-maxd          ',  maxd
         if (nosym) dummy_char="NO "
         if (.not.nosym) dummy_char="YES"
         write(0,*) '-[no]sym        ', dummy_char
@@ -926,6 +1073,7 @@ program normal_modes_animation
         if (tswitch) dummy_char="YES"
         if (.not.tswitch) dummy_char="NO "
         write(0,*) '-tswitch        ', dummy_char
+        write(0,*) '-include_hb    ',  include_hbonds
         if (symaddapt) dummy_char="YES"
         if (.not.symaddapt) dummy_char="NO "
         write(0,*) '-sa             ', dummy_char
@@ -948,12 +1096,13 @@ program normal_modes_animation
         !local
         type(str_molprops) :: props
 
-        if (adjustl(filetype) == "guess") then
-        ! Guess file type
-        call split_line(inpfile,".",null,filetype)
         select case (adjustl(filetype))
             case("gro")
              call read_gro(I_INP,molec)
+             call atname2element(molec)
+             call assign_masses(molec)
+            case("g96")
+             call read_g96(I_INP,molec)
              call atname2element(molec)
              call assign_masses(molec)
             case("pdb")
@@ -968,34 +1117,17 @@ program normal_modes_animation
              call read_fchk_geom(I_INP,molec)
              call atname2element(molec)
 !              call assign_masses(molec) !read_fchk_geom includes the fchk masses
-            case default
-             call alert_msg("fatal","Trying to guess, but file type but not known: "//adjustl(trim(filetype))&
-                        //". Try forcing the filetype with -ft flag (available: log, fchk)")
-        end select
-
-        else
-        ! Predefined filetypes
-        select case (adjustl(filetype))
-            case("gro")
-             call read_gro(I_INP,molec)
+            case("UnSym")
+             call read_molcas_geom(I_INP,molec)
              call atname2element(molec)
              call assign_masses(molec)
-            case("pdb")
-             call read_pdb_new(I_INP,molec)
+            case("psi4")
+             call read_psi_geom(I_INP,molec)
              call atname2element(molec)
              call assign_masses(molec)
-            case("log")
-             call parse_summary(I_INP,molec,props,"struct_only")
-             call atname2element(molec)
-             call assign_masses(molec)
-            case("fchk")
-             call read_fchk_geom(I_INP,molec)
-             call atname2element(molec)
-!              call assign_masses(molec) !read_fchk_geom includes the fchk masses
             case default
              call alert_msg("fatal","File type not supported: "//filetype)
         end select
-        endif
 
 
         return

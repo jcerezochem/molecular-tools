@@ -35,9 +35,11 @@ program normal_modes_animation
 
 
     real(8),dimension(5) :: R,E, aux_vec
-    real(8) :: derA, derB, dder, freq, delta
+    real(8) :: derA, derB, dder, freq, delta, der
 
     character(len=200) :: line, dummy_char
+    character(len=13)  :: marker
+    character(len=3)   :: density="SCF"
 
     integer :: i,j, iread, IOstatus
 
@@ -52,7 +54,17 @@ program normal_modes_animation
 !==================================================================================
 
     ! 0. GET COMMAND LINE ARGUMENTS
-    call parse_input(inpfile)
+    call parse_input(inpfile,density)
+    call set_word_upper_case(density)
+
+    if (adjustl(density) == "SCF") then
+        marker="SCF Done:  E("
+    elseif (adjustl(density) == "TD") then
+        marker="E(TD-HF/TD-KS"
+    else
+        print*, "Unkown density: "//density
+        stop
+    endif
 
     open(I_INP,file=inpfile,status="old")
 
@@ -64,7 +76,7 @@ program normal_modes_animation
             if (iread/=0) cycle
             call split_line(line,'=',dummy_char,line)
             read(line,*) R(i)
-        else if ( INDEX(line,"SCF Done") /= 0 ) then
+        else if ( INDEX(line,marker) /= 0 ) then
             call split_line(line,'=',dummy_char,line)
             read(line,*) E(i)
             i=i+1
@@ -94,26 +106,40 @@ program normal_modes_animation
     enddo   
 
     print*, ""
-    print*, " Disp(a.u.)    dder(a.u.)        Freq(cm-1)"
-    print*, "================================================"
+    print*, " Disp(a.u.)      der+(a.u.)      der-(a.u.)       FC(a.u.)       Freq(cm-1)"
+    print*, "==========================================================================0======="
 
     !Computation taking computing the first ders at points 2 and 4
     delta = R(3)-R(1)
     derA = (E(3)-E(1))/delta
     derB = (E(5)-E(3))/delta
     dder = (derB-derA)/delta
-    freq= sign(dsqrt(abs(dder)*HARTtoJ/BOHRtoM**2/AUtoKG)/2.d0/pi/clight/1.d2,&
+    freq = sign(dsqrt(abs(dder)*HARTtoJ/BOHRtoM**2/AUtoKG)/2.d0/pi/clight/1.d2,&
                          dder)
-    print'(X,G11.4,3X,G16.9,3X,F10.3)', abs(delta), dder, freq
+    print'(X,G11.4,3X,3G16.7,3X,F10.3)', abs(delta)/2.d0, derA, derB, dder, freq
 
     !Computation taking computing the first ders at points half-way(2-3) and halfway (3-4)
     delta = R(2)-R(1)
     derA = (E(3)-E(2))/delta
     derB = (E(4)-E(3))/delta
     dder = (derB-derA)/delta
-    freq= sign(dsqrt(abs(dder)*HARTtoJ/BOHRtoM**2/AUtoKG)/2.d0/pi/clight/1.d2,&
+    freq = sign(dsqrt(abs(dder)*HARTtoJ/BOHRtoM**2/AUtoKG)/2.d0/pi/clight/1.d2,&
                          dder)
-    print'(X,G11.4,3X,G16.9,3X,F10.3)', abs(delta), dder, freq
+    print'(X,G11.4,3X,3G16.7,3X,F10.3)', abs(delta)/2.d0, derA, derB, dder, freq
+
+    print*, ""
+
+    print*, ""
+    print*, " Disp(a.u.)      der(a.u.)"
+    print*, "================================================"
+    !Taking large delta (in the middle: point 3)
+    delta = R(5)-R(1)
+    derA = (E(5)-E(1))/delta
+    print'(X,G11.4,3X,G16.7,3X,F10.3)', abs(delta)/2.d0, derA
+    !Taking small delta (in the middle: point 3)
+    delta = R(4)-R(2)
+    derA = (E(4)-E(2))/delta
+    print'(X,G11.4,3X,G16.7,3X,F10.3)', abs(delta)/2.d0, derA
 
     print*, ""
 
@@ -124,13 +150,13 @@ program normal_modes_animation
     contains
     !=============================================
 
-    subroutine parse_input(inpfile)
+    subroutine parse_input(inpfile,density)
     !==================================================
     ! My input parser (gromacs style)
     !==================================================
         implicit none
 
-        character(len=*),intent(inout) :: inpfile
+        character(len=*),intent(inout) :: inpfile, density
         ! Local
         logical :: argument_retrieved,  &
                    need_help = .false.
@@ -148,6 +174,10 @@ program normal_modes_animation
                 case ("-f") 
                     call getarg(i+1, inpfile)
                     argument_retrieved=.true.
+
+                case ("-dens") 
+                    call getarg(i+1, density)
+                    argument_retrieved=.true.
         
                 case ("-h")
                     need_help=.true.
@@ -164,6 +194,7 @@ program normal_modes_animation
         write(6,'(/,A)') '          NUM DERIVATIVES FROM G09log FILE '          
         write(6,'(/,A)') '--------------------------------------------------'
         write(6,*) '-f              ', trim(adjustl(inpfile))
+        write(6,*) '-dens           ', trim(adjustl(density))
         write(6,*) '-h             ',  need_help
         write(6,*) '--------------------------------------------------'
         if (need_help) call alert_msg("fatal", 'There is no manual (for the moment)' )

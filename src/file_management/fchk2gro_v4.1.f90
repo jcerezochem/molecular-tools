@@ -199,6 +199,9 @@ program fchk2gro
                 case ("-r")
                     overwrite=.true.
 
+                case ("-ow")
+                    overwrite=.true.
+
                 case ("-rn")
                     call getarg(i+1, resname)
                     argument_retrieved=.true.
@@ -247,13 +250,14 @@ program fchk2gro
         write(0,*) '-fti            ', trim(adjustl(filetype_inp))
         write(0,*) '-o              ', trim(adjustl(outfile))
         write(0,*) '-fto            ', trim(adjustl(filetype_out))
-        write(0,*) '-r             ',  overwrite
+        write(0,*) '-ow            ',  overwrite
+        write(0,*) '-r (deprecated)',  overwrite
         write(0,*) '-swap           ',  trim(adjustl(swapfile))
         write(0,*) '-rn             ',  trim(adjustl(resname))
         write(0,*) '-connect       ',  make_connect
         write(0,*) '-use-elems     ',  use_elements
         write(0,*) '-rmcom         ',  remove_com
-        write(0,*) ' -title         ', trim(adjustl(title))
+        write(0,*) '-title          ', trim(adjustl(title))
         write(0,*) '-h             ',  need_help
         write(0,*) '--------------------------------------------------'
         if (need_help) call alert_msg("fatal", 'There is no manual (for the moment)' )

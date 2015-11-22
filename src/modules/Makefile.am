@@ -16,6 +16,7 @@ libmoleculartools_a_SOURCES =        \
     alerts.f90                        \
     line_preprocess.f90               \
     MatrixMod.f90                     \
+    matrix.f90                     \
     matrix_print.f90                  \
     constants_mod.f90                 \
 \

@@ -95,7 +95,7 @@ program internal_duschinski
                modred=.false.    ,&
                tswitch=.false.   ,&
                symaddapt=.false. ,&
-               vertical=.false.
+               vertical=.true.
     character(len=4) :: internal_set='zmat'
     !======================
 
@@ -113,13 +113,13 @@ program internal_duschinski
     !INTERNAL VIBRATIONAL ANALYSIS
     !MATRICES
     !B and G matrices
-    real(8),dimension(NDIM,NDIM) :: B
+    real(8),dimension(NDIM,NDIM) :: B1,B2, B, G1,G2
     !Other arrays
     real(8),dimension(1:NDIM) :: Grad
-    real(8),dimension(1:NDIM,1:NDIM) :: Hess, X, X1inv,X2inv, L1,L2, Asel1,Asel2
+    real(8),dimension(1:NDIM,1:NDIM) :: Hess, X1,X1inv,X2,X2inv, L1,L2, Asel1, Asel2, Asel
     real(8),dimension(1:NDIM,1:NDIM,1:NDIM) :: Bder
     !Duschisky
-    real(8),dimension(NDIM,NDIM) :: G, G2
+    real(8),dimension(NDIM,NDIM) :: G
     !T0 - switching effects
     real(8),dimension(3,3) :: T
     !AUXILIAR MATRICES
@@ -135,17 +135,18 @@ program internal_duschinski
     !====================== 
 
     !====================== 
-    !Auxiliars for LAPACK matrix nversion
-    integer :: info
-    integer,dimension(NDIM) :: ipiv
-    !====================== 
-
-    !====================== 
     !Read fchk auxiliars
     real(8),dimension(:),allocatable :: A
     integer,dimension(:),allocatable :: IA
     character(len=1) :: dtype
     integer :: error, N
+    !====================== 
+
+    !====================== 
+    !Auxiliars for LAPACK matrix nversion
+    integer :: info
+    integer,dimension(NDIM) :: ipiv
+    real(8),dimension(NDIM,NDIM) :: work
     !====================== 
 
     !====================== 
@@ -218,6 +219,7 @@ program internal_duschinski
     call set_word_upper_case(internal_set)
 
     ! 1. INTERNAL VIBRATIONAL ANALYSIS ON STATE1 AND STATE2
+    
 
     !===========
     !State 1
@@ -292,18 +294,18 @@ program internal_duschinski
 
 
 !     ! READ GRADIENT
-!     if (trim(adjustl(ft)) == "log") then
-! 
-!           call alert_msg("fatal","GRADIENT from log files still under constructions (perdone las molestias)")
-! 
-!     else if (adjustl(ft) == "fchk") then
-!         !Read gradient from fchk
-!         call read_fchk(I_INP,"Cartesian Gradient",dtype,N,A,IA,error)
-!         Grad(1:N) = A(1:N)
-!         deallocate(A)
-!     else
-!         call alert_msg("note","Gradient could not be read")
-!     endif
+    if (trim(adjustl(ft)) == "log") then
+
+          call alert_msg("fatal","GRADIENT from log files still under constructions (perdone las molestias)")
+
+    else if (adjustl(ft) == "fchk") then
+        !Read gradient from fchk
+        call read_fchk(I_INP,"Cartesian Gradient",dtype,N,A,IA,error)
+        Grad(1:N) = A(1:N)
+        deallocate(A)
+    else
+        call alert_msg("note","Gradient could not be read")
+    endif
     close(I_INP)
 
     ! Get connectivity from the residue (needs to be in ANGS)
@@ -483,17 +485,57 @@ program internal_duschinski
         S_sym(3*Nat) = 0
     endif
 
+
+    ! GET MINIMUM IN CARTESIAN COORDINATES
+print*, ""
+print*, "GRAD (Cart)"
+print*, ""
+    print'(5ES16.8)', Grad(1:3*Nat)
+print*, ""
+    Aux(1:3*Nat,1:3*Nat) = inverse_realsym(3*Nat,Hess)
+    Aux2(1:3*Nat,1:3*Nat) = matmul(Hess(1:3*Nat,1:3*Nat),Aux(1:3*Nat,1:3*Nat))
+    do i=1,3*Nat
+        print'(100F4.1)', Aux2(i,1:3*Nat) 
+    enddo
+    print*, ""
+    ! Matrix x vector 
+    do i=1, 3*Nat
+        Vec(i)=0.d0
+        do k=1,3*Nat
+            Vec(i) = Vec(i) - Aux(i,k) * Grad(k)
+        enddo 
+    enddo
+print*, "DELTA R"
+do i=1,Nat 
+    j=3*i-2
+    print'(I3,3X, 3G10.3)', i, Vec(j)*BOHRtoANGS, Vec(j+1)*BOHRtoANGS, Vec(j+2)*BOHRtoANGS
+enddo
+
+    state2=state1
+    do i=1,Nat 
+        j=3*i-2
+        state2%atom(i)%x = (state1%atom(i)%x - Vec(j+0))*BOHRtoANGS
+        state2%atom(i)%y = (state1%atom(i)%y - Vec(j+1))*BOHRtoANGS
+        state2%atom(i)%z = (state1%atom(i)%z - Vec(j+2))*BOHRtoANGS
+    enddo
+    open(70,file="minim_harmonic_Cart.xyz")
+    call write_xyz(70,state2)
+    close(70)
+
+    ! INTERNAL COORDINATES
+
+
     !SOLVE GF METHOD TO GET NM AND FREQ
     !For redundant coordinates a non-redundant set is formed as a combination of
     !the redundant ones. The coefficients for the combination are stored in Asel
     !as they must be used for state 2 (not rederived!).
     Asel1(1,1) = 99.d0 !out-of-range, as Asel is normalized -- this option is not tested
-    call internal_Wilson(state1,Nvib,S1,S_sym,ModeDef,B,G,Asel1,verbose)
+    call internal_Wilson(state1,Nvib,S1,S_sym,ModeDef,B1,G1,Asel1,verbose)
 !     if (vertical) then
-!         call NumBder(state1,S_sym,Bder)
-!         call gf_method_V(Hess,Grad,state1,S_sym,ModeDef,L1,B1,Bder,G1,Freq,Asel1,X1,X1inv,verbose) 
+        call NumBder(state1,Nvib,S_sym,Bder)
+        call gf_method_V(Hess,state1,Nvib,S_sym,ModeDef,L1,B1,G1,Freq,Asel1,X1,X1inv,verbose,Grad=Grad,Bder=Bder) 
 !     else
-        call gf_method_V(Hess,state1,Nvib,S_sym,ModeDef,L1,B,G,Freq,Asel1,X,X1inv,verbose)
+!         call gf_method_V(Hess,state1,Nvib,S_sym,ModeDef,L1,B1,G1,Freq,Asel1,X1,X1inv,verbose)
         !Define the Factor to convert into shift into addimensional displacements
         ! for the shift in SI units:
         Factor(1:Nvib) = dsqrt(dabs(Freq(1:Nvib))*1.d2*clight*2.d0*PI/plankbar)
@@ -510,7 +552,7 @@ program internal_duschinski
     do j=1,Nvib
         Aux2(i,j) = 0.d0
         do k=1,Nvib
-         Aux2(i,j)=Aux2(i,j)+B(k,i)*Aux(k,j)
+         Aux2(i,j)=Aux2(i,j)+B1(k,i)*Aux(k,j)
         enddo
     enddo
     enddo
@@ -577,660 +619,79 @@ program internal_duschinski
     close(O_STAT)
 
     if (verbose) then
-    print*, "B1="
+    print*, "B1=", B1(1,1)
     do i=1,Nvib
-        print'(100(F8.3,2X))', B(i,1:Nvib)
+        print'(100(F8.3,2X))', B1(i,1:Nvib)
     enddo
     endif
 
-    ! If only one state is give, exit now
-    if (adjustl(inpfile2) == "none") stop
 
-    !===========
-    !State 2
-    !===========
+    ! GET MINIMUM IN INTERNAL COORDINATES
     print*, ""
-    print*, "=========="
-    print*, " STATE 2"
-    print*, "=========="
- 
-    ! 1. READ DATA
-    ! ---------------------------------
-    open(I_INP,file=inpfile2,status='old',iostat=IOstatus)
-    if (IOstatus /= 0) call alert_msg( "fatal","Unable to open "//trim(adjustl(inpfile2)) )
-
-    !Read Structure
-    if (adjustl(filetype2) == "guess") then
-        call split_line_back(inpfile2,".",null,filetype2)
-    endif
-    ft=filetype2
-    call generic_strfile_read(I_INP,ft,state2)
-
-    ! READ HESSIAN
-
-    if (adjustl(ft) == "log") then
-        !Gaussian logfile
-        allocate(props)
-        call parse_summary(I_INP,state2,props,"read_hess")
-        !Caution: we NEED to read the Freq summary section
-        if (adjustl(state2%job%type) /= "Freq") &
-          call alert_msg( "fatal","Section from the logfile is not a Freq calculation")
-        ! RECONSTRUCT THE FULL HESSIAN
-        k=0
-        do i=1,3*Nat
-            do j=1,i
-                k=k+1
-                Hess(i,j) = props%H(k) 
-                Hess(j,i) = Hess(i,j)
-            enddo
-        enddo
-        deallocate(props)
-
-    else if (adjustl(ft) == "g96") then
-        !The hessian should be given as additional input
-        if (adjustl(addfile2) == "no") &
-         call alert_msg("fatal","With a g96, and additional file should be provided with the Hessian")
-        open(I_ADD,file=addfile2,status="old")
-        call read_gro_hess(I_ADD,N,Hess,error)
-        close(I_ADD)
-    else
-        !Read Hessian from fchk
-        call read_fchk(I_INP,"Cartesian Force Constants",dtype,N,A,IA,error)
-        ! RECONSTRUCT THE FULL HESSIAN
-        k=0
-        do i=1,3*Nat
-            do j=1,i
-                k=k+1
-                Hess(i,j) = A(k) 
-                Hess(j,i) = Hess(i,j)
-            enddo
-        enddo
-        deallocate(A)
-!         !Read reduced masses
-!         call read_fchk(I_INP,"Vib-E2",dtype,N,A,IA,error)
-!         mu(1:Nvib) = A(Nvib+1:Nvib+Nvib)
-!         deallocate(A)
-    endif
-
-    ! READ GRADIENT
-    if (vertical) then
-        if (trim(adjustl(ft)) == "log") then
-        
-              call alert_msg("fatal","GRADIENT from log files still under constructions (perdone las molestias)")
-        
-        else if (adjustl(ft) == "fchk") then
-            !Read gradient from fchk
-            call read_fchk(I_INP,"Cartesian Gradient",dtype,N,A,IA,error)
-            Grad(1:N) = A(1:N)
-            deallocate(A)
-        else
-            call alert_msg("note","Gradient could not be read")
-        endif
-    endif
-    close(I_INP)
-
-    ! Get connectivity from the residue
-    call guess_connect(state2)
-    if (nosym) then
-        PG="C1"
-    else if (trim(adjustl(symm_file)) /= "NO") then
-        write(*,*) ""
-        write(*,*) "Using custom symmetry file: "//trim(adjustl(symm_file)) 
-        write(*,*) ""
-        open(I_SYM,file=symm_file)
-        do i=1,state1%natoms
-            read(I_SYM,*) j, isym(j)
-        enddo
-        close(I_SYM)
-        !Set PG to CUStom
-        PG="CUS"
-    else
-        PG="XX"
-        call symm_atoms(state2,isym)
-        PG=state2%PG
-    endif
-    !From now on, we'll use atomic units
-    state2%atom(:)%x = state2%atom(:)%x/BOHRtoANGS
-    state2%atom(:)%y = state2%atom(:)%y/BOHRtoANGS
-    state2%atom(:)%z = state2%atom(:)%z/BOHRtoANGS
-
-
-    if (tswitch) then
-        !=================================================
-        !Rotate to account for the axis switching effect  
-        !=================================================
-         print*, "Correcting axis switching effects to first order (T0)"
-         call axis_swithching(state1,state2,T)
-
-        !Rotate Hessian
-        Aux(1:3*Nat,1:3*Nat) = 0.d0
-        do i=1,Nat
-            do j=1,3
-            do k=1,3
-                Aux(3*i-3+j,3*i-3+k) = T(j,k)
-            enddo
-            enddo
-        enddo
-        do i=1,3*Nat
-        do j=1,3*Nat
-            Aux2(i,j) = 0.d0
-            do k=1,3*Nat
-            do l=1,3*Nat
-            Aux2(i,j) = Aux2(i,j) + Aux(k,i)*Hess(k,l)*Aux(l,j)
-            enddo
-            enddo
-        enddo
-        enddo
-        Hess(1:3*Nat,1:3*Nat) = Aux2(1:3*Nat,1:3*Nat) 
-    endif
-
-    !Generate bonded info
-    call gen_bonded(state2)
-    !Get bonds (to be done in gen_bonded, would be cleaner)
-    k = 0
-    do i=1,state2%natoms-1
-        do j=1,state2%atom(i)%nbonds
-            if ( state2%atom(i)%connect(j) > i )  then
-                k = k + 1
-                state2%geom%bond(k,1) = i
-                state2%geom%bond(k,2) = state2%atom(i)%connect(j)
-            endif 
-        enddo
-    enddo
-    state2%geom%nbonds = k
-    
-    !GEN BONDED SET FOR INTERNAL COORD
-!     if (modred) then
-!         print*, "Custom internal coordianates"
-!         open(I_RED,file="modred.dat") 
-!         call modredundant(I_RED,state2)
-!         close(I_RED)
-!     else!if (zmat) then
-        ! USING THOSE FROM STATE1
-        state2%geom%nbonds  = state1%geom%nbonds  !Nat-1
-        state2%geom%nangles = state1%geom%nangles !Nat-2
-        state2%geom%ndihed  = state1%geom%ndihed  !Nat-3
-        N = state2%geom%nbonds
-        state2%geom%bond(1:N,1:2)  = state1%geom%bond(1:N,1:2)  !bond_s(2:Nat,1:2)
-        N = state2%geom%nangles
-        state2%geom%angle(1:N,1:3) = state1%geom%angle(1:N,1:3) !angle_s(3:Nat,1:3)
-        N = state2%geom%ndihed
-        state2%geom%dihed(1:N,1:4) = state1%geom%dihed(1:N,1:4) !dihed_s(4:Nat,1:4)
-!      endif !otherwise all parameters are used
-     Nred = state2%geom%nbonds+state2%geom%nangles+state2%geom%ndihed
-
-
-    !SOLVE GF METHOD TO GET NM AND FREQ
-    Asel2 = Asel1
-    call internal_Wilson(state2,Nvib,S2,S_sym,ModeDef,B,G,Asel2,verbose)
-    if (vertical) then
-        call NumBder(state2,Nvib,S_sym,Bder)
-        call gf_method_V(Hess,state2,Nvib,S_sym,ModeDef,L2,B,G,Freq,Asel2,X,X2inv,verbose,Grad=Grad,Bder=Bder)
-!         call gf_method(Hess,state2,S_sym,ModeDef,L2,B2,G2,Freq,Asel2,X2,X2inv,verbose)
-    else
-        call gf_method(Hess,state2,Nvib,S_sym,ModeDef,L2,B,G,Freq,Asel2,X,X2inv,verbose)
-    endif 
-
-    if (vertical) then
-        do i=1,Nvib
-            Vec2(i) = 0.d0
-            do k=1,3*Nat
-                Vec2(i) = Vec2(i) + L1(i,k)*Grad(k)
-            enddo
-        enddo
-        Grad(1:Nvib) = Vec2(1:Nvib)
-        do i=1,Nvib
-        do j=1,Nvib
-            Aux2(i,j) = 0.d0
-            do k=1,3*Nat
-                Aux2(i,j) = Aux2(i,j) + L1(k,i)*Hess(k,j)
-            enddo
-        enddo
-        enddo
-        do i=1,Nvib
-        do j=1,Nvib
-            Hess(i,j) = 0.d0
-            do k=1,3*Nat
-                Hess(i,j) = Hess(i,j) + Aux2(i,k)*L1(k,j)
-            enddo
-        enddo
-        enddo
-
-        call diagonalize_full(Hess(1:Nvib,1:Nvib),Nvib,Aux(1:Nvib,1:Nvib),Freq(1:Nvib),"lapack")
-
-        print*, "FREQUENCIES (VH)"
-        do i=1,Nvib
-          Freq(i) = sign(dsqrt(abs(Freq(i))*HARTtoJ/BOHRtoM**2/AUtoKG)/2.d0/pi/clight/1.d2,&
-                         Freq(i))
-          write(6,*) Freq(i)
-        enddo
-
-    endif
-
-    !Compute new state_file for 2
-    ! T2(g09) = mu^1/2 m B^t G2^-1 L2
-    ! Compute G2^-1 (it is X2inv * X2inv
-    Aux(1:Nvib,1:Nvib) = matmul(X2inv(1:Nvib,1:Nvib),X2inv(1:Nvib,1:Nvib))
-    ! Compute B^t G2^-1
-    do i=1,3*Nat
-    do j=1,Nvib
-        Aux2(i,j) = 0.d0
-        do k=1,Nvib
-         Aux2(i,j)=Aux2(i,j)+B(k,i)*Aux(k,j)
-        enddo
-    enddo
-    enddo
-    ! Compute [B^t G2^-1] L2
-    Aux(1:3*Nat,1:Nvib) = matmul(Aux2(1:3*Nat,1:Nvib),L2(1:Nvib,1:Nvib))
-    ! Compute mu^1/2 m [B^t G2^-1 L2] (masses are in UMA in the fchk)
-!     print*, state2%atom(1)%name, state2%atom(1)%mass
-!     print*, mu(1), mu(Nvib)
-    i=0
-    do k=1,Nat
-    do kk=1,3
-    i=i+1
-    do j=1,Nvib
-        Aux2(i,j) = 1.d0/                         &
-                    state1%atom(k)%mass/UMAtoAU * &
-                    Aux(i,j)
-    enddo
-    enddo
-    enddo
-    !Compute reduced masses
-    do j=1,Nvib
-    mu(j)=0.d0
-    do i=1,3*Nat
-        mu(j)=mu(j)+Aux2(i,j)**2
-    enddo
-    mu(j) = 1.d0/mu(j)
-    enddo
-    !Normalize with mu
-    i=0
-    do k=1,Nat
-    do kk=1,3
-    i=i+1
-    do j=1,Nvib
-        Aux2(i,j) = Aux2(i,j)*dsqrt(mu(j))
-    enddo
-    enddo
-    enddo
-    !Checking normalization
+    print*, "Diagonal FC (internal)"
     print*, ""
-    print*, "Checking normalization of Tcart (G09)"
-    do j=1,Nvib
-    theta=0.d0
-    do i=1,3*Nat
-        theta=theta+Aux2(i,j)**2
-    enddo
-    print'(F15.8)', theta
-    enddo
-    print*, ""
-    !Print state
-    open(O_STAT,file="state_file_2")
-    do i=1,Nat
-        write(O_STAT,*) state2%atom(i)%x*BOHRtoANGS
-        write(O_STAT,*) state2%atom(i)%y*BOHRtoANGS
-        write(O_STAT,*) state2%atom(i)%z*BOHRtoANGS
-    enddo
-    do i=1,3*Nat
-    do j=1,Nvib
-        write(O_STAT,*) Aux2(i,j)
-    enddo
-    enddo
-    do j=1,Nvib
-        write(O_STAT,'(F12.5)') Freq(j)
-    enddo
-    close(O_STAT)
-
-    if (verbose) then
-    print*, "B2="
     do i=1,Nvib
-        print'(100(F8.3,2X))', B(i,1:3*Nat)
+        print'(1ES16.8)', Hess(i,i)
     enddo
-    endif
-
-    ! Evaluate orthogonality
-    print*, ""
-    print*, "Checking simultaneous orthogonality"
-    Aux(1:Nvib,1:Nvib) = matmul(X1inv(1:Nvib,1:Nvib),X(1:Nvib,1:Nvib))
-!    if (verbose) then
-    open (O_DMAT,file="D_matrix_abs.dat",status="replace")
-    do i=1,Nvib
-        write(O_DMAT,'(600f8.2)') dabs(Aux(i,1:Nvib))
-!        print*, "" 
-    enddo
-    close(O_DMAT)
-    open (O_DMAT,file="D_matrix.dat",status="replace")
-    do i=1,Nvib
-        write(O_DMAT,'(600f8.2)') Aux(i,1:Nvib)
-!        print*, "" 
-    enddo
-    close(O_DMAT)
-!    endif
-    print*, "D matrix has been written"
-
-    print*, ""
-    ! COMPUTE DETERMINANT AND TRACE
-    theta = 0.d0
-    do i=1,Nvib
-        theta = theta+Aux(i,i)
-    enddo    
-    print*, "Trace", theta
-    theta = -100.d0  !max
-    theta2 = 100.d0 !min
-    do i=1,Nvib
-        if (Aux(i,i) > theta) then
-            theta = Aux(i,i)
-            imax = i
-        endif
-        if (Aux(i,i) < theta2) then
-            theta2 = Aux(i,i)
-            imin = i
-        endif
-!         theta  = max(theta, Aux(i,i))
-!         if (theta == Aux(i,i)) imax = i
-!         theta2 = min(theta2,Aux(i,i))
-!         if (theta2 == Aux(i,i)) imin = i
-    enddo 
-    print*, "Min diagonal", theta2, trim(adjustl(ModeDef(imin)))
-    print*, "Max diagonal", theta,  trim(adjustl(ModeDef(imax)))
-    theta = -100.d0  !max
-    theta2 = 100.d0  !min
-    theta3 = 0.d0
-    k=0
-    do i=1,Nvib
-    do j=1,Nvib
-        if (i==j) cycle
-        k=k+1
-        theta3 = theta3 + dabs(Aux(i,j))
-        theta  = max(theta, Aux(i,j))
-        theta2 = min(theta2,Aux(i,j))
-    enddo
-    enddo 
-    print*, "Min off-diagonal", theta2    
-    print*, "Max off-diagonal", theta
-    print*, "AbsDev off-diagonal sum", theta3
-    print*, "AbsDev off-diagonal per element", theta3/dfloat(k)
-    call dgetrf(Nvib, Nvib, Aux, NDIM, ipiv, info)
-    theta = 1.d0
-    do i=1,Nvib
-        theta = theta*Aux(i,i)
-        if (ipiv(i) /= i) theta=-theta
-    enddo
-    print*, "Determinant", theta
-    print*, ""
-
-
-    ! 2. COMPUTE DUSCHINSKY MATRIX AND DISPLACEMENT VECTOR 
-
-    ! ===========================================
-    ! PREPARE  FOR  DUSCHINSKI
-    !============================================
-    Nat = state1%natoms
-!     Nvib = 3*Nat-6
-
-    !--------------------------
-    ! Orthogonal Duschinski
-    !--------------------------
-    !Orthogonal normal models
-    !L' = G^-1/2 L
-    do i=1,Nvib
-        do j=1,Nvib
-            Aux(i,j) = 0.d0
-            Aux2(i,j) = 0.d0
-            do k=1,Nvib
-                Aux(i,j)  = Aux(i,j)  + X1inv(i,k)*L1(k,j)
-                Aux2(i,j) = Aux2(i,j) + X2inv(i,k)*L2(k,j)
-            enddo
-        enddo
-    enddo
-    do i=1,Nvib
-        do j=1,Nvib
-            G2(i,j) = 0.d0
-            do k=1,Nvib
-                G2(i,j) = G2(i,j) + Aux(k,i)*Aux2(k,j)
-            enddo
-         enddo
-    enddo
-    !Store L1' in Aux2
-    Aux2(1:Nvib,1:Nvib)=Aux(1:Nvib,1:Nvib)
-
-
-    !Inverse of L1
-    Aux(1:Nvib,1:Nvib) = inverse_realgen(Nvib,L1(1:Nvib,1:Nvib))
-    !L1 in now L1^-1
-    L1(1:Nvib,1:Nvib)=Aux(1:Nvib,1:Nvib)
-
-   !-- IF NON-REDUNDANT
-    if (Asel1(1,1) /= 99.d0) then
-    print*, ""
-    print*, "Working with redundant coordianates. Computing A matrices"
-    print*, ""
-    !Prepare A matrix = A2^T * A1
-    do i=1,Nred
-        do j=1,Nred
-            Aux2(i,j) = 0.d0
-            do k=1,Nred
-                Aux2(i,j) = Aux2(i,j) + Asel2(k,i)*Asel1(k,j)
-            enddo
-        enddo
-    enddo
-    !Compute inverse as A1^T * A2, eventually store in Asel1
-    do i=1,Nred
-        do j=1,Nred
-            Aux(i,j) = 0.d0
-            do k=1,Nred
-                Aux(i,j) = Aux(i,j) + Asel1(k,i)*Asel2(k,j)
-            enddo
-        enddo
-    enddo
-    Asel1(1:Nred,1:Nred) = Aux(1:Nred,1:Nred)
-
-    Aux(1:Nred,1:Nred) = matmul(Asel1(1:Nred,1:Nred),Aux2(1:Nred,1:Nred))
-    print*, "Asel test"
-    do i=1,Nred
-        print'(1000f8.2)', Aux(i,1:Nred)
-        print*, ""
-    enddo
-    print*, ""
-    endif
-   !-- ENDOF IF NON-REDUNDANT
-
-    !====================
-    ! DUSCHINSKI MATRIX = L1^-1 L2
-    !====================
-    print*, "Calculating Duschisky..."
-
-    !J = L1^-1 L2
-    do i=1,Nvib
-        do j=1,Nvib
-            G(i,j) = 0.d0
-            do k=1,Nvib
-                G(i,j) = G(i,j) + L1(i,k)*L2(k,j)
-            enddo
-         enddo
-    enddo
-
-
-    print*, ""
-    print*, "=========================="
-    print*, " SHIFTS (internal coord)"
-    print*, "=========================="
-    print*, "Bonds"
-    do i=1,state1%geom%nbonds
-        Delta(i) = S2(i)-S1(i)
-        print'(I5,3(F8.2,2X))', i, S2(i),S1(i), Delta(i)
-    enddo
-    print*, "Angles"
-    do j=i,i+state1%geom%nangles-1
-        Delta(j) = S2(j)-S1(j)
-        print'(I5,3(F8.2,2X))', j, S2(j)*180.d0/PI,S1(j)*180.d0/PI,Delta(j)*180.d0/PI
-    enddo
-    print*, "Dihedrals"
-    do k=j,j+state1%geom%ndihed-1
-        Delta(k) = S2(k)-S1(k)
-        Delta_p = S2(k)-S1(k)+2.d0*PI
-        if (dabs(Delta_p) < dabs(Delta(k))) Delta(k)=Delta_p
-        Delta_p = S2(k)-S1(k)-2.d0*PI
-        if (dabs(Delta_p) < dabs(Delta(k))) Delta(k)=Delta_p
-        print'(I5,3(F8.2,2X))', k, S2(k)*180.d0/PI,S1(k)*180.d0/PI,Delta(k)*180.d0/PI
-    enddo
-
-!     print*, ""
-!     print*, "=========================="
-!     print*, " SHIFTS (orthogonal internal coord)"
-!     print*, "=========================="
-!     print*, "Setting orthogonal internal coordinates..."
+    Aux(1:Nvib,1:Nvib) = inverse_realgen(Nvib,Hess)
+!     Aux2(1:Nvib,1:Nvib) = matmul(Hess(1:Nvib,1:Nvib),Aux(1:Nvib,1:Nvib))
 !     do i=1,Nvib
-!         Vec(i) = 0.d0
-!         do j=1,Nvib
-!             Vec(i) = Vec(i) + X1inv(
-!         enddo
+!         print'(100F5.2)', Aux2(i,1:Nvib) 
 !     enddo
-
-    if (S_sym(3*Nat) == 1) then
-        print*, ""
-        print*, "Using symmetry addapted coordinates"
-        print*, "                     Coord                          Displacement"
-        print*, "  ---------------------------------------------------------------"
-        do i=1,Nvib
-            if (S_sym(i) <= i) cycle
-            j=S_sym(i)
-            Vec(1) = Delta(i)+Delta(j)
-            Vec(2) = Delta(i)-Delta(j)
-            Delta(i) = Vec(1)
-            Delta(j) = Vec(2)
-        enddo
-        do i=1,Nvib
-            print'(X,A45,3X,F12.5)', trim(adjustl(ModeDef(i))), Delta(i)
-        enddo
-        print*, "  ---------------------------------------------------------------"
-
-    elseif (Asel1(1,1) /= 99.d0) then
-        do i=1,Nred
-            Vec(i) = 0.d0
-            do k=1,Nred
-                Vec(i) = Vec(i) + Asel1(i,k)*Delta(k)
-            enddo
-        enddo
-        Delta(1:Nvib) = Vec(1:Nvib)
-    endif
-
-
-    ! K = L1^-1 DeltaS (this is State 1 respect to state 2) . L1 already stores the inverse!
+!     print*, ""
+!     do i=1,Nvib
+!         print'(100F5.2)', Hess(i,1:Nvib) 
+!     enddo
+!     print*, ""
+    ! Matrix x vector 
+    print*, "" 
+    print*, "GRAD (internal)"
+    print*, ""
+    print'(5ES16.8)', Grad(1:Nvib)
+    print*, ""
+    print*, ""
+    print*, "Diagonal FC (internal)"
+    print*, ""
     do i=1,Nvib
-        Vec(i) = 0.d0
-        do k=1,Nvib
-            Vec(i) = Vec(i) + L1(i,k)*Delta(k)
-        enddo
+        print'(1ES16.8)', Hess(i,i)
     enddo
-    !Orthogonal: K=L1'^t DeltaS'
+    print*, ""
     do i=1,Nvib
-        Vec2(i) = 0.d0
+        Vec(i)=0.d0
         do k=1,Nvib
-            Vec2(i) = Vec(i) + Aux2(k,i)*Delta(k)
-        enddo
+            Vec(i) = Vec(i)-Aux(i,k) * Grad(k)
+        enddo 
     enddo
-    if (verbose) then
-        !Print the full Duschisky matrix
-        write(6,*) ""
-        write(6,*) "DUSCHINSKI MATRIX"
-        do i=1,Nvib
-            write(6,'(100(F10.4,2X))') G(i,1:Nvib)
-        enddo
-    endif
+    k=0
+    print*, "DELTA BONDS"
+    do i=1,state1%geom%nbonds
+        k = k+1
+        print'(A,3X,2(F8.3,3X),G10.3)', trim(adjustl(ModeDef(k))), Vec(k), Vec(k)*BOHRtoANGS, Grad(k)
+    enddo
+    print*, "DELTA ANGLES"
+    do i=1,state1%geom%nangles
+        k = k+1
+        print'(A,3X,2(F8.3,3X),G10.3)', trim(adjustl(ModeDef(k))), Vec(k), Vec(k)*180.d0/PI, Grad(k)
+    enddo
+    print*, "DELTA DIHEDRALS"
+    do i=1,state1%geom%ndihed
+        k = k+1
+        print'(A,3X,2(F8.3,3X),G10.3)', trim(adjustl(ModeDef(k))), Vec(k), Vec(k)*180.d0/PI, Grad(k)
+    enddo
+    do i=1,Nvib
+        S1(i) = S1(i) + Vec(i)
+    enddo
+    call zmat2cart(state1,bond_s,angle_s,dihed_s,S1,verbose)
+    !Transform to AA and export coords and put back into BOHR
+    state1%atom(1:Nat)%x = state1%atom(1:Nat)%x*BOHRtoANGS
+    state1%atom(1:Nat)%y = state1%atom(1:Nat)%y*BOHRtoANGS
+    state1%atom(1:Nat)%z = state1%atom(1:Nat)%z*BOHRtoANGS
+    open(70,file="minim_harmonic_Inter.xyz")
+    call write_xyz(70,state1)
+    close(70)
 
-    
-      print*, ""
-      print*, "======================================================================="
-      print*, " DUSCHINSKI MATRIX (STATE1 WITH RESPECT TO STATE2) (LARGER ELEMENTS)"
-      print*, "======================================================================="
-      do i=1,Nvib
-          print*, ""
-          print'(A,I4,2(6X,A,F8.3))', "Mode ", i, " Freq(cm^-1) = ", Freq(i), "Shift=", Vec(i)
-          print*, "         NM    Coef.^2              "
-          print*, " ======================================================================="
-          kk=0
-          !Copy the row and reorder 
-          Aux(1,1:Nvib) = abs(G(i,1:Nvib))
-          call sort_vec_max(Aux(1,1:Nvib),ipiv(1:Nvib),Nvib)
-          !Normalize auxiliar
-          Theta = 0.d0
-          do j=1,Nvib
-!               Theta = Theta + Aux(i,j)**2
-              Theta = Theta + G(i,j)**2
-          enddo
-          Theta2 = Theta
-          Aux(i,j) = Aux(i,j)/dsqrt(Theta)
-          Theta = 0.d0
-          do j=1,Nvib
-              if (Theta > 0.9d0) exit
-              jj = ipiv(j)
-              Theta = Theta + Aux(i,j)
-              print*, jj, G(i,jj)**2, Aux(i,j)
-              kk=kk+1
-          enddo 
-          print*, " ========================================================================"
-          write(6,'(A,F15.3)') "Quality Index", Theta2
-          write(6,'(A,I3)') "Total Number of modes (State2) to describe >90% of the mode (State1): ", kk
-      enddo
+    print*, ""
 
-      print*, ""
-      print*, "========================================================================="
-      print*, " DUSCHINSKI MATRIX (STATE1 WITH RESPECT TO STATE2) (SUMMARY)"
-      print*, "========================================================================="
-      print*, "         NM      I1     C1^2        I90     I95     I99      K   Adim-K"
-      print*, "-------------------------------------------------------------------------"
-      do i=1,Nvib
-          k90=0
-          k95=0
-          k99=0
-          !Copy the row and reorder 
-          Aux(1,1:Nvib) = abs(G(i,1:Nvib))
-          call sort_vec_max(Aux(1,1:Nvib),ipiv(1:Nvib),Nvib)
-          Theta = 0.d0
-          do j=1,Nvib
-              if (Theta > 0.9d0) exit
-              jj = ipiv(j)
-              Theta = Theta + G(i,jj)**2
-              k90=k90+1
-          enddo 
-          Theta = 0.d0
-          do j=1,Nvib
-              if (Theta > 0.95d0) exit
-              jj = ipiv(j)
-              Theta = Theta + G(i,jj)**2
-              k95=k95+1
-          enddo 
-          Theta = 0.d0
-          do j=1,Nvib
-              if (Theta > 0.99d0) exit
-              jj = ipiv(j)
-              Theta = Theta + G(i,jj)**2
-              k99=k99+1
-          enddo 
-          print'(6X,2(I5,3X),F7.2,5X,3(I5,3X),F7.2,X,F9.4)', i, ipiv(1),G(i,ipiv(1))**2, k90, k95, k99, Vec(i), Vec(i)*Factor(i)
-      enddo
-      print*, "======================================================================="
-      print*, ""
-
-      !Prints Duschisky matrix and displacements to files
-      open(O_DUS,file="duschinsky.dat")
-      open(O_DUS2,file="duschinsky_orth.dat")
-      open(O_DIS,file="displacement.dat")
-      open(O_DIS2,file="displacement_orth.dat")
-      do i=1,Nvib
-      do j=1,Nvib
-          write(O_DUS,*) G(i,j)
-          write(O_DUS2,*) G2(i,j)
-      enddo 
-          write(O_DIS,*) Vec(i)
-          write(O_DIS2,*) Vec2(i)
-      enddo
-      close(O_DUS)
-      close(O_DUS2)
-      close(O_DIS)
-      close(O_DIS2)
 
     call cpu_time(tf)
     write(6,'(A,F12.3)') "CPU (s) for internal vib analysis: ", tf-ti
@@ -1401,10 +862,10 @@ program internal_duschinski
              call read_pdb_new(I_INP,molec)
              call atname2element(molec)
              call assign_masses(molec)
-!             case("log")
-!              call parse_summary(I_INP,molec,props,"struct_only")
-!              call atname2element(molec)
-!              call assign_masses(molec)
+            case("log")
+             call parse_summary(I_INP,molec,props,"struct_only")
+             call atname2element(molec)
+             call assign_masses(molec)
             case("fchk")
              call read_fchk_geom(I_INP,molec)
              call atname2element(molec)

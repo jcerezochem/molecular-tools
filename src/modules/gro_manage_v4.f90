@@ -99,7 +99,7 @@ module gro_manage
         !local
         integer::i
 
-        write(unt,'(A)') 'TITLE  File created with gro_manage module'
+        write(unt,'(A)') 'TITLE  File created with gro_manage module: '//trim(adjustl(system%title))
         write(unt,'(I5)') system%natoms
 
         do i=1,system%natoms        

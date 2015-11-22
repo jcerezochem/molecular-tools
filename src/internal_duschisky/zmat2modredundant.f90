@@ -61,7 +61,7 @@ program internal_duschinski
     use line_preprocess
     use constants
 !   Matrix manipulation (i.e. rotation matrices)
-    use MatrixMod
+    use matrix
 !============================================
 !   Structure types module
 !============================================
@@ -87,7 +87,7 @@ program internal_duschinski
 
     implicit none
 
-    integer,parameter :: NDIM = 400
+    integer,parameter :: NDIM = 600
 
     !====================== 
     !Options 

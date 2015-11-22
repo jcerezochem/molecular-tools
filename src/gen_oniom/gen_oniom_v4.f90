@@ -301,16 +301,13 @@ stop
     !==================================================
         implicit none
 
-        common /GLOBAL_OPTS/ do_refine_charges
-
         character(len=*),intent(inout) :: inpfile,topfile,filetype,ndxfile,outfile,&
                                           resname,jobspec,nproc,mm_file,chrgspin_h,&
                                           chrgspin_l
         logical,intent(inout) :: verbose, pointcharges
         ! Local
         logical :: argument_retrieved,  &
-                   need_help = .false., &
-                   do_refine_charges
+                   need_help = .false.
         integer:: i
         character(len=200) :: arg
 

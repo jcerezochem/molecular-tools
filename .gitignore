@@ -53,6 +53,8 @@ src/cube_tools/charges_potential
 src/file_management/reform_fchk
 src/file_management/rmsd_fit
 src/bonded_info/max_dist_to_center
+src/internal_duschisky/vertical2adiabatic
+src/normal_modes/internal_numder_analysis
 
 # output from test calcs
 *output.?

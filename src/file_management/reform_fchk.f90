@@ -63,7 +63,7 @@ program reorder_fchk
 
     implicit none
 
-    integer,parameter :: NDIM = 800
+    integer,parameter :: NDIM = 600
 
     !====================== 
     !Options 

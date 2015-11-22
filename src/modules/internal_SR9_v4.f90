@@ -32,7 +32,7 @@ subroutine internal_Wilson(molec,S,S_sym,ModeDef,B,G,Asel,verbose)
 
     implicit none
 
-    integer,parameter :: NDIM = 400
+    integer,parameter :: NDIM = 600
     real(8),parameter :: ZEROp = 1.d-10 !practically zero
 
     !====================== 
@@ -584,7 +584,7 @@ subroutine internal_Wilson_fc(molec,S,S_sym,ModeDef,B,G,Asel,verbose)
 
     implicit none
 
-    integer,parameter :: NDIM = 400
+    integer,parameter :: NDIM = 600
     real(8),parameter :: ZEROp = 1.d-10 !practically zero
 
     !====================== 
@@ -985,7 +985,7 @@ subroutine internal_fc(Hess,molec,S_sym,ModeDef,B,G,verbose)
 
     implicit none
 
-    integer,parameter :: NDIM = 400
+    integer,parameter :: NDIM = 600
 
     !====================== 
     !ARGUMENTS
@@ -1218,7 +1218,7 @@ subroutine gf_method(Hess,molec,S_sym,ModeDef,L,B,G,Freq,Asel,X,Xinv,verbose)
 
     implicit none
 
-    integer,parameter :: NDIM = 400
+    integer,parameter :: NDIM = 600
 
     !====================== 
     !ARGUMENTS
@@ -1662,7 +1662,7 @@ subroutine gf_method_V(Hess,Grad,molec,S_sym,ModeDef,L,B,Bder,G,Freq,Asel,X,Xinv
 
     implicit none
 
-    integer,parameter :: NDIM = 400
+    integer,parameter :: NDIM = 600
 
     !====================== 
     !ARGUMENTS
@@ -3427,7 +3427,7 @@ subroutine NumBDer(molec,S_sym,Bder)
 !     use parameters
     use structure_types
 
-    integer,parameter :: NDIM = 400
+    integer,parameter :: NDIM = 600
     real(8),parameter :: delta = 1.889726133d-3 !for numerical ders, in bohr(=10^-3 \AA, as Num freq in G09)
 
     type(str_resmol),intent(in) :: molec
