@@ -55,6 +55,8 @@ src/file_management/rmsd_fit
 src/bonded_info/max_dist_to_center
 src/internal_duschisky/vertical2adiabatic
 src/normal_modes/internal_numder_analysis
+src/normal_modes/vibrations_cart
+src/file_management/numderX
 
 # output from test calcs
 *output.?

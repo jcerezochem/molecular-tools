@@ -368,14 +368,14 @@ program projection_normal_modes_int
 
     !INTERNAL COORDINATES ANALYSIS
     Asel(1,1) = 99.d0 !out-of-range, as Asel is normalized -- this option is not tested
-    call internal_Wilson(molecule,S1,S_sym,ModeDef,B1,G1,Asel,verbose)
+    call internal_Wilson(molecule,Nvib,S1,S_sym,ModeDef,B1,G1,Asel,verbose)
     if (showZ) stop
 
     !SOLVE GF METHOD TO GET NM AND FREQ
         !For redundant coordinates a non-redundant set is formed as a combination of
         !the redundant ones. The coefficients for the combination are stored in Asel
         !as they must be used for state 2 (not rederived!).
-        call gf_method(Hess,molecule,S_sym,ModeDef,L1,B1,G1,Freq,Asel,X1,X1inv,verbose) 
+        call gf_method(Hess,molecule,Nvib,S_sym,ModeDef,L1,B1,G1,Freq,Asel,X1,X1inv,verbose) 
 
         !Compute the inverse (Linv), stored in X1inv
         X1inv(1:Nvib,1:Nvib)=L1(1:Nvib,1:Nvib)
@@ -434,7 +434,7 @@ program projection_normal_modes_int
     molec_aux%atom(1:Nat)%z = molec_aux%atom(1:Nat)%z/BOHRtoANGS
     ! 2. Get internal coordinates
     molec_aux%geom = molecule%geom
-    call internal_Wilson(molec_aux,S2,S_sym,ModeDef,B1,G1,Asel,verbose)
+    call internal_Wilson(molec_aux,Nvib,S2,S_sym,ModeDef,B1,G1,Asel,verbose)
     ! 3. Compute DeltaS
     print*, ""
     print*, "=========================="

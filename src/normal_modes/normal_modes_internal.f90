@@ -80,7 +80,8 @@ program normal_modes_animation
                zmat=.true.    ,&
                tswitch=.false.,&
                symaddapt=.false., &
-               include_hbonds=.false.
+               include_hbonds=.false., &
+               vertical=.false.
     !======================
 
     !====================== 
@@ -99,12 +100,14 @@ program normal_modes_animation
     !MATRICES
     !B and G matrices
     real(8),dimension(1:NDIM,1:NDIM) :: B1, G1
+    !Bder tensor
+    real(8),dimension(1:NDIM,1:NDIM,1:NDIM) :: Bder
     !Other matrices
     real(8),dimension(1:NDIM,1:NDIM) :: Hess, X1,X1inv, L1, Asel1, Asel
     !Save definitio of the modes in character
     character(len=100),dimension(NDIM) :: ModeDef
     !VECTORS
-    real(8),dimension(NDIM) :: Freq, S1, Vec, Smap, Factor
+    real(8),dimension(NDIM) :: Freq, S1, Vec, Smap, Factor, Grad
     integer,dimension(NDIM) :: S_sym, bond_sym,angle_sym,dihed_sym
     !Shifts
     real(8),dimension(NDIM) :: Delta
@@ -211,7 +214,7 @@ program normal_modes_animation
     nm(1) = 0
     icoord=-1
     call parse_input(inpfile,addfile,nmfile,nm,Nsel,Amplitude,filetype,nosym,zmat,verbose,tswitch,symaddapt,&
-                     zmatfile,icoord,showZ,call_vmd,movie_cycles,include_hbonds)
+                     zmatfile,icoord,showZ,call_vmd,movie_cycles,include_hbonds,vertical)
     if (icoord /= -1) scan_internal=.true.
 ! Por qué estaba este switch????
 !    if (showZ) scan_internal=.false.
@@ -285,6 +288,20 @@ program normal_modes_animation
             call read_gro_hess(I_ADD,N,Hess,error)
             close(I_ADD)
         endif
+
+        ! If vertical, also read Grad
+        if (vertical) then
+            if (adjustl(filetype) == "fchk") then
+                !Read gradient from fchk
+                call read_fchk(I_INP,"Cartesian Gradient",dtype,N,A,IA,error)
+                Grad(1:N) = A(1:N)
+                deallocate(A)
+            else
+                print*, "ERROR: No gradient can be read for this filetype: "//adjustl(filetype)
+                stop
+            endif
+        endif
+
     endif
     close(I_INP)
 
@@ -427,7 +444,7 @@ program normal_modes_animation
 
     !INTERNAL COORDINATES ANALYSIS
     Asel1(1,1) = 99.d0 !out-of-range, as Asel is normalized -- this option is not tested
-    call internal_Wilson(molecule,S1,S_sym,ModeDef,B1,G1,Asel1,verbose)
+    call internal_Wilson(molecule,Nvib,S1,S_sym,ModeDef,B1,G1,Asel1,verbose)
     if (showZ) stop
 
     !Two possible jobs: scan normal modes or scan a given internal coordinates
@@ -446,16 +463,21 @@ program normal_modes_animation
         !For redundant coordinates a non-redundant set is formed as a combination of
         !the redundant ones. The coefficients for the combination are stored in Asel
         !as they must be used for state 2 (not rederived!).
-        call gf_method(Hess,molecule,S_sym,ModeDef,L1,B1,G1,Freq,Asel1,X1,X1inv,verbose) 
+        if (vertical) then
+            call NumBder(molecule,Nvib,S_sym,Bder)
+            call gf_method_V(Hess,molecule,Nvib,S_sym,ModeDef,L1,B1,G1,Freq,Asel1,X1,X1inv,verbose,Grad=Grad,Bder=Bder) 
+        else
+            call gf_method_V(Hess,molecule,Nvib,S_sym,ModeDef,L1,B1,G1,Freq,Asel1,X1,X1inv,verbose) 
+        endif
 
-        ii=0
-        do i=1,Nred
-            if (Freq(i) > 1.d-2) then
-                ii=ii+1
-                Freq(ii) = Freq(i)
-                L1(1:Nred,ii) = L1(1:Nred,i)
-             endif
-        enddo
+!         ii=0
+!         do i=1,Nred
+!             if (Freq(i) > 1.d-2) then
+!                 ii=ii+1
+!                 Freq(ii) = Freq(i)
+!                 L1(1:Nred,ii) = L1(1:Nred,i)
+!              endif
+!         enddo
 
        !Use freqs. to make displacements equivalent in dimensionless units
 !         Factor(1:Nvib) = dsqrt(dabs(Freq(1:Nvib)))/5.d3
@@ -928,14 +950,14 @@ program normal_modes_animation
     !=============================================
 
     subroutine parse_input(inpfile,addfile,nmfile,nm,Nsel,Amplitude,filetype,nosym,zmat,verbose,tswitch,symaddapt,&
-                           zmatfile,icoord,showZ,call_vmd,movie_cycles,include_hbonds)
+                           zmatfile,icoord,showZ,call_vmd,movie_cycles,include_hbonds,vertical)
     !==================================================
     ! My input parser (gromacs style)
     !==================================================
         implicit none
 
         character(len=*),intent(inout) :: inpfile,addfile,nmfile,filetype,zmatfile
-        logical,intent(inout) :: nosym, verbose, zmat, tswitch, symaddapt,showZ,call_vmd,include_hbonds
+        logical,intent(inout) :: nosym, verbose, zmat, tswitch, symaddapt,showZ,call_vmd,include_hbonds,vertical
         integer,dimension(:),intent(inout) :: nm
         integer,intent(inout) :: icoord, movie_cycles
         integer,intent(out) :: Nsel
@@ -988,6 +1010,9 @@ program normal_modes_animation
 
                 case ("-vmd")
                     call_vmd=.true.
+
+                case ("-vert")
+                    vertical=.true.
 
                 case ("-movie")
                     call getarg(i+1, arg)

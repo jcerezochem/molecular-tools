@@ -378,7 +378,7 @@ module MatrixMod
          integer l,inf
          real*8  work(n*(3+n/2)) 
 
-         print'(/,X,A,/)', "Entering lapack diagonalization subroutine for symmetric matrices"
+!          print'(/,X,A,/)', "Entering lapack diagonalization subroutine for symmetric matrices"
 
          l=n*(3+n/2)
          call dsyev('V','U',n,a,n,eig,work,l,inf)

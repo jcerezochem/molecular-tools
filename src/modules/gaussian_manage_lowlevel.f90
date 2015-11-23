@@ -76,7 +76,8 @@ module gaussian_manage_lowlevel
             read(unt,'(X,A)',IOSTAT=IOstatus) line
             if ( IOstatus < 0 ) then
                 error_flag = i+10
-                rewind(unt)
+                write(0,'(X,A,I0)') "Error while reading line ", i
+!                 rewind(unt)
                 return
             endif
             if ( INDEX(line,"GINC") /= 0 ) exit
@@ -106,17 +107,20 @@ module gaussian_manage_lowlevel
                 read(unt,'(X,A)',IOSTAT=IOstatus) line
                 if ( IOstatus < 0 ) then
                     error_flag = i+10
-                    rewind(unt)
+                    write(0,'(X,A,I0)') "Error while reading line ", i
+!                     rewind(unt)
                     return
                 endif
             enddo
             if (isection == isect) then
-                rewind(unt)
+!                 write(0,'(X,A,I0)') "Section recovered"
+!                 rewind(unt)
                 return
             endif
             if (line == "@") then
+                write(0,'(X,A,I0,A)') "Requested secction not present in the summary. Returning last section (",isection,')'
                 error_flag = 1
-                rewind(unt)
+!                 rewind(unt)
                 return
             endif
 

@@ -32,7 +32,7 @@ module vibrational_analysis
         ! Mass    (inp) real/vector   Atomic masses (AMU)
         ! Hlt     (inp) real/vector   Lower triangular part of the Hessian in Cartesian coordinates (AU)
         ! Nvib    (out) int /scalar   Number of vibrational degrees of freedom
-        ! L       (out) real/matrix   Normal modes (vibrations only) in Cartesian coordinates (AMU)
+        ! L       (out) real/matrix   Normal modes (vibrations only) in Cartesian coordinates (AU)
         ! FC      (out) real/vector   Force constants (AU)
         ! error_flag (out) flag  0 : success
         !                        1 : Wrong number of Trans+Rot (<5)

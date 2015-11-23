@@ -280,6 +280,9 @@ program normal_modes_Cartesian
             print*, "ERROR: 'Cartesian Force Constants' not found in fchk"
             stop     
         endif       
+        !Read job info
+        call get_jobtype_fchk(I_INP,molec%job,error)
+        molec%job%type= "SP"
     endif
     close(I_INP)
 
@@ -290,7 +293,7 @@ program normal_modes_Cartesian
         do j=1,Nvib
             !Note is stored as the transpose, i.e. T(Nvib x 3Nat)
             !     RedMass in atomic units
-            T(j,:) = T(j,:)/dsqrt(RedMass(j))/1.895d0
+            T(j,:) = T(j,:)/dsqrt(RedMass(j))!/1.895d0
             !NOTE: the factor 1.89 has been empirically identified as necessary, but its origin is
             !      unclear. This should be carrefully revised!
         enddo
