@@ -12,7 +12,7 @@ module vibrational_analysis
 
     !Common declarations:
     !===================
-    use MatrixMod
+    use matrix
     implicit none
 
     contains

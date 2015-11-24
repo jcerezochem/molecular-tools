@@ -1,4 +1,4 @@
-module symmetry_mod
+module symmetry
 
     !CAUTION: UNCHECKED MODULE (14/11/2012)
 
@@ -12,7 +12,7 @@ module symmetry_mod
 
         use structure_types
         use alerts
-        use MatrixMod
+        use matrix
         use molecular_structure, only: rotate_molec
 
         !System variables
@@ -120,7 +120,7 @@ module symmetry_mod
 
         use structure_types
         use alerts
-        use MatrixMod, only:sort_ivec, diagonalize_full
+        use matrix, only:sort_vec_int, diagonalize_full
         use molecular_structure
 
         real(8),parameter :: THRS=1.d-1 !loose
@@ -342,7 +342,7 @@ module symmetry_mod
                 molec%PG="C1"
             else
                 do i=1,molec_local%natoms
-                    call sort_ivec(isym_v2(i,1:nsym),nsym)
+                    call sort_vec_int(isym_v2(i,1:nsym),nsym)
                     isym(i) = isym_v2(i,1)
                 enddo
             endif
@@ -364,4 +364,4 @@ module symmetry_mod
 
 
 
-end module symmetry_mod
+end module symmetry

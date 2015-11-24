@@ -1,4 +1,4 @@
-module pdb_manage
+module pdb_manage_molec
 
     !==============================================================
     ! This code is part of MOLECULAR_TOOLS (version 0.4/February 2014)
@@ -261,4 +261,4 @@ module pdb_manage
 !     end subroutine pdb_connect 
 
 
-end module pdb_manage
+end module pdb_manage_molec

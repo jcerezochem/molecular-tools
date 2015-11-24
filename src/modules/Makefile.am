@@ -12,40 +12,39 @@ noinst_LIBRARIES = libmoleculartools.a
 
 # We compile only the modules that are
 # used by the binaries out there
-libmoleculartools_a_SOURCES =        \
+libmoleculartools_a_SOURCES =         \
     alerts.f90                        \
     line_preprocess.f90               \
-    MatrixMod.f90                     \
-    matrix.f90                     \
+    matrix.f90                        \
     matrix_print.f90                  \
-    constants_mod.f90                 \
+    constants.f90                     \
+    verbosity.f90                     \
 \
-    symmetry_mod_notypes_v2.f90       \
-    gaussian_manage_vNoTypes.f90      \
+    structure_types.f90               \
 \
-    structure_types_v4.f90            \
-\
-    atomic_geom_v2.f90                \
-    fcc_manage.f90                    \
-    ff_build_module_v4.f90            \
-    gamess_manage.f90                 \
-    gaussian_fchk_manage_v4.f90       \
-    gaussian_manage_v4.f90            \
-    gaussian_manage_lowlevel.f90      \
-    gro_manage_v4.f90                 \
-    internal_SR9_v4.f90               \
-    molcas_unsym_manage_v4.f90        \
-    molden_manage.f90                 \
+    atomic_geom.f90                   \
     molecular_structure.f90           \
-    molpro_manage_v4.f90              \
-    pdb_manage_v4.f90                 \
-    psi4_manage.f90                   \
-    symmetry_mod_v4.f90               \
-    xyz_manage_v4.f90                 \
-    zmat_manage_v4.f90                
+\
+    symmetry.f90                      \
+\
+    manage_fcc.f90                    \
+    manage_gamess.f90                 \
+    manage_gaussian.f90               \
+    manage_gmx.f90                    \
+    manage_molcas.f90                 \
+    manage_molden.f90                 \
+    manage_molpro.f90                 \
+    manage_pdb.f90                    \
+    manage_psi4.f90                   \
+    manage_xyz.f90                    \
+    zmat_manage.f90                   \
+\
+    generic_io.f90                    \
+    generic_io_molec.f90              \
+\
+    ff_build.f90                      \
+    internal.f90                             
 
-#    sizes.f90                         \
-#    structure_types_v5.f90            
 
 CLEANFILES =*.mod 
  

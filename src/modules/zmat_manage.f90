@@ -8,7 +8,7 @@ subroutine modredundant(I_RED,molec)
     use alerts
     use constants
     use atomic_geom
-    use symmetry_mod
+    use symmetry
 
     type(str_resmol),intent(inout) :: molec
     integer,intent(in) :: I_RED
@@ -68,7 +68,7 @@ subroutine check_colinear(molec,bond_s,angle_s,natoms0,is_colinear)
     use alerts
     use constants
     use atomic_geom
-    use symmetry_mod
+    use symmetry
 
     type(str_resmol),intent(inout) :: molec
     integer,dimension(:,:),intent(inout) :: bond_s,angle_s
@@ -166,7 +166,7 @@ subroutine build_Z(molec,bond_s,angle_s,dihed_s,PG,isym,bond_sym,angle_sym,dihed
     use alerts
     use constants
     use atomic_geom
-    use symmetry_mod
+    use symmetry
 
     implicit none
 
@@ -483,7 +483,7 @@ subroutine read_Z(molec,bond_s,angle_s,dihed_s,PG,isym,bond_sym,angle_sym,dihed_
     use alerts
     use constants
     use atomic_geom
-    use symmetry_mod
+    use symmetry
 
     implicit none
 
@@ -534,7 +534,7 @@ subroutine zmat2cart(molec,bond_s,angle_s,dihed_s,S,verbose)
 
     use structure_types
     use constants
-    use MatrixMod
+    use matrix
 
     integer,parameter :: NDIM = 600
     logical,intent(in) :: verbose
@@ -732,7 +732,7 @@ subroutine zmat2cart_ori(molec,bond_s,angle_s,dihed_s,S,T,info2,verbose)
 
     use structure_types
     use constants
-    use MatrixMod
+    use matrix
 
     integer,parameter :: NDIM = 600
     logical,intent(in) :: verbose

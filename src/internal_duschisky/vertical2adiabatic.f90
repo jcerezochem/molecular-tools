@@ -1,54 +1,14 @@
-program internal_duschinski
+program vertical2adiabatic
 
 
     !==============================================================
-    ! This code uses of MOLECULAR_TOOLS (version 1.0/March 2012)
+    ! This code uses of MOLECULAR_TOOLS 
     !==============================================================
-    !
-    ! Version: internal_duschinski_v13
-    !
     ! Description:
     ! -----------
-    ! Program to analyse vibrations in term of internal coordinates.
-    !
-    ! Compilation instructions (for mymake script):
-    !make$ echo "COMPILER: $FC"; sleep 1; $FC modules/alerts.f90 modules/structure_types_v3.2.f90 modules/line_preprocess.f90 modules/ff_build_module_v3.f90 modules/gro_manage_v2.f90 modules/pdb_manage_v2.f90 modules/constants_mod.f90 modules/atomic_geom_v2.f90 modules/gaussian_manage_v2.f90 modules/gaussian_fchk_manage_v2.f90 modules/symmetry_mod.f90 modules/MatrixMod.f90 modules/internal_SR_v8.4_corrected.f90 internal_duschinski_v13.f90 -llapack -o internal_duschinski_v13.exe -cpp -DDOUBLE
-    !
-    ! Change log:
-    !
-    ! TODO:
-    ! ------
-    !
-    ! History
-    ! V4: distributable version
-    !     - only system types (molec) are used (needs V3 of structure_types and ff_build)
-    !     - Allocation disabled
-    !     - Clean up
-    ! V5: detect symmetry of vibrations (only for Ci symmetry). Needs internal_SR_v6.f90
-    ! V6: NDIM increased to 600 (recommended internal_SR_v7.f90, but also works with v6)
-    !     Added quality checks
-    ! V7: Proper treatment of redundants. Involves changes in SR (need version SR_v8)
-    !     Use of symmetry addapted internal coordinates
-    !     Added readZ optionç
-    ! V8: Review and refine v7. Delete/clarify incongruent parts. Results not changed from v7 
-    !     Add approxmiate orthogonal J=L1'^T L2'^T option and K=L1^T DeltaS
-    ! V9: Add the possibility to extract the Hessian from gaussian log files
-    ! V9.1: Add symm_file to specify a custom atom symmetry
-    !       Added "split_line_back" to allow different relative PATHS to files
-    ! V9.2: Add generation of state files (also for log files: no need to read mu)
-    !       This version REQUIRES internal_SR_v8_corrected to solve a serious bug
-    !...................................................................................................
-    ! OUT OF TRACK:
-    ! v10: Fixing Displacement in orthogonal internal coords (buggy version, only works partially)
-    !  >> Ongoing works are left on an alternative track! (to be merged!)
-    ! v11: Include derivatives for B to allow VH model in internal coordianates
-    !      REQUIRES: internal_SR_v9
-    !...................................................................................................
-    ! v13: merge v9.2 with advances in v11 (B derivatives)
-    !*********************************
-    !
-    ! v13_v4: addapt to molecular tools distribution
-    !
+    !  Moves the vertical structure to the adiabatic (minimum) one. 
+    !  Basically consists of a single minimization step. Performed
+    !  in Cartesian and internal coordinates.
     !============================================================================    
 
 !*****************
@@ -60,12 +20,16 @@ program internal_duschinski
     use alerts
     use line_preprocess
     use constants
-!   Matrix manipulation (i.e. rotation matrices)
     use matrix
 !============================================
 !   Structure types module
 !============================================
     use structure_types
+!============================================
+!   Generic file readers
+!============================================
+    use generic_io
+    use generic_io_molec
 !============================================
 !   Structure dependent modules
 !============================================
@@ -101,7 +65,7 @@ program internal_duschinski
 
     !====================== 
     !System variables
-    type(str_resmol) :: state1, state2
+    type(str_resmol) :: molec
     integer,dimension(1:NDIM) :: isym
     integer :: Nat, Nvib, Nred
     character(len=5) :: PG
@@ -214,108 +178,43 @@ program internal_duschinski
     call cpu_time(ti)
 
     ! 0. GET COMMAND LINE ARGUMENTS
-    call parse_input(inpfile,inpfile2,filetype,filetype2,nosym,verbose,tswitch,symaddapt,vertical,symm_file,&
-                     addfile,addfile2,zmatfile,rmzfile,internal_set,selfile)
-    call set_word_upper_case(internal_set)
+    call generic_input_parser(inpfile, "-f" ,"c",&
+                              filetype,"-ft","c",&
+                              )
 
-    ! 1. INTERNAL VIBRATIONAL ANALYSIS ON STATE1 AND STATE2
-    
 
-    !===========
-    !State 1
-    !===========
-    print*, ""
-    print*, "=========="
-    print*, " STATE 1"
-    print*, "=========="
- 
-    ! 1. READ DATA
+    ! READ DATA
     ! ---------------------------------
     open(I_INP,file=inpfile,status='old',iostat=IOstatus)
     if (IOstatus /= 0) call alert_msg( "fatal","Unable to open "//trim(adjustl(inpfile)) )
 
     !Read structure
-    if (adjustl(filetype) == "guess") then
-        call split_line_back(inpfile,".",null,filetype)
-    endif
-    ft=filetype
-    call generic_strfile_read(I_INP,ft,state1)
-    !Shortcuts
-    Nat = state1%natoms
-    Nvib = 3*Nat-6
+    call read_structure(I_INP,filetype,molec)
+    ! Shortcuts
+    Nat = molec%natoms
 
-    ! READ HESSIAN
+    ! Read Hessian
+    rewind(I_INP)
+    call generic_Hessian_reader(I_INP,filetype,Nat,Hlt,error)
 
-    if (adjustl(ft) == "log") then
-        !Gaussian logfile
-        allocate(props)
-        call parse_summary(I_INP,state1,props,"read_hess")
-        !Caution: we NEED to read the Freq summary section
-        if (adjustl(state1%job%type) /= "Freq") &
-          call alert_msg( "fatal","Section from the logfile is not a Freq calculation")
-        ! RECONSTRUCT THE FULL HESSIAN
-        k=0
-        do i=1,3*Nat
-            do j=1,i
-                k=k+1
-                Hess(i,j) = props%H(k) 
-                Hess(j,i) = Hess(i,j)
-            enddo
-        enddo
-        deallocate(props)
+    ! Read gradient
+    rewind(I_INP)
+    call generic_gradient_reader(I_INP,filetype,Nat,Hlt,error)
 
-    else if (adjustl(ft) == "fchk") then
-        !Read Hessian from fchk
-        call read_fchk(I_INP,"Cartesian Force Constants",dtype,N,A,IA,error)
-        ! RECONSTRUCT THE FULL HESSIAN
-        k=0
-        do i=1,3*Nat
-            do j=1,i
-                k=k+1
-                Hess(i,j) = A(k) 
-                Hess(j,i) = Hess(i,j)
-            enddo
-        enddo
-        deallocate(A)
-!         !Read reduced masses
-!         call read_fchk(I_INP,"Vib-E2",dtype,N,A,IA,error)
-!         mu(1:Nvib) = A(Nvib+1:Nvib+Nvib)
-!         deallocate(A)
-    else if (adjustl(ft) == "g96") then
-        !The hessian should be given as additional input
-        if (adjustl(addfile) == "no") &
-         call alert_msg("fatal","With a g96, and additional file should be provided with the Hessian")
-        open(I_ADD,file=addfile,status="old")
-        call read_gro_hess(I_ADD,N,Hess,error)
-        close(I_ADD)
-    else
-        call alert_msg("fatal","Unkown file to get the Hessian: "//ft)
-    endif
-
-
-!     ! READ GRADIENT
-    if (trim(adjustl(ft)) == "log") then
-
-          call alert_msg("fatal","GRADIENT from log files still under constructions (perdone las molestias)")
-
-    else if (adjustl(ft) == "fchk") then
-        !Read gradient from fchk
-        call read_fchk(I_INP,"Cartesian Gradient",dtype,N,A,IA,error)
-        Grad(1:N) = A(1:N)
-        deallocate(A)
-    else
-        call alert_msg("note","Gradient could not be read")
-    endif
     close(I_INP)
 
-    ! Get connectivity from the residue (needs to be in ANGS)
-    call guess_connect(state1)
+
+    ! MANAGE INTERNAL COORDS
+    ! ---------------------------------
+    ! Get connectivity 
+    call guess_connect(molec)
+
+    ! Manage symmetry
     if (nosym) then
         PG="C1"
-    else if (trim(adjustl(symm_file)) /= "NO") then
-        write(*,*) ""
-        write(*,*) "Using custom symmetry file: "//trim(adjustl(symm_file)) 
-        write(*,*) ""
+    else if (trim(adjustl(symm_file)) /= "NONE") then
+        msg = "Using custom symmetry file: "//trim(adjustl(symm_file)) 
+        call alert_msg("note",msg)
         open(I_SYM,file=symm_file)
         do i=1,state1%natoms
             read(I_SYM,*) j, isym(j)
@@ -330,26 +229,30 @@ program internal_duschinski
     endif
     if (adjustl(state1%PG) /= "XX") then
         print'(/,X,A,/)', "Symmetry "//state1%PG 
+!         msg = "Symmetry "//state1%PG 
+!         write_verbose(6,msg,verbo=0) 
     endif
+
     !From now on, we'll use atomic units
-    state1%atom(:)%x = state1%atom(:)%x/BOHRtoANGS
-    state1%atom(:)%y = state1%atom(:)%y/BOHRtoANGS
-    state1%atom(:)%z = state1%atom(:)%z/BOHRtoANGS
+!     set_geom_units(molec,"ANGS")
+    molec%atom(:)%x = molec%atom(:)%x/BOHRtoANGS
+    molec%atom(:)%y = molec%atom(:)%y/BOHRtoANGS
+    molec%atom(:)%z = molec%atom(:)%z/BOHRtoANGS
 
     !Generate bonded info
-    call gen_bonded(state1)
+    call gen_bonded(molec)
     !...Also get bond array (to be done in gen_bonded, would be cleaner)
     k = 0
-    do i=1,state1%natoms-1
-        do j=1,state1%atom(i)%nbonds
-            if ( state1%atom(i)%connect(j) > i )  then
+    do i=1,molec%natoms-1
+        do j=1,molec%atom(i)%nbonds
+            if ( molec%atom(i)%connect(j) > i )  then
                 k = k + 1
-                state1%geom%bond(k,1) = i
-                state1%geom%bond(k,2) = state1%atom(i)%connect(j)
+                molec%geom%bond(k,1) = i
+                molec%geom%bond(k,2) = molec%atom(i)%connect(j)
             endif 
         enddo
     enddo
-    state1%geom%nbonds = k
+    molec%geom%nbonds = k
    
 
     !GEN BONDED SET FOR INTERNAL COORD
@@ -837,47 +740,6 @@ enddo
 
         return
     end subroutine parse_input
-
-
-    subroutine generic_strfile_read(unt,filetype,molec)
-
-        integer, intent(in) :: unt
-        character(len=*),intent(inout) :: filetype
-        type(str_resmol),intent(inout) :: molec
-
-        !local
-        type(str_molprops) :: props
-
-        ! Predefined filetypes
-        select case (adjustl(filetype))
-            case("gro")
-             call read_gro(I_INP,molec)
-             call atname2element(molec)
-             call assign_masses(molec)
-            case("g96")
-             call read_g96(I_INP,molec)
-             call atname2element(molec)
-             call assign_masses(molec)
-            case("pdb")
-             call read_pdb_new(I_INP,molec)
-             call atname2element(molec)
-             call assign_masses(molec)
-            case("log")
-             call parse_summary(I_INP,molec,props,"struct_only")
-             call atname2element(molec)
-             call assign_masses(molec)
-            case("fchk")
-             call read_fchk_geom(I_INP,molec)
-             call atname2element(molec)
-!              call assign_masses(molec) !read_fchk_geom includes the fchk masses
-            case default
-             call alert_msg("fatal","File type not supported: "//filetype)
-        end select
-
-        return
-
-
-    end subroutine generic_strfile_read
        
 
 end program internal_duschinski

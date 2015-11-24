@@ -1,7 +1,7 @@
 module alerts
 
     !==============================================================
-    ! This code is part of MOLECULAR_TOOLS (version 0.4/February 2014)
+    ! This code is part of MOLECULAR_TOOLS 
     !==============================================================
     ! Description
     !  Subroutine to print out alert messages
@@ -9,15 +9,14 @@ module alerts
     ! Dependences
     !
     ! Notes
-    !
-    ! History
-    !  2012/06/22  Messages output to stderr
+    !  The module also includes some variables (acting as
+    !  a common block for them)
     !-----------------------------------------------------
 
     integer, save :: n_notes=0,&
                      n_errors=0
     ! Silent will mute the NOTES
-    logical, save :: silent = .true.
+    logical, save :: silent_notes = .true.
 
     contains
 
@@ -29,7 +28,7 @@ module alerts
 
         select case (adjustl(attype))
             case ("note")
-                if (.not.silent) &
+                if (.not.silent_notes) &
                 write(0,'(/,A,A,/)') "NOTE: ",SENTENCE
                 n_notes = n_notes + 1
 
