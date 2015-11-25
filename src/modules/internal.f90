@@ -423,12 +423,10 @@ module internal_module
     
         !Compute G^-1Bu  (where u is the inverse mass matrix)
         Aux(1:Ns,1:3*Nat) = matrix_product(Ns,3*Nat,Ns,Ginv,B)
-        ii=0
         do i=1,3*Nat
             ii = (i-1)/3+1
-            Aux(1:Ns,i) = Aux(1:Ns,i)*Mass(ii)/UMAtoAU
+            Aux(1:Ns,i) = Aux(1:Ns,i)/Mass(ii)/UMAtoAU
         enddo
-
     
         if (present(Grad)) then
             if (.not.present(Bder)) call alert_msg("fatal","API Error: Bder needed with Grad present")
