@@ -143,7 +143,8 @@ program vertical2adiabatic
                O_DMAT=22, &
                O_DUS2=23, &
                O_DIS2=24, &
-               O_STAT=25
+               O_STAT=25, &
+               O_STR =26
     !files
     character(len=10) :: filetype="guess", ft, &
                          filetype2="guess"
@@ -167,6 +168,8 @@ program vertical2adiabatic
 ! (End of variables declaration) 
 !==================================================================================
 
+    verbose=2
+
     call cpu_time(ti)
 
     ! 0. GET COMMAND LINE ARGUMENTS
@@ -174,12 +177,16 @@ program vertical2adiabatic
 !                               filetype,"-ft","c",&
 !                               )
     call parse_input(inpfile,filetype,addfile,zmatfile,rmzfile,internal_set,selfile)
-
+    call set_word_upper_case(internal_set)
 
     ! READ DATA
     ! ---------------------------------
     open(I_INP,file=inpfile,status='old',iostat=IOstatus)
     if (IOstatus /= 0) call alert_msg( "fatal","Unable to open "//trim(adjustl(inpfile)) )
+
+    !Guess filetype
+    if (filetype == "guess") &
+    call split_line_back(inpfile,".",null,filetype)
 
     !Read structure
     call generic_strmol_reader(I_INP,filetype,state1)
@@ -198,11 +205,21 @@ program vertical2adiabatic
         Hess(j,i) = A(k)
     enddo 
     enddo
+    print*, ""
+    print*, "HESS (Cart)"
+    print*, ""
+    print'(5ES16.8)', A(1:3*Nat*(3*Nat+1)/2)
+    print*, ""
     deallocate(A)
 
     ! Read gradient
     rewind(I_INP)
     call generic_gradient_reader(I_INP,filetype,Nat,Grad,error)
+    print*, ""
+    print*, "GRAD (Cart)"
+    print*, ""
+    print'(5ES16.8)', Grad(1:3*Nat)
+    print*, ""
 
     close(I_INP)
 
@@ -276,6 +293,8 @@ program vertical2adiabatic
             print*, "Working with a reduced space"
         endif
     elseif (adjustl(internal_set) == "ZMAT") then
+        ! This could be done from an initial diag_int analysis..
+        Nvib=3*Nat-6
         if (adjustl(zmatfile) == "NO") then
             call build_Z(state1,bond_s,angle_s,dihed_s,PG,isym,bond_sym,angle_sym,dihed_sym)
         else

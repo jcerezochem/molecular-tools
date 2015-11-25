@@ -36,13 +36,13 @@ module pdb_manage
         integer,intent(out) :: Nat
         character(len=*), dimension(:), intent(out) :: AtName
         real(kind=8), dimension(:), intent(out) :: X,Y,Z
-        character(len=*),intent(out),optional :: title,     &
-                                                 attype,    &
+        character(len=*),intent(out),optional :: title
+        character(len=*),dimension(:),intent(out),optional :: attype,    &
                                                  resname,   &
                                                  alter_loc, &
                                                  chain,     &
                                                  ins_code
-        integer,intent(out),optional :: resseq
+        integer,dimension(:),intent(out),optional :: resseq
                                                 
         !local
         integer::i, natoms, ii, ios
@@ -50,12 +50,12 @@ module pdb_manage
         character :: dummy_char
         !pdb attributes 
         character(len=99):: title_local
-        character(len=6) :: attype_local,    &
+        character(len=6),dimension(1:size(X)) :: attype_local,    &
                             resname_local
-        character(len=1) :: alter_loc_local, &
-                            chain_local,     &
-                            ins_code_local
-        integer          :: resseq_local
+        character(len=1),dimension(1:size(X)) :: alter_loc_local, &
+                                                 chain_local,     &
+                                                 ins_code_local
+        integer,dimension(1:size(X))          :: resseq_local
 
         read(unt,'(A)',iostat=ios) line
         i=0
@@ -63,17 +63,17 @@ module pdb_manage
 
             if (line(1:6) == "ATOM  " .or. line(1:6) == "HETATM") then
                 i=i+1
-                read(line,100) attype_local,    &
+                read(line,100) attype_local(i),    &
                                !Serial
-                               AtName,          &
-                               alter_loc_local, &
-                               resname_local,   &
-                               chain_local,     &
-                               resseq_local,    &
-                               ins_code_local,  &
-                               X,         &
-                               Y,         &
-                               Z
+                               AtName(i),          &
+                               alter_loc_local(i), &
+                               resname_local(i),   &
+                               chain_local(i),     &
+                               resseq_local(i),    &
+                               ins_code_local(i),  &
+                               X(i),         &
+                               Y(i),         &
+                               Z(i)
             else if (line(1:6) == "TITLE ") then
                 read(line,101) title_local
             endif
@@ -99,5 +99,94 @@ module pdb_manage
 101 format(6X,A)
 
     end subroutine read_pdb_geom
+
+
+    subroutine write_pdb_geom(unt,Nat,AtName,X,Y,Z, &
+                             !optional
+                             title,attype,resname,alter_loc,chain,ins_code,resseq)
+
+        !==============================================================
+        ! This code is part of MOLECULAR_TOOLS
+        !==============================================================
+        !Description
+        ! Get geometry and atom names from pdb. The number of atoms
+        ! is also taken
+        !
+        !Arguments
+        ! unt     (inp) int /scalar    unit for the file 
+        ! Nat     (out) int /scalar    Number of atoms
+        ! AtName  (out) char/vertor    Atom names
+        ! X,Y,Z   (out) real/vectors   Coordinate vectors (ANGSTRONG)
+        !
+        !Notes
+        ! Natoms is guessed from the number of entries starting with 
+        ! ATOM or HETATM
+        !==============================================================
+
+        integer,intent(in)  :: unt
+        integer,intent(in)  :: Nat
+        character(len=*), dimension(:), intent(in) :: AtName
+        real(kind=8),dimension(:), intent(in) :: X,Y,Z
+        character(len=*),intent(in),optional :: title
+        character(len=*),dimension(:),intent(in),optional :: attype,    &
+                                                 resname,   &
+                                                 alter_loc, &
+                                                 chain,     &
+                                                 ins_code
+        integer,dimension(:),intent(in),optional :: resseq
+                                                
+        !local
+        integer::i, natoms, ii, ios
+        character(len=260) :: line
+        character :: dummy_char
+        !pdb attributes 
+        character(len=99):: title_local
+        character(len=6),dimension(1:Nat) :: attype_local,    &
+                                             resname_local
+        character(len=1),dimension(1:Nat) :: alter_loc_local, &
+                                             chain_local,     &
+                                             ins_code_local
+        integer,dimension(1:Nat)          :: resseq_local
+
+        ! Take defaults for non-defined optional args
+        title_local = "Generated with write_pdb_geom"
+        attype_local(1:Nat) = "ATOM"
+        resname_local(1:Nat) = "MOL"
+        alter_loc_local(1:Nat) = ""
+        chain_local(1:Nat) = ""
+        ins_code_local(1:Nat) = ""
+        resseq_local(1:Nat) = 1
+        ! Update with defined ones
+        if (present(title))     title_local            = title
+        if (present(attype))    attype_local(1:Nat)    = attype(1:Nat)
+        if (present(resname))   resname_local(1:Nat)   = resname(1:Nat)
+        if (present(alter_loc)) alter_loc_local(1:Nat) = alter_loc(1:Nat)
+        if (present(chain))     chain_local(1:Nat)     = chain(1:Nat)
+        if (present(ins_code))  ins_code_local(1:Nat)  = ins_code(1:Nat)
+        if (present(resseq))    resseq_local(1:Nat)    = resseq(1:Nat)
+
+        write(unt,'(A)') "TITLE "//trim(adjustl(title_local))
+        i=0
+        do i=1,Nat
+                write(unt,200) attype_local(i),    &
+                               i,                  &
+                               AtName(i),          &
+                               alter_loc_local(i), &
+                               resname_local(i),   &
+                               chain_local(i),     &
+                               resseq_local(i),    &
+                               ins_code_local(i),  &
+                               X(i),               &
+                               Y(i),               &
+                               Z(i)
+        enddo
+
+        return
+
+    !Formatos
+200 format(A6,I5,1X,A4,A1,A3,1X,A1,I4,A1,3X,3F8.3,2F6.2,10X,A2,A2) !oficial PDB
+201 format(A6,I5,1X,A4,A1,A3,1X,A1,I4,A1,3X,3F8.3,10X,A2,A2) !modified to show element
+
+    end subroutine write_pdb_geom
 
 end module pdb_manage

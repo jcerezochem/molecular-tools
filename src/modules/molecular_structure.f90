@@ -185,12 +185,6 @@ module molecular_structure
                 av_len=av_len*1.1
 
                 if (dist < av_len) then
-! if (i==45) then
-! print*, "Connection"
-! print*, molec%atom(i)%name,molec%atom(j)%name
-! print*, i,j,av_len
-! print*, ""
-! endif
                     i_cnx=i_cnx+1
                     molec%atom(i)%connect(i_cnx)=j
                 endif

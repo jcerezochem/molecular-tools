@@ -294,6 +294,9 @@ module internal_module
 !             
 !         enddo
     
+        if (verbose>1) &
+            call MAT0(6,B,Ns,3*Nat,"B MATRIX")
+
         return
     
     end subroutine internal_Wilson
@@ -349,6 +352,9 @@ module internal_module
                 enddo
             enddo
         enddo
+
+        if (verbose>1) &
+            call MAT0(6,G,Ns,Ns,"G MATRIX")
 
         return
 
@@ -818,10 +824,10 @@ module internal_module
             ii = 3*i-2
             molecB%atom(i)%x = molec%atom(i)%x + delta
             !Call B matrix at this geometry   
-            call internal_Wilson(molec,Ns,S,Bplus)
+            call internal_Wilson(molecB,Ns,S,Bplus)
             molecB%atom(i)%x = molec%atom(i)%x - delta
             !Call B matrix at this geometry   
-            call internal_Wilson(molec,Ns,S,Bmin)
+            call internal_Wilson(molecB,Ns,S,Bmin)
     
             do j=1,Ns
             do k=1,3*Nat
@@ -836,10 +842,10 @@ module internal_module
             ii = 3*i-1
             molecB%atom(i)%y = molec%atom(i)%y + delta
             !Call B matrix at this geometry   
-            call internal_Wilson(molec,Ns,S,Bplus)
+            call internal_Wilson(molecB,Ns,S,Bplus)
             molecB%atom(i)%y = molec%atom(i)%y - delta
             !Call B matrix at this geometry   
-            call internal_Wilson(molec,Ns,S,Bmin)
+            call internal_Wilson(molecB,Ns,S,Bmin)
     
             do j=1,Ns
             do k=1,3*Nat
@@ -854,10 +860,10 @@ module internal_module
             ii = 3*i
             molecB%atom(i)%z = molec%atom(i)%z + delta
             !Call B matrix at this geometry   
-            call internal_Wilson(molec,Ns,S,Bplus)
+            call internal_Wilson(molecB,Ns,S,Bplus)
             molecB%atom(i)%z = molec%atom(i)%z - delta
             !Call B matrix at this geometry   
-            call internal_Wilson(molec,Ns,S,Bmin)
+            call internal_Wilson(molecB,Ns,S,Bmin)
     
             do j=1,Ns
             do k=1,3*Nat

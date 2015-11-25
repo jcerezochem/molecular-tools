@@ -63,7 +63,7 @@ module matrix_print
       end subroutine print_vector
 
 
-      subroutine MAT0(unt,AA,NC,NR,name)
+      subroutine MAT0(unt,AA,NR,NC,name)
 
         !==================================
         ! Description

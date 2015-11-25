@@ -1,10 +1,10 @@
 AUTOMAKE_OPTIONS = subdir-objects
 
-bin_PROGRAMS = vertical2adiabatic
+bin_PROGRAMS = vertical2adiabatic_new
 
 #internal_duschinsky zmat2modredundant
 
-vertical2adiabatic_SOURCES = ../modules/alerts.f90\
+vertical2adiabatic_new_SOURCES = ../modules/alerts.f90\
                              ../modules/line_preprocess.f90\
                              ../modules/constants.f90\
                              ../modules/verbosity.f90\
@@ -30,7 +30,7 @@ vertical2adiabatic_SOURCES = ../modules/alerts.f90\
                              ../modules/symmetry.f90\
                              ../modules/internal.f90\
                              vertical2adiabatic.f90
-vertical2adiabatic_LDFLAGS = @LIBS@
+vertical2adiabatic_new_LDFLAGS = @LIBS@
 
 # internal_duschinsky_SOURCES = ../modules/alerts.f90\
 #                       ../modules/line_preprocess.f90\

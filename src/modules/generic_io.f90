@@ -103,7 +103,7 @@ module generic_io
     end subroutine generic_natoms_reader
 
 
-    subroutine generic_structure_reader(unt,filetype,Nat,X,Y,Z,Mass,error_flag)
+    subroutine generic_structure_reader(unt,filetype,Nat,X,Y,Z,Mass,AtName,error_flag)
 
         !==============================================================
         ! This code is part of FCC_TOOLS
@@ -125,6 +125,7 @@ module generic_io
         character(len=*),intent(in)     :: filetype
         integer,intent(inout)           :: Nat
         real(8),dimension(:),intent(out):: X,Y,Z
+        character(len=*),dimension(:),intent(out) :: AtName
         real(8),dimension(:),intent(out):: Mass
         integer,intent(out),optional    :: error_flag
 
@@ -135,7 +136,6 @@ module generic_io
         character(len=1)                 :: data_type
         integer                          :: N
         !Other local
-        character(len=2),dimension(Nat)  :: AtName
         integer                          :: i,j
         integer                          :: error_local
 
@@ -153,9 +153,16 @@ module generic_io
                  Z(j) = A(i+2)*BOHRtoANGS
              enddo
              deallocate(A)
+             Nat = N/3
              call read_fchk(unt,'Real atomic weights',data_type,N,A,IA,error_local)
-             call assign_masses(Nat,AtName,Mass)
+             Mass(1:N) = A(1:N)
              deallocate(A)
+             call read_fchk(unt,'Atomic numbers',data_type,N,A,IA,error_local)
+             do i=1,N
+                 AtName(i) = atname_from_atnum(IA(i))
+                 AtName(i) = adjustl(AtName(i))
+             enddo
+             deallocate(IA)
             case("gms")
              call read_gamess_geom(unt,Nat,AtName,X,Y,Z,error_local)
              call assign_masses(Nat,AtName,Mass)
@@ -185,6 +192,58 @@ module generic_io
          return
 
     end subroutine generic_structure_reader
+
+    subroutine generic_structure_writer(unt,filetype,Nat,X,Y,Z,Mass,AtName,error_flag)
+
+        !==============================================================
+        ! This code is part of FCC_TOOLS
+        !==============================================================
+        !Description
+        ! Generic geometry reader, using the modules for each QM program
+        !
+        !Arguments
+        ! unt     (inp)  int /scalar   Unit of the file
+        ! filetype(inp)  char/scalar   Filetype  
+        ! Nat     (io )  int /scalar   Number of atoms
+        ! X,Y,Z   (out)  real/vectors  Coordinates
+        ! error_flag (out) flag        0: Success
+        !                              1: 
+        !
+        !==============================================================
+
+        integer,intent(in)              :: unt
+        character(len=*),intent(in)     :: filetype
+        integer,intent(in)              :: Nat
+        real(8),dimension(:),intent(in) :: X,Y,Z
+        real(8),dimension(:),intent(in) :: Mass
+        character(len=*),dimension(Nat),intent(in) :: AtName
+        integer,intent(out),optional    :: error_flag
+
+        !Local
+        !Variables for read_fchk
+        real(8),dimension(:),allocatable :: A
+        integer,dimension(:),allocatable :: IA
+        character(len=1)                 :: data_type
+        integer                          :: N
+        !Other local
+        integer                          :: i,j
+        integer                          :: error_local
+
+        error_local = 0
+        select case (adjustl(filetype))
+            case("pdb")
+             call write_pdb_geom(unt,Nat,AtName,X,Y,Z)
+            case default
+             write(0,*) "Unsupported filetype (write):"//trim(adjustl(filetype))
+!              call supported_filetype_list('freq')
+             error_local = 99
+         end select
+
+         if (present(error_flag)) error_flag=error_local
+
+         return
+
+    end subroutine generic_structure_writer
 
 
     subroutine generic_gradient_reader(unt,filetype,Nat,Grad,error_flag)
