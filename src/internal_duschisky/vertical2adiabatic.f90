@@ -19,8 +19,10 @@ program vertical2adiabatic
 !============================================
     use alerts
     use line_preprocess
-    use constants
+    use constants 
+    use verbosity
     use matrix
+    use matrix_print
 !============================================
 !   Structure types module
 !============================================
@@ -30,21 +32,15 @@ program vertical2adiabatic
 !============================================
     use generic_io
     use generic_io_molec
-!============================================
-!   Structure dependent modules
-!============================================
-    use gro_manage
-    use pdb_manage
-    use gaussian_manage
-    use gaussian_fchk_manage
     use xyz_manage
+!============================================
 !   Structural parameters
     use molecular_structure
     use ff_build
 !   Bond/angle/dihed meassurement
     use atomic_geom
 !   Symmetry support
-    use symmetry_mod
+    use symmetry
 !   For internal thingies
     use internal_module
     use zmat_manage
@@ -65,7 +61,7 @@ program vertical2adiabatic
 
     !====================== 
     !System variables
-    type(str_resmol) :: molec
+    type(str_resmol) :: state1,state2
     integer,dimension(1:NDIM) :: isym
     integer :: Nat, Nvib, Nred
     character(len=5) :: PG
@@ -118,14 +114,12 @@ program vertical2adiabatic
     character(1) :: null
     character(len=16) :: dummy_char
     real(8) :: Theta, Theta2, Theta3
-    !Read gaussian log auxiliars
-    type(str_molprops),allocatable :: props
     ! RMZ things
     character :: rm_type
     integer :: rm_zline, Nrm, nbonds_rm, nangles_rm, ndiheds_rm
     integer,dimension(100) :: bond_rm, angle_rm, dihed_rm
-    ! Yes or no
-    logical :: True=.true., False=.false.
+    ! Messages
+    character(len=200) :: msg
     !====================== 
 
     !=============
@@ -161,8 +155,6 @@ program vertical2adiabatic
                          rmzfile="NO", &
                          symm_file="NO", &
                          selfile="modred.dat"
-    !Control of stdout
-    logical :: verbose=.false.
     !status
     integer :: IOstatus
     !===================
@@ -178,9 +170,10 @@ program vertical2adiabatic
     call cpu_time(ti)
 
     ! 0. GET COMMAND LINE ARGUMENTS
-    call generic_input_parser(inpfile, "-f" ,"c",&
-                              filetype,"-ft","c",&
-                              )
+!     call generic_input_parser(inpfile, "-f" ,"c",&
+!                               filetype,"-ft","c",&
+!                               )
+    call parse_input(inpfile,filetype,addfile,zmatfile,rmzfile,internal_set,selfile)
 
 
     ! READ DATA
@@ -189,17 +182,27 @@ program vertical2adiabatic
     if (IOstatus /= 0) call alert_msg( "fatal","Unable to open "//trim(adjustl(inpfile)) )
 
     !Read structure
-    call read_structure(I_INP,filetype,molec)
+    call generic_strmol_reader(I_INP,filetype,state1)
     ! Shortcuts
-    Nat = molec%natoms
+    Nat = state1%natoms
 
     ! Read Hessian
     rewind(I_INP)
-    call generic_Hessian_reader(I_INP,filetype,Nat,Hlt,error)
+    allocate(A(1:1000))
+    call generic_Hessian_reader(I_INP,filetype,Nat,A,error)
+    k=0
+    do i=1,3*Nat
+    do j=1,i
+        k=k+1
+        Hess(i,j) = A(k)
+        Hess(j,i) = A(k)
+    enddo 
+    enddo
+    deallocate(A)
 
     ! Read gradient
     rewind(I_INP)
-    call generic_gradient_reader(I_INP,filetype,Nat,Hlt,error)
+    call generic_gradient_reader(I_INP,filetype,Nat,Grad,error)
 
     close(I_INP)
 
@@ -207,7 +210,7 @@ program vertical2adiabatic
     ! MANAGE INTERNAL COORDS
     ! ---------------------------------
     ! Get connectivity 
-    call guess_connect(molec)
+    call guess_connect(state1)
 
     ! Manage symmetry
     if (nosym) then
@@ -235,24 +238,24 @@ program vertical2adiabatic
 
     !From now on, we'll use atomic units
 !     set_geom_units(molec,"ANGS")
-    molec%atom(:)%x = molec%atom(:)%x/BOHRtoANGS
-    molec%atom(:)%y = molec%atom(:)%y/BOHRtoANGS
-    molec%atom(:)%z = molec%atom(:)%z/BOHRtoANGS
+    state1%atom(:)%x = state1%atom(:)%x/BOHRtoANGS
+    state1%atom(:)%y = state1%atom(:)%y/BOHRtoANGS
+    state1%atom(:)%z = state1%atom(:)%z/BOHRtoANGS
 
     !Generate bonded info
-    call gen_bonded(molec)
+    call gen_bonded(state1)
     !...Also get bond array (to be done in gen_bonded, would be cleaner)
     k = 0
-    do i=1,molec%natoms-1
-        do j=1,molec%atom(i)%nbonds
-            if ( molec%atom(i)%connect(j) > i )  then
+    do i=1,state1%natoms-1
+        do j=1,state1%atom(i)%nbonds
+            if ( state1%atom(i)%connect(j) > i )  then
                 k = k + 1
-                molec%geom%bond(k,1) = i
-                molec%geom%bond(k,2) = molec%atom(i)%connect(j)
+                state1%geom%bond(k,1) = i
+                state1%geom%bond(k,2) = state1%atom(i)%connect(j)
             endif 
         enddo
     enddo
-    molec%geom%nbonds = k
+    state1%geom%nbonds = k
    
 
     !GEN BONDED SET FOR INTERNAL COORD
@@ -262,15 +265,6 @@ program vertical2adiabatic
         if (IOstatus /= 0) call alert_msg("fatal","Cannot open file: "//trim(adjustl(selfile)))
         call modredundant(I_RED,state1)
         close(I_RED)
-! print*, "Review"
-!         do i=1,state1%geom%nimprop
-!             i1=state1%geom%improp(i,1)
-!             i2=state1%geom%improp(i,2)
-!             i3=state1%geom%improp(i,3)
-!             i4=state1%geom%improp(i,4)
-!             print*, "Improper", i1, i2, i3, i4
-!             print*, calc_improper(state1%atom(i1),state1%atom(i2),state1%atom(i3),state1%atom(i4))*180.d0/PI
-!         enddo
 
         ! If the number bonds+angles+dihed+.. is less than Nvib, we are in a reduced space
         ! if so, set Nvib to the new dimension
@@ -321,9 +315,9 @@ program vertical2adiabatic
                 endif
             enddo
             ! Short remove lists
-            call sort_vec_int(bond_rm(1:nbonds_rm),nbonds_rm,.true.)
-            call sort_vec_int(angle_rm(1:nangles_rm),nangles_rm,True)
-            call sort_vec_int(dihed_rm(1:ndiheds_rm),ndiheds_rm,True)
+            call sort_vec_int(bond_rm(1:nbonds_rm),nbonds_rm,reverse=.true.)
+            call sort_vec_int(angle_rm(1:nangles_rm),nangles_rm,reverse=.true.)
+            call sort_vec_int(dihed_rm(1:ndiheds_rm),ndiheds_rm,reverse=.true.)
             ! The remove
             print*, "Removing bonds from lines:"
             do i=1,nbonds_rm
@@ -390,11 +384,11 @@ program vertical2adiabatic
 
 
     ! GET MINIMUM IN CARTESIAN COORDINATES
-print*, ""
-print*, "GRAD (Cart)"
-print*, ""
+    print*, ""
+    print*, "GRAD (Cart)"
+    print*, ""
     print'(5ES16.8)', Grad(1:3*Nat)
-print*, ""
+    print*, ""
     Aux(1:3*Nat,1:3*Nat) = inverse_realsym(3*Nat,Hess)
     Aux2(1:3*Nat,1:3*Nat) = matmul(Hess(1:3*Nat,1:3*Nat),Aux(1:3*Nat,1:3*Nat))
     do i=1,3*Nat
@@ -408,11 +402,11 @@ print*, ""
             Vec(i) = Vec(i) - Aux(i,k) * Grad(k)
         enddo 
     enddo
-print*, "DELTA R"
-do i=1,Nat 
-    j=3*i-2
-    print'(I3,3X, 3G10.3)', i, Vec(j)*BOHRtoANGS, Vec(j+1)*BOHRtoANGS, Vec(j+2)*BOHRtoANGS
-enddo
+    print*, "DELTA R"
+    do i=1,Nat 
+        j=3*i-2
+        print'(I3,3X, 3G10.3)', i, Vec(j)*BOHRtoANGS, Vec(j+1)*BOHRtoANGS, Vec(j+2)*BOHRtoANGS
+    enddo
 
     state2=state1
     do i=1,Nat 
@@ -429,22 +423,19 @@ enddo
 
 
     !SOLVE GF METHOD TO GET NM AND FREQ
-    !For redundant coordinates a non-redundant set is formed as a combination of
-    !the redundant ones. The coefficients for the combination are stored in Asel
-    !as they must be used for state 2 (not rederived!).
-    Asel1(1,1) = 99.d0 !out-of-range, as Asel is normalized -- this option is not tested
-    call internal_Wilson(state1,Nvib,S1,S_sym,ModeDef,B1,G1,Asel1,verbose)
-!     if (vertical) then
-        call NumBder(state1,Nvib,S_sym,Bder)
-        call gf_method_V(Hess,state1,Nvib,S_sym,ModeDef,L1,B1,G1,Freq,Asel1,X1,X1inv,verbose,Grad=Grad,Bder=Bder) 
-!     else
-!         call gf_method_V(Hess,state1,Nvib,S_sym,ModeDef,L1,B1,G1,Freq,Asel1,X1,X1inv,verbose)
-        !Define the Factor to convert into shift into addimensional displacements
-        ! for the shift in SI units:
-        Factor(1:Nvib) = dsqrt(dabs(Freq(1:Nvib))*1.d2*clight*2.d0*PI/plankbar)
-        ! but we have it in au
-        Factor(1:Nvib)=Factor(1:Nvib)*BOHRtoM*dsqrt(AUtoKG)
-!     endif 
+    call internal_Wilson(state1,Nvib,S1,B1,ModeDef)
+    call internal_Gmetric(Nat,Nvib,state1%atom(:)%mass,B1,G1)
+    if (vertical) then
+        call NumBder(state1,Nvib,Bder)
+    else
+        Bder=0.d0
+        Grad=0.d0
+    endif
+
+    call HessianCart2int(Nat,Nvib,Hess,state1%atom(:)%mass,B1,G1,Grad=Grad,Bder=Bder)
+    call gf_method(Nvib,G1,Hess,L1,Freq,X1,X1inv)
+
+
 
     !Compute new state_file for 2
     ! T2(g09) = mu^1/2 m B^t G2^-1 L2
@@ -521,7 +512,7 @@ enddo
     enddo
     close(O_STAT)
 
-    if (verbose) then
+    if (verbose>1) then
     print*, "B1=", B1(1,1)
     do i=1,Nvib
         print'(100(F8.3,2X))', B1(i,1:Nvib)
@@ -584,7 +575,7 @@ enddo
     do i=1,Nvib
         S1(i) = S1(i) + Vec(i)
     enddo
-    call zmat2cart(state1,bond_s,angle_s,dihed_s,S1,verbose)
+    call zmat2cart(state1,bond_s,angle_s,dihed_s,S1)
     !Transform to AA and export coords and put back into BOHR
     state1%atom(1:Nat)%x = state1%atom(1:Nat)%x*BOHRtoANGS
     state1%atom(1:Nat)%y = state1%atom(1:Nat)%y*BOHRtoANGS
@@ -606,16 +597,13 @@ enddo
     contains
     !=============================================
 
-    subroutine parse_input(inpfile,inpfile2,filetype,filetype2,nosym,verbose,tswitch,symaddapt,vertical,symm_file,&
-                           addfile,addfile2,zmatfile,rmzfile,internal_set,selfile)
+    subroutine parse_input(inpfile,filetype,addfile,zmatfile,rmzfile,internal_set,selfile)
     !==================================================
     ! My input parser (gromacs style)
     !==================================================
         implicit none
 
-        character(len=*),intent(inout) :: inpfile,inpfile2,filetype,filetype2,zmatfile,symm_file,&
-                                          addfile, addfile2,rmzfile, internal_set, selfile
-        logical,intent(inout) :: nosym, verbose, tswitch, symaddapt, vertical
+        character(len=*),intent(inout) :: inpfile,filetype,zmatfile,addfile,rmzfile,internal_set,selfile
         ! Localconsole in kate
         logical :: argument_retrieved,  &
                    need_help = .false.
@@ -637,36 +625,6 @@ enddo
                     call getarg(i+1, filetype)
                     argument_retrieved=.true.
 
-                case ("-f2") 
-                    call getarg(i+1, inpfile2)
-                    argument_retrieved=.true.
-                case ("-ft2") 
-                    call getarg(i+1, filetype)
-                    argument_retrieved=.true.
-
-                case ("-add") 
-                    call getarg(i+1, addfile)
-                    argument_retrieved=.true.
-
-                case ("-add2") 
-                    call getarg(i+1, addfile2)
-                    argument_retrieved=.true.
-
-                case ("-nosym")
-                    nosym=.true.
-                case ("-sym")
-                    nosym=.false.
-
-                case ("-symfile")
-                    nosym=.false.
-                    call getarg(i+1, symm_file)
-                    argument_retrieved=.true.
-
-                case ("-sa")
-                    symaddapt=.true.
-                case ("-nosa")
-                    symaddapt=.false.
-
                 case ("-zfile") 
                     call getarg(i+1, zmatfile)
                     argument_retrieved=.true.
@@ -682,15 +640,6 @@ enddo
                 case ("-intset")
                     call getarg(i+1, internal_set)
                     argument_retrieved=.true.
-
-                case ("-tswitch")
-                    tswitch=.true.
-
-                case ("-vert")
-                     vertical=.true.
-
-                case ("-v")
-                    verbose=.true.
         
                 case ("-h")
                     need_help=.true.
@@ -700,40 +649,19 @@ enddo
             end select
         enddo 
 
-        ! Some checks on the input
-        !----------------------------
-        if (symaddapt.and.nosym) then
-            print*, ""
-            print*, "Symmetry addapted internal coordintes implies -sym. Turning on..."
-            print*, ""
-            nosym=.false.
-        endif
 
        !Print options (to stderr)
         write(6,'(/,A)') '--------------------------------------------------'
-        write(6,'(/,A)') '        I N T E R N A L   A N A L Y S I S '    
-        write(6,'(/,A)') '      Perform vibrational analysis based on  '
-        write(6,'(/,A)') '            internal coordinates (D-V9.1)'        
+        write(6,'(/,A)') '        V E R T I C A L 2 A D I A B A T I C '    
+        write(6,'(/,A)') '  Displace structure from vertical to adiabatic geoms  '
+        write(6,'(/,A)') '           '        
         write(6,'(/,A)') '--------------------------------------------------'
         write(6,*) '-f              ', trim(adjustl(inpfile))
         write(6,*) '-add            ', trim(adjustl(addfile))
-        write(6,*) '-f2             ', trim(adjustl(inpfile2))
-        write(6,*) '-add2           ', trim(adjustl(addfile2))
-        if (nosym) dummy_char="NO "
-        if (.not.nosym) dummy_char="YES"
-        write(6,*) '-[no]sym        ', dummy_char
-        write(6,*) '-symfile        ', trim(adjustl(symm_file))
         write(6,*) '-intset         ', trim(adjustl(internal_set))
         write(6,*) '-zfile          ', trim(adjustl(zmatfile))
         write(6,*) '-sfile          ', trim(adjustl(selfile))
         write(6,*) '-rmz            ', trim(adjustl(rmzfile))
-        if (tswitch) dummy_char="YES"
-        if (.not.tswitch) dummy_char="NO "
-        write(6,*) '-tswitch        ', dummy_char
-        if (symaddapt) dummy_char="YES"
-        if (.not.symaddapt) dummy_char="NO "
-        write(6,*) '-sa             ', dummy_char
-        write(6,*) '-v             ', verbose
         write(6,*) '-h             ',  need_help
         write(6,*) '--------------------------------------------------'
         if (need_help) call alert_msg("fatal", 'There is no manual (for the moment)' )
@@ -742,5 +670,5 @@ enddo
     end subroutine parse_input
        
 
-end program internal_duschinski
+end program vertical2adiabatic
 

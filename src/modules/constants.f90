@@ -139,6 +139,7 @@ module constants
         !local  
         integer                     :: i, n
 
+        mass=0.d0
         n = size(atmass_from_atnum)
         do i=1,n
             if (adjustl(name)==atname_from_atnum(i)) then
@@ -146,6 +147,10 @@ module constants
                 exit
             endif
         enddo
+        if (mass == 0.d0) then
+            print*, "ERROR: mass cannot be determined for: "//name
+            stop
+        endif
 
         return
 

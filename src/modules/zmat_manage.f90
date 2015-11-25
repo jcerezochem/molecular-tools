@@ -527,7 +527,7 @@ end subroutine read_Z
 
 !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%5
 
-subroutine zmat2cart(molec,bond_s,angle_s,dihed_s,S,verbose)
+subroutine zmat2cart(molec,bond_s,angle_s,dihed_s,S)
 
     ! Transform z-matrix to cartesian coordinates
     ! Run with atomic coordinates (for S), but output in AMS!
@@ -535,9 +535,9 @@ subroutine zmat2cart(molec,bond_s,angle_s,dihed_s,S,verbose)
     use structure_types
     use constants
     use matrix
+    use verbosity
 
     integer,parameter :: NDIM = 600
-    logical,intent(in) :: verbose
 
     real(8) :: det
 
@@ -666,7 +666,7 @@ subroutine zmat2cart(molec,bond_s,angle_s,dihed_s,S,verbose)
     PIner(3,2) = PIner(2,3)
     !Obtein the trasformation to principal axis of inertia
     call diagonalize_full(PIner(1:3,1:3),3,Aux(1:3,1:3),Vec(1:3),"lapack")
-    if (verbose) then
+    if (verbose>1) then
     write(6,*) ""
     write(6,*) "I"
     do i=1,3
@@ -724,7 +724,7 @@ end subroutine zmat2cart
 
 !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%5
 
-subroutine zmat2cart_ori(molec,bond_s,angle_s,dihed_s,S,T,info2,verbose)
+subroutine zmat2cart_ori(molec,bond_s,angle_s,dihed_s,S,T,info2)
 
     ! Transform z-matrix to cartesian coordinates
     ! Run with atomic coordinates (for S), but output in AMS!
@@ -733,9 +733,9 @@ subroutine zmat2cart_ori(molec,bond_s,angle_s,dihed_s,S,T,info2,verbose)
     use structure_types
     use constants
     use matrix
+    use verbosity
 
     integer,parameter :: NDIM = 600
-    logical,intent(in) :: verbose
 
     real(8) :: det
 
@@ -782,7 +782,6 @@ subroutine zmat2cart_ori(molec,bond_s,angle_s,dihed_s,S,T,info2,verbose)
 !     i_at = atom_order(3)
     i_at = angle_s(3,3) !<-- this info is here!
     if (i_b == i1 ) then !atom_order(1)) then
-print*, "connected to i1", R
         molec%atom(i_at)%x = R*dcos(PI-angle)
         molec%atom(i_at)%y = R*dsin(PI-angle)
         molec%atom(i_at)%z = 0.d0
@@ -867,7 +866,7 @@ print*, "connected to i1", R
         PIner(3,2) = PIner(2,3)
         !Obtein the trasformation to principal axis of inertia
         call diagonalize_full(PIner(1:3,1:3),3,Aux(1:3,1:3),Vec(1:3),"lapack")
-        if (verbose) then
+        if (verbose>1) then
         write(6,*) ""
         write(6,*) "I"
         do i=1,3

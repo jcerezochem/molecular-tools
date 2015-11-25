@@ -126,7 +126,6 @@ module gaussian_manage
 
         enddo
 
-        rewind(unt)
         return
 
     end subroutine summary_parser
@@ -479,7 +478,7 @@ module gaussian_manage
         !Read the first geometry entry
         call split_line(string,'\',geom_char,string)
         !Get the number of elements
-        call string2cvector(geom_char,dummy_char,nitems,',')
+        call string2vector_char(geom_char,dummy_char,nitems,',')
         !The decide the format
         if (nitems == 4) then
             !Read first entry

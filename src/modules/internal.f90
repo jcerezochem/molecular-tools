@@ -1,5 +1,8 @@
 module internal_module
 
+    use matrix
+    use matrix_print
+
     implicit none
 
     contains
@@ -296,6 +299,61 @@ module internal_module
     end subroutine internal_Wilson
 
 
+    subroutine internal_Gmetric(Nat,Ns,Mass,B,G)
+
+        !==============================================================
+        ! This code is part of MOLECULAR_TOOLS 
+        !==============================================================
+        ! Description
+        !  Compute G metric matrix
+        !------------------------------------------------------------------
+
+        use structure_types
+        use line_preprocess
+        use alerts
+        use constants
+        use matrix
+        use verbosity
+    
+        implicit none
+    
+        integer,parameter :: NDIM = 600
+    
+        !====================== 
+        !ARGUMENTS
+        integer,intent(in)                          :: Nat    ! Number of atoms (in)
+        integer,intent(in)                          :: Ns     ! Number of internal coordinates (in)
+        real(8),dimension(1:NDIM),intent(in)        :: Mass   ! Wilson matrices (in AMU)
+        real(8),dimension(1:NDIM,1:NDIM),intent(in) :: B
+        real(8),dimension(1:NDIM,1:NDIM),intent(out):: G
+        !====================== 
+
+        !======================
+        !LOCAL 
+        !Counters
+        integer :: i,j,k, kk, iat
+        real(8) :: mu
+        !=============
+
+        !CONCTRUCT G
+        do i=1,Ns
+            do j=1,Ns
+                G(i,j) = 0.d0
+                k=0
+                do kk=1,Nat
+                do iat=1,3
+                    k=k+1
+                    mu = 1.d0/Mass(kk)/UMAtoAU
+                    G(i,j) = G(i,j) + mu*B(i,k)*B(j,k)
+                enddo
+                enddo
+            enddo
+        enddo
+
+        return
+
+    end subroutine internal_Gmetric
+
 
     subroutine HessianCart2int(Nat,Ns,Hess,Mass,B,G, &
                                                  !Optional:
@@ -424,7 +482,6 @@ module internal_module
         use alerts
         use constants
         use atomic_geom
-        use matrix
         use verbosity
     
         implicit none
@@ -486,7 +543,7 @@ module internal_module
     
         !Check FC
         if (verbose>0) &
-            call print_vector(6,X,Nvib,"FORCE CONSTANTS (A.U.)")
+            call print_vector(6,Freq,Nvib,"FORCE CONSTANTS (A.U.)")
 
         !Check freqcuencies
         do i=1,Nvib
@@ -494,7 +551,7 @@ module internal_module
                              Freq(i))
         enddo
         if (verbose>0) &
-            call print_vector(6,X,Nvib,"Frequencies (cm-1)")
+            call print_vector(6,Freq,Nvib,"Frequencies (cm-1)")
 
         !Normal mode matrix
         if (verbose>1) &

@@ -20,9 +20,27 @@ module generic_io
     use molcas_manage
     use molpro_manage
     use gmx_manage
+    use pdb_manage
     implicit none
 
     contains
+
+    subroutine assign_masses(Nat,AtName,Mass)
+
+        integer,intent(in) :: Nat
+        character(len=*),dimension(:),intent(in) ::  AtName
+        real(8),dimension(:),intent(out) ::  Mass
+
+        !Local
+        integer :: i
+        
+        do i=1,Nat
+            Mass(i) = atmass_from_atname(AtName(i)) 
+        enddo
+
+        return
+
+    end subroutine assign_masses
 
     subroutine generic_natoms_reader(unt,filetype,Nat,error_flag)
 
@@ -74,7 +92,7 @@ module generic_io
              call read_g96_natoms(unt,Nat)
             case default
              write(0,*) "Unsupported filetype:"//trim(adjustl(filetype))
-             call supported_filetype_list('freq')
+!              call supported_filetype_list('freq')
              error_local = 99
          end select
 
@@ -125,7 +143,7 @@ module generic_io
         select case (adjustl(filetype))
             case("log")
              call read_gauslog_geom(unt,Nat,AtName,X,Y,Z,error_local)
-             call assign_masses(Nat,AtName,Mass,error_local)
+             call assign_masses(Nat,AtName,Mass)
             case("fchk")
              call read_fchk(unt,'Current cartesian coordinates',data_type,N,A,IA,error_local)
              do i=1,N,3
@@ -136,31 +154,29 @@ module generic_io
              enddo
              deallocate(A)
              call read_fchk(unt,'Real atomic weights',data_type,N,A,IA,error_local)
-             do i=1,N
-                 Mass(i) = A(i)
-             enddo
+             call assign_masses(Nat,AtName,Mass)
              deallocate(A)
             case("gms")
              call read_gamess_geom(unt,Nat,AtName,X,Y,Z,error_local)
-             call assign_masses(Nat,AtName,Mass,error_local)
+             call assign_masses(Nat,AtName,Mass)
             case("psi4")
              call read_psi4_geom(unt,Nat,AtName,X,Y,Z,error_local)
-             call assign_masses(Nat,AtName,Mass,error_local)
+             call assign_masses(Nat,AtName,Mass)
             case("molcas")
              call read_molcasUnSym_geom(unt,Nat,AtName,X,Y,Z,error_local)
-             call assign_masses(Nat,AtName,Mass,error_local)
+             call assign_masses(Nat,AtName,Mass)
             case("molpro")
              call read_molpro_geom(unt,Nat,AtName,X,Y,Z,error_local)
-             call assign_masses(Nat,AtName,Mass,error_local)
+             call assign_masses(Nat,AtName,Mass)
             case("g96")
              call read_g96_geom(unt,Nat,AtName,X,Y,Z)
-             call assign_masses(Nat,AtName,Mass,error_local)
+             call assign_masses(Nat,AtName,Mass)
             case("pdb")
              call read_pdb_geom(unt,Nat,AtName,X,Y,Z)
-             call assign_masses(Nat,AtName,Mass,error_local)
+             call assign_masses(Nat,AtName,Mass)
             case default
              write(0,*) "Unsupported filetype:"//trim(adjustl(filetype))
-             call supported_filetype_list('freq')
+!              call supported_filetype_list('freq')
              error_local = 99
          end select
 
@@ -224,7 +240,7 @@ module generic_io
              deallocate(A)
             case default
              write(0,*) "Unsupported filetype:"//trim(adjustl(filetype))
-             call supported_filetype_list('grad')
+!              call supported_filetype_list('grad')
              error_local = 99
          end select
 
@@ -297,7 +313,7 @@ module generic_io
              call read_gmx_hess(unt,Nat,Hlt,error_local)
             case default
              write(0,*) "Unsupported filetype:"//trim(adjustl(filetype))
-             call supported_filetype_list('freq')
+!              call supported_filetype_list('freq')
              error_local = 99
          end select
 
@@ -384,7 +400,7 @@ module generic_io
              call alert_msg("fatal","Filetype not supported")
             case default
              write(0,*) "Unsupported filetype:"//trim(adjustl(filetype))
-             call supported_filetype_list('freq')
+!              call supported_filetype_list('freq')
              error_local = 99
          end select
          if (present(error_flag)) error_flag=error_local

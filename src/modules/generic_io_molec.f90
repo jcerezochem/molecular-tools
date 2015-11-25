@@ -19,7 +19,7 @@ module generic_io_molec
     contains
 
 
-    subroutine read_structure(unt,filetype,molec,error_flag)
+    subroutine generic_strmol_reader(unt,filetype,molec,error_flag)
 
         !==============================================================
         ! This code is part of FCC_TOOLS
@@ -63,7 +63,7 @@ module generic_io_molec
 
         return
 
-    end subroutine read_structure
+    end subroutine generic_strmol_reader
 
 end module generic_io_molec
 
