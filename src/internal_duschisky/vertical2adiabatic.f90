@@ -131,11 +131,13 @@ program vertical2adiabatic
                O_STAT=25, &
                O_STR =26
     !files
-    character(len=10) :: filetype ="guess", ft
+    character(len=10) :: ft ="guess", ftg="guess", fth="guess"
     character(len=200):: inpfile  ="input.fchk", &
-                         addfile  ="none",         &
-                         intfile  ="none",        &
-                         rmzfile  ="none",         &
+                         gradfile ="same", &
+                         hessfile ="same", &
+                         addfile  ="none",       &
+                         intfile  ="none",       &
+                         rmzfile  ="none",       &
                          symm_file="none"
     !status
     integer :: IOstatus
@@ -157,27 +159,33 @@ program vertical2adiabatic
 !     call generic_input_parser(inpfile, "-f" ,"c",&
 !                               filetype,"-ft","c",&
 !                               )
-    call parse_input(inpfile,filetype,addfile,intfile,rmzfile,def_internal,use_symmetry)
+    call parse_input(inpfile,ft,hessfile,fth,gradfile,ftg,intfile,rmzfile,def_internal,use_symmetry)
     call set_word_upper_case(def_internal)
 
-    ! READ DATA
+    ! READ DATA (each element from a different file is possible)
     ! ---------------------------------
+    !Guess filetypes
+    if (ft == "guess") &
+    call split_line_back(inpfile,".",null,ft)
+    if (fth == "guess") &
+    call split_line_back(hessfile,".",null,fth)
+    if (ftg == "guess") &
+    call split_line_back(gradfile,".",null,ftg)
+
+    ! STRUCTURE FILE
     open(I_INP,file=inpfile,status='old',iostat=IOstatus)
     if (IOstatus /= 0) call alert_msg( "fatal","Unable to open "//trim(adjustl(inpfile)) )
-
-    !Guess filetype
-    if (filetype == "guess") &
-    call split_line_back(inpfile,".",null,filetype)
-
-    !Read structure
-    call generic_strmol_reader(I_INP,filetype,state1)
+    call generic_strmol_reader(I_INP,ft,state1)
+    close(I_INP)
     ! Shortcuts
     Nat = state1%natoms
 
-    ! Read Hessian
-    rewind(I_INP)
+    ! HESSIAN FILE
+    open(I_INP,file=hessfile,status='old',iostat=IOstatus)
+    if (IOstatus /= 0) call alert_msg( "fatal","Unable to open "//trim(adjustl(hessfile)) )
     allocate(A(1:1000))
-    call generic_Hessian_reader(I_INP,filetype,Nat,A,error) 
+    call generic_Hessian_reader(I_INP,fth,Nat,A,error) 
+    close(I_INP)
     ! Run diag_int to get the number of Nvib (to detect linear molecules)
     call diag_int(Nat,state1%atom(:)%X,state1%atom(:)%Y,state1%atom(:)%Z,state1%atom(:)%Mass,A,&
                   Nvib,L1,Freq,error)
@@ -191,9 +199,10 @@ program vertical2adiabatic
     enddo
     deallocate(A)
 
-    ! Read gradient
-    rewind(I_INP)
-    call generic_gradient_reader(I_INP,filetype,Nat,Grad,error)
+    ! GRADIENT FILE
+    open(I_INP,file=gradfile,status='old',iostat=IOstatus)
+    if (IOstatus /= 0) call alert_msg( "fatal","Unable to open "//trim(adjustl(gradfile)) )
+    call generic_gradient_reader(I_INP,ftg,Nat,Grad,error)
     close(I_INP)
 
     ! MANAGE INTERNAL COORDS
@@ -422,13 +431,14 @@ program vertical2adiabatic
     contains
     !=============================================
 
-    subroutine parse_input(inpfile,filetype,addfile,intfile,rmzfile,internal_set,use_symmetry)
+    subroutine parse_input(inpfile,ft,hessfile,fth,gradfile,ftg,intfile,rmzfile,def_internal,use_symmetry)
     !==================================================
     ! My input parser (gromacs style)
     !==================================================
         implicit none
 
-        character(len=*),intent(inout) :: inpfile,filetype,intfile,addfile,rmzfile,internal_set
+        character(len=*),intent(inout) :: inpfile,ft,hessfile,fth,gradfile,ftg,&
+                                          intfile,rmzfile,def_internal
         logical,intent(inout)          :: use_symmetry
         ! Localconsole in kate
         logical :: argument_retrieved,  &
@@ -448,23 +458,41 @@ program vertical2adiabatic
                     call getarg(i+1, inpfile)
                     argument_retrieved=.true.
                 case ("-ft") 
-                    call getarg(i+1, filetype)
+                    call getarg(i+1, ft)
+                    argument_retrieved=.true.
+
+                case ("-fhess") 
+                    call getarg(i+1, hessfile)
+                    argument_retrieved=.true.
+                case ("-fth") 
+                    call getarg(i+1, fth)
+                    argument_retrieved=.true.
+
+                case ("-fgrad") 
+                    call getarg(i+1, gradfile)
+                    argument_retrieved=.true.
+                case ("-ftg") 
+                    call getarg(i+1, ftg)
                     argument_retrieved=.true.
 
                 case ("-intfile") 
                     call getarg(i+1, intfile)
                     argument_retrieved=.true.
 
+                case ("-rmzfile") 
+                    call getarg(i+1, rmzfile)
+                    argument_retrieved=.true.
+                ! Kept for backward compatibility (but replaced by -rmzfile)
                 case ("-rmz") 
                     call getarg(i+1, rmzfile)
                     argument_retrieved=.true.
 
                 case ("-intmode")
-                    call getarg(i+1, internal_set)
+                    call getarg(i+1, def_internal)
                     argument_retrieved=.true.
-                ! For backward compatibility
+                ! Kept for backward compatibility (but replaced by -intmode)
                 case ("-intset")
-                    call getarg(i+1, internal_set)
+                    call getarg(i+1, def_internal)
                     argument_retrieved=.true.
 
                 case ("-sym")
@@ -480,6 +508,17 @@ program vertical2adiabatic
             end select
         enddo 
 
+       ! Manage defaults
+       ! If not declared, hessfile and gradfile are the same as inpfile
+       if (adjustl(hessfile) == "same") then
+           hessfile=inpfile
+           fth=ft
+       endif
+       if (adjustl(gradfile) == "same") then
+           gradfile=inpfile
+           ftg=ft
+       endif
+
 
        !Print options (to stderr)
         write(6,'(/,A)') '--------------------------------------------------'
@@ -488,10 +527,14 @@ program vertical2adiabatic
         write(6,'(/,A)') '           '        
         write(6,'(/,A)') '--------------------------------------------------'
         write(6,*) '-f              ', trim(adjustl(inpfile))
-        write(6,*) '-add            ', trim(adjustl(addfile))
-        write(6,*) '-intmode        ', trim(adjustl(internal_set))
+        write(6,*) '-ft             ', trim(adjustl(ft))
+        write(6,*) '-fhess          ', trim(adjustl(hessfile))
+        write(6,*) '-fth            ', trim(adjustl(fth))
+        write(6,*) '-fgrad          ', trim(adjustl(gradfile))
+        write(6,*) '-ftg            ', trim(adjustl(ftg))
+        write(6,*) '-intmode        ', trim(adjustl(def_internal))
         write(6,*) '-intfile        ', trim(adjustl(intfile))
-        write(6,*) '-rmz            ', trim(adjustl(rmzfile))
+        write(6,*) '-rmzfile        ', trim(adjustl(rmzfile))
         write(6,*) '-h             ',  need_help
         write(6,*) '--------------------------------------------------'
         if (need_help) call alert_msg("fatal", 'There is no manual (for the moment)' )
