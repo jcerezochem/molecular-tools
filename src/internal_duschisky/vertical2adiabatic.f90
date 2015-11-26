@@ -150,8 +150,6 @@ program vertical2adiabatic
 ! (End of variables declaration) 
 !==================================================================================
 
-    verbose=2
-
     call cpu_time(ti)
 
     ! 0. GET COMMAND LINE ARGUMENTS
@@ -500,6 +498,16 @@ program vertical2adiabatic
         
                 case ("-h")
                     need_help=.true.
+
+                ! Control verbosity
+                case ("-quiet")
+                    verbose=0
+                case ("-concise")
+                    verbose=1
+                case ("-v")
+                    verbose=2
+                case ("-vv")
+                    verbose=3
 
                 case default
                     call alert_msg("fatal","Unkown command line argument: "//adjustl(arg))

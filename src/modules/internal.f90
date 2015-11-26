@@ -70,9 +70,9 @@ module internal_module
 
         !GEN BONDED SET FOR INTERNAL COORD
         if (adjustl(def_internal) == "SEL") then
-            print*, "Reading internal coordianates from: "//trim(adjustl(intfile))
             if (verbose>0) &
-             open(I_FILE,file=intfile,iostat=IOstatus) 
+             print*, "Reading internal coordianates from: "//trim(adjustl(intfile))
+            open(I_FILE,file=intfile,iostat=IOstatus) 
             if (IOstatus /= 0) call alert_msg("fatal","Cannot open file: "//trim(adjustl(intfile)))
             ! Get internal coords (using modredundant sr)
             call modredundant(I_FILE,molec)

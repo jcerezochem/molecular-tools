@@ -34,7 +34,6 @@ program internal_duschinski
     !============================================
     use generic_io
     use generic_io_molec
-    use xyz_manage
     !============================================
     !  Structure-related modules
     !============================================
@@ -794,7 +793,7 @@ program internal_duschinski
                 ! Control verbosity
                 case ("-quiet")
                     verbose=0
-                case ("-def-out")
+                case ("-concise")
                     verbose=1
                 case ("-v")
                     verbose=2
