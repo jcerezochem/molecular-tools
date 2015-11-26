@@ -17,7 +17,7 @@ module vibrational_analysis
 
     contains
 
-    subroutine diag_int(Nat,X,Y,Z,Mass,Hlt,Nvib,L,FC,error_flag)
+    subroutine vibrations_Cart(Nat,X,Y,Z,Mass,Hlt,Nvib,L,FC,error_flag)
 
         !==============================================================
         ! This code is part of MOLECULAR_TOOLS
@@ -232,7 +232,63 @@ module vibrational_analysis
 
         return
 
-    end subroutine diag_int
+    end subroutine vibrations_Cart
+
+
+    !=====================================================
+    ! Conversion tools between different L definitions
+    !=====================================================
+
+    subroutine LcartNrm_to_Lmwc(Nat,Nvib,Mass,LcartNrm,Lmwc)
+
+        !==============================================================
+        ! This code is part of MOLECULAR_TOOLS
+        !==============================================================
+        !Description
+        !
+        !Arguments
+        ! Nat     (inp) int /scalar   Number of atoms
+        ! Nvib    (inp) int /scalar   Number of vibrational degrees of freedom
+        ! Mass    (inp) real/vector   Atomic masses (AMU)
+        ! LcartNrm(inp) real/matrix   Normalized Normal modes in Cartesian (adim) (3Nat x Nvib)
+        ! Lmwc    (out) real/matrix   Normal modes in mxc              (AMU^-1/2) (3Nat x Nvib)
+        !          
+        !Notes
+        ! We can use the same matrix as input and as output as there is
+        ! no conflict
+        !
+        !==============================================================
+
+        integer,intent(in)                      :: Nat, Nvib
+        real(kind=8),dimension(:),intent(in)    :: Mass
+        real(kind=8),dimension(:,:),intent(in)  :: LcartNrm
+        real(kind=8),dimension(:,:),intent(out) :: Lmwc
+
+        !Local
+        integer :: i, j, k, kk
+        real(8) :: p1
+
+        do k=1,Nvib
+            kk=0
+            p1=0.d0
+            do i=1,Nat
+            do j=1,3
+                kk=kk+1
+                Lmwc(kk,k)=LcartNrm(kk,k)*dsqrt(Mass(i))
+                p1=p1+Lmwc(kk,k)**2
+            enddo
+            enddo
+
+            ! Redefine T=T*MQ^(-0.5) i.e T=lmwc
+            do I=1,3*Nat
+                Lmwc(I,k)=Lmwc(I,k)/dsqrt(p1)
+            enddo
+        enddo
+
+        return
+
+    end subroutine LcartNrm_to_Lmwc
+
 
     subroutine Lmwc_to_Lcart(Nat,Nvib,Mass,Lmwc,Lcart,error_flag)
 
@@ -325,6 +381,182 @@ module vibrational_analysis
         return
 
     end subroutine Lcart_to_LcartNrm
+
+    subroutine mu_from_Lcart(Nat,Nvib,Lcart,mu,error_flag)
+
+        !==============================================================
+        ! This code is part of MOLECULAR_TOOLS
+        !==============================================================
+        !Description
+        ! Tranform the Lcart into the normalized Lcart as in G09. We could output the reduced mas from here
+        !
+        !Arguments
+        ! Nat     (inp) int /scalar   Number of atoms
+        ! Nvib    (inp) int /scalar   Number of vibrational degrees of freedom
+        ! Lcart   (inp) real/matrix   Normal modes in mxc              (AMU^-1/2) (3Nat x Nvib)
+        ! mu      (out) real/vector   reduced mass array (AMU) (Nvib)
+        ! error_flag (out) flag  0 : success
+        !                        1 : 
+        !          
+        !Notes
+        ! We can use the same matrix as input and as output as there is
+        ! no conflict
+        !
+        !==============================================================
+
+        integer,intent(in)                      :: Nat, Nvib
+        real(kind=8),dimension(:,:),intent(in)  :: Lcart
+        real(kind=8),dimension(:),intent(out)   :: mu
+        integer,intent(out),optional            :: error_flag
+
+        !Local
+        integer :: i, j
+        integer :: error_local
+
+        error_local = 0
+        do i=1,Nvib
+            mu(i)=0.d0
+            do j=1,3*Nat
+                mu(i) = mu(i) + Lcart(j,i)**2
+            enddo
+            !Reduced_mass(i) = 1.d0/Factor
+            mu(i) = 1.d0/dsqrt(mu(i))
+        enddo
+        if (present(error_flag)) error_flag=error_local
+
+        return
+
+    end subroutine mu_from_Lcart
+
+
+    subroutine analyze_duschinsky(unt,Nvib,G,K,Freq1,Freq2)
+
+        use constants
+        use matrix
+
+        integer,intent(in)                :: unt
+        integer,intent(in)                :: Nvib
+        real(8),dimension(:,:),intent(in) :: G
+        real(8),dimension(:)  ,intent(in) :: K
+        real(8),dimension(:)  ,intent(in) :: Freq1,Freq2
+        
+        !Local
+        integer :: k90, k95, k99
+        integer :: i, j, jj
+        real(8),dimension(size(K)) :: AuxVec
+        real(8),dimension(size(K)) :: Factor
+        integer,dimension(size(K)) :: ipiv
+        real(8),dimension(size(K)) ::         Kinv
+        real(8),dimension(size(K),size(K)) :: Ginv
+        real(8) :: Theta 
+
+        !Define the Factor to convert into shift into addimensional displacements
+        ! for the shift in SI units:
+        Factor(1:Nvib) = dsqrt(dabs(Freq1(1:Nvib))*1.d2*SL*2.d0*PI/plankbar)
+        ! but we have it in au
+        Factor(1:Nvib)=Factor(1:Nvib)*BOHRtoM*dsqrt(AUtoKG)
+
+        write(unt,*) ""
+        write(unt,*) "====================================================================================="
+        write(unt,*) " DUSCHINSKI MATRIX (STATE1 WITH RESPECT TO STATE2) (SUMMARY)"
+        write(unt,*) "====================================================================================="
+        write(unt,*) "   NM     FREQ1      I2      C2^2       I90     I95     I99       K     K-Dimless"
+        write(unt,*) "-------------------------------------------------------------------------------------"
+        do i=1,Nvib
+            k90=0
+            k95=0
+            k99=0
+            !Copy the row and reorder 
+            AuxVec(1:Nvib) = abs(G(i,1:Nvib))
+            call sort_vec_max(AuxVec(1:Nvib),ipiv(1:Nvib),Nvib)
+            Theta = 0.d0
+            do j=1,Nvib
+                if (Theta > 0.9d0) exit
+                jj = ipiv(j)
+                Theta = Theta + G(i,jj)**2
+                k90=k90+1
+            enddo 
+            Theta = 0.d0
+            do j=1,Nvib
+                if (Theta > 0.95d0) exit
+                jj = ipiv(j)
+                Theta = Theta + G(i,jj)**2
+                k95=k95+1
+            enddo 
+            Theta = 0.d0
+            do j=1,Nvib
+                if (Theta > 0.99d0) exit
+                jj = ipiv(j)
+                Theta = Theta + G(i,jj)**2
+                k99=k99+1
+            enddo 
+            write(unt,'(X,I5,3X,F8.2,2X,I5,3X,F7.2,5X,3(I5,3X),F7.2,X,F9.4)') &
+                i, Freq1(i), ipiv(1),G(i,ipiv(1))**2, k90, k95, k99, K(i), K(i)*Factor(i)
+        enddo
+        write(unt,*) "====================================================================================="
+        write(unt,*) ""
+
+
+        !============================================
+        ! Now repeat for the iniverse transition
+        !============================================
+        Ginv(1:Nvib,1:Nvib) = inverse_realgen(Nvib,G)
+        ! Kinv = -Ginv * K
+        do i=1,Nvib
+            Kinv(i) = 0.d0
+            do j=1,Nvib
+                Kinv(i) = Kinv(i) - Ginv(i,j)*K(j)
+            enddo
+        enddo
+
+       !Define the Factor to convert into shift into addimensional displacements
+        ! for the shift in SI units:
+        Factor(1:Nvib) = dsqrt(dabs(Freq2(1:Nvib))*1.d2*SL*2.d0*PI/plankbar)
+        ! but we have it in au
+        Factor(1:Nvib)=Factor(1:Nvib)*BOHRtoM*dsqrt(AUtoKG)
+
+        write(unt,*) ""
+        write(unt,*) "====================================================================================="
+        write(unt,*) " DUSCHINSKI MATRIX (STATE2 WITH RESPECT TO STATE1) (SUMMARY)"
+        write(unt,*) "====================================================================================="
+        write(unt,*) "   NM     FREQ2      I1      C1^2       I90     I95     I99       K     K-Dimless"
+        write(unt,*) "-------------------------------------------------------------------------------------"
+        do i=1,Nvib
+            k90=0
+            k95=0
+            k99=0
+            !Copy the row and reorder 
+            AuxVec(1:Nvib) = abs(Ginv(i,1:Nvib))
+            call sort_vec_max(AuxVec(1:Nvib),ipiv(1:Nvib),Nvib)
+            Theta = 0.d0
+            do j=1,Nvib
+                if (Theta > 0.9d0) exit
+                jj = ipiv(j)
+                Theta = Theta + G(i,jj)**2
+                k90=k90+1
+            enddo 
+            Theta = 0.d0
+            do j=1,Nvib
+                if (Theta > 0.95d0) exit
+                jj = ipiv(j)
+                Theta = Theta + G(i,jj)**2
+                k95=k95+1
+            enddo 
+            Theta = 0.d0
+            do j=1,Nvib
+                if (Theta > 0.99d0) exit
+                jj = ipiv(j)
+                Theta = Theta + G(i,jj)**2
+                k99=k99+1
+            enddo 
+            write(unt,'(X,I5,3X,F8.2,2X,I5,3X,F7.2,5X,3(I5,3X),F7.2,X,F9.4)') &
+                i, Freq2(i), ipiv(1),Ginv(i,ipiv(1))**2, k90, k95, k99, Kinv(i), Kinv(i)*Factor(i)
+        enddo
+        write(unt,*) "====================================================================================="
+        write(unt,*) ""
+
+
+    end subroutine analyze_duschinsky
 
 
 end module vibrational_analysis

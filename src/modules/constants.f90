@@ -14,13 +14,16 @@ module constants
 #else
         real, parameter :: &
 #endif
-                           PI      = 4.0d0*datan(1.0d0),   &
-                           clight  = 2.99792458D8,    &
-                           plank   = 6.62606957D-34,  &
-                           plankbar= 1.054571726D-34, &
-                           boltz   = 1.3806488D-23,   &
-                           NAv     = 6.02214129D23,   &
-                           atmass  = 1.660538921D-27  
+                           PI      = 4.0d0*datan(1.0d0), & !
+                           NAv     = 6.02214129D23,      & ! Avogadro number
+                           clight  = 2.99792458D8,       & ! Speed of light
+                           SL      = 2.99792458D8,       & ! (synonym to above)
+                           plank   = 6.62606957D-34,     & ! Planck constant
+                           plankbar= 1.054571726D-34,    & ! Planck constant over 2PI
+                           kboltz  = 1.3806488D-23,      & ! Boltzman constant
+                           boltz   = 1.3806488D-23,      & ! (synonym to above)
+                           atmass  = 1.660538921D-27,    & ! Atomic mass
+                           cvelau  = 137.0369
 
 
         !CONVERSION FACTORS

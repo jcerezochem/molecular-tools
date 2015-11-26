@@ -202,8 +202,8 @@ module zmat_manage
                     do j=1,molec%atom(i)%nbonds
                         k=molec%atom(i)%connect(j)
                         if (k == isym(i)) then
-                            print*, "Fisrt bond will be", i, "--", isym(i)
-                            print*, ""
+                            if (verbose>0) &
+                             print'(X,A,/)', "Fisrt bond will be", i, "--", isym(i)
                             i_1 = i 
                             ! And we know that the first bond have not symmetric
                             bond_sym(2) = 2
@@ -215,7 +215,7 @@ module zmat_manage
                 enddo
                 if (i_1<0) call alert_msg("fatal","Failure while trying to use symmetry")
             else
-                print*, "This combination of geom/symm is under contruction. Take care of your results."
+                call alert_msg("warning","This combination of geom/symm is under contruction. Take care of your results.")
     
                 !Find three atoms that make the brige between symmetric parts
                 do i=1,molec%natoms
@@ -225,9 +225,11 @@ module zmat_manage
                         do kk=1,molec%atom(isym(i))%nbonds
                             m = molec%atom(isym(i))%connect(kk)
                             if (k == m) then
-                                print*, "Fisrt bond will be ", i, "--", m
-                                print*, "Second bond will be", m, "--", isym(i)
-                                print*, ""
+                                if (verbose>0) then
+                                    print*, "Fisrt bond will be ", i, "--", m
+                                    print*, "Second bond will be", m, "--", isym(i)
+                                    print*, ""
+                                endif
                                 i_1 = i
                                 i_2 = m
                                 i_3 = isym(i)
@@ -256,7 +258,8 @@ module zmat_manage
 
         !k is the counter for the atoms that are being included in Z-matrix
         k=1
-        print*, k,molec%atom(i_1)%name, i_1
+        if (verbose>0) &
+         print*, k,molec%atom(i_1)%name, i_1
         molec%atom(i_1)%chain = "P"
         molec%atom(i_1)%resseq = k
     
@@ -271,7 +274,8 @@ module zmat_manage
             i_2 = molec%atom(i_1)%connect(1)
         endif
     
-        print*, k,molec%atom(i_2)%name, i_2, i_1
+        if (verbose>0) &
+         print*, k,molec%atom(i_2)%name, i_2, i_1
         !Save bond
         bond_s(k,1:2) = (/i_1,i_2/)
         !===========================
@@ -328,7 +332,8 @@ module zmat_manage
     !         i_3 = molec%atom(i_2)%connect(1)
     !         if (i_3 == i_1) i_3 = molec%atom(i_2)%connect(2)
     !     endif
-        print*, k,molec%atom(i_3)%name, i_3, i_2, i_1 
+        if (verbose>0) &
+         print*, k,molec%atom(i_3)%name, i_3, i_2, i_1 
         !Save bonded
         bond_s(k,1:2) = (/i_2,i_3/) 
         angle_s(k,1:3) = (/i_1,i_2,i_3/) 
@@ -349,7 +354,8 @@ module zmat_manage
             ii_3 = isym(i_2)
             ii_2 = isym(i_1)
             ii_1 = i_3
-            print*, k,molec%atom(ii_4)%name, ii_4, ii_3, ii_2, ii_1, "!sym"
+            if (verbose>0) &
+             print*, k,molec%atom(ii_4)%name, ii_4, ii_3, ii_2, ii_1, "!sym"
             molec%atom(ii_4)%chain = "P"
             molec%atom(ii_4)%resseq = k
             !Save bonded
@@ -384,7 +390,8 @@ module zmat_manage
                         i_4 == i )) then
                         !Add line to Z-mat (and symmetric if flag active)
                         k=k+1
-                        print*, k,molec%atom(i)%name, molec%geom%dihed(j,4:1:-1)
+                        if (verbose>0) &
+                         print*, k,molec%atom(i)%name, molec%geom%dihed(j,4:1:-1)
                         !Save bonded
                         bond_s(k,1:2)  = (/i_3,i_4/) 
                         angle_s(k,1:3) = (/i_2,i_3,i_4/) 
@@ -399,7 +406,8 @@ module zmat_manage
                         ii_2 = isym(i_2)
                         ii_3 = isym(i_3)
                         ii_4 = isym(i_4)
-                        print*, k,molec%atom(i_4)%name, ii_4, ii_3, ii_2, ii_1, "!sym"
+                        if (verbose>0) &
+                         print*, k,molec%atom(i_4)%name, ii_4, ii_3, ii_2, ii_1, "!sym"
                         molec%atom(ii_4)%chain = "P"
                         molec%atom(ii_4)%resseq = k
                         !Save bonded
@@ -423,7 +431,8 @@ module zmat_manage
                              i_1 == i )) then
                         !Add line to Z-mat (and symmetric)
                         k=k+1
-                        print*, k,molec%atom(i)%name, molec%geom%dihed(j,1:4), "!reversed"
+                        if (verbose>0) &
+                         print*, k,molec%atom(i)%name, molec%geom%dihed(j,1:4), "!reversed"
                         !Save bonded
                         bond_s(k,1:2)  = (/i_2,i_1/) 
                         angle_s(k,1:3) = (/i_3,i_2,i_1/) 
@@ -438,7 +447,8 @@ module zmat_manage
                         ii_2 = isym(i_2)
                         ii_3 = isym(i_3)
                         ii_4 = isym(i_4)
-                        print*, k,molec%atom(i_4)%name, ii_1, ii_2, ii_3, ii_4, "!sym"
+                        if (verbose>0) &
+                         print*, k,molec%atom(i_4)%name, ii_1, ii_2, ii_3, ii_4, "!sym"
                         !Save bonded
                         bond_s(k,1:2)  = (/ii_2,ii_1/) 
                         angle_s(k,1:3) = (/ii_3,ii_2,ii_1/) 
@@ -463,7 +473,8 @@ module zmat_manage
             enddo
             if (kk>50) call alert_msg("fatal","Z-matrix could not be formed")
         enddo
-        print*, "Success in ", kk, " cycles"
+        if (verbose>0) &
+         print*, "Success in ", kk, " cycles"
 
         !Update molec%geom with Zmat
         Nat = molec%natoms

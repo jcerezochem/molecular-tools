@@ -135,7 +135,6 @@ program vertical2adiabatic
     character(len=200):: inpfile  ="input.fchk", &
                          gradfile ="same", &
                          hessfile ="same", &
-                         addfile  ="none",       &
                          intfile  ="none",       &
                          rmzfile  ="none",       &
                          symm_file="none"
@@ -183,12 +182,12 @@ program vertical2adiabatic
     ! HESSIAN FILE
     open(I_INP,file=hessfile,status='old',iostat=IOstatus)
     if (IOstatus /= 0) call alert_msg( "fatal","Unable to open "//trim(adjustl(hessfile)) )
-    allocate(A(1:1000))
+    allocate(A(1:3*Nat*(3*Nat+1)/2))
     call generic_Hessian_reader(I_INP,fth,Nat,A,error) 
     close(I_INP)
-    ! Run diag_int to get the number of Nvib (to detect linear molecules)
-    call diag_int(Nat,state1%atom(:)%X,state1%atom(:)%Y,state1%atom(:)%Z,state1%atom(:)%Mass,A,&
-                  Nvib,L1,Freq,error)
+    ! Run vibrations_Cart to get the number of Nvib (to detect linear molecules)
+    call vibrations_Cart(Nat,state1%atom(:)%X,state1%atom(:)%Y,state1%atom(:)%Z,state1%atom(:)%Mass,A,&
+                         Nvib,L1,Freq,error)
     k=0
     do i=1,3*Nat
     do j=1,i
@@ -272,11 +271,10 @@ program vertical2adiabatic
     call internal_Gmetric(Nat,Nvib,state1%atom(:)%mass,B1,G1)
     if (vertical) then
         call NumBder(state1,Nvib,Bder)
+        call HessianCart2int(Nat,Nvib,Hess,state1%atom(:)%mass,B,G1,Grad=Grad,Bder=Bder)
     else
-        Bder=0.d0
-        Grad=0.d0
+        call HessianCart2int(Nat,Nvib,Hess,state1%atom(:)%mass,B,G1)
     endif
-    call HessianCart2int(Nat,Nvib,Hess,state1%atom(:)%mass,B1,G1,Grad=Grad,Bder=Bder)
     call gf_method(Nvib,G1,Hess,L1,Freq,X1,X1inv)
 
 
@@ -440,7 +438,7 @@ program vertical2adiabatic
         character(len=*),intent(inout) :: inpfile,ft,hessfile,fth,gradfile,ftg,&
                                           intfile,rmzfile,def_internal
         logical,intent(inout)          :: use_symmetry
-        ! Localconsole in kate
+        ! Local
         logical :: argument_retrieved,  &
                    need_help = .false.
         integer:: i
