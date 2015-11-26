@@ -23,11 +23,65 @@ module molecular_structure
     use structure_types
     use alerts
     use line_preprocess
+    use constants
     implicit none
 
     contains
 
-    subroutine assign_masses(molec)
+    subroutine set_geom_units(molec,units)
+
+        type(str_resmol),intent(inout) :: molec
+        character(len=*),intent(in)    :: units
+
+        !Local
+        integer :: Nat
+        real(8) :: factor
+        character(len=len(units)) :: units_local
+
+        units_local = units
+        call set_word_upper_case(units_local)
+        call set_word_upper_case(molec%units)
+
+        if (molec%units == units_local) return
+
+        Nat = molec%natoms
+
+        ! First set from input to ANGS
+        select case(adjustl(molec%units))
+            case("BOHR") !AU (bohr)
+             factor=BOHRtoANGS
+            case("NM") !
+             factor=1.d-1
+            case("ANGS") !
+             factor=1.d0
+            case default
+             call alert_msg("fatal","Unknow units (input): "//molec%units)
+        end select
+
+       ! Now convert to the required units
+        select case(adjustl(units_local))
+            case("BOHR") 
+             factor=factor/BOHRtoANGS
+            case("NM") 
+             factor=factor/1.d-1
+            case("ANGS") 
+             factor=factor/1.d0
+            case default
+             call alert_msg("fatal","Unknow units (output): "//units_local)
+        end select
+
+        molec%atom(1:Nat)%x = molec%atom(1:Nat)%x*factor
+        molec%atom(1:Nat)%y = molec%atom(1:Nat)%y*factor
+        molec%atom(1:Nat)%z = molec%atom(1:Nat)%z*factor
+
+        molec%units = adjustl(units)
+
+        return
+
+    end subroutine set_geom_units
+
+
+    subroutine assign_masses_molec(molec)
 
         !==============================================================
         ! This code is part of MOLECULAR_TOOLS (version 0.4/February 2014)
@@ -45,6 +99,8 @@ module molecular_structure
         !             With two-letter elements through "atname2element" subroutine
         !==============================================================
 
+        use constants
+
         type(str_resmol),intent(inout) :: molec
 
         integer :: i
@@ -52,100 +108,18 @@ module molecular_structure
 
         do i=1,molec%natoms
             atname = adjustl(molec%atom(i)%element)
-            select case (atname)
-               case ("H")
-                molec%atom(i)%mass=1.0078250
-               case ("He")
-                molec%atom(i)%mass=4.0026033
-               case ("Li")
-                molec%atom(i)%mass= 7.0160045
-               case ("Be")
-                molec%atom(i)%mass= 9.0121825
-               case ("B")
-                molec%atom(i)%mass=11.0093053
-               case ("C")
-                molec%atom(i)%mass=12.000000
-               case ("N")
-                molec%atom(i)%mass=14.0030740
-               case ("O")
-                molec%atom(i)%mass=15.9949146
-               case ("F")
-                molec%atom(i)%mass=18.9984033
-               case ("Ne")
-                molec%atom(i)%mass=19.9924391
-               case ("Na")
-                molec%atom(i)%mass=22.9897697
-               case ("Mg")
-                molec%atom(i)%mass=23.9850450
-               case ("Al")
-                molec%atom(i)%mass=26.9815413
-               case ("Si")
-                molec%atom(i)%mass=27.9769284
-               case ("P")
-                molec%atom(i)%mass=30.9737634
-               case ("S")
-                molec%atom(i)%mass=31.9720718
-               case ("Cl")
-                molec%atom(i)%mass=34.9688527
-               case ("Ar")
-                molec%atom(i)%mass=39.9623831
-               case ("K")
-                molec%atom(i)%mass=38.9637079
-               case ("Ca")
-                molec%atom(i)%mass=39.9625907
-               case ("Sc")
-                molec%atom(i)%mass=44.9559136
-               case ("Ti")
-                molec%atom(i)%mass=47.9479467
-               case ("V")
-                molec%atom(i)%mass=50.9439625
-               case ("Cr")
-                molec%atom(i)%mass=51.9405097
-               case ("Mn")
-                molec%atom(i)%mass=54.9380463
-               case ("Fe")
-                molec%atom(i)%mass=55.9349393
-               case ("Co")
-                molec%atom(i)%mass=58.9331978
-               case ("Ni")
-                molec%atom(i)%mass=57.9353471
-               case ("Cu")
-                molec%atom(i)%mass=62.9295992
-               case ("Zn")
-                molec%atom(i)%mass=63.9291454
-               case ("Ga")
-                molec%atom(i)%mass=68.9255809
-               case ("Ge")
-                molec%atom(i)%mass=73.9211788
-               case ("As")
-                molec%atom(i)%mass=74.9215955
-               case ("Se")
-                molec%atom(i)%mass=79.9165205
-               case ("Br")
-                molec%atom(i)%mass=78.9183361
-               case ("Kr")
-                molec%atom(i)%mass=83.9115064
-               !Desordenados
-               case ("Pd")
-                molec%atom(i)%mass=105.9032000
-               case ("Pt")
-                molec%atom(i)%mass=194.9648000
-               case ("I")
-                molec%atom(i)%mass=126.9004000
-               !Default
-               case default
-                call alert_msg("warning","Don't know how to assign mass to "//atname//" Set to zero.")
-                molec%atom(i)%mass=0.00
-            end select
+            molec%atom(i)%mass = atmass_from_atname(atname)
         enddo
 
         return
 
-    end subroutine assign_masses
+    end subroutine assign_masses_molec
 
    !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
     subroutine guess_connect(molec,inc_hbond)
+
+        use constants
 
         implicit none
         type(str_resmol),intent(inout) :: molec
@@ -161,8 +135,14 @@ module molecular_structure
         !Set include_hbond
         if (present(inc_hbond)) include_hbond=inc_hbond
 
+        ! If not done, get AtNum (if not yet assign)
+        do i=1,molec%natoms
+            if (molec%atom(i)%AtNum == 0) &
+             molec%atom(i)%AtNum = atnum_from_atname(molec%atom(i)%name)
+        enddo
+
         !Loop over all atoms. This is not optimal, distance matrix is symmetric
-        !(nor it is not costly, anyway)
+        !(it is not costly, anyway)
         !TODO: Change it to retrieve symmetric from already calc.
         i_cnx=0
         do i=1,molec%natoms
@@ -178,8 +158,7 @@ module molecular_structure
                 dist = sqrt(dist)
 
                 !Get default bond length from database
-                
-                av_len=bond_length_db(molec%atom(i),molec%atom(j),include_hbond)
+                av_len=bond_length_db(molec%atom(i)%AtNum,molec%atom(j)%AtNum,include_hbond)
                 ! Criterium: dist < av. length +10% --increased from 5% (17/12/12) due to H2O2
                 ! a more sophiticated data base might include hibridization
                 av_len=av_len*1.1
@@ -198,7 +177,7 @@ module molecular_structure
     end subroutine guess_connect
 
 
-    function bond_length_db(atom1,atom2,inc_hbond) result(av_len)
+    function bond_length_db(iat1,iat2,inc_hbond) result(av_len)
 
         !=======================================================================
         !Description
@@ -217,92 +196,148 @@ module molecular_structure
         !             With two-letter elements through "atname2element" subroutine
         !=======================================================================
 
-        !DB entries
-        character(len=2) :: elementA, elementB
-        real :: db_length
+        integer,intent(in) :: iat1,iat2
+        logical,optional   :: inc_hbond
+        real(8)            :: av_len
 
-        type(str_atom),intent(in) :: atom1, atom2
-        logical,optional          :: inc_hbond
-        !Local atoms
-        type(str_atom) :: Latom1, Latom2
-        real :: av_len
-        !local
-        character(len=14),dimension(100) :: database
-        integer :: n_entries, i
-        logical :: external_DB    = .false., &
-                   include_hbond  = .false.
-
-        !Set local atoms
-        Latom1%element = adjustl(atom1%element)
-        Latom2%element = adjustl(atom2%element)
-
+        !Local
+        real,dimension(1:118,1:3) :: CovRad
+        integer :: i,j,k
+        logical :: include_hbond
 
         ! DATABASE GENERATION
-        if (external_DB) then
-            print*, "External DB not yet supported"
-        else
-            n_entries=31
-            ! Default implementation
-            ! Taken from CRC Handbook of Chemistry and Physics
-            !(that's a good plan, for the moment, they're gv defaults)
-            database(1:n_entries)=            &
-                    (/                        &
-                    ! A    B    bond length(\AA)
-                    "C    C    1.54",      & !1
-                    "C    O    1.43",      & !2
-                    "C    S    1.78",      & !3
-                    "C    H    1.07",      & !4
-                    "O    O    1.34",      & !5 was 1.32, but was not enough for H2O2 (1.47 needed 1.337)
-                    "O    S    1.67",      & !6
-                    "O    H    1.07",      & !7 !to include Hbonds use 1.80 > optional argument below
-                    "S    S    2.02",      & !8
-                    "S    H    1.31",      & !9
-                    "H    H    0.60",      & !10
-                    "N    N    1.40",      & !11
-                    "N    C    1.47",      & !12
-                    "N    O    1.36",      & !13
-                    "N    S    1.71",      & !14
-                    "N    H    1.00",      & !15
-                    "F    H    0.88",      & !16
-                    "F    C    1.35",      & !17
-                    "F    N    1.28",      & !18
-                    "F    O    1.24",      & !19
-                    "F    S    1.59",      & !20
-                    "F    F    1.16",      & !21
-                    "Mg   N    2.15",      & !22  Larger than gv standard (2.06)
-                    "Ni   O    2.10",      & !23  To be revised
-                    "Ni   N    2.10",      & !24  To be revised
-                    "Cl   C    1.80",      & !25  Larger than gv standard (1.76)
-                    "P    O    1.71",      & !26
-                    "P    H    1.35",      & !27
-                    "Pt   N    2.20",      & !28
-                    "X    X    1.50",      & !29  (used to add connectivity to PCM cavity)
-                    "B    F    1.46",      & !30  
-                    "B    N    1.58"       & !31
-                    /)                       
-        endif
+        CovRad(1  ,1:3) = (/0.32, -1., -1./)
+        CovRad(2  ,1:3) = (/0.46, -1., -1./)
+        CovRad(3  ,1:3) = (/1.33,1.24, -1./)
+        CovRad(4  ,1:3) = (/1.02,0.90,0.85/)
+        CovRad(5  ,1:3) = (/0.85,0.78,0.73/)
+        CovRad(6  ,1:3) = (/0.75,0.67,0.60/)
+        CovRad(7  ,1:3) = (/0.71,0.60,0.54/)
+        CovRad(8  ,1:3) = (/0.63,0.57,0.53/)
+        CovRad(9  ,1:3) = (/0.64,0.59,0.53/)
+        CovRad(10 ,1:3) = (/0.67,0.96, -1./)
+        CovRad(11 ,1:3) = (/1.55,1.60, -1./)
+        CovRad(12 ,1:3) = (/1.39,1.32,1.27/)
+        CovRad(13 ,1:3) = (/1.26,1.13,1.11/)
+        CovRad(14 ,1:3) = (/1.16,1.07,1.02/)
+        CovRad(15 ,1:3) = (/1.11,1.02,0.94/)
+        CovRad(16 ,1:3) = (/1.03,0.94,0.95/)
+        CovRad(17 ,1:3) = (/0.99,0.95,0.93/)
+        CovRad(18 ,1:3) = (/0.96,1.07,0.96/)
+        CovRad(19 ,1:3) = (/1.96,1.93, -1./)
+        CovRad(20 ,1:3) = (/1.71,1.47,1.33/)
+        CovRad(21 ,1:3) = (/1.48,1.16,1.14/)
+        CovRad(22 ,1:3) = (/1.36,1.17,1.08/)
+        CovRad(23 ,1:3) = (/1.34,1.12,1.06/)
+        CovRad(24 ,1:3) = (/1.22,1.11,1.03/)
+        CovRad(25 ,1:3) = (/1.19,1.05,1.03/)
+        CovRad(26 ,1:3) = (/1.16,1.09,1.02/)
+        CovRad(27 ,1:3) = (/1.11,1.03,0.96/)
+        CovRad(28 ,1:3) = (/1.10,1.01,1.01/)
+        CovRad(29 ,1:3) = (/1.12,1.15,1.20/)
+        CovRad(30 ,1:3) = (/1.18,1.20, -1./)
+        CovRad(31 ,1:3) = (/1.24,1.17,1.21/)
+        CovRad(32 ,1:3) = (/1.21,1.11,1.14/)
+        CovRad(33 ,1:3) = (/1.21,1.14,1.06/)
+        CovRad(34 ,1:3) = (/1.16,1.07,1.07/)
+        CovRad(35 ,1:3) = (/1.14,1.09,1.10/)
+        CovRad(36 ,1:3) = (/1.17,1.21,1.08/)
+        CovRad(37 ,1:3) = (/2.10,2.02, -1./)
+        CovRad(38 ,1:3) = (/1.85,1.57,1.39/)
+        CovRad(39 ,1:3) = (/1.63,1.30,1.24/)
+        CovRad(40 ,1:3) = (/1.54,1.27,1.21/)
+        CovRad(41 ,1:3) = (/1.47,1.25,1.16/)
+        CovRad(42 ,1:3) = (/1.38,1.21,1.13/)
+        CovRad(43 ,1:3) = (/1.28,1.20,1.10/)
+        CovRad(44 ,1:3) = (/1.25,1.14,1.03/)
+        CovRad(45 ,1:3) = (/1.25,1.10,1.06/)
+        CovRad(46 ,1:3) = (/1.20,1.17,1.12/)
+        CovRad(47 ,1:3) = (/1.28,1.39,1.37/)
+        CovRad(48 ,1:3) = (/1.36,1.44, -1./)
+        CovRad(49 ,1:3) = (/1.42,1.36,1.46/)
+        CovRad(50 ,1:3) = (/1.40,1.30,1.32/)
+        CovRad(51 ,1:3) = (/1.40,1.33,1.27/)
+        CovRad(52 ,1:3) = (/1.36,1.28,1.21/)
+        CovRad(53 ,1:3) = (/1.33,1.29,1.25/)
+        CovRad(54 ,1:3) = (/1.31,1.35,1.22/)
+        CovRad(55 ,1:3) = (/2.32,2.09, -1./)
+        CovRad(56 ,1:3) = (/1.96,1.61,1.49/)
+        CovRad(57 ,1:3) = (/1.80,1.39,1.39/)
+        CovRad(58 ,1:3) = (/1.63,1.37,1.31/)
+        CovRad(59 ,1:3) = (/1.76,1.38,1.28/)
+        CovRad(60 ,1:3) = (/1.74,1.37, -1./)
+        CovRad(61 ,1:3) = (/1.73,1.35, -1./)
+        CovRad(62 ,1:3) = (/1.72,1.34, -1./)
+        CovRad(63 ,1:3) = (/1.68,1.34, -1./)
+        CovRad(64 ,1:3) = (/1.69,1.35,1.32/)
+        CovRad(65 ,1:3) = (/1.68,1.35, -1./)
+        CovRad(66 ,1:3) = (/1.67,1.33, -1./)
+        CovRad(67 ,1:3) = (/1.66,1.33, -1./)
+        CovRad(68 ,1:3) = (/1.65,1.33, -1./)
+        CovRad(69 ,1:3) = (/1.64,1.31, -1./)
+        CovRad(70 ,1:3) = (/1.70,1.29, -1./)
+        CovRad(71 ,1:3) = (/1.62,1.31,1.31/)
+        CovRad(72 ,1:3) = (/1.52,1.28,1.22/)
+        CovRad(73 ,1:3) = (/1.46,1.26,1.19/)
+        CovRad(74 ,1:3) = (/1.37,1.20,1.15/)
+        CovRad(75 ,1:3) = (/1.31,1.19,1.10/)
+        CovRad(76 ,1:3) = (/1.29,1.16,1.09/)
+        CovRad(77 ,1:3) = (/1.22,1.15,1.07/)
+        CovRad(78 ,1:3) = (/1.23,1.12,1.10/)
+        CovRad(79 ,1:3) = (/1.24,1.21,1.23/)
+        CovRad(80 ,1:3) = (/1.33,1.42, -1./)
+        CovRad(81 ,1:3) = (/1.44,1.42,1.50/)
+        CovRad(82 ,1:3) = (/1.44,1.35,1.37/)
+        CovRad(83 ,1:3) = (/1.51,1.41,1.35/)
+        CovRad(84 ,1:3) = (/1.45,1.35,1.29/)
+        CovRad(85 ,1:3) = (/1.47,1.38,1.38/)
+        CovRad(86 ,1:3) = (/1.42,1.45,1.33/)
+        CovRad(87 ,1:3) = (/2.23,2.18, -1./)
+        CovRad(88 ,1:3) = (/2.01,1.73,1.59/)
+        CovRad(89 ,1:3) = (/1.86,1.53,1.40/)
+        CovRad(90 ,1:3) = (/1.75,1.43,1.36/)
+        CovRad(91 ,1:3) = (/1.69,1.38,1.29/)
+        CovRad(92 ,1:3) = (/1.70,1.34,1.18/)
+        CovRad(93 ,1:3) = (/1.71,1.36,1.16/)
+        CovRad(94 ,1:3) = (/1.72,1.35, -1./)
+        CovRad(95 ,1:3) = (/1.66,1.35, -1./)
+        CovRad(96 ,1:3) = (/1.66,1.36, -1./)
+        CovRad(97 ,1:3) = (/1.68,1.39, -1./)
+        CovRad(98 ,1:3) = (/1.68,1.40, -1./)
+        CovRad(99 ,1:3) = (/1.65,1.40, -1./)
+        CovRad(100,1:3) = (/1.67, -1., -1./)
+        CovRad(101,1:3) = (/1.73,1.39, -1./)
+        CovRad(102,1:3) = (/1.76, -1., -1./)
+        CovRad(103,1:3) = (/1.61,1.41, -1./)
+        CovRad(104,1:3) = (/1.57,1.40,1.31/)
+        CovRad(105,1:3) = (/1.49,1.36,1.26/)
+        CovRad(106,1:3) = (/1.43,1.28,1.21/)
+        CovRad(107,1:3) = (/1.41,1.28,1.19/)
+        CovRad(108,1:3) = (/1.34,1.25,1.18/)
+        CovRad(109,1:3) = (/1.29,1.25,1.13/)
+        CovRad(110,1:3) = (/1.28,1.16,1.12/)
+        CovRad(111,1:3) = (/1.21,1.16,1.18/)
+        CovRad(112,1:3) = (/1.22,1.37,1.30/)
+        CovRad(113,1:3) = (/1.36, -1., -1./)
+        CovRad(114,1:3) = (/1.43, -1., -1./)
+        CovRad(115,1:3) = (/1.62, -1., -1./)
+        CovRad(116,1:3) = (/1.75, -1., -1./)
+        CovRad(117,1:3) = (/1.65, -1., -1./)
+        CovRad(118,1:3) = (/1.57, -1., -1./)
+
+        ! Compute the lenght
+        av_len = CovRad(iat1,1) + CovRad(iat2,1)
+
         if (present(inc_hbond)) include_hbond=inc_hbond
-        if (include_hbond) database(7)="O    H    1.80"
-
-        ! SELECTION LOOPS 
-        av_len=0.
-        do i=1,n_entries 
-            !Get database entry
-            read(database(i),*) elementA, elementB, db_length
-            !Compare with input
-            if ( ( Latom1%element(1:2) == adjustl(elementA) .and. &
-                   Latom2%element(1:2) == adjustl(elementB) )     &
-                .or.                                            &
-                 ( Latom1%element(1:2) == adjustl(elementB) .and. &
-                   Latom2%element(1:2) == adjustl(elementA) )     &
-                ) then
-                   av_len=db_length
+        if (include_hbond) then
+            ! Only between H and N/O
+            if (i==1.or.j==1) then
+                k=i+j
+                if (k==8.or.k==9) then
+                    av_len = av_len + 0.8
+                endif
             endif
-       enddo     
-
-! if ( av_len == 0.) then
-!     call alert_msg("fatal",Latom1%name(1:1)//" and "//Latom2%name(1:1)//" missing in the DB")
-! endif
+        endif
 
         return
     end function bond_length_db
@@ -937,8 +972,6 @@ module molecular_structure
                 residuo(i)%atom(ii) = sistema%atom(iat)
             enddo
         enddo
-
-print*, sistema%nres
 
        return
     end subroutine sist2res

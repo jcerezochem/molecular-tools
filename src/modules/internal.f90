@@ -2,10 +2,188 @@ module internal_module
 
     use matrix
     use matrix_print
+    use verbosity
 
     implicit none
 
     contains
+
+
+    subroutine define_internal_set(molec,def_internal,intfile,rmzfile,use_symmetry,isym,S_sym,Ns)
+
+        !==============================================================
+        ! This code is part of MOLECULAR_TOOLS 
+        !==============================================================
+        ! Description
+        !  
+        !--------------------------------------------------------------
+
+        use structure_types
+        use line_preprocess
+        use alerts
+        use constants
+        use atomic_geom
+        use matrix
+        use zmat_manage
+    
+        implicit none
+    
+        integer,parameter :: NDIM = 600
+        real(8),parameter :: ZEROp = 1.d-10 !practically zero
+    
+        !====================== 
+        !ARGUMENTS
+        type(str_resmol),intent(inout)     :: molec             ! Input molecule (but only use geom...) 
+        character(len=*),intent(inout)     :: def_internal      ! switch with the way internal are selected
+        character(len=*),intent(in)        :: intfile           ! file with the def of internal coords
+        character(len=*),intent(in)        :: rmzfile           ! additional file with coordinates to remove from Zmat
+        logical,intent(in)                 :: use_symmetry      ! logical to use or not symmetry
+        integer,dimension(:),intent(in)    :: isym              ! array with the simmetric atom (in)
+        integer,dimension(:),intent(out)   :: S_sym             ! array with symmetric internals (out)
+        integer,intent(out)                :: Ns                ! Total number of internal coordiantes to use
+        !====================== 
+    
+        !======================
+        !LOCAL 
+        !System info
+        integer :: Nat
+        !Counters
+        integer :: i,j,k, ii
+        !Matrices to store/manage internal coordianates
+        integer,dimension(1:NDIM,1:4) :: bond_s, angle_s, dihed_s
+        integer,dimension(NDIM) :: bond_sym,angle_sym,dihed_sym
+        !Symm
+        character(len=5) :: PG
+        ! Zmat elements removal
+        character :: rm_type
+        integer :: rm_zline, Nrm, nbonds_rm, nangles_rm, ndiheds_rm
+        integer,dimension(100) :: bond_rm, angle_rm, dihed_rm
+        ! File IO
+        integer :: I_FILE=70
+        integer :: IOstatus
+        !=============
+
+        ! Preliminar things
+        call set_word_upper_case(def_internal)
+        Nat = molec%natoms
+        PG = molec%PG
+
+        !GEN BONDED SET FOR INTERNAL COORD
+        if (adjustl(def_internal) == "SEL") then
+            print*, "Reading internal coordianates from: "//trim(adjustl(intfile))
+            if (verbose>0) &
+             open(I_FILE,file=intfile,iostat=IOstatus) 
+            if (IOstatus /= 0) call alert_msg("fatal","Cannot open file: "//trim(adjustl(intfile)))
+            ! Get internal coords (using modredundant sr)
+            call modredundant(I_FILE,molec)
+            close(I_FILE)
+
+        elseif (adjustl(def_internal) == "ZMAT") then
+            if (adjustl(intfile) == "none") then
+                call build_Z(molec,bond_s,angle_s,dihed_s,PG,isym,bond_sym,angle_sym,dihed_sym)
+            else
+                open(I_FILE,file=intfile,status="old")
+                print*, "Z-matrix read from "//trim(adjustl(intfile))
+                call read_Z(I_FILE,molec,bond_s,angle_s,dihed_s,PG,isym,bond_sym,angle_sym,dihed_sym)
+                close(I_FILE)
+            endif
+
+        else if (adjustl(def_internal) == "ALL") then!otherwise all parameters are used
+            if (verbose>0) &
+             print*, "Using all internal coordinates", molec%geom%nangles
+        else
+            call alert_msg("fatal","Unkownn option for internal definition. Valid options are 'zmat', 'sel', 'all'")
+        endif 
+
+        ! Compute the number of internal coords
+        Ns = molec%geom%nbonds  + &
+             molec%geom%nangles + &
+             molec%geom%ndihed
+
+        ! Remove some Zmat elements if required
+        if (def_internal=="ZMAT" .and. rmzfile /= "none") then
+            open(I_FILE,file=rmzfile,status='old')
+            read(I_FILE,*) Nrm
+            ! First, read lines to remove
+            nbonds_rm  = 0
+            nangles_rm = 0
+            ndiheds_rm = 0
+            do i=1,Nrm
+                read(I_FILE,*) rm_zline, rm_type
+                if (rm_type == "B") then
+                    nbonds_rm = nbonds_rm + 1
+                    bond_rm(nbonds_rm) = rm_zline
+                elseif (rm_type == "A") then
+                    nangles_rm = nangles_rm + 1
+                    angle_rm(nangles_rm) = rm_zline
+                elseif (rm_type == "D") then
+                    ndiheds_rm = ndiheds_rm + 1
+                    dihed_rm(ndiheds_rm) = rm_zline
+                endif
+            enddo
+            close(I_FILE)
+            ! Short remove lists
+            call sort_vec_int(bond_rm(1:nbonds_rm),nbonds_rm,reverse=.true.)
+            call sort_vec_int(angle_rm(1:nangles_rm),nangles_rm,reverse=.true.)
+            call sort_vec_int(dihed_rm(1:ndiheds_rm),ndiheds_rm,reverse=.true.)
+            ! The remove
+            if (verbose>0) &
+             print*, "Removing bonds from lines:"
+            do i=1,nbonds_rm
+                if (verbose>0) &
+                 print*, bond_rm(i)
+                rm_zline = bond_rm(i) - 1
+                do ii = rm_zline, molec%geom%nbonds-1
+                    molec%geom%bond(ii,1:2) = molec%geom%bond(ii+1,1:2)
+                enddo
+                molec%geom%nbonds  = molec%geom%nbonds  - 1
+                Ns = Ns - 1
+            enddo
+            if (verbose>0) &
+             print*, "Removing angles from lines:"
+            do i=1,nangles_rm
+                if (verbose>0) &
+                 print*, angle_rm(i)
+                rm_zline = angle_rm(i) - 2
+                do ii = rm_zline, molec%geom%nangles-1
+                    molec%geom%angle(ii,1:3) = molec%geom%angle(ii+1,1:3)
+                enddo
+                molec%geom%nangles  = molec%geom%nangles  - 1
+                Ns = Ns - 1
+            enddo
+            if (verbose>0) &
+             print*, "Removing dihedrals from lines:"
+            do i=1,ndiheds_rm
+                if (verbose>0) & 
+                 print*, dihed_rm(i)
+                rm_zline = dihed_rm(i) - 3
+                do ii = rm_zline, molec%geom%ndihed-1
+                    molec%geom%dihed(ii,1:4) = molec%geom%dihed(ii+1,1:4)
+                enddo
+                molec%geom%ndihed  = molec%geom%ndihed  - 1
+                Ns = NS - 1
+            enddo
+        endif
+
+        !Set symmetry of internal (only if symmetry is detected)
+        if (use_symmetry) then
+            do i=1,Nat-1
+                S_sym(i) = bond_sym(i+1)-1
+            enddo
+            do i=1,Nat-2
+                S_sym(i+Nat-1) = angle_sym(i+2)+Nat-3
+            enddo
+            do i=1,Nat-3
+                S_sym(i+2*Nat-3) = dihed_sym(i+3)+2*Nat-6
+            enddo
+        endif
+
+
+        return
+
+    end subroutine define_internal_set
+
+
 
     subroutine internal_Wilson(molec,Ns,S,B, &
 !                                           Optional:

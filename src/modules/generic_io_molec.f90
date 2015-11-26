@@ -57,6 +57,9 @@ module generic_io_molec
 
         call atname2element(molec)
 
+        ! Reader give coordiantes in Angstrong
+        molec%units = "Angs"
+
         ! Error handling
         if (error_local /= 0) then
             write(msg,'(A,I0)') "ERROR readig structure from file. Error code: ", error_local

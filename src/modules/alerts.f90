@@ -46,7 +46,7 @@ module alerts
                 write(0,'(A,A,/)') "FATAL ERROR: ",trim(SENTENCE)
                 write(0,'(A)')     "============================================"
                 write(0,'(A,/)') "Exiting..."
-                stop
+                stop 1
 
             case default
                 write(0,'(/,A,A,A,/)') attype," ", SENTENCE

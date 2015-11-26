@@ -1019,4 +1019,47 @@ module matrix
 
     end subroutine sort_vec_int    
 
+    
+    subroutine rotation_3D(vx,vy,vz,tx,ty,tz,Theta) 
+    
+        !Description:
+        ! Subroutine to rotate the vector (vx,vy,vz) around the axis
+        ! defined by (tx,ty,tz) an angle Theta (rad).
+    
+        real(8), intent(inout) :: vx,vy,vz
+        real(8), intent(in)    :: tx,ty,tz, Theta
+    
+        !Local
+        real(8),dimension(1:3,1:3) :: R
+        real(8) :: vx_tmp, vy_tmp, tmod
+        real(8) :: ux, uy, uz 
+    
+        ! Vector u must be unitary
+        tmod = sqrt(tx**2 + ty**2 + tz**2)
+        ux = tx/tmod
+        uy = ty/tmod
+        uz = tz/tmod
+    
+        ! Form 3D-rotation matrix (from Wikipedia)
+        R(1,1) = cos(Theta) + ux**2*(1.0-cos(Theta))
+        R(1,2) = ux*uy*(1.0-cos(Theta)) - uz*sin(Theta)
+        R(1,3) = ux*uz*(1.0-cos(Theta)) + uy*sin(Theta)
+        R(2,1) = ux*uy*(1.0-cos(Theta)) + uz*sin(Theta)
+        R(2,2) = cos(Theta) + uy**2*(1.0-cos(Theta))
+        R(2,3) = uy*uz*(1.0-cos(Theta)) - ux*sin(Theta)
+        R(3,1) = ux*uz*(1.0-cos(Theta)) - uy*sin(Theta)
+        R(3,2) = uy*uz*(1.0-cos(Theta)) + ux*sin(Theta)
+        R(3,3) = cos(Theta) + uz**2*(1.0-cos(Theta))
+    
+        ! Apply rotaion
+        vx_tmp = vx*R(1,1) + vy*R(1,2) + vz*R(1,3)
+        vy_tmp = vx*R(2,1) + vy*R(2,2) + vz*R(2,3)
+        vz =     vx*R(3,1) + vy*R(3,2) + vz*R(3,3)
+        vx = vx_tmp 
+        vy = vy_tmp 
+    
+       return
+    
+    end subroutine rotation_3D
+
 end module matrix

@@ -63,7 +63,7 @@ module structure_types
         character::resname*5="UNK"
         character(len=1)::chain=" ",alter_loc=" ", ins_code=" "
         character(len=2) :: element=""
-        integer  ::resseq=1, AtNum
+        integer  ::resseq=1, AtNum=0
 #ifdef DOUBLE
         !-------------------------------------------------------------
         double precision:: x, y, z
@@ -88,6 +88,7 @@ module structure_types
         ! This type can represent:
         ! * A residue (within a multiple residue system)
         ! * A molecule that can contain residues
+        character(len=4)::units
         character::PG*5="XX" !Default for unknown
         character::name*5="UNK"
         integer::natoms
