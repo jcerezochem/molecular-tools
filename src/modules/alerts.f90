@@ -56,4 +56,14 @@ module alerts
 
     end subroutine alert_msg
 
+
+    subroutine summary_alerts
+
+        if (n_notes>0) &
+         print'(/,A,I0,A)', "There were ",n_notes," notes in this run"
+        if (n_errors>0) &
+         print'(/,A,I0,A)', "There were ",n_errors," warnings in this run"
+
+    end subroutine summary_alerts
+
 end module alerts

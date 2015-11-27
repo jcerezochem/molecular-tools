@@ -1098,4 +1098,114 @@ module gaussian_manage
     end subroutine read_gausslog_dipders
 
 
+    subroutine read_gauss_job(unt,ft,calc,method,basis)
+
+        !==============================================================
+        ! This code is part of MOLECULAR_TOOLS
+        !==============================================================
+        !Description
+        ! Get natoms from molecular formula. It is taken from section 1, 
+        ! which contains
+        !  1: flag? =1?
+        !  2: flag? =1?
+        !  3: GINC-$HOST
+        !  4: Job Type (Opt, Freq...) <===
+        !  5: Method (RB3LYP...)      <===
+        !  6: Basis set               <===
+        !  7: Molecular formula   
+        !  8: $USER
+        !  9: $date
+        ! 10: flag? =0?
+        ! USES ROUTINES IN THIS MODULE
+        !
+        !Arguments
+        !
+        !Notes:
+        ! -About allocatable characters:
+        !  Fortran2003 supports allocatable strings (implemented in gfortran >=4.8, ifort v12 and maybe lower)
+        !  This would overcome the need of explicetily allocating the auxiliar strings
+        !  (but would impose a requirement to the compiler version)
+        !
+        !==============================================================
+
+        integer,intent(in)           :: unt
+        character(len=*),intent(in)  :: ft
+        character(len=*),intent(out) :: calc
+        character(len=*),intent(out) :: method
+        character(len=*),intent(out) :: basis
+
+        !Local
+        integer :: n_elem
+        integer :: error_local
+        character(len=100) :: info_section
+        character :: null, sep
+        character(len=20),dimension(3) :: char_array
+        ! Counters
+        integer :: i
+
+
+        select case (adjustl(ft))
+            case("log")
+             call summary_parser(unt,1,info_section,error_local)
+             if (error_local /= 0) call alert_msg("fatal","Reading job info from g09 log")
+             
+             !We want elements 4,5,6. So place the pin to position 3
+             do i=1,3
+                 call split_line(info_section,'\',null,info_section)
+             enddo
+             ! And now get the data
+             call split_line(info_section,'\',calc  ,info_section)
+             call split_line(info_section,'\',method,info_section)
+             call split_line(info_section,'\',basis ,info_section)
+
+            case("fchk")
+             rewind(unt)
+             read(unt,*) null ! skip first line
+             read(unt,'(A)') info_section
+             call string2vector_char(info_section,char_array,n_elem," ")
+             calc   = char_array(1)
+             method = char_array(2)
+             basis  = char_array(3)
+
+            case default 
+             call alert_msg("fatal","API error: Unkonwn filetype in this context (read_gauss_job):"//ft)
+        end select
+
+        !Refine method info
+        ! It can be a dash separated list: TD-B3LYP-FC...
+        call string2vector_char(method,char_array,n_elem,"-")
+
+        if (n_elem > 1) then
+            method = ""
+            sep=""
+            do i=1,n_elem
+                !Remove the FC card (frozen core) and separate TD
+                if (adjustl(char_array(i))=="FC") then
+                    char_array(i) = ""
+                    sep=""
+                endif
+
+                !Re-Construct method
+                method = trim(adjustl(method))//sep//&
+                         trim(adjustl(char_array(i)))
+
+                !Set the next separator properly
+                if (adjustl(char_array(i))=="TD" .or.&
+                    adjustl(char_array(i))=="RTD".or.&
+                    adjustl(char_array(i))=="UTD") then
+                    !space-separate TD instruction (could also be a comma)
+                    sep=" "
+                else
+                    !separate by dash (e.g. CAM-B3LYP)
+                    sep="-"
+                endif            
+            enddo
+        endif
+
+
+        return
+
+    end subroutine read_gauss_job
+
+
 end module gaussian_manage

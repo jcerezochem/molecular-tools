@@ -28,6 +28,7 @@ module xyz_manage
         !Read standard xyz files
 
         use structure_types
+        use constants
 
         integer,intent(in)::unt
         type(str_resmol),intent(inout)::system
@@ -35,28 +36,6 @@ module xyz_manage
         !local
         integer::i, natoms
         character(len=1) :: test_name
-
-        character(len=5),dimension(103) :: atom_names_from_atnum
- 
-        !This should be elsewhere (constants_mod?)
-        data atom_names_from_atnum(1:103) &
-         /'H' ,                                                                                'He',&
-          'Li','Be',                                                  'B' ,'C' ,'N' ,'O' ,'F' ,'Ne',&
-          'Na','Mg',                                                  'Al','Si','P' ,'S' ,'Cl','Ar',&
-          'K' ,'Ca','Sc','Ti','V' ,'Cr','Mn','Fe','Co','Ni','Cu','Zn','Ga','Ge','As','Se','Br','Kr',&
-          'Rb','Sr','Y' ,'Zr','Nb','Mo','Tc','Ru','Rh','Pd','Ag','Cd','In','Sn','Sb','Te','I' ,'Xe',&
-          'Cs','Ba','La',& !Lantanides:  
-!                  ---------------------------------------------------
-                    'Ce','Pr','Nd','Pm','Sm','Eu','Gd',&
-                    'Tb','Dy','Ho','Er','Tm','Yb','Lu',&
-!                  ---------------------------------------------------
-                         'Hf','Ta','W' ,'Re','Os','Ir','Pt','Au','Hg','Tl','Pb','Bi','Po','At','Rn',&
-         'Fr','Ra','Ac',& !Actinides:
-!                  ---------------------------------------------------
-                   'Th','Pa','U' ,'Np','Pu','Am','Cm',&
-                   'Bk','Cf','Es','Fm','Md','No','Lr'&
-!                  ---------------------------------------------------
-         /
 
 
         read(unt,*) natoms
@@ -86,7 +65,7 @@ module xyz_manage
             
             do i=1,natoms
                 read(system%atom(i)%name,*) system%atom(i)%AtNum
-                system%atom(i)%name = atom_names_from_atnum(system%atom(i)%AtNum)
+                system%atom(i)%name = atname_from_atnum(system%atom(i)%AtNum)
                 !-1 are dummies
                 if (system%atom(i)%AtNum == -1) system%atom(i)%name="X"
             enddo
@@ -131,7 +110,13 @@ module xyz_manage
 
     end subroutine write_xyz
 
-    subroutine write_gcom(unt,system)
+    subroutine write_gcom(unt,system,&
+                                     !Optional args
+                                     chkname,&! 
+                                     calc,   &! e.g. SP, Freq, Opt...
+                                     method, &!
+                                     basis,  &!
+                                     title   )!
 
         !Write gaussian com file (in cartesian coord)
 
@@ -140,29 +125,49 @@ module xyz_manage
 
         integer,intent(in)::unt
         type(str_resmol),intent(inout)::system
+        character(len=*),intent(in),optional :: chkname
+        character(len=*),intent(in),optional :: calc
+        character(len=*),intent(in),optional :: method
+        character(len=*),intent(in),optional :: basis
+        character(len=*),intent(in),optional :: title
 
         !local
         integer::i, natoms
-        character(len=100) :: chkname
-        character(len=1) :: null
+        character(len=100) :: chkname_local
+        character          :: null
+        character(len=200) :: job
+
+        if (present(chkname)) then
+            ! remove trailing .com/.chk if present
+            call split_line_back(chkname,".com",chkname_local,null)
+            call split_line_back(chkname_local,".chk",chkname_local,null)
+        else
+            chkname_local="file"
+        endif
+
+        ! Build job line
+        job="#p"
+        if (present(calc)) then
+            job=trim(adjustl(job))//" "//trim(adjustl(calc))
+        endif !no alternative (e.g. default==SP)
+        if (present(method)) then
+            job=trim(adjustl(job))//" "//trim(adjustl(method))//"/"
+        else
+            job=trim(adjustl(job))//"B3LYP/"
+        endif
+        if (present(basis)) then
+            job=trim(adjustl(job))//trim(adjustl(basis))
+        else
+            job=trim(adjustl(job))//"6-31G(d)"
+        endif
 
         write(unt,'(A)') "--link1--"
         write(unt,'(A)') "%mem=2GB"
-        !Supposing that file name is passed through title
-        call split_line(system%title,".",chkname,null)
-        write(unt,'(A)') "%chk="//trim(adjustl(chkname))//".chk"
+        write(unt,'(A)') "%chk="//trim(adjustl(chkname_local))//".chk"
         write(unt,'(A)') "%nproc=8"
-        !Indicate a SP with "standard" model chem
-        if (adjustl(system%job%type) == "XX") then
-            !Sensible default
-            write(unt,'(A)') "#p B3LYP/6-31G(d)"
-        else 
-            write(unt,'(A)') "#p "//trim(adjustl(system%job%type))//" "&
-                           //trim(adjustl(system%job%method))//"/"&
-                           //trim(adjustl(system%job%basis))
-        endif
+        write(unt,'(A)') trim(adjustl(job))
         write(unt,'(A)') ""
-        write(unt,'(A)') trim(adjustl(system%job%title))
+        write(unt,'(A)') trim(adjustl(title))
         write(unt,'(A)') ""
         !Charge and multiplicity (TODO: read from system attributes)
         write(unt,'(A)') "0 1"
@@ -286,6 +291,7 @@ module xyz_manage
 
         use structure_types
         use line_preprocess
+        use constants
 
         integer,intent(in)::unt
         type(str_resmol),intent(inout)::system
@@ -296,28 +302,6 @@ module xyz_manage
         character(len=1) :: null
         character(len=9) :: mark, atname
         real(8) :: x,y,z
-
-        character(len=5),dimension(103) :: atom_names_from_atnum
-
-        !This should be elsewhere (constants_mod?)
-        data atom_names_from_atnum(1:103) &
-         /'H' ,                                                                                'He',&
-          'Li','Be',                                                  'B' ,'C' ,'N' ,'O' ,'F' ,'Ne',&
-          'Na','Mg',                                                  'Al','Si','P' ,'S' ,'Cl','Ar',&
-          'K' ,'Ca','Sc','Ti','V' ,'Cr','Mn','Fe','Co','Ni','Cu','Zn','Ga','Ge','As','Se','Br','Kr',&
-          'Rb','Sr','Y' ,'Zr','Nb','Mo','Tc','Ru','Rh','Pd','Ag','Cd','In','Sn','Sb','Te','I' ,'Xe',&
-          'Cs','Ba','La',& !Lantanides:  
-!                  ---------------------------------------------------
-                    'Ce','Pr','Nd','Pm','Sm','Eu','Gd',&
-                    'Tb','Dy','Ho','Er','Tm','Yb','Lu',&
-!                  ---------------------------------------------------
-                         'Hf','Ta','W' ,'Re','Os','Ir','Pt','Au','Hg','Tl','Pb','Bi','Po','At','Rn',&
-         'Fr','Ra','Ac',& !Actinides:
-!                  ---------------------------------------------------
-                   'Th','Pa','U' ,'Np','Pu','Am','Cm',&
-                   'Bk','Cf','Es','Fm','Md','No','Lr'&
-!                  ---------------------------------------------------
-         /
 
         mark="--link1--"
         i=0
@@ -349,7 +333,7 @@ module xyz_manage
                 read(unt,'(A)') line
                 if (trim(line) == "") exit
                 read(line,*) j, x, y, z
-                atname =  atom_names_from_atnum(j)
+                atname =  atname_from_atnum(j)
                 write(20,*) trim(adjustl(atname)), x, y, z
             enddo
             close(20)

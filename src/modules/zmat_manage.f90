@@ -487,7 +487,7 @@ module zmat_manage
             if (kk>50) call alert_msg("fatal","Z-matrix could not be formed")
         enddo
         if (verbose>0) &
-         print*, "Success in ", kk, " cycles"
+         print'(X,A,I0,A,/)', "Success in ", kk, " cycles"
 
         !Update molec%geom with Zmat
         Nat = molec%natoms
@@ -582,7 +582,9 @@ module zmat_manage
     subroutine zmat2cart(molec,S)
     
         ! Transform z-matrix to cartesian coordinates
-        ! Run with atomic coordinates (for S), but output in ANGS 
+        ! Run with atomic coordinates (for S)
+        !  * input : bohr (length) and radians (angles)
+        !  * outout: bohr (cartesian coods)
         ! NOTES
         ! Molec has to include the ic information (atom%geom)
     
@@ -776,6 +778,7 @@ module zmat_manage
             molec%atom(i)%z = molec%atom(i)%z/BOHRtoAMS
         enddo
     
+        molec%units="Bohr"
     
         return
     
@@ -785,7 +788,7 @@ module zmat_manage
     !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%5
     
     subroutine addcart(atom_1,atom_2,atom_3,&
-                        bond,angle,dihed,atom_New)
+                       bond,angle,dihed,atom_New)
     
         !Description: add the cartesian coordinates of atom_New given the position of atoms 1,2&3, so that
         ! the connectivity is:
@@ -895,6 +898,7 @@ module zmat_manage
 
     subroutine rmsd_fit_frame(molec,molec2,info)
     
+        ! THIS SR ARE HERE SINCE THEY ARE USED ALONG WITH zmat2cart
         ! Check if two molecules share the same orientation and, if not, reorinent molec to fit molec2
         ! Thia version (4) uses ROTATA to get a first stimation of the rotation
         ! and then converts it to a rotation keeping the same axis
@@ -956,6 +960,7 @@ module zmat_manage
 
     subroutine rmsd_fit_frame_brute(molec,molec2,dist)
     
+        ! THIS SR ARE HERE SINCE THEY ARE USED ALONG WITH zmat2cart
         ! Check if two molecules share the same orientation and, if not, reorinent molec to fit molec2
         ! This version "ensures" proper relative orientation (but is very time consuming!!)
         ! New: version b includes a distance threshold to avoid checking all the orientations
@@ -977,6 +982,9 @@ module zmat_manage
         real(8) :: xaux, yaux, zaux, det, rsum, rcheck, &
                    xrot, yrot, zrot
     
+        if (verbose>0) &
+         print*, "Using brute force RMSD fit subroutine"
+
         Nat = molec%natoms
         rcheck=1.d10
         do iTT=1,7
@@ -1082,7 +1090,7 @@ module zmat_manage
         enddo ! Possible T values
     
         !Update the distance criterion
-        if (verbose>0) then
+        if (verbose>1) then
             print*, "Distance criterion was: ", dist
             print*, "Updated to: ", rcheck
         endif

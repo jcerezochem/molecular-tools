@@ -536,6 +536,8 @@ module internal_module
 !             
 !         enddo
     
+        if (verbose>0) &
+            print*, ""
         if (verbose>1) &
             call MAT0(6,B,Ns,3*Nat,"B MATRIX")
 
@@ -789,7 +791,7 @@ module internal_module
     
         !Check FC
         if (verbose>0) &
-            call print_vector(6,Freq,Nvib,"FORCE CONSTANTS (A.U.)")
+            call print_vector(6,Freq*1.d6,Nvib,"FORCE CONSTANTS x 10^6 (A.U.)")
 
         !Check freqcuencies
         do i=1,Nvib

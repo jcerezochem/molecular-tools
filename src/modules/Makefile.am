@@ -36,14 +36,18 @@ libmoleculartools_a_SOURCES =         \
     manage_molpro.f90                 \
     manage_pdb.f90                    \
     manage_psi4.f90                   \
+\
+    manage_pdb.f90                    \
     manage_xyz.f90                    \
+    manage_gro.f90                    \
     zmat_manage.f90                   \
 \
     generic_io.f90                    \
     generic_io_molec.f90              \
 \
     ff_build.f90                      \
-    internal.f90                             
+    internal.f90                      \
+    vibrational_analysis.f90      
 
 
 CLEANFILES =*.mod 

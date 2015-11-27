@@ -63,6 +63,8 @@ module line_preprocess
         !split the line (the whole is preserved in line_a >> change: for back
         ! this is stored in line_b (so that if no match, the whole thing is in line_b
         ! the important thing for this SR
+        ! >> change again: the important thing is always what is in line_a (if there is 
+        !                  no extension, we still want to know the filename
 
         character(len=*),intent(in):: line,splitter
         character(len=*),intent(out):: line_a,line_b
@@ -76,8 +78,9 @@ module line_preprocess
         !INDEX with BACK=.true., search match from the end of the string (useful to get file extensions)
         i=INDEX(line,splitter,.true.)
         if ( i == 0 ) then
-            line_a=""
-            line_b=line
+            ! We need to set line_a before overriding line_b, in case line_b and line are the same on input
+            line_a=line
+            line_b=""
             return
         endif
         j=len_trim(splitter)

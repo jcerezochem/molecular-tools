@@ -2,73 +2,52 @@ program normal_modes_animation
 
 
     !==============================================================
-    ! This code uses of MOLECULAR_TOOLS (version 1.0/March 2012)
+    ! This code uses of MOLECULAR_TOOLS 
     !==============================================================
     !
     ! Description:
     ! -----------
-    ! Program to analyse vibrations in term of internal coordinates.
-    !
-    ! Compilation instructions (for mymake script):
-    !make$ echo "COMPILER: $FC"; sleep 1; $FC ../modules/alerts.f90 ../modules/structure_types_v3.f90 ../modules/line_preprocess.f90 ../modules/ff_build_module_v3.f90 ../modules/gro_manage_v2.f90 ../modules/pdb_manage_v2.f90 ../modules/constants_mod.f90 ../modules/atomic_geom_v2.f90 ../modules/gaussian_manage_v2.f90 ../modules/gaussian_fchk_manage_v2.f90 ../modules/symmetry_mod.f90 ../modules/MatrixMod.f90 internal_SR_v6.f90 internal_duschinski_v5.f90 -llapack -o internal_duschinski_v5.exe -cpp -DDOUBLE
-    !
-    ! Change log:
-    !
-    ! TODO:
-    ! ------
-    !
-    ! History
-    ! V3: Internal analysis is based on internal_duschinski_v5 (never finished...)
-    ! V4: Internal analysis is based on internal_duschinski_v7
-    !  V4b (not in the main streamline!): includes the generation of scans calc. for Gaussian.
-    !  V4c: the same as 4b. Bug fixes on guess_connect (ff_build module_v3 was buggy)
-    !
-    !Addapted to v4 release (distribution upgrade). Feb '14
-    !v4 releases:
-    !v4.0.1:
-    ! -use redundant coordinates
-    !v4.0.1.1:
-    ! - include UnSym (MOLCAS) file as input (freqs and nm)
-    !v4.0.1.2:
-    ! - if the calculation is only a internal scan, do not need the hessian (so do not try to read it)
+    ! Program to visualize vibrations obtained in internal coordinates.
     !
     !============================================================================    
 
-!*****************
-!   MODULE LOAD
-!*****************
-!============================================
-!   Generic (structure_types independent)
-!============================================
+    !*****************
+    !   MODULE LOAD
+    !*****************
+    !============================================
+    !   Generic
+    !============================================
     use alerts
     use line_preprocess
-    use constants
-!   Matrix manipulation (i.e. rotation matrices)
-    use MatrixMod
-!============================================
-!   Structure types module
-!============================================
+    use constants 
+    use verbosity
+    use matrix
+    use matrix_print
+    !============================================
+    !   Structure types module
+    !============================================
     use structure_types
-!============================================
-!   Structure dependent modules
-!============================================
-    use gro_manage
-    use pdb_manage
-    use gaussian_manage
-    use gaussian_fchk_manage
+    !============================================
+    !   File readers
+    !============================================
+    use generic_io
+    use generic_io_molec
     use xyz_manage
-    use molcas_unsym_manage
-    use psi4_manage
-!   Structural parameters
+    use gro_manage
+    use gaussian_manage
+    !============================================
+    !  Structure-related modules
+    !============================================
     use molecular_structure
     use ff_build
-!   Bond/angle/dihed meassurement
     use atomic_geom
-!   Symmetry support
-    use symmetry_mod
-!   For internal thingies
+    use symmetry
+    !============================================
+    !  Internal thingies
+    !============================================
     use internal_module
-    use zmat_manage
+    use zmat_manage 
+    use vibrational_analysis
 
     implicit none
 
@@ -76,10 +55,7 @@ program normal_modes_animation
 
     !====================== 
     !Options 
-    logical :: nosym=.true.   ,&
-               zmat=.true.    ,&
-               tswitch=.false.,&
-               symaddapt=.false., &
+    logical :: use_symmetry=.false., &
                include_hbonds=.false., &
                vertical=.false.
     !======================
@@ -87,110 +63,87 @@ program normal_modes_animation
     !====================== 
     !System variables
     type(str_resmol) :: molecule, molec_aux
-    type(str_job)    :: job
     integer,dimension(1:NDIM) :: isym
-    integer :: Nat, Nvib, Nred
+    integer :: Nat, Nvib, Ns
     character(len=5) :: PG
-    !Bonded info
-    integer,dimension(1:NDIM,1:4) :: bond_s, angle_s, dihed_s
-    !====================== 
-
-    !====================== 
-    !INTERNAL VIBRATIONAL ANALYSIS
-    !MATRICES
-    !B and G matrices
-    real(8),dimension(1:NDIM,1:NDIM) :: B1, G1
-    !Bder tensor
-    real(8),dimension(1:NDIM,1:NDIM,1:NDIM) :: Bder
-    !Other matrices
-    real(8),dimension(1:NDIM,1:NDIM) :: Hess, X1,X1inv, L1, Asel1, Asel
-    !Save definitio of the modes in character
-    character(len=100),dimension(NDIM) :: ModeDef
-    !VECTORS
-    real(8),dimension(NDIM) :: Freq, S1, Vec, Smap, Factor, Grad
-    integer,dimension(NDIM) :: S_sym, bond_sym,angle_sym,dihed_sym
-    !Shifts
-    real(8),dimension(NDIM) :: Delta
-    real(8) :: Delta_p
-    !Coordinate map
-    integer,dimension(NDIM) :: Zmap
-    !====================== 
-
-    !====================== 
-    !Read fchk auxiliars
-    real(8),dimension(:),allocatable :: A
-    integer,dimension(:),allocatable :: IA
-    character(len=1) :: dtype
-    integer :: error, N
-    !Read gaussian log auxiliars
-    type(str_molprops),allocatable :: props
-    !====================== 
-
-    !====================== 
-    !Auxiliars for LAPACK matrix nversion
-    integer :: info
-    integer,dimension(NDIM) :: ipiv
-    real(8),dimension(NDIM,NDIM) :: work
+    !Job info
+    character(len=20) :: calc, method, basis, title
     !====================== 
 
     !====================== 
     !Auxiliar variables
     character(1) :: null
     character(len=50) :: dummy_char
-    real(8) :: Theta, Theta2, dist
+    real(8) :: dist
+    !io flags
+    integer :: error, info
     !====================== 
 
     !=============
     !Counters
-    integer :: i,j,k,l, ii,jj,kk, iat, nn, imin, imax, iii
-    integer :: nbonds, nangles, ndihed
+    integer :: i,j,k,l, jj
     !=============
 
-     !orientation things
-    real(8),dimension(3,3) :: ori
-
-    !=================================
-    !NM stuff
-    !=================================
-    real(8) :: Amplitude = 4.d0, qcoord
+    !====================== 
+    ! PES topology and normal mode things
+    real(8),dimension(:),allocatable :: A
+    real(8),dimension(1:NDIM,1:NDIM) :: Hess, LL
+    real(8),dimension(NDIM) :: Freq, Factor, Grad
     !Moving normal modes
-    integer,dimension(1:1000) :: nm=0
+    character(len=50) :: selection="all"
+    real(8) :: Amplitude = 2.d0, qcoord
+    integer,dimension(1:NDIM) :: nm=0
     real(8) :: Qstep, d, rmsd1, rmsd2
-    logical :: call_vmd = .false., &
-               movie_vmd = .false.
+    logical :: call_vmd = .false.
     character(len=10000) :: vmdcall
     integer :: Nsteps, Nsel, istep
+    !MOVIE things
+    logical :: movie_vmd = .false.
+    integer :: movie_cycles=0,& !this means no movie
+               movie_steps
+    !====================== 
 
-    !=================================
-    ! Internal scan stuff
-    !=================================
-    integer :: icoord
-    logical :: scan_internal=.false.,&
-               showZ=.false.
+    !====================== 
+    !INTERNAL CODE THINGS
+    real(8),dimension(1:NDIM,1:NDIM) :: B, G
+    real(8),dimension(1:NDIM,1:NDIM,1:NDIM) :: Bder
+    real(8),dimension(1:NDIM,1:NDIM) :: X,Xinv
+    !Save definitio of the modes in character
+    character(len=100),dimension(NDIM) :: ModeDef
+    !VECTORS
+    real(8),dimension(NDIM) :: S
+    integer,dimension(NDIM) :: S_sym
+    ! Switches
+    character(len=5) :: def_internal="ZMAT"
+    character(len=2) :: scan_type="NM"
+    !Coordinate map
+    integer,dimension(NDIM) :: Zmap
+    !====================== 
 
     !================
     !I/O stuff 
     !units
     integer :: I_INP=10,  &
-               I_ZMAT=11, &
-               I_ADD=12,  &
+               I_SYM=12,  &
+               I_RMF=16,  &
                O_GRO=20,  &
                O_G09=21,  &
-               O_Q  =22,  &
-               O_NUM=23,  &
-               O_LIS=24,  &
-               O_G96=25,  &
+               O_G96=22,  &
+               O_Q  =23,  &
+               O_NUM=24,  &
+               O_MOV=25,  &
                S_VMD=30
+
     !files
-    character(len=10) :: filetype="guess"
-    character(len=200):: inpfile ="input.fchk",  &
-                         addfile = "additional.input", &
-                         zmatfile="NO",          &
-                         numfile
-    character(len=100),dimension(1:1000) :: grofile
-    character(len=100) :: nmfile='none', g09file,qfile, tmpfile, g96file
-    !Control of stdout
-    logical :: verbose=.false.
+    character(len=10) :: ft ="guess",  ftg="guess",  fth="guess"
+    character(len=200):: inpfile  ="state1.fchk", &
+                         gradfile ="same", &
+                         hessfile ="same", &
+                         intfile  ="none", &
+                         rmzfile  ="none", &
+                         symm_file="none"
+    !Structure files to be created
+    character(len=100) :: g09file,qfile, tmpfile, g96file, grofile,numfile
     !status
     integer :: IOstatus
     !===================
@@ -200,644 +153,318 @@ program normal_modes_animation
     real(8) :: ti, tf
     !===================
 
-    !===================
-    !MOVIE things
-    integer :: movie_cycles=0,& !this means no movie
-               movie_steps
-    !===================
-
-! (End of variables declaration) 
-!==================================================================================
     call cpu_time(ti)
 
     ! 0. GET COMMAND LINE ARGUMENTS
-    nm(1) = 0
-    icoord=-1
-    call parse_input(inpfile,addfile,nmfile,nm,Nsel,Amplitude,filetype,nosym,zmat,verbose,tswitch,symaddapt,&
-                     zmatfile,icoord,showZ,call_vmd,movie_cycles,include_hbonds,vertical)
-    if (icoord /= -1) scan_internal=.true.
-! Por qué estaba este switch????
-!    if (showZ) scan_internal=.false.
-! Más bien debería ser al contrario, para que le deje hacer el internal analisys aunque no haya Hessiana
-   if (showZ) scan_internal=.true.
+    call parse_input(&
+                     ! input data
+                     inpfile,ft,hessfile,fth,gradfile,ftg,                 &
+                     ! Options (general)
+                     Amplitude,call_vmd,include_hbonds,selection,vertical, &
+                     ! Movie
+                     movie_vmd, movie_cycles,                              &
+                     ! Options (internal)
+                     use_symmetry,def_internal,intfile,rmzfile,scan_type)
 
-    ! 1. INTERNAL VIBRATIONAL ANALYSIS 
+
+    ! INTERNAL VIBRATIONAL ANALYSIS
  
     ! 1. READ DATA
     ! ---------------------------------
+    !Guess filetypes
+    if (ft == "guess") &
+    call split_line_back(inpfile,".",null,ft)
+    if (fth == "guess") &
+    call split_line_back(hessfile,".",null,fth)
+    if (ftg == "guess") &
+    call split_line_back(gradfile,".",null,ftg)
+
+    ! STRUCTURE FILE
     open(I_INP,file=inpfile,status='old',iostat=IOstatus)
     if (IOstatus /= 0) call alert_msg( "fatal","Unable to open "//trim(adjustl(inpfile)) )
-
-    !Read structure
-    if (adjustl(filetype) == "guess") call split_line_back(inpfile,".",null,filetype)
-    call generic_strfile_read(I_INP,filetype,molecule)
-    !Shortcuts
-    Nat = molecule%natoms
-    Nvib = 3*Nat-6
-
-    !ONLY READ HESSIAN IF NM ANALYSIS IS REQUIRED
-    if (.not.scan_internal) then
-        !Read the Hessian: only two possibilities supported
-        if (adjustl(filetype) == "log") then
-            !Gaussian logfile
-            allocate(props)
-            call parse_summary(I_INP,molecule,props,"read_hess")
-            !Caution: we NEED to read the Freq summary section
-            if (adjustl(molecule%job%type) /= "Freq") &
-              call alert_msg( "fatal","Section from the logfile is not a Freq calculation")
-            ! RECONSTRUCT THE FULL HESSIAN
-            k=0
-            do i=1,3*Nat
-                do j=1,i
-                    k=k+1
-                    Hess(i,j) = props%H(k) 
-                    Hess(j,i) = Hess(i,j)
-                enddo
-            enddo
-            deallocate(props)
-            !No job info read for the moment. Use "sensible" defaults
-            molecule%job%title = ""
-            molecule%job%type= "SP"
-        else if (adjustl(filetype) == "fchk") then
-            !FCHK file    
-            call read_fchk(I_INP,"Cartesian Force Constants",dtype,N,A,IA,error)
-            ! RECONSTRUCT THE FULL HESSIAN
-            k=0
-            do i=1,3*Nat
-                do j=1,i
-                    k=k+1
-                    Hess(i,j) = A(k) 
-                    Hess(j,i) = Hess(i,j)
-                enddo
-            enddo
-            deallocate(A)
-            !Read job info
-            call get_jobtype_fchk(I_INP,molecule%job,error)
-            molecule%job%type= "SP"
-
-        else if (adjustl(filetype) == "UnSym") then
-            call read_molcas_hess(I_INP,N,Hess,error)
-        else if (adjustl(filetype) == "psi4") then
-            N=molecule%natoms*3
-            call read_psi_hess(I_INP,N,Hess,error)
-        else if (adjustl(filetype) == "g96") then
-            !The hessian should be given as additional input
-            if (adjustl(addfile) == "additional.input") &
-             call alert_msg("fatal","With a g96, and additional file should be provided with the Hessian")
-            open(I_ADD,file=addfile,status="old")
-            call read_gro_hess(I_ADD,N,Hess,error)
-            close(I_ADD)
-        endif
-
-        ! If vertical, also read Grad
-        if (vertical) then
-            if (adjustl(filetype) == "fchk") then
-                !Read gradient from fchk
-                call read_fchk(I_INP,"Cartesian Gradient",dtype,N,A,IA,error)
-                Grad(1:N) = A(1:N)
-                deallocate(A)
-            else
-                print*, "ERROR: No gradient can be read for this filetype: "//adjustl(filetype)
-                stop
-            endif
-        endif
-
+    call generic_strmol_reader(I_INP,ft,molecule,error)
+    if (error /= 0) call alert_msg("fatal","Error reading geometry (State1)")
+    ! Get job info if it is a Gaussian file
+    if (ft == "log" .or. ft== "fchk") then
+        call read_gauss_job(I_INP,ft,calc,method,basis)
+        ! Whichever, calc type was, se now need SP
+        calc="SP"
+    else
+        calc="SP"
+        method="B3LYP"
+        basis="6-31G(d)"
     endif
     close(I_INP)
+    ! Shortcuts
+    Nat = molecule%natoms
 
-    !NORMAL MODES SELECTION SWITCH
-    if (Nsel == 0) then
-        !The select them all
-        Nsel = Nvib
-        do i=1,Nsel
-            nm(i) = i
+    ! HESSIAN FILE
+    open(I_INP,file=hessfile,status='old',iostat=IOstatus)
+    if (IOstatus /= 0) call alert_msg( "fatal","Unable to open "//trim(adjustl(hessfile)) )
+    allocate(A(1:3*Nat*(3*Nat+1)/2))
+    call generic_Hessian_reader(I_INP,fth,Nat,A,error) 
+    if (error /= 0) call alert_msg("fatal","Error reading Hessian (State1)")
+    close(I_INP)
+    ! Run vibrations_Cart to get the number of Nvib (to detect linear molecules)
+    call vibrations_Cart(Nat,molecule%atom(:)%X,molecule%atom(:)%Y,molecule%atom(:)%Z,molecule%atom(:)%Mass,A,&
+                         Nvib,LL,Freq,error)
+    k=0
+    do i=1,3*Nat
+    do j=1,i
+        k=k+1
+        Hess(i,j) = A(k)
+        Hess(j,i) = A(k)
+    enddo 
+    enddo
+    deallocate(A)
+
+    ! GRADIENT FILE
+    if (vertical) then
+        open(I_INP,file=gradfile,status='old',iostat=IOstatus)
+        if (IOstatus /= 0) call alert_msg( "fatal","Unable to open "//trim(adjustl(gradfile)) )
+        call generic_gradient_reader(I_INP,ftg,Nat,Grad,error)
+        close(I_INP)
+    endif
+
+    ! MANAGE INTERNAL COORDS
+    ! ---------------------------------
+    ! Get connectivity 
+    call guess_connect(molecule)
+
+    ! Manage symmetry
+    if (.not.use_symmetry) then
+        molecule%PG="C1"
+    else if (trim(adjustl(symm_file)) /= "NONE") then
+        call alert_msg("note","Using custom symmetry file: "//trim(adjustl(symm_file)) )
+        open(I_SYM,file=symm_file)
+        do i=1,molecule%natoms
+            read(I_SYM,*) j, isym(j)
         enddo
-    endif
-    if (Nsel > 1000) call alert_msg("fatal", "Too many normal modes. Dying")
-
-
-    !====================================
-    !INTERNAL COORDINATES MANAGEMENT
-    !====================================
-    ! Get connectivity from the residue (needs to be in ANGS, as it is -- default coord. output)
-    ! Setting element from atom names is mandatory to use guess_connect
-    call guess_connect(molecule,include_hbonds)
-    if (nosym) then
-        PG="C1"
+        close(I_SYM)
+        !Set PG to CUStom
+        molecule%PG="CUS"
     else
+        molecule%PG="XX"
         call symm_atoms(molecule,isym)
-        PG=molecule%PG
     endif
-    !From now on, we'll use atomic units
-    molecule%atom(1:Nat)%x = molecule%atom(1:Nat)%x/BOHRtoANGS
-    molecule%atom(1:Nat)%y = molecule%atom(1:Nat)%y/BOHRtoANGS
-    molecule%atom(1:Nat)%z = molecule%atom(1:Nat)%z/BOHRtoANGS
 
     !Generate bonded info
     call gen_bonded(molecule)
 
-    !GENERATE SET FOR INTERNAL COORDINATES FROM Z-MATRIX
-    ! Store this info in molec%geom module
-    if (adjustl(zmatfile) == "NO") then
-        call build_Z(molecule,bond_s,angle_s,dihed_s,PG,isym,bond_sym,angle_sym,dihed_sym)
-    else
-        open(I_ZMAT,file=zmatfile,status="old")
-        print*, "Z-matrix read from "//trim(adjustl(zmatfile))
-        call read_Z(molecule,bond_s,angle_s,dihed_s,PG,isym,bond_sym,angle_sym,dihed_sym,I_ZMAT)
-        close(I_ZMAT)
-        !Deactivate symaddapt (for the moment)
-        PG = "C1"
-    endif
-    if (zmat) then
-        !Z-mat
-        molecule%geom%bond(1:Nat-1,1:2) = bond_s(2:Nat,1:2)
-        molecule%geom%angle(1:Nat-2,1:3) = angle_s(3:Nat,1:3)
-        molecule%geom%dihed(1:Nat-3,1:4) = dihed_s(4:Nat,1:4)
-        molecule%geom%nbonds  = Nat-1
-        molecule%geom%nangles = Nat-2
-        molecule%geom%ndihed  = Nat-3
-    else
-        !otherwise all parameters from molec%geom are used
-        nbonds = molecule%geom%nbonds
-        nangles= molecule%geom%nangles
-        ndihed = molecule%geom%ndihed
-        print*, "Bonds Map"
-        do j=2,Nat
-        do i=1,nbonds
-            if (bond_s(j,1)==molecule%geom%bond(i,1).and.&
-                bond_s(j,2)==molecule%geom%bond(i,2)) then
-                print*, "Zmat<->Map Redundant:", j-1,i
-                Zmap(j-1) = i
-            endif
-            if (bond_s(j,2)==molecule%geom%bond(i,1).and.&
-                bond_s(j,1)==molecule%geom%bond(i,2)) then
-                print*, "Zmat<->Map Redundant:", j-1,i
-                Zmap(j-1) = i
-            endif
-        enddo
-        enddo
-        print*, "Angles Map"
-        do j=3,Nat
-        do i=1,nangles
-            if (angle_s(j,1)==molecule%geom%angle(i,1).and.&
-                angle_s(j,2)==molecule%geom%angle(i,2).and.&
-                angle_s(j,3)==molecule%geom%angle(i,3)) then
-                print*, "Zmat<->Map Redundant:", j-3+Nat,i+nbonds
-                Zmap(j-3+Nat) = i+nbonds
-            endif
-            if (angle_s(j,3)==molecule%geom%angle(i,1).and.&
-                angle_s(j,2)==molecule%geom%angle(i,2).and.&
-                angle_s(j,1)==molecule%geom%angle(i,3)) then
-                print*, "Zmat<->Map Redundant:", j-3+Nat,i+nbonds
-                Zmap(j-3+Nat) = i+nbonds
-            endif
-        enddo
-        enddo
-        print*, "Dihedral Map"
-        do j=4,Nat
-        do i=1,ndihed
-            if (dihed_s(j,1)==molecule%geom%dihed(i,1).and.&
-                dihed_s(j,2)==molecule%geom%dihed(i,2).and.&
-                dihed_s(j,3)==molecule%geom%dihed(i,3).and.&
-                dihed_s(j,4)==molecule%geom%dihed(i,4)) then
-                print*, "Zmat<->Map Redundant:", j-6+2*Nat,i+nbonds+nangles
-                Zmap(j-6+2*Nat) = i+nbonds+nangles
-            endif
-            if (dihed_s(j,4)==molecule%geom%dihed(i,1).and.&
-                dihed_s(j,3)==molecule%geom%dihed(i,2).and.&
-                dihed_s(j,2)==molecule%geom%dihed(i,3).and.&
-                dihed_s(j,1)==molecule%geom%dihed(i,4)) then
-                print*, "Zmat<->Map Redundant:", j-6+2*Nat,i+nbonds+nangles
-                Zmap(j-6+2*Nat) = i+nbonds+nangles
-            endif
-        enddo
-        enddo
-    endif 
-    !Set number of redundant
-    Nred = molecule%geom%nbonds  + &
-           molecule%geom%nangles + &
-           molecule%geom%ndihed
-
-    ! SYMMETRIC 
-    !Set symmetry of internal (only if symmetry is detected)
-    if (adjustl(PG) == "C1") then
-        S_sym(3*Nat) = 1
-    else
-        do i=1,Nat-1
-            S_sym(i) = bond_sym(i+1)-1
-        enddo
-        do i=1,Nat-2
-            S_sym(i+Nat-1) = angle_sym(i+2)+Nat-3
-        enddo
-        do i=1,Nat-3
-            S_sym(i+2*Nat-3) = dihed_sym(i+3)+2*Nat-6
-        enddo
+    ! Define internal set
+    call define_internal_set(molecule,def_internal,intfile,rmzfile,use_symmetry,isym, S_sym,Ns)
+    if (Ns > Nvib) then
+        call alert_msg("fatal","Non-redundan coordinate set needs mapping (still on dev)")
+        ! Need mapping from whole set to Zmat
+    elseif (Ns > Nvib) then
+        call alert_msg("fatal","Reduced coordinates cases still not implemented")
+        ! Need to freeze unused coords to its input values
     endif
 
-    !We send the option -sa within S_sym (confflict with redundant coord!!)
-    ! S_sym(3*Nat) =  1 (sa=true) / 0 (sa=false)
-    if (symaddapt) then
-        S_sym(3*Nat) = 1
+    !From now on, we'll use atomic units
+    call set_geom_units(molecule,"Bohr")
+
+    ! SCAN JOBS
+    ! Get the selection of normal modes to represent
+    if (adjustl(selection) == "all") then
+        Nsel=Nvib
+        nm(1:Nvib) = (/(i, i=1,Nvib)/)
     else
-        S_sym(3*Nat) = 0
+        call selection2intlist(selection,nm,Nsel)
     endif
-
-    !INTERNAL COORDINATES ANALYSIS
-    Asel1(1,1) = 99.d0 !out-of-range, as Asel is normalized -- this option is not tested
-    call internal_Wilson(molecule,Nvib,S1,S_sym,ModeDef,B1,G1,Asel1,verbose)
-    if (showZ) stop
-
-    !Two possible jobs: scan normal modes or scan a given internal coordinates
-    if (scan_internal) then
-        print'(A,X,I3,X,A)', "Scanning coordinate", icoord, ModeDef(icoord)
-        Nsel=1
-        nm(1) = icoord
-        L1=0.d0
-        L1(icoord,icoord) = 1.d0
-        Freq = 1.d0
-        Factor(1:Nvib) = 1.d0
-
+    !Two possible jobs:
+    if (scan_type=="IN") then
+        !--------------------------------------
+        ! 1. Internal Coordinates SCAN
+        !--------------------------------------
+        ! We need to call Wilson to get ModeDef
+        call internal_Wilson(molecule,Nvib,S,B,ModeDef)
+        LL(1:Ns,1:Ns)=0.d0
+        do i=1,Nsel
+            LL(nm(i),nm(i)) = 1.d0
+            Freq(nm(i))     = 1.d0
+            Factor(nm(i))   = 1.d0
+        enddo
      else
-
+        !--------------------------------------
+        ! 2. Normal Mode SCAN
+        !--------------------------------------
         !SOLVE GF METHOD TO GET NM AND FREQ
-        !For redundant coordinates a non-redundant set is formed as a combination of
-        !the redundant ones. The coefficients for the combination are stored in Asel
-        !as they must be used for state 2 (not rederived!).
+        call internal_Wilson(molecule,Nvib,S,B,ModeDef)
+        call internal_Gmetric(Nat,Nvib,molecule%atom(:)%mass,B,G)
         if (vertical) then
-            call NumBder(molecule,Nvib,S_sym,Bder)
-            call gf_method_V(Hess,molecule,Nvib,S_sym,ModeDef,L1,B1,G1,Freq,Asel1,X1,X1inv,verbose,Grad=Grad,Bder=Bder) 
+            call NumBder(molecule,Nvib,Bder)
+            call HessianCart2int(Nat,Nvib,Hess,molecule%atom(:)%mass,B,G,Grad=Grad,Bder=Bder)
         else
-            call gf_method_V(Hess,molecule,Nvib,S_sym,ModeDef,L1,B1,G1,Freq,Asel1,X1,X1inv,verbose) 
+            call HessianCart2int(Nat,Nvib,Hess,molecule%atom(:)%mass,B,G)
         endif
-
-!         ii=0
-!         do i=1,Nred
-!             if (Freq(i) > 1.d-2) then
-!                 ii=ii+1
-!                 Freq(ii) = Freq(i)
-!                 L1(1:Nred,ii) = L1(1:Nred,i)
-!              endif
-!         enddo
-
-       !Use freqs. to make displacements equivalent in dimensionless units
-!         Factor(1:Nvib) = dsqrt(dabs(Freq(1:Nvib)))/5.d3
+        call gf_method(Nvib,G,Hess,LL,Freq,X,Xinv)
         !Define the Factor to convert shift into addimensional displacements
         ! from the shift in SI units:
         Factor(1:Nvib) = dsqrt(dabs(Freq(1:Nvib))*1.d2*clight*2.d0*PI/plankbar)
         ! but we need it from au not SI
         Factor(1:Nvib)=Factor(1:Nvib)*BOHRtoM*dsqrt(AUtoKG)
-
-    endif
-
-    if (verbose) then
-        print*, "L1="
-        do i=1,Nred
-            print'(100(F8.3,2X))', L1(i,1:Nred)
-        enddo
-        print*, "Selected Freq="
-        do i=1,Nvib
-            print'(100(F8.3,2X))', Freq(i)
-        enddo
     endif
 
 
     !==========================================================0
     !  Normal mode displacements
     !==========================================================0
-    !Initialize auxiliar states
-    Nsteps = 100
-    Qstep = Amplitude/float(Nsteps)
-    if ( mod(Nsteps,2) /= 0 ) Nsteps = Nsteps + 1
+    ! Initialization
+    Nsteps = 101
+    if ( mod(Nsteps,2) == 0 ) Nsteps = Nsteps + 1 ! ensure odd number of steps (so we have same left and right)
+    Qstep = Amplitude/float(Nsteps-1)*2.d0  ! Do the range (-A ... +A)
+    molecule%atom(1:molecule%natoms)%resname = "RES" ! For printing
+    ! Run over all selected modes/internals
     do jj=1,Nsel 
-        k=0
-        molecule%atom(1:molecule%natoms)%resname = "RES"
+        k=0 ! equilibrium corresponds to k=0
         j = nm(jj)
-        write(dummy_char,*) j
-        if (scan_internal) then
-            qcoord=S1(icoord)
-!             qcoord=0.d0
-            molecule%title = "Animation of internal coordinate "//trim(adjustl(ModeDef(j)))
-            g09file="Coord"//trim(adjustl(dummy_char))//"_int.com"
-            g96file="Coord"//trim(adjustl(dummy_char))//"_int.g96"
-            qfile="Coord"//trim(adjustl(dummy_char))//"_int_steps.dat"
-            grofile(jj) = "Coord"//trim(adjustl(dummy_char))//"_int.gro" 
-            numfile="Coord"//trim(adjustl(dummy_char))//"_int_num.com"
-        else
-            qcoord=0.d0
-            molecule%title = "Animation of normal mode "//trim(adjustl(grofile(jj)))
-            g09file="Mode"//trim(adjustl(dummy_char))//"_int.com"
-            g96file="Mode"//trim(adjustl(dummy_char))//"_int.g96"
-            qfile="Mode"//trim(adjustl(dummy_char))//"_int_steps.dat"
-            grofile(jj) = "Mode"//trim(adjustl(dummy_char))//"_int.gro"
-            numfile="Mode"//trim(adjustl(dummy_char))//"_int_num.com"
+        if (scan_type == "NM") then
+            if (verbose>0) &
+             print'(X,A,I0,A)', "Generating Mode ", j, "..."
+        else 
+            if (verbose>0) &
+             print'(X,A,I0,A)', "Generating Scan for IC ", j, " ("//trim(adjustl(ModeDef(j)))//"..."
         endif
-        print*, "Writting results to: "//trim(adjustl(grofile(jj)))
-        open(O_GRO,file=grofile(jj))
+
+        ! Set initial values for the scanned coordinate
+        if (scan_type =="IN") then
+            qcoord = S(j)
+        else
+            qcoord = 0.d0
+        endif 
+
+        ! Prepare and open files
+        call prepare_files(j,ModeDef(j),scan_type,&
+                           grofile,g09file,g96file,numfile,qfile,title)
+        open(O_GRO,file=grofile)
         open(O_G09,file=g09file)
         open(O_G96,file=g96file)
         open(O_Q  ,file=qfile)
+        open(O_NUM,file=numfile)
 
         !===========================
         !Start from equilibrium. 
         !===========================
-        print*, "STEP:", k
-        if (zmat) then
-            Smap=S1
-        else
-            do i=1,Nvib
-                ii=Zmap(i)
-                Smap(i) = S1(ii)
-            enddo
-        endif
-        call zmat2cart(molecule,bond_s,angle_s,dihed_s,Smap,verbose)
+        if (verbose>1) &
+         print'(/,A,I0)', "STEP:", k
+        ! Update
+        write(molecule%title,'(A,I0,A,2(X,F12.6))') &
+         trim(adjustl((title)))//" Step ",k," Disp = ", qcoord, qcoord*Factor(j)
+!         S = filter_coordinates(S,map)
+        call zmat2cart(molecule,S)
         !Transform to AA and export coords and put back into BOHR
-        molecule%atom(1:Nat)%x = molecule%atom(1:Nat)%x*BOHRtoANGS
-        molecule%atom(1:Nat)%y = molecule%atom(1:Nat)%y*BOHRtoANGS
-        molecule%atom(1:Nat)%z = molecule%atom(1:Nat)%z*BOHRtoANGS
-        write(molecule%title,'(A,I0,A,2(X,F12.6))') "Step ",k," Disp = ", qcoord, qcoord*Factor(j)
+        call set_geom_units(molecule,"Angs")
         call write_gro(O_GRO,molecule)
+        ! Save state as reference frame for RMSD fit (in AA)
         molec_aux=molecule
         !===========================
-        !Half Forward oscillation
+        !Half Forward oscillation: from step "Eq + dQ" to "Eq + (N-1)/2 dQ"
         !===========================
-        !Initialize distacen criterion for new check_ori2b SR
+        !Initialize distacen criterion for rmsd_fit_frame_brute SR
         dist=0.d0
-        do istep = 1,nsteps/2
+        do istep = 1,(nsteps-1)/2
             k=k+1
+            if (verbose>1) &
+             print'(/,A,I0)', "STEP:", k
+            ! Update values
             qcoord = qcoord + Qstep/Factor(j)
-            print*, "STEP:", k
-            write(dummy_char,*) k
-            molecule%title = "File generated for "//trim(adjustl(grofile(jj)))//".step "//trim(adjustl(dummy_char))
-!             print*, "Bonds"
-            do i=1,molecule%geom%nbonds
-                S1(i) = S1(i) + L1(i,j) * Qstep/Factor(j)
-            enddo
-!             print*, "Angles"
-            do ii=i,i+molecule%geom%nangles-1
-                S1(ii) = S1(ii) + L1(ii,j) * Qstep/Factor(j)
-            enddo
-!             print*, "Dihedrals"
-            do iii=ii,ii+molecule%geom%ndihed-1
-               S1(iii) = S1(iii) + L1(iii,j) * Qstep/Factor(j)
-               if (S1(iii) > PI) S1(iii)=S1(iii)-2.d0*PI
-               if (S1(iii) < -PI) S1(iii)=S1(iii)+2.d0*PI
-            enddo
-            if (zmat) then
-                Smap=S1
-            else
-                do i=1,Nvib
-                    ii=Zmap(i)
-                    Smap(i) = S1(ii)
-                enddo
+            write(molecule%title,'(A,I0,A,2(X,F12.6))') &
+             trim(adjustl((title)))//" Step ",k," Disp = ", qcoord, qcoord*Factor(j)
+            ! Displace
+            call displace_Scoord(LL(:,j),molecule%geom%nbonds,molecule%geom%nangles,molecule%geom%ndihed,Qstep/Factor(j),S)
+            ! Get Cart coordinates
+            call zmat2cart(molecule,S)
+            !call rmsd_fit_frame(state,ref): efficient but not always works. If so, it uses rmsd_fit_frame_brute(state,ref)
+            call rmsd_fit_frame(molecule,molec_aux,info)
+            if (info /= 0) then
+                call rmsd_fit_frame_brute(molecule,molec_aux,dist)
             endif
-            call zmat2cart(molecule,bond_s,angle_s,dihed_s,Smap,verbose)
-            !Transform to AA and comparae with last step (stored in state) -- comparison in AA
-            molecule%atom(1:Nat)%x = molecule%atom(1:Nat)%x*BOHRtoANGS
-            molecule%atom(1:Nat)%y = molecule%atom(1:Nat)%y*BOHRtoANGS
-            molecule%atom(1:Nat)%z = molecule%atom(1:Nat)%z*BOHRtoANGS
-            !call check_ori4(state,ref): efficient but not always works. If so, it uses check_ori2(state,ref)
-            call check_ori4(molecule,molec_aux,info)
-            if (info /= 0 .or. istep==1) then
-                call check_ori2b(molecule,molec_aux,dist)
-                !The threshold in 5% avobe the last meassured distance
-                dist = dist*1.05
-            endif
-            write(molecule%title,'(A,I0,A,2(X,F12.6))') "Step ",k," Disp = ", qcoord, qcoord*Factor(j)
+            ! PRINT
+            !Transform to AA and comparae with last step (stored in state)  -- this should be detected and fix by the subroutines
+            call set_geom_units(molecule,"Angs")
+            ! Write GRO from the beginign and G96/G09 only when reach max amplitude
             call write_gro(O_GRO,molecule)
-            !Write the max amplitude step to G09 and G96 scan
-            if (k==nsteps/2) then
-                molecule%job%title=trim(adjustl(grofile(jj)))//".step "//trim(adjustl(dummy_char))
-                molecule%title=trim(adjustl(g09file))
-                call write_gcom(O_G09,molecule)
-                write(molecule%title,'(A,I0,A,2(X,F12.6))') "Step ",k," Disp = ", qcoord, qcoord*Factor(j)
+            if (k==(nsteps-1)/2) then
+                call write_gcom(O_G09,molecule,g09file,calc,method,basis,molecule%title)
                 call write_g96(O_G96,molecule)
                 write(O_Q,*) qcoord, qcoord*Factor(j)
             endif
-            !Save last step in molec_aux (in AA)
+            ! Save state as reference frame for RMSD fit (in AA)
             molec_aux=molecule
         enddo
         !=======================================
-        ! Reached amplitude. Back oscillation
+        ! Reached amplitude. Back oscillation: from step "MaxAmp + dQ" to "MaxAmp + (N-2) dQ" == -MaxAmp
         !=======================================
-        do istep = 1,nsteps/2-3
+        do istep = 1,nsteps-1
             k=k+1
+            if (verbose>1) &
+             print'(/,A,I0)', "STEP:", k
+            ! Update values
             qcoord = qcoord - Qstep/Factor(j)
-            print*, "STEP:", k
-            write(dummy_char,*) k
-            molecule%title = trim(adjustl(grofile(jj)))//".step "//trim(adjustl(dummy_char))
-!             print*, "Bonds"
-            do i=1,molecule%geom%nbonds
-                S1(i) = S1(i) - L1(i,j) * Qstep/Factor(j)
-            enddo
-!             print*, "Angles"
-            do ii=i,i+molecule%geom%nangles-1
-                S1(ii) = S1(ii) - L1(ii,j) * Qstep/Factor(j)
-            enddo
-!             print*, "Dihedrals"
-            do iii=ii,ii+molecule%geom%ndihed-1
-                S1(iii) = S1(iii) - L1(iii,j) * Qstep/Factor(j)
-                if (S1(iii) > PI) S1(iii)=S1(iii)-2.d0*PI
-                if (S1(iii) < -PI) S1(iii)=S1(iii)+2.d0*PI
-            enddo
-            if (zmat) then
-                Smap=S1
-            else
-                do i=1,Nvib
-                    ii=Zmap(i)
-                    Smap(i) = S1(ii)
-                enddo
-            endif
-            call zmat2cart(molecule,bond_s,angle_s,dihed_s,Smap,verbose)
-            molecule%atom(1:Nat)%x = molecule%atom(1:Nat)%x*BOHRtoANGS
-            molecule%atom(1:Nat)%y = molecule%atom(1:Nat)%y*BOHRtoANGS
-            molecule%atom(1:Nat)%z = molecule%atom(1:Nat)%z*BOHRtoANGS
-
-            call check_ori4(molecule,molec_aux,info)
+            write(molecule%title,'(A,I0,A,2(X,F12.6))') &
+             trim(adjustl((title)))//" Step ",k," Disp = ", qcoord, qcoord*Factor(j)
+            ! Displace
+            call displace_Scoord(LL(:,j),molecule%geom%nbonds,molecule%geom%nangles,molecule%geom%ndihed,-Qstep/Factor(j),S)
+            ! Get Cart coordinates
+            call zmat2cart(molecule,S)
+            !Transform to AA and comparae with last step (stored in state) -- comparison in AA
+            call set_geom_units(molecule,"Angs")
+            !call rmsd_fit_frame(state,ref): efficient but not always works. If so, it uses rmsd_fit_frame_brute(state,ref)
+            call rmsd_fit_frame(molecule,molec_aux,info)
             if (info /= 0) then
-                call check_ori2b(molecule,molec_aux,dist)
-                !The threshold in 5% avobe the last meassured distance
-                dist = dist*1.05
+                call rmsd_fit_frame_brute(molecule,molec_aux,dist)
             endif
-            write(molecule%title,'(A,I0,A,2(X,F12.6))') "Step ",k," Disp = ", qcoord, qcoord*Factor(j)
+            ! PRINT
+            ! Write G96/GRO every step and G09 scan every 10 steps
+            ! except the 5 poinst around minimum, which are all printed
             call write_gro(O_GRO,molecule)
-            ! Write G09 scan every 10 steps and G96 every step
-            write(molecule%title,'(A,I0,A,2(X,F12.6))') "Step ",k," Disp = ", qcoord, qcoord*Factor(j)
             call write_g96(O_G96,molecule)
             if (mod(k,10) == 0) then
-                molecule%job%title=trim(adjustl(grofile(jj)))//".step "//trim(adjustl(dummy_char))
-                molecule%title=trim(adjustl(g09file))
-                call write_gcom(O_G09,molecule)
+                call write_gcom(O_G09,molecule,g09file,calc,method,basis,molecule%title)
                 write(O_Q,*) qcoord, qcoord*Factor(j)
             endif
-            !Save last step in molec_aux (in AA)
-            molec_aux=molecule
-        enddo
-        !=======================================
-        ! Reached equilibrium again (5 points for numerical second derivatives)
-        !=======================================
-        open(O_NUM,file=numfile,status="replace")
-        do istep = 1,5
-            k=k+1
-            qcoord = qcoord - Qstep/Factor(j)
-            print*, "STEP:", k
-            write(dummy_char,*) k
-            molecule%title=trim(adjustl(grofile(jj)))//".step "//trim(adjustl(dummy_char))
-!             print*, "Bonds"
-            do i=1,molecule%geom%nbonds
-                S1(i) = S1(i) - L1(i,j) * Qstep/Factor(j)
-            enddo
-!             print*, "Angles"
-            do ii=i,i+molecule%geom%nangles-1
-                S1(ii) = S1(ii) - L1(ii,j) * Qstep/Factor(j)
-            enddo
-!             print*, "Dihedrals"
-            do iii=ii,ii+molecule%geom%ndihed-1
-                S1(iii) = S1(iii) - L1(iii,j) * Qstep/Factor(j)
-               if (S1(iii) > PI) S1(iii)=S1(iii)-2.d0*PI
-                if (S1(iii) < -PI) S1(iii)=S1(iii)+2.d0*PI
-            enddo
-            if (zmat) then
-                Smap=S1
-            else
-                do i=1,Nvib
-                    ii=Zmap(i)
-                    Smap(i) = S1(ii)
-                enddo
-            endif
-            call zmat2cart(molecule,bond_s,angle_s,dihed_s,Smap,verbose)
-            molecule%atom(1:Nat)%x = molecule%atom(1:Nat)%x*BOHRtoANGS
-            molecule%atom(1:Nat)%y = molecule%atom(1:Nat)%y*BOHRtoANGS
-            molecule%atom(1:Nat)%z = molecule%atom(1:Nat)%z*BOHRtoANGS
-
-            call check_ori4(molecule,molec_aux,info)
-            if (info /= 0) then
-                call check_ori2b(molecule,molec_aux,dist)
-                !The threshold in 5% avobe the last meassured distance
-                dist = dist*1.05
-            endif
-            write(molecule%title,'(A,I0,A,2(X,F12.6))') "Step ",k," Disp = ", qcoord, qcoord*Factor(j)
-            call write_gro(O_GRO,molecule)
-            !This time write all five numbers
-            molecule%job%title=trim(adjustl(grofile(jj)))//".step "//trim(adjustl(dummy_char))
-            molecule%title=trim(adjustl(g09file))
-            call write_gcom(O_G09,molecule)
-            write(dummy_char,*) qcoord
-            molecule%job%title = "Displacement = "//trim(adjustl(dummy_char))
-            molecule%title=trim(adjustl(numfile))
-            call write_gcom(O_NUM,molecule)
-            write(molecule%title,'(A,I0,A,2(X,F12.6))') "Step ",k," Disp = ", qcoord, qcoord*Factor(j)
-            call write_g96(O_G96,molecule)
-            write(O_Q,*) qcoord, qcoord*Factor(j)
-            molec_aux=molecule
-        enddo
-!         ! Numerical stimation of the second derivative
-!         aux_der(2) = (aux_der(3) - aux_der(1))/2.d0/Qstep/Factor(j)
-!         aux_der(4) = (aux_der(5) - aux_der(3))/2.d0/Qstep/Factor(j)
-!         Freq_num = (aux_der(4) - aux_der(2))/2.d0/Qstep/Factor(j)
-!         print*, Freq(j), &
-!                 sign(dsqrt(abs(Freq_num)*HARTtoJ/BOHRtoM**2/AUtoKG)/2.d0/pi/clight/1.d2,&
-!                      Freq_num)
-        !=======================================
-        ! Continue Back oscillation
-        !=======================================
-        do istep = 1,nsteps/2-2
-            k=k+1
-            qcoord = qcoord - Qstep/Factor(j)
-            print*, "STEP:", k
-            write(dummy_char,*) k
-            molecule%title = trim(adjustl(grofile(jj)))//".step "//trim(adjustl(dummy_char))
-!             print*, "Bonds"
-            do i=1,molecule%geom%nbonds
-                S1(i) = S1(i) - L1(i,j) * Qstep/Factor(j)
-            enddo
-!             print*, "Angles"
-            do ii=i,i+molecule%geom%nangles-1
-                S1(ii) = S1(ii) - L1(ii,j) * Qstep/Factor(j)
-            enddo
-!             print*, "Dihedrals"
-            do iii=ii,ii+molecule%geom%ndihed-1
-                S1(iii) = S1(iii) - L1(iii,j) * Qstep/Factor(j)
-               if (S1(iii) > PI) S1(iii)=S1(iii)-2.d0*PI
-                if (S1(iii) < -PI) S1(iii)=S1(iii)+2.d0*PI
-            enddo
-            if (zmat) then
-                Smap=S1
-            else
-                do i=1,Nvib
-                    ii=Zmap(i)
-                    Smap(i) = S1(ii)
-                enddo
-            endif
-            call zmat2cart(molecule,bond_s,angle_s,dihed_s,Smap,verbose)
-            molecule%atom(1:Nat)%x = molecule%atom(1:Nat)%x*BOHRtoANGS
-            molecule%atom(1:Nat)%y = molecule%atom(1:Nat)%y*BOHRtoANGS
-            molecule%atom(1:Nat)%z = molecule%atom(1:Nat)%z*BOHRtoANGS
-
-            call check_ori4(molecule,molec_aux,info)
-            if (info /= 0) then
-                call check_ori2b(molecule,molec_aux,dist)
-                !The threshold in 5% avobe the last meassured distance
-                dist = dist*1.05
-            endif
-            write(molecule%title,'(A,I0,A,2(X,F12.6))') "Step ",k," Disp = ", qcoord, qcoord*Factor(j)
-            call write_gro(O_GRO,molecule)
-            ! Write G09 scan every 10 steps and G96 every step
-            write(molecule%title,'(A,I0,A,2(X,F12.6))') "Step ",k," Disp = ", qcoord, qcoord*Factor(j)
-            call write_g96(O_G96,molecule)
-            if (mod(k,10) == 0) then
-                molecule%job%title=trim(adjustl(grofile(jj)))//".step "//trim(adjustl(dummy_char))
-                molecule%title=trim(adjustl(g09file))
-                call write_gcom(O_G09,molecule)
+            ! Write 5 poinst around minimum for numerical dierivatives
+            if (k>=nsteps-3.and.k<=nsteps+1) then
+                call write_gcom(O_NUM,molecule,numfile,calc,method,basis,molecule%title)
                 write(O_Q,*) qcoord, qcoord*Factor(j)
             endif
+            ! Save state as reference frame for RMSD fit (in AA)
             molec_aux=molecule
         enddo
         !=======================================
-        ! Reached amplitude. Half Forward oscillation (till equilibrium)
+        ! Reached amplitude. Half Forward oscillation (till one step before equilibrium, so that we concatenate well)
         !=======================================
-        do istep = 1,nsteps/2-1
+        do istep = 1,(nsteps-1)/2-1
             k=k+1
-            print*, "STEP:", k
-!             print*, "Bonds"
-            do i=1,molecule%geom%nbonds
-                S1(i) = S1(i) + L1(i,j) * Qstep/Factor(j)
-            enddo
-!             print*, "Angles"
-            do ii=i,i+molecule%geom%nangles-1
-                S1(ii) = S1(ii) + L1(ii,j) * Qstep/Factor(j)
-            enddo
-!             print*, "Dihedrals"
-            do iii=ii,ii+molecule%geom%ndihed-1
-                S1(iii) = S1(iii) + L1(iii,j) * Qstep/Factor(j)
-               if (S1(iii) > PI) S1(iii)=S1(iii)-2.d0*PI
-                if (S1(iii) < -PI) S1(iii)=S1(iii)+2.d0*PI
-            enddo
-            if (zmat) then
-                Smap=S1
-            else
-                do i=1,Nvib
-                    ii=Zmap(i)
-                    Smap(i) = S1(ii)
-                enddo
-            endif
-            call zmat2cart(molecule,bond_s,angle_s,dihed_s,Smap,verbose)
-            molecule%atom(1:Nat)%x = molecule%atom(1:Nat)%x*BOHRtoANGS
-            molecule%atom(1:Nat)%y = molecule%atom(1:Nat)%y*BOHRtoANGS
-            molecule%atom(1:Nat)%z = molecule%atom(1:Nat)%z*BOHRtoANGS
-
-            call check_ori4(molecule,molec_aux,info)
+            if (verbose>1) &
+             print'(/,A,I0)', "STEP:", k
+            ! Update values
+            qcoord = qcoord + Qstep/Factor(j)
+            write(molecule%title,'(A,I0,A,2(X,F12.6))') &
+             trim(adjustl((title)))//" Step ",k," Disp = ", qcoord, qcoord*Factor(j)
+            ! Displace
+            call displace_Scoord(LL(:,j),molecule%geom%nbonds,molecule%geom%nangles,molecule%geom%ndihed,Qstep/Factor(j),S)
+            ! Get Cart coordinates
+            call zmat2cart(molecule,S)
+            !call rmsd_fit_frame(state,ref): efficient but not always works. If so, it uses rmsd_fit_frame_brute(state,ref)
+            call rmsd_fit_frame(molecule,molec_aux,info)
             if (info /= 0) then
-                call check_ori2b(molecule,molec_aux,dist)
-                !The threshold in 5% avobe the last meassured distance
-                dist = dist*1.05
+                call rmsd_fit_frame_brute(molecule,molec_aux,dist)
             endif
-            write(molecule%title,'(A,I0,A,2(X,F12.6))') "Step ",k," Disp = ", qcoord, qcoord*Factor(j)
+            ! PRINT
+            !Transform to AA and comparae with last step (stored in state)  -- this should be detected and fix by the subroutines
+            call set_geom_units(molecule,"Angs")
+            ! Write only GRO 
             call write_gro(O_GRO,molecule)
+            ! Save state as reference frame for RMSD fit (in AA)
             molec_aux=molecule
         enddo
-        close(O_GRO)
-        close(O_G09)
-        close(O_Q)
+        open(O_GRO)
+        open(O_G09)
+        open(O_G96)
+        open(O_Q  )
+        open(O_NUM)
     enddo
 
     if (call_vmd) then
@@ -860,14 +487,17 @@ program normal_modes_animation
             write(dummy_char,'(A,I4,X,F8.2,A)') "{Mode",j, Freq(j),"cm-1}"
             dummy_char=trim(adjustl(dummy_char))
             write(S_VMD,*) "mol rename ", i, trim(dummy_char)
-            vmdcall = trim(adjustl(vmdcall))//" "//trim(adjustl(grofile(i+1)))
         enddo
         write(S_VMD,*) "display projection Orthographic"
         close(S_VMD)
         !Call vmd
         vmdcall = 'vmd -m '
         do i=1,Nsel
-        vmdcall = trim(adjustl(vmdcall))//" "//trim(adjustl(grofile(i)))
+            j = nm(i)
+            ! Get filenames (we want grofile name)
+            call prepare_files(j,ModeDef(j),scan_type,&
+                              grofile,g09file,g96file,numfile,qfile,title)
+            vmdcall = trim(adjustl(vmdcall))//" "//trim(adjustl(grofile))
         enddo
         vmdcall = trim(adjustl(vmdcall))//" -e vmd_conf.dat"
         call system(vmdcall)
@@ -883,13 +513,16 @@ program normal_modes_animation
         !Set molecule representation
         do i=0,Nsel-1
             j = nm(i+1)
+            ! Get filenames (we want grofile name)
+            call prepare_files(j,ModeDef(j),scan_type,&
+                              grofile,g09file,g96file,numfile,qfile,title)
             write(S_VMD,*) "mol representation CPK"
             write(S_VMD,*) "molinfo ", i, " set drawn 0"
             write(S_VMD,*) "mol addrep ", i
             write(dummy_char,'(A,I4,X,F8.2,A)') "{Mode",j, Freq(j),"cm-1}"
             dummy_char=trim(adjustl(dummy_char))
             write(S_VMD,*) "mol rename ", i, trim(dummy_char)
-            vmdcall = trim(adjustl(vmdcall))//" "//trim(adjustl(grofile(i+1)))
+            vmdcall = trim(adjustl(vmdcall))//" "//trim(adjustl(grofile))
         enddo
         write(S_VMD,'(A)') "#====================="
         write(S_VMD,'(A)') "# Start movies"
@@ -924,13 +557,13 @@ program normal_modes_animation
         !Call vmd
         vmdcall = 'vmd -m '
         do i=1,Nsel
-        vmdcall = trim(adjustl(vmdcall))//" "//trim(adjustl(grofile(i)))
+        vmdcall = trim(adjustl(vmdcall))//" "//trim(adjustl(grofile))
         enddo
         vmdcall = trim(adjustl(vmdcall))//" -e vmd_movie.dat -size 500 500"
-        open(O_LIS,file="movie.cmd",status="replace")
-        write(O_LIS,'(A)') trim(adjustl(vmdcall))
-        write(O_LIS,'(A)') "rm Mode*jpg Mode*dat Mode*tga"
-        close(O_LIS)
+        open(O_MOV,file="movie.cmd",status="replace")
+        write(O_MOV,'(A)') trim(adjustl(vmdcall))
+        write(O_MOV,'(A)') "rm Mode*jpg Mode*dat Mode*tga"
+        close(O_MOV)
         print*, ""
         print*, "============================================================"
         print*, "TO GENERATE THE MOVIES (AVI) EXECUTE COMMANDS IN 'movie.cmd'"
@@ -939,6 +572,8 @@ program normal_modes_animation
         print*, ""
     endif
     
+    call summary_alerts
+
     call cpu_time(tf)
     write(0,'(/,A,X,F12.3,/)') "CPU time (s)", tf-ti
 
@@ -949,29 +584,32 @@ program normal_modes_animation
     contains
     !=============================================
 
-    subroutine parse_input(inpfile,addfile,nmfile,nm,Nsel,Amplitude,filetype,nosym,zmat,verbose,tswitch,symaddapt,&
-                           zmatfile,icoord,showZ,call_vmd,movie_cycles,include_hbonds,vertical)
+    subroutine parse_input(&
+                           ! input data
+                           inpfile,ft,hessfile,fth,gradfile,ftg,                 &
+                           ! Options (general)
+                           Amplitude,call_vmd,include_hbonds,selection,vertical, &
+                           ! Movie
+                           movie_vmd, movie_cycles,                              &
+                           ! Options (internal)
+                           use_symmetry,def_internal,intfile,rmzfile,scan_type)
     !==================================================
     ! My input parser (gromacs style)
     !==================================================
         implicit none
 
-        character(len=*),intent(inout) :: inpfile,addfile,nmfile,filetype,zmatfile
-        logical,intent(inout) :: nosym, verbose, zmat, tswitch, symaddapt,showZ,call_vmd,include_hbonds,vertical
-        integer,dimension(:),intent(inout) :: nm
-        integer,intent(inout) :: icoord, movie_cycles
-        integer,intent(out) :: Nsel
-        real(8),intent(out) :: Amplitude
+        character(len=*),intent(inout) :: inpfile,ft,hessfile,fth,gradfile,ftg, &
+                                          intfile,rmzfile,scan_type,def_internal,selection
+        real(8),intent(inout)          :: Amplitude
+        logical,intent(inout)          :: call_vmd, include_hbonds,vertical, use_symmetry,movie_vmd
+        integer,intent(inout)          :: movie_cycles
+
         ! Local
         logical :: argument_retrieved,  &
                    need_help = .false.
         integer:: i
         character(len=200) :: arg
-        real(8) :: maxd
-
-        !Prelimirary defaults
-        Nsel = 0
-        maxd = Amplitude*2.d0
+        character(len=200) :: int_selection, nm_selection
 
         argument_retrieved=.false.
         do i=1,iargc()
@@ -985,92 +623,110 @@ program normal_modes_animation
                     call getarg(i+1, inpfile)
                     argument_retrieved=.true.
                 case ("-ft") 
-                    call getarg(i+1, filetype)
+                    call getarg(i+1, ft)
                     argument_retrieved=.true.
 
-                case ("-add") 
-                    call getarg(i+1, addfile)
+                case ("-fhess") 
+                    call getarg(i+1, hessfile)
                     argument_retrieved=.true.
+                case ("-fth") 
+                    call getarg(i+1, fth)
+                    argument_retrieved=.true.
+
+                case ("-fgrad") 
+                    call getarg(i+1, gradfile)
+                    argument_retrieved=.true.
+                case ("-ftg") 
+                    call getarg(i+1, ftg)
+                    argument_retrieved=.true.
+
+                case ("-intfile") 
+                    call getarg(i+1, intfile)
+                    argument_retrieved=.true.
+
+                case ("-rmzfile") 
+                    call getarg(i+1, rmzfile)
+                    argument_retrieved=.true.
+
+                case ("-intmode")
+                    call getarg(i+1, def_internal)
+                    argument_retrieved=.true.
+
+                case ("-sym")
+                    use_symmetry=.true.
+                case ("-nosym")
+                    use_symmetry=.false.
+
+                case ("-vert")
+                    vertical=.true.
+                case ("-novert")
+                    vertical=.false.
 
                 case ("-nm") 
-                    call getarg(i+1, arg)
-                    argument_retrieved=.true.
-                    call string2vector_int(arg,nm,Nsel)
-
-                case ("-nmf") 
-                    call getarg(i+1, nmfile)
+                    scan_type="NM"
+                    call getarg(i+1, selection)
                     argument_retrieved=.true.
 
-                case ("-maxd") 
+                case ("-int")
+                    scan_type="IN"
+                    call getarg(i+1, selection)
+                    argument_retrieved=.true.
+
+                case ("-disp") 
                     call getarg(i+1, arg)
-                    read(arg,*) maxd
-                    !The whole Amplitude is twide the max displacement
-                    Amplitude = maxd*2
+                    read(arg,*) Amplitude
                     argument_retrieved=.true.
 
                 case ("-vmd")
                     call_vmd=.true.
 
-                case ("-vert")
-                    vertical=.true.
-
                 case ("-movie")
                     call getarg(i+1, arg)
                     read(arg,*) movie_cycles
+                    movie_vmd=.true.
                     argument_retrieved=.true.
-
-                case ("-nosym")
-                    nosym=.true.
-                case ("-sym")
-                    nosym=.false.
-
-                case ("-sa")
-                    symaddapt=.true.
-                case ("-nosa")
-                    symaddapt=.false.
-
-                case ("-readz") 
-                    call getarg(i+1, zmatfile)
-                    argument_retrieved=.true.
-
-                case("-showz")
-                    showZ=.true.
-
-                case ("-zmat")
-                    zmat=.true.
-                case ("-nozmat")
-                    zmat=.false.
-
-                case ("-tswitch")
-                    tswitch=.true.
 
                 case ("-include_hb")
                     include_hbonds=.true.
-
-                case ("-int")
-                    call getarg(i+1, arg)
-                    read(arg,*) icoord
-                    argument_retrieved=.true.
-
-                case ("-v")
-                    verbose=.true.
         
                 case ("-h")
                     need_help=.true.
+
+                ! Control verbosity
+                case ("-quiet")
+                    verbose=0
+                case ("-concise")
+                    verbose=1
+                case ("-v")
+                    verbose=2
+                case ("-vv")
+                    verbose=3
 
                 case default
                     call alert_msg("fatal","Unkown command line argument: "//adjustl(arg))
             end select
         enddo 
 
-        ! Some checks on the input
-        !----------------------------
-        if (symaddapt.and.nosym) then
-            print*, ""
-            print*, "Symmetry addapted internal coordintes implies -sym. Turning on..."
-            print*, ""
-            nosym=.false.
-        endif
+       ! Manage defaults
+       ! If not declared, hessfile and gradfile are the same as inpfile
+       if (adjustl(hessfile) == "same") then
+           hessfile=inpfile
+           fth=ft
+       endif
+       if (adjustl(gradfile) == "same") then
+           gradfile=inpfile
+           ftg=ft
+       endif
+
+       ! Select internal or normal modes
+       if (scan_type == "NM") then
+           int_selection="-"
+           nm_selection =selection
+       elseif (scan_type == "IN") then
+           nm_selection ="-"
+           int_selection=selection
+       endif
+
 
        !Print options (to stderr)
         write(0,'(/,A)') '--------------------------------------------------'
@@ -1078,32 +734,23 @@ program normal_modes_animation
         write(0,'(/,A)') '      Perform vibrational analysis based on  '
         write(0,'(/,A)') '            internal coordinates (D-V7)'        
         write(0,'(/,A)') '         Revision: nm_internal-140320-1'
-       write(0,'(/,A)') '--------------------------------------------------'
+        write(0,'(/,A)') '--------------------------------------------------'
         write(0,*) '-f              ', trim(adjustl(inpfile))
-        write(0,*) '-ft             ', trim(adjustl(filetype))
-        write(0,*) '-add            ', trim(adjustl(addfile))
-        write(0,*) '-nm            ', nm(1),"-",nm(Nsel)
-!         write(0,*) '-nmf           ', nm(1:Nsel)
+        write(0,*) '-ft             ', trim(adjustl(ft))
+        write(0,*) '-fhess          ', trim(adjustl(hessfile))
+        write(0,*) '-fth            ', trim(adjustl(fth))
+        write(0,*) '-fgrad          ', trim(adjustl(gradfile))
+        write(0,*) '-ftg            ', trim(adjustl(ftg))
+        write(0,*) '-intmode        ', trim(adjustl(def_internal))
+        write(0,*) '-intfile        ', trim(adjustl(intfile))
+        write(0,*) '-rmzfile        ', trim(adjustl(rmzfile))
+        write(0,*) '-nm             ', trim(adjustl(nm_selection))
+        write(0,*) '-int            ', trim(adjustl(int_selection))
+        write(6,*) '-[no]sym       ',  use_symmetry
+        write(6,*) '-[no]vert      ',  vertical
         write(0,*) '-vmd           ',  call_vmd
         write(0,*) '-movie (cycles)',  movie_cycles
-        write(0,*) '-maxd          ',  maxd
-        if (nosym) dummy_char="NO "
-        if (.not.nosym) dummy_char="YES"
-        write(0,*) '-[no]sym        ', dummy_char
-        if (zmat) dummy_char="YES"
-        if (.not.zmat) dummy_char="NO "
-        write(0,*) '-[no]zmat       ', dummy_char
-        write(0,*) '-readz          ', trim(adjustl(zmatfile))
-        write(0,*) '-showz         ', showZ
-        if (tswitch) dummy_char="YES"
-        if (.not.tswitch) dummy_char="NO "
-        write(0,*) '-tswitch        ', dummy_char
-        write(0,*) '-include_hb    ',  include_hbonds
-        if (symaddapt) dummy_char="YES"
-        if (.not.symaddapt) dummy_char="NO "
-        write(0,*) '-sa             ', dummy_char
-        write(0,*) '-int           ', icoord
-        write(0,*) '-v             ', verbose
+        write(0,*) '-disp          ',  Amplitude
         write(0,*) '-h             ',  need_help
         write(0,*) '--------------------------------------------------'
         if (need_help) call alert_msg("fatal", 'There is no manual (for the moment)' )
@@ -1111,55 +758,69 @@ program normal_modes_animation
         return
     end subroutine parse_input
 
+    subroutine prepare_files(icoord,label,scan_type,grofile,g09file,g96file,numfile,qfile,title)
 
-    subroutine generic_strfile_read(unt,filetype,molec)
+        integer,intent(in) :: icoord
+        character(len=*),intent(out) :: label, scan_type
+        character(len=*),intent(out) :: grofile,g09file,g96file,numfile,qfile,title
 
-        integer, intent(in) :: unt
-        character(len=*),intent(inout) :: filetype
-        type(str_resmol),intent(inout) :: molec
+        !Local
+        character(len=150) :: dummy_char
 
-        !local
-        type(str_molprops) :: props
+        if (scan_type=="IN") then
+            write(dummy_char,"(I0,X,A)") icoord
+            title   = "Animation of internal coordinate "//trim(adjustl(dummy_char))//"("//trim(adjustl(label))//")"
+            g09file = "Coord"//trim(adjustl(dummy_char))//"_int.com"
+            g96file = "Coord"//trim(adjustl(dummy_char))//"_int.g96"
+            qfile   = "Coord"//trim(adjustl(dummy_char))//"_int_steps.dat"
+            grofile = "Coord"//trim(adjustl(dummy_char))//"_int.gro" 
+            numfile = "Coord"//trim(adjustl(dummy_char))//"_int_num.com"
+        else
+            write(dummy_char,"(I0,X,A)") icoord
+            title   = "Animation of normal mode "//trim(adjustl(dummy_char))
+            g09file = "Mode"//trim(adjustl(dummy_char))//"_int.com"
+            g96file = "Mode"//trim(adjustl(dummy_char))//"_int.g96"
+            qfile   = "Mode"//trim(adjustl(dummy_char))//"_int_steps.dat"
+            grofile = "Mode"//trim(adjustl(dummy_char))//"_int.gro"
+            numfile = "Mode"//trim(adjustl(dummy_char))//"_int_num.com"
+        endif
 
-        select case (adjustl(filetype))
-            case("gro")
-             call read_gro(I_INP,molec)
-             call atname2element(molec)
-             call assign_masses(molec)
-            case("g96")
-             call read_g96(I_INP,molec)
-             call atname2element(molec)
-             call assign_masses(molec)
-            case("pdb")
-             call read_pdb_new(I_INP,molec)
-             call atname2element(molec)
-             call assign_masses(molec)
-            case("log")
-             call parse_summary(I_INP,molec,props,"struct_only")
-             call atname2element(molec)
-             call assign_masses(molec)
-            case("fchk")
-             call read_fchk_geom(I_INP,molec)
-             call atname2element(molec)
-!              call assign_masses(molec) !read_fchk_geom includes the fchk masses
-            case("UnSym")
-             call read_molcas_geom(I_INP,molec)
-             call atname2element(molec)
-             call assign_masses(molec)
-            case("psi4")
-             call read_psi_geom(I_INP,molec)
-             call atname2element(molec)
-             call assign_masses(molec)
-            case default
-             call alert_msg("fatal","File type not supported: "//filetype)
-        end select
+    end subroutine prepare_files
 
 
-        return
+    subroutine displace_Scoord(Lc,nbonds,nangles,ndihed,Qstep,S)
 
+        real(8),dimension(:),intent(in)   :: Lc
+        real(8),intent(in)                :: Qstep 
+        integer,intent(in)                :: nbonds,nangles,ndihed
+        real(8),dimension(:),intent(inout):: S
 
-    end subroutine generic_strfile_read
+        !Local
+        integer :: i, k
+
+        k=0
+        if (verbose>1) &
+         print*, "Bonds"
+        do i=1,nbonds
+            k=k+1
+            S(k) = S(k) + Lc(k) * Qstep
+        enddo
+        if (verbose>1) &
+         print*, "Angles"
+        do i=1,nangles
+            k=k+1
+            S(k) = S(k) + Lc(k) * Qstep
+        enddo
+        if (verbose>1) &
+         print*, "Dihedrals"
+        do i=1,ndihed
+            k=k+1
+            S(k) = S(k) + Lc(k) * Qstep
+            if (S(k) >  PI) S(k)=S(k)-2.d0*PI
+            if (S(k) < -PI) S(k)=S(k)+2.d0*PI
+        enddo
        
+    end subroutine displace_Scoord
 
 end program normal_modes_animation
 

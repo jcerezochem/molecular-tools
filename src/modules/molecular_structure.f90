@@ -24,6 +24,7 @@ module molecular_structure
     use alerts
     use line_preprocess
     use constants
+    use verbosity
     implicit none
 
     contains
@@ -709,32 +710,10 @@ module molecular_structure
         !local
         integer :: i, iel
 
-        character(len=5),dimension(103) :: atom_names_from_atnum
- 
-        !This should be elsewhere (constants_mod?)
-        data atom_names_from_atnum(1:103) &
-         /'H' ,                                                                                'He',&
-          'Li','Be',                                                  'B' ,'C' ,'N' ,'O' ,'F' ,'Ne',&
-          'Na','Mg',                                                  'Al','Si','P' ,'S' ,'Cl','Ar',&
-          'K' ,'Ca','Sc','Ti','V' ,'Cr','Mn','Fe','Co','Ni','Cu','Zn','Ga','Ge','As','Se','Br','Kr',&
-          'Rb','Sr','Y' ,'Zr','Nb','Mo','Tc','Ru','Rh','Pd','Ag','Cd','In','Sn','Sb','Te','I' ,'Xe',&
-          'Cs','Ba','La',& !Lantanides:  
-!                  ---------------------------------------------------
-                    'Ce','Pr','Nd','Pm','Sm','Eu','Gd',&
-                    'Tb','Dy','Ho','Er','Tm','Yb','Lu',&
-!                  ---------------------------------------------------
-                         'Hf','Ta','W' ,'Re','Os','Ir','Pt','Au','Hg','Tl','Pb','Bi','Po','At','Rn',&
-         'Fr','Ra','Ac',& !Actinides:
-!                  ---------------------------------------------------
-                   'Th','Pa','U' ,'Np','Pu','Am','Cm',&
-                   'Bk','Cf','Es','Fm','Md','No','Lr'&
-!                  ---------------------------------------------------
-         /
-
         do i=1,molec%natoms
             do iel=1,103
                 if (adjustl(molec%atom(i)%element) == &
-                    adjustl(atom_names_from_atnum(iel))) then
+                    adjustl(atname_from_atnum(iel))) then
                     molec%atom(i)%AtNum = iel
                     exit
                 endif
@@ -1332,14 +1311,16 @@ module molecular_structure
         distmin0=distmin0+geo1(k)**2+geo2(k)**2
         enddo
         
-        distmin=distmin0-2.d0*e(4)   
-        write(0,*) 'minimal distance =',distmin        
+        distmin=distmin0-2.d0*e(4)  
+        if (verbose>2) &  
+         write(0,*) 'minimal distance =',distmin        
         if (-e(1)-e(4).gt.1.d-6) then
-            write(0,*) 'should consider reflection'
             distmin1=distmin0+2.d0*e(1)
-            write(0,*) 'the minimal distance would be', distmin1
+            if (verbose>1) then
+                write(0,*) 'should consider reflection'
+                write(0,*) 'the minimal distance would be', distmin1
+            endif
         endif
-        write(0,*) ""
         rot(1,1)=cvec(1,4)**2+cvec(2,4)**2-cvec(3,4)**2-cvec(4,4)**2
         rot(2,1)=2.d0*(cvec(2,4)*cvec(3,4)+cvec(1,4)*cvec(4,4))
         rot(3,1)=2.d0*(cvec(2,4)*cvec(4,4)-cvec(1,4)*cvec(3,4))
