@@ -287,41 +287,8 @@ module line_preprocess
 
     end subroutine string2vector_int
 
+
     subroutine string2vector_char(raw_vector,array_vector,n_elem,sep)
-
-        !Description
-        ! Tranforms a string of comma sepparated values into an
-        ! array of such integer vaues (integer version) 
-
-        character(len=*),intent(inout) :: raw_vector
-        character(len=*),dimension(:),intent(out) :: array_vector
-        integer,intent(out) :: n_elem
-        character(len=*) :: sep !separador
-
-        !Local
-        character(len=240) :: auxchar
-        integer :: i
-    
-        
-        !Read unknown length vector (comma sepparated)
-        i=0
-        do 
-            i=i+1
-            if ( INDEX(raw_vector,sep) /= 0 ) then
-                call split_line(raw_vector,sep,auxchar,raw_vector)
-                read(auxchar,*) array_vector(i)
-            else 
-                read(raw_vector,*) array_vector(i)
-                exit
-            endif
-        enddo  
-        n_elem=i
-
-        return
-
-    end subroutine string2vector_char
-
-    subroutine string2vector_char_new(raw_vector,array_vector,n_elem,sep)
 
         !Description
         ! Tranforms a string of <sep> sepparated values into an
@@ -365,7 +332,7 @@ module line_preprocess
 
         return
 
-    end subroutine string2vector_char_new
+    end subroutine string2vector_char
 
 
     ! Functions that get character from numbers
@@ -439,6 +406,52 @@ module line_preprocess
         return
 
     end function real2char
+
+
+    subroutine selection2intlist(selection,list,Nlist)
+
+       ! Interpret a selection to the array of integers
+       ! Syntaxis of the selection:
+       !  #  1 to 3   => (1,2,3)
+       !  #  1,3,5-7  => (1,3,5,6,7)
+
+        character(len=*), intent(in) :: selection
+        integer, intent(out) :: Nlist
+        integer,dimension(1:100) :: list
+        !local 
+        character(len=5),dimension(100) :: selection_split
+        integer :: i, j, jj
+        integer :: N, range_last, range_width
+        logical :: is_range
+
+        call string2vector_char(selection,selection_split,N," ")
+
+        is_range = .false.
+        j = 0
+        do i=1,N
+            if (selection_split(i) == "to") then
+                is_range =  .true.
+                cycle
+            endif
+            ! Read number
+            if (.not.is_range) then
+                j = j+1
+                read(selection_split(i),*) list(j)
+            else
+                read(selection_split(i),*) range_last
+                range_width = range_last - list(j)
+                do jj = 1, range_width
+                    j = j + 1
+                    list(j) = list(j-1) + 1
+                enddo
+                is_range = .false.
+            endif
+        enddo
+        Nlist = j
+
+        return
+
+    end subroutine selection2intlist
 
 
 end module line_preprocess

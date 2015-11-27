@@ -57,7 +57,7 @@ module generic_io_molec
 
         call atname2element(molec)
 
-        ! Reader give coordiantes in Angstrong
+        ! Reader provides coordiantes in Angstrong
         molec%units = "Angs"
 
         ! Error handling
@@ -91,14 +91,21 @@ module generic_io_molec
         !
         !==============================================================
 
+        use molecular_structure
+
         integer,intent(in)              :: unt
         character(len=*),intent(in)     :: filetype
-        type(str_resmol),intent(in)     :: molec
+        type(str_resmol),intent(inout)  :: molec
         integer,intent(out),optional    :: error_flag
 
         !Local
         integer   :: error_local
         character(len=200) :: msg
+        character(len=4) ::  current_units
+
+        ! Save current_units and ensure Angs
+        current_units=molec%units
+        call set_geom_units(molec,"Angs")
 
         call generic_structure_writer(unt,filetype,molec%natoms,      &
                                                    molec%atom(:)%x,   &
@@ -116,6 +123,8 @@ module generic_io_molec
 
         if (present(error_flag)) error_flag=error_local
         
+        ! Reset input units before leaving
+        call set_geom_units(molec,adjustl(current_units))
 
         return
 

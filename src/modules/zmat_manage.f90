@@ -1,6 +1,8 @@
 module zmat_manage
 
     use verbosity
+    use matrix
+    use matrix_print
 
     contains
 
@@ -165,6 +167,7 @@ module zmat_manage
         ! angle = /j,i,X/ ...
     
         use structure_types
+        use molecular_structure
         use alerts
         use constants
         use atomic_geom
@@ -181,7 +184,11 @@ module zmat_manage
         integer :: i,j,k,m, ii,kk, ibonds, &
                    i_1,i_2,i_3,i_4, ii_1,ii_2,ii_3,ii_4
         logical :: done
+        character(len=4) ::  current_units
 
+        ! Save current_units and ensure Bohr
+        current_units=molec%units
+        call set_geom_units(molec,"Bohr")
     
         ! BUILD Z-MATRIX on molecule
         ! New numbering is stored in resseq
@@ -263,6 +270,8 @@ module zmat_manage
         molec%atom(i_1)%chain = "P"
         molec%atom(i_1)%resseq = k
     
+        ! Reset input units before leaving
+        call set_geom_units(molec,adjustl(current_units))
         if (molec%natoms == 1) return
     
         !Second atom 
@@ -282,6 +291,8 @@ module zmat_manage
         molec%atom(i_2)%chain = "P"
         molec%atom(i_2)%resseq = k 
     
+        ! Reset input units before leaving
+        call set_geom_units(molec,adjustl(current_units))
         if (molec%natoms == 2) return
     
         !Third atom
@@ -343,6 +354,8 @@ module zmat_manage
     
         if (molec%natoms == 3) then
             angle_sym(3) = 3 
+            ! Reset input units before leaving
+             call set_geom_units(molec,adjustl(current_units))
             return
         endif
     
@@ -484,6 +497,9 @@ module zmat_manage
         molec%geom%nbonds  = Nat-1
         molec%geom%nangles = Nat-2
         molec%geom%ndihed  = Nat-3
+
+        ! Reset input units before leaving
+        call set_geom_units(molec,adjustl(current_units))
     
         return
     
@@ -877,7 +893,7 @@ module zmat_manage
 
     !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%5
 
-    subroutine check_ori4(molec,molec2,info)
+    subroutine rmsd_fit_frame(molec,molec2,info)
     
         ! Check if two molecules share the same orientation and, if not, reorinent molec to fit molec2
         ! Thia version (4) uses ROTATA to get a first stimation of the rotation
@@ -907,9 +923,9 @@ module zmat_manage
         call ROTATA1(molec,molec2,R)
     
         ! Analyze the rotation
-        print*, "R (to minimize RMSD)"
+        if (verbose>1) &
+         call MAT0(6,R,3,3,"R (to minimize RMSD)")
         do i=1,3
-            print'(100(F8.3,2X))', R(i,1:3)
             Theta=0.d0
             do j=1,3
                 if (abs(R(i,j)) > 0.8) then
@@ -921,15 +937,12 @@ module zmat_manage
             enddo
             if (Theta /= 1.d0) info=-1
         enddo
-        print*, ""
-        print*, "T0 (keeping stdori frame)"
-        do i=1,3
-            print'(100(F8.3,2X))', T0(i,1:3)
-        enddo
+        if (verbose>1) &
+         call MAT0(6,T0,3,3,"T0 (matching stdori frame)")
     
         ! If successful, rotate the molecule
         if (info /= 0) then
-            print*, "New fast method failed..."
+            call alert_msg("warning","New fast method failed.")
         else
             ! Rotate
             call rotate_molec(molec,T0)
@@ -938,7 +951,158 @@ module zmat_manage
     
         return
     
-    end subroutine check_ori4
+    end subroutine rmsd_fit_frame
+
+
+    subroutine rmsd_fit_frame_brute(molec,molec2,dist)
+    
+        ! Check if two molecules share the same orientation and, if not, reorinent molec to fit molec2
+        ! This version "ensures" proper relative orientation (but is very time consuming!!)
+        ! New: version b includes a distance threshold to avoid checking all the orientations
+    
+        use structure_types
+    
+        implicit none
+    
+        type(str_resmol),intent(inout) :: molec
+        type(str_resmol),intent(in)    :: molec2
+        real(8),intent(inout)          :: dist
+    
+        type(str_resmol)    :: molec_aux
+        real(8),dimension(3,3) :: T
+        real(8),dimension(3,3) :: T0
+        real(8),dimension(3) :: Vec2
+    
+        integer :: iT, iTT, i, Nat
+        real(8) :: xaux, yaux, zaux, det, rsum, rcheck, &
+                   xrot, yrot, zrot
+    
+        Nat = molec%natoms
+        rcheck=1.d10
+        do iTT=1,7
+        !Check all 8 possible solutions for T0 (see Sando, 2001) 
+        do iT=1,8
+    
+            Vec2=1.d0
+            if (iT==2) then
+                Vec2(1) = -1.d0
+            else if (iT==3) then
+                Vec2(2) = -1.d0
+            else if (iT==4) then
+                Vec2(3) = -1.d0
+            else if (iT==5) then
+                Vec2(1) = -1.d0
+                Vec2(2) = -1.d0
+            else if (iT==6) then
+                Vec2(1) = -1.d0
+                Vec2(3) = -1.d0
+            else if (iT==7) then
+                Vec2(2) = -1.d0
+                Vec2(3) = -1.d0
+            else if (iT==8) then
+                Vec2(1) = -1.d0
+                Vec2(2) = -1.d0
+                Vec2(3) = -1.d0
+            endif
+        
+            !T is diagonal 
+            T=0
+            if (iTT ==1 ) then
+            T(1,1) = Vec2(1)
+            T(2,2) = Vec2(2)
+            T(3,3) = Vec2(3)
+            elseif (iTT ==2 ) then
+            T(1,2) = Vec2(1)
+            T(2,1) = Vec2(2)
+            T(3,3) = Vec2(3)
+            elseif (iTT ==3 ) then
+            T(2,1) = Vec2(1)
+            T(2,1) = Vec2(2)
+            T(3,3) = Vec2(3)
+            elseif (iTT ==4 ) then
+            T(1,3) = Vec2(1)
+            T(2,2) = Vec2(2)
+            T(3,1) = Vec2(3)
+            elseif (iTT ==5 ) then
+            T(3,1) = Vec2(1)
+            T(2,2) = Vec2(2)
+            T(1,3) = Vec2(3)
+            elseif (iTT ==6 ) then
+            T(1,1) = Vec2(1)
+            T(2,3) = Vec2(2)
+            T(3,2) = Vec2(3)
+            elseif (iTT ==6 ) then
+            T(1,1) = Vec2(1)
+            T(3,2) = Vec2(2)
+            T(2,3) = Vec2(3)
+            endif
+            
+    !     print*, "T",iT, iTT
+    !     do i=1,3
+    !         print'(100(F8.3,2X))', T(i,1:3)
+    !     enddo
+    
+        det =       T(1,1)*T(2,2)*T(3,3)
+        det = det + T(2,1)*T(3,2)*T(1,3)
+        det = det + T(1,2)*T(2,3)*T(3,1)
+        det = det - T(3,1)*T(2,2)*T(1,3)
+        det = det - T(2,1)*T(1,2)*T(3,3)
+        det = det - T(3,2)*T(2,3)*T(1,1)
+    
+    !     print*, det
+    
+        if (det<0.d0) cycle
+    
+        !Rotate and check sum of distances
+        molec_aux=molec
+        rsum=0.d0
+        do i=1,Nat
+            xaux = molec%atom(i)%x
+            yaux = molec%atom(i)%y
+            zaux = molec%atom(i)%z
+            xrot = T(1,1)*xaux + T(1,2)*yaux + T(1,3)*zaux - molec2%atom(i)%x
+            yrot = T(2,1)*xaux + T(2,2)*yaux + T(2,3)*zaux - molec2%atom(i)%y
+            zrot = T(3,1)*xaux + T(3,2)*yaux + T(3,3)*zaux - molec2%atom(i)%z
+            rsum=rsum + dsqrt( xrot**2+ yrot**2+ zrot**2)
+        enddo
+    !     print*, "Sum of distance ", rsum
+    
+        if (rsum < rcheck) then
+            T0=T
+            rcheck=rsum
+        endif
+    
+        if (rsum < dist) exit
+    
+        enddo !
+    
+        !If exited due to criterion met, exit here
+        if (rsum < dist) exit
+    
+        enddo ! Possible T values
+    
+        !Update the distance criterion
+        if (verbose>0) then
+            print*, "Distance criterion was: ", dist
+            print*, "Updated to: ", rcheck
+        endif
+        dist=rcheck
+     
+        if (verbose>1) &
+         call MAT0(6,T0,3,3,"T0")
+
+        do i=1,Nat
+            xaux = molec%atom(i)%x
+            yaux = molec%atom(i)%y
+            zaux = molec%atom(i)%z
+            molec%atom(i)%x = T0(1,1)*xaux + T0(1,2)*yaux + T0(1,3)*zaux 
+            molec%atom(i)%y = T0(2,1)*xaux + T0(2,2)*yaux + T0(2,3)*zaux
+            molec%atom(i)%z = T0(3,1)*xaux + T0(3,2)*yaux + T0(3,3)*zaux 
+        enddo
+    
+        return
+    
+    end subroutine rmsd_fit_frame_brute
 
 
 end module zmat_manage

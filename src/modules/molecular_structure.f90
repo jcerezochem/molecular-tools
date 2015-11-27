@@ -128,6 +128,11 @@ module molecular_structure
         real :: av_len, dist
         integer :: i,j, i_cnx
         logical :: include_hbond=.false.
+        character(len=4) ::  current_units
+
+        ! Save current_units and ensure Angs
+        current_units=molec%units
+        call set_geom_units(molec,"Angs")
 
         !InOut, better reassigned
         molec=molec
@@ -171,6 +176,9 @@ module molecular_structure
             enddo
             molec%atom(i)%nbonds=i_cnx
         enddo
+
+        ! Reset input units before leaving
+        call set_geom_units(molec,adjustl(current_units))
 
         return
 

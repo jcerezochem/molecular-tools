@@ -100,6 +100,70 @@ module internal_module
              molec%geom%nangles + &
              molec%geom%ndihed
 
+
+        ! POST-PROCESSING OPERATIONS
+        ! ---------------------------
+!         ! Manage redundant by mapping cherry-picking the non-redundant
+!         ! among the whole set (this should go somewhere else)
+!         if (Ns>Nvib) then
+!             !otherwise all parameters from molec%geom are used
+!             nbonds = molecule%geom%nbonds
+!             nangles= molecule%geom%nangles
+!             ndihed = molecule%geom%ndihed
+!             print*, "Bonds Map"
+!             do j=2,Nat
+!             do i=1,nbonds
+!                 if (bond_s(j,1)==molecule%geom%bond(i,1).and.&
+!                     bond_s(j,2)==molecule%geom%bond(i,2)) then
+!                     print*, "Zmat<->Map Redundant:", j-1,i
+!                     Zmap(j-1) = i
+!                 endif
+!                 if (bond_s(j,2)==molecule%geom%bond(i,1).and.&
+!                     bond_s(j,1)==molecule%geom%bond(i,2)) then
+!                     print*, "Zmat<->Map Redundant:", j-1,i
+!                     Zmap(j-1) = i
+!                 endif
+!             enddo
+!             enddo
+!             print*, "Angles Map"
+!             do j=3,Nat
+!             do i=1,nangles
+!                 if (angle_s(j,1)==molecule%geom%angle(i,1).and.&
+!                     angle_s(j,2)==molecule%geom%angle(i,2).and.&
+!                     angle_s(j,3)==molecule%geom%angle(i,3)) then
+!                     print*, "Zmat<->Map Redundant:", j-3+Nat,i+nbonds
+!                     Zmap(j-3+Nat) = i+nbonds
+!                 endif
+!                 if (angle_s(j,3)==molecule%geom%angle(i,1).and.&
+!                     angle_s(j,2)==molecule%geom%angle(i,2).and.&
+!                     angle_s(j,1)==molecule%geom%angle(i,3)) then
+!                     print*, "Zmat<->Map Redundant:", j-3+Nat,i+nbonds
+!                     Zmap(j-3+Nat) = i+nbonds
+!                 endif
+!             enddo
+!             enddo
+!             print*, "Dihedral Map"
+!             do j=4,Nat
+!             do i=1,ndihed
+!                 if (dihed_s(j,1)==molecule%geom%dihed(i,1).and.&
+!                     dihed_s(j,2)==molecule%geom%dihed(i,2).and.&
+!                     dihed_s(j,3)==molecule%geom%dihed(i,3).and.&
+!                     dihed_s(j,4)==molecule%geom%dihed(i,4)) then
+!                     print*, "Zmat<->Map Redundant:", j-6+2*Nat,i+nbonds+nangles
+!                     Zmap(j-6+2*Nat) = i+nbonds+nangles
+!                 endif
+!                 if (dihed_s(j,4)==molecule%geom%dihed(i,1).and.&
+!                     dihed_s(j,3)==molecule%geom%dihed(i,2).and.&
+!                     dihed_s(j,2)==molecule%geom%dihed(i,3).and.&
+!                     dihed_s(j,1)==molecule%geom%dihed(i,4)) then
+!                     print*, "Zmat<->Map Redundant:", j-6+2*Nat,i+nbonds+nangles
+!                     Zmap(j-6+2*Nat) = i+nbonds+nangles
+!                 endif
+!             enddo
+!             enddo
+!         endif 
+
+
         ! Remove some Zmat elements if required
         if (def_internal=="ZMAT" .and. rmzfile /= "none") then
             open(I_FILE,file=rmzfile,status='old')
@@ -161,7 +225,7 @@ module internal_module
                     molec%geom%dihed(ii,1:4) = molec%geom%dihed(ii+1,1:4)
                 enddo
                 molec%geom%ndihed  = molec%geom%ndihed  - 1
-                Ns = NS - 1
+                Ns = Ns - 1
             enddo
         endif
 
