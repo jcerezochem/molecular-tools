@@ -56,6 +56,13 @@ module pdb_manage
                                                  chain_local,     &
                                                  ins_code_local
         integer,dimension(1:size(X))          :: resseq_local
+        logical :: have_read_structure=.false.
+
+        ! Compared with g96, we don't know the end of the section. To animations we
+        ! would need to implement TER or MODEL entries. For the moment, we stop
+        ! reading when the second TITLE section is found (not that good, though, we
+        ! don't know how generic PDB files are writting. AFAIK The standard do not 
+        ! prevent from reusing TITLE section 
 
         read(unt,'(A)',iostat=ios) line
         i=0
@@ -74,7 +81,9 @@ module pdb_manage
                                X(i),         &
                                Y(i),         &
                                Z(i)
+                have_read_structure=.true.
             else if (line(1:6) == "TITLE ") then
+                if (have_read_structure) exit
                 read(line,101) title_local
             endif
 

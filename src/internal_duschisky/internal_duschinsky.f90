@@ -274,6 +274,14 @@ program internal_duschinski
 !     endif
     call HessianCart2int(Nat,Nvib,Hess,state1%atom(:)%mass,B,G1)
     call gf_method(Nvib,G1,Hess,L1,Freq1,X,X1inv)
+    if (verbose>0) then
+        ! Analyze normal modes
+        if (use_symmetry) then
+            call analyze_internal(Nvib,L1,Freq1,ModeDef,S_sym)
+        else
+            call analyze_internal(Nvib,L1,Freq1,ModeDef)
+        endif
+    endif
 
     ! Compute new state_file
     ! T(g09) = mu^1/2 m B^t G^-1 L
@@ -417,6 +425,14 @@ program internal_duschinski
         call HessianCart2int(Nat,Nvib,Hess,state2%atom(:)%mass,B,G2)
     endif
     call gf_method(Nvib,G2,Hess,L2,Freq2,X,X2inv)
+    if (verbose>0) then
+        ! Analyze normal modes
+        if (use_symmetry) then
+            call analyze_internal(Nvib,L2,Freq2,ModeDef,S_sym)
+        else
+            call analyze_internal(Nvib,L2,Freq2,ModeDef)
+        endif
+    endif
 
     ! Compute new state_file
     ! T(g09) = mu^1/2 m B^t G^-1 L

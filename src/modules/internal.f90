@@ -781,6 +781,8 @@ module internal_module
     
         if (verbose>1) &
             call MAT0(6,X,Nvib,Nvib,"X (G^1/2)")
+        if (verbose>1) &
+            call MAT0(6,Xinv,Nvib,Nvib,"Xinv (G^-1/2)")
 
     
         !Now rotate F, F'=X^TFX. Store the rotated matrix in Aux3 (temporary array)

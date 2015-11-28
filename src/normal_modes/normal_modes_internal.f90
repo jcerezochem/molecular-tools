@@ -111,7 +111,7 @@ program normal_modes_animation
     !Save definitio of the modes in character
     character(len=100),dimension(NDIM) :: ModeDef
     !VECTORS
-    real(8),dimension(NDIM) :: S
+    real(8),dimension(NDIM) :: S, Saux
     integer,dimension(NDIM) :: S_sym
     ! Switches
     character(len=5) :: def_internal="ZMAT"
@@ -310,6 +310,7 @@ program normal_modes_animation
     !==========================================================0
     !  Normal mode displacements
     !==========================================================0
+    Saux = S
     ! Initialization
     Nsteps = 101
     if ( mod(Nsteps,2) == 0 ) Nsteps = Nsteps + 1 ! ensure odd number of steps (so we have same left and right)
@@ -396,6 +397,7 @@ program normal_modes_animation
         !=======================================
         ! Reached amplitude. Back oscillation: from step "MaxAmp + dQ" to "MaxAmp + (N-2) dQ" == -MaxAmp
         !=======================================
+        ! This is the part reported in G09/G96 files
         do istep = 1,nsteps-1
             k=k+1
             if (verbose>1) &

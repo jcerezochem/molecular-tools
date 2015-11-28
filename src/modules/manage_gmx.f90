@@ -41,44 +41,46 @@ module gmx_manage
         !local
         integer::i, natoms, ii, ios
         character(len=260) :: line
-        !The use of get_structure=.false. fails probably due to
-        ! memory issues (change without being directly accesed)
-        logical :: not_get_structure=.true.
+        logical :: have_read_structure=.false.
 
         !The file is organized in sections. Each begining with a given name
+        !We need to stop the cycle when the structure is already read. Otherwise
+        !we read only the last structure from an animation file. We try to make it
+        !work independently of the presence of TITLE section (that would simplify things..)
         do
 
             read(unt,'(A)',iostat=ios) line
             if (ios /= 0) exit
 
             if (adjustl(line) == "POSITION" ) then
-                not_get_structure=.false.
+                if (have_read_structure) exit
                 i=0
                 do 
                      read(unt,'(A)') line
                      if (adjustl(line) == "END" ) exit
-                     i = i + 1
+                     i=i+1
                 enddo
                 Nat = i
-                return
+                have_read_structure=.true.
             elseif (adjustl(line) == "POSITIONRED" ) then
+            if (have_read_structure) exit
             !this section only has info about coordinates (no atom info!)
             write(0,*) "NOTE: No Atom Names in g96. Masses will not be assigned."
-                not_get_structure=.false.
                 i=0
                 do 
                      read(unt,'(A)') line
                      if (adjustl(line) == "END" ) exit
+                     i=i+1
                 enddo
                 Nat = i
-                return
+                have_read_structure=.true.
             else
                 cycle
             endif
 
         enddo
 
-        if (not_get_structure) then
+        if (.not.have_read_structure) then
             write(0,*) "ERROR: No structure read in g96 file"
             stop
         endif
@@ -114,18 +116,19 @@ module gmx_manage
         integer::i, natoms, ii, ios
         character(len=260) :: line
         character :: dummy_char
-        !The use of get_structure=.false. fails probably due to
-        ! memory issues (change without being directly accesed)
-        logical :: not_get_structure=.true.
+        logical :: have_read_structure=.false.
 
         !The file is organized in sections. Each begining with a given name
+        !We need to stop the cycle when the structure is already read. Otherwise
+        !we read only the last structure from an animation file. We try to make it
+        !work independently of the presence of TITLE section (that would simplify things..)
         do
 
             read(unt,'(A)',iostat=ios) line
             if (ios /= 0) exit
 
             if (adjustl(line) == "POSITION" ) then
-                not_get_structure=.false.
+                if (have_read_structure) exit
                 i=0
                 do 
                      read(unt,'(A)') line
@@ -144,10 +147,11 @@ module gmx_manage
                      Z(i) = Z(i)*10.d0
                 enddo
                 Nat = i
+                have_read_structure=.true.
             elseif (adjustl(line) == "POSITIONRED" ) then
+            if (have_read_structure) exit
             !this section only has info about coordinates (no atom info!)
             write(0,*) "NOTE: No Atom Names in g96. Masses will not be assigned."
-                not_get_structure=.false.
                 i=0
                 do 
                      read(unt,'(A)') line
@@ -162,13 +166,14 @@ module gmx_manage
                      Z(i) = Z(i)*10.d0
                 enddo
                 Nat = i
+                have_read_structure=.true.
             else
                 cycle
             endif
 
         enddo
 
-        if (not_get_structure) then
+        if (.not.have_read_structure) then
             write(0,*) "ERROR: No structure read in g96 file"
             stop
         endif

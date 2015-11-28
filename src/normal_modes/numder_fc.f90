@@ -1,4 +1,4 @@
-program normal_modes_animation
+program numder_fc
 
 
     !==============================================================
@@ -72,7 +72,7 @@ program normal_modes_animation
     iread=0
     do while ( IOstatus == 0 )
         read(I_INP,'(X,A)',IOSTAT=IOstatus) line
-        if ( INDEX(line,"Displacement") /= 0 ) then
+        if ( INDEX(line,"Disp =") /= 0 ) then
             if (iread/=0) cycle
             call split_line(line,'=',dummy_char,line)
             read(line,*) R(i)
@@ -203,5 +203,5 @@ program normal_modes_animation
     end subroutine parse_input
        
 
-end program normal_modes_animation
+end program numder_fc
 
