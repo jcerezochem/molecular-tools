@@ -67,7 +67,8 @@ program normal_modes_animation
     integer :: Nat, Nvib, Ns
     character(len=5) :: PG
     !Job info
-    character(len=20) :: calc, method, basis, title
+    character(len=20) :: calc, method, basis
+    character(len=150):: title
     !====================== 
 
     !====================== 
@@ -93,7 +94,7 @@ program normal_modes_animation
     character(len=50) :: selection="all"
     real(8) :: Amplitude = 2.d0, qcoord
     integer,dimension(1:NDIM) :: nm=0
-    real(8) :: Qstep, d, rmsd1, rmsd2
+    real(8) :: Qstep
     logical :: call_vmd = .false.
     character(len=10000) :: vmdcall
     integer :: Nsteps, Nsel, istep
@@ -111,7 +112,7 @@ program normal_modes_animation
     !Save definitio of the modes in character
     character(len=100),dimension(NDIM) :: ModeDef
     !VECTORS
-    real(8),dimension(NDIM) :: S, Saux
+    real(8),dimension(NDIM) :: S
     integer,dimension(NDIM) :: S_sym
     ! Switches
     character(len=5) :: def_internal="ZMAT"
@@ -310,7 +311,6 @@ program normal_modes_animation
     !==========================================================0
     !  Normal mode displacements
     !==========================================================0
-    Saux = S
     ! Initialization
     Nsteps = 101
     if ( mod(Nsteps,2) == 0 ) Nsteps = Nsteps + 1 ! ensure odd number of steps (so we have same left and right)
@@ -469,6 +469,13 @@ program normal_modes_animation
         open(O_NUM)
     enddo
 
+    call summary_alerts
+
+    call cpu_time(tf)
+    write(0,'(/,A,X,F12.3,/)') "CPU time (s)", tf-ti
+
+    ! CALL EXTERNAL PROGRAM TO RUN ANIMATIONS
+
     if (call_vmd) then
         open(S_VMD,file="vmd_conf.dat",status="replace")
         !Set general display settings (mimic gv)
@@ -573,11 +580,6 @@ program normal_modes_animation
         print*, "============================================================"
         print*, ""
     endif
-    
-    call summary_alerts
-
-    call cpu_time(tf)
-    write(0,'(/,A,X,F12.3,/)') "CPU time (s)", tf-ti
 
     stop
 
@@ -713,11 +715,11 @@ program normal_modes_animation
        ! If not declared, hessfile and gradfile are the same as inpfile
        if (adjustl(hessfile) == "same") then
            hessfile=inpfile
-           fth=ft
+           if (adjustl(fth) == "guess")  fth=ft
        endif
        if (adjustl(gradfile) == "same") then
            gradfile=inpfile
-           ftg=ft
+           if (adjustl(ftg) == "guess")  ftg=ft
        endif
 
        ! Select internal or normal modes
@@ -733,9 +735,7 @@ program normal_modes_animation
        !Print options (to stderr)
         write(0,'(/,A)') '--------------------------------------------------'
         write(0,'(/,A)') '          INTERNAL MODES ANIMATION '    
-        write(0,'(/,A)') '      Perform vibrational analysis based on  '
-        write(0,'(/,A)') '            internal coordinates (D-V7)'        
-        write(0,'(/,A)') '         Revision: nm_internal-140320-1'
+        write(0,'(/,A)') '        Perform vibrational analysis'
         write(0,'(/,A)') '--------------------------------------------------'
         write(0,*) '-f              ', trim(adjustl(inpfile))
         write(0,*) '-ft             ', trim(adjustl(ft))
@@ -787,6 +787,8 @@ program normal_modes_animation
             numfile = "Mode"//trim(adjustl(dummy_char))//"_int_num.com"
         endif
 
+        return
+
     end subroutine prepare_files
 
 
@@ -821,6 +823,8 @@ program normal_modes_animation
             if (S(k) >  PI) S(k)=S(k)-2.d0*PI
             if (S(k) < -PI) S(k)=S(k)+2.d0*PI
         enddo
+
+        return
        
     end subroutine displace_Scoord
 

@@ -1,513 +1,393 @@
-program normal_modes_Cartesian
+program normal_modes_cartesian
 
-    !Compilation
-    ! $FC ../modules/constants_mod.f90 ../modules/alerts.f90 ../modules/line_preprocess.f90 ../modules/structure_types_v2.f90 ../modules/gro_manage_v2.f90 ../modules/gaussian_fchk_manage_v2.f90 ../modules/geom_meter_v2.f90 ../modules/xyz_manage.f90 normal_modes_Cartesian_v1b.f90 -o normal_modes_Cartesian_v1b.exe -cpp -DDOUBLE 
 
-    !NOTES
-    ! Normal modes matrix indeces: T(1:Nvib,1:3Nat)
-    ! This might be the contrary as the usual convention
-    ! (anywaym who cares, since we use a Tvector)
-
-    !V1b: from normal_mode_animation_v1b. Naming systematic in compliance with internal version
+    !==============================================================
+    ! This code uses of MOLECULAR_TOOLS 
+    !==============================================================
     !
-    !Addapted to v4 release (distribution upgrade). 25/02/14
-    !Additional Changes
-    ! -Added filetype support with generic_strfile_read 
+    ! Description:
+    ! -----------
+    ! Program to visualize vibrations obtained in internal coordinates.
+    !
+    !============================================================================    
 
-
-!*****************
-!   MODULE LOAD
-!*****************
-!============================================
-!   Generic (structure_types independent)
-!============================================
+    !*****************
+    !   MODULE LOAD
+    !*****************
+    !============================================
+    !   Generic
+    !============================================
     use alerts
     use line_preprocess
-    use constants
-!   Matrix manipulation (i.e. rotation matrices)
-    use MatrixMod
-!============================================
-!   Structure types module
-!============================================
+    use constants 
+    use verbosity
+    use matrix
+    use matrix_print
+    !============================================
+    !   Structure types module
+    !============================================
     use structure_types
-!============================================
-!   Structure dependent modules
-!============================================
-    use gro_manage
-    use pdb_manage
-    use gaussian_manage
-    use gaussian_manage_notypes
-    use gaussian_fchk_manage
+    !============================================
+    !   File readers
+    !============================================
+    use generic_io
+    use generic_io_molec
     use xyz_manage
-    use fcc_manage
-!   Structural parameters
+    use gro_manage
+    use gaussian_manage
+    !============================================
+    !  Structure-related modules
+    !============================================
     use molecular_structure
-    use ff_build
-!   Bond/angle/dihed meassurement
     use atomic_geom
-!   vibrational analysis
+    use symmetry
+    !============================================
+    !  Vibrational 
+    !============================================
     use vibrational_analysis
 
-    type(str_resmol) :: molec
-    type(str_molprops),allocatable :: props
+    implicit none
 
-    !Interesting info..
-    integer :: Nat, Nvib
-    real(8),dimension(1:1000) :: GEOM, RedMass, Freq, Factor
-    real(8),dimension(1:1000,1:1000) :: T
-    real(8),dimension(1:500500) :: Hlt
-    character(len=2) :: atname 
-    integer          :: Zat
+    integer,parameter :: NDIM = 600
 
-    real(8) :: Amplitude, qcoord
+    !====================== 
+    !Options 
+    logical :: use_symmetry=.false., &
+               include_hbonds=.false., &
+               vertical=.false.
+    !======================
 
-    logical :: is_g09_modetype
-    
+    !====================== 
+    !System variables
+    type(str_resmol) :: molecule, molec_aux
+    integer,dimension(1:NDIM) :: isym
+    integer :: Nat, Nvib, Ns
+    character(len=5) :: PG
+    !Job info
+    character(len=20) :: calc, method, basis
+    character(len=150):: title
+    !====================== 
 
-    !Auxiliars
+    !====================== 
+    !Auxiliar variables
     character(1) :: null
     character(len=50) :: dummy_char
-    real(8) :: Tmwc_ij
-    ! Reading FCHK part
-    character(len=100) :: section
-    integer :: N, N_T
-    character :: dtype, cnull
+    real(8) :: dist
+    !io flags
+    integer :: error, info
+    !====================== 
+
+    !=============
+    !Counters
+    integer :: i,j,k,l, jj
+    !=============
+
+    !====================== 
+    ! PES topology and normal mode things
     real(8),dimension(:),allocatable :: A
-    integer,dimension(:),allocatable :: IA
-    integer :: error
-
-
+    real(8),dimension(1:NDIM,1:NDIM) :: LL
+    real(8),dimension(1:NDIM*NDIM)   :: Hlt
+    real(8),dimension(NDIM) :: Freq, Factor, Grad
     !Moving normal modes
-    integer,dimension(1:1000) :: nm=0
+    character(len=50) :: selection="all"
+    real(8) :: Amplitude = 2.d0, qcoord
+    integer,dimension(1:NDIM) :: nm=0
     real(8) :: Qstep
     logical :: call_vmd = .false.
     character(len=10000) :: vmdcall
-
-    !Counters
-    integer :: i,j,k, jdh,idh,istep, iat, kk
-
-    !I/O
-    integer :: I_INP=10,  &
-               O_GRO=20,  &
-               O_G09=21,  & 
-               O_Q  =22,  &
-               O_NUM=23,  &
-               O_LIS=24,  &
-               O_G96=25,  &
-               S_VMD=30
-    !files
-    character(len=20) :: filetype="guess", ft
-    character(len=200):: addfile=""
-    character(len=200):: inpfile ="input.fchk"
-    character(len=100),dimension(1:1000) :: grofile
-    character(len=100) :: nmfile='none', g09file,qfile,numfile,tmpfile, g96file
-    !Control of stdout
-    logical :: verbose=.false.
-
+    integer :: Nsteps, Nsel, istep
     !MOVIE things
-    integer :: movie_cycles, movie_steps
+    logical :: movie_vmd = .false.
+    integer :: movie_cycles=0,& !this means no movie
+               movie_steps
+    !====================== 
 
-    !===============================================
+    !================
+    !I/O stuff 
+    !units
+    integer :: I_INP=10,  &
+               I_SYM=12,  &
+               I_RMF=16,  &
+               O_GRO=20,  &
+               O_G09=21,  &
+               O_G96=22,  &
+               O_Q  =23,  &
+               O_NUM=24,  &
+               O_MOV=25,  &
+               S_VMD=30
 
-    !Defaults
-    Amplitude = 4.d0
-    movie_cycles = 0 !No movie
+    !files
+    character(len=10) :: ft ="guess",  ftg="guess",  fth="guess", nm_check=""
+    character(len=200):: inpfile  ="state1.fchk", &
+                         gradfile ="same", &
+                         hessfile ="same", &
+                         symm_file="none"
+    !Structure files to be created
+    character(len=100) :: g09file,qfile, tmpfile, g96file, grofile,numfile
+    !status
+    integer :: IOstatus
+    !===================
 
-    !Get options from command line
-    nm(1) = 0
-    call parse_input(inpfile,addfile,nmfile,nm,Nsel,Amplitude,filetype,verbose,call_vmd,movie_cycles)
+    !===================
+    !CPU time 
+    real(8) :: ti, tf
+    !===================
+
+    ! Activate notes
+    silent_notes = .false.
+
+    call cpu_time(ti)
+
+    ! 0. GET COMMAND LINE ARGUMENTS
+    call parse_input(&
+                     ! input data
+                     inpfile,ft,hessfile,fth,gradfile,ftg,                 &
+                     ! Options (general)
+                     Amplitude,call_vmd,include_hbonds,selection,vertical, &
+                     ! Movie
+                     movie_vmd, movie_cycles)
 
 
-    ! 1. CARTESIAN VIBRATIONAL ANALYSIS -- done by G09 (just read it) 
+    ! INTERNAL VIBRATIONAL ANALYSIS
  
     ! 1. READ DATA
     ! ---------------------------------
+    !Guess filetypes
+    if (ft == "guess") &
+    call split_line_back(inpfile,".",null,ft)
+    if (fth == "guess") &
+    call split_line_back(hessfile,".",null,fth)
+    if (ftg == "guess") &
+    call split_line_back(gradfile,".",null,ftg)
+
+    ! Manage special files (fcc) 
+    if (adjustl(ft) == "fcc" .or. adjustl(fth) == "fcc-nm") then
+        call alert_msg("note","fcc files needs fcc-input as -f and statefile as -fth")
+        ft ="fcc"
+        fth="fcc-nm"
+        ! inpfile has Nat, Nvib, and Masses          <= in inpfile
+        ! statefile has coordinates and normal modes <= in hessfile
+        ! Generic generic readers parse the state (not the inpfile)
+        ! so we get the info here
+        open(I_INP,file=inpfile,status='old',iostat=IOstatus)
+        if (IOstatus /= 0) call alert_msg( "fatal","Unable to open "//trim(adjustl(inpfile)) )
+        read(I_INP,*) Nat 
+        molecule%natoms = Nat
+        read(I_INP,*) Nvib
+        do i=1,Nat 
+            read(I_INP,*) molecule%atom(i)%mass
+            !Set atomnames from atommasses
+            call atominfo_from_atmass(molecule%atom(i)%mass,  &
+                                      molecule%atom(i)%AtNum, &
+                                      molecule%atom(i)%name)
+        enddo
+        close(I_INP)
+        ! Now put the statefile in the inpfile
+        inpfile=hessfile
+    elseif (adjustl(fth) == "log-nm") then
+        ft = "log-stdori"
+    endif
+        
+    ! STRUCTURE FILE
     open(I_INP,file=inpfile,status='old',iostat=IOstatus)
     if (IOstatus /= 0) call alert_msg( "fatal","Unable to open "//trim(adjustl(inpfile)) )
-
-    !Read structure
-    ! If fcc state file, we also need the input to get natoms, nvib and atom info
-    if (filetype == "fcc") then
-        !Need to read also the input file
-        if (len_trim(addfile) == 0) then
-            print*, "Need to set the fcc input file with the hidded -add flag"
-            stop
-        endif
-        !-------- read input ------------
-        open(I_ADD,file=addfile)
-        read(I_ADD,*) molec%natoms
-        read(I_ADD,*) Nvib
-        do i=1,molec%natoms
-            read(I_ADD,*) molec%atom(i)%mass
-        enddo
-        close(I_ADD)
-        !----------------------------------
-    endif
-    ! Guess file type if requested
-    if (adjustl(filetype) == "guess") &
-    call split_line_back(inpfile,".",null,filetype)
-    ! For filetypes with -old suffix, use the standard one 
-    ! for the structure reader
-    call split_line(filetype,"-old",ft,null)
-    call generic_strfile_read(I_INP,ft,molec)
-    !Shortcuts
-    Nat = molec%natoms
-    if (filetype /= "fcc") then
-        !Caution if linear...
-        Nvib = 3*Nat-6
-    endif
-
-    if (adjustl(filetype) == "log-old") then
-        !Gaussian logfile (directly read vibronic analysis by Gaussian)
-        is_g09_modetype=.true.
-        N = 3*Nat * Nvib
-        allocate( A(1:N) )
-        call read_freq_NT(I_INP,Nvib,Nat,Freq(1:Nvib),RedMass(1:Nvib),A(1:N),error)
-        if (error == 1) then
-            call alert_msg("warning", "Normal modes (T) matrix in low precision. This will lead to poor results")
-        elseif (error == -1) then
-            call alert_msg("fatal","No frequency information in the log file")
-        endif
-        ! Reconstruct Lcart (non-symmetric) [in T]
-        l=0
-        do j=1,Nvib
-            do k=1,3*molec%natoms
-                l=l+1
-                T(j,k) = A(l)
-            enddo
-        enddo
-        deallocate(A)
-       !Reduced masses (to account for the normalization factor in Tcart)
-        RedMass(1:Nvib) = RedMass(1:Nvib)*UMAtoAU
-
-    else if (adjustl(filetype) == "fcc") then
-        is_g09_modetype=.true.
-        N = 3*Nat * Nvib
-        allocate( A(1:N) )
-        call read_fccstate_freq(I_INP,Nvib,Nat,Freq(1:Nvib),A(1:N))
-        ! Reconstruct Lcart (non-symmetric) [in T]
-        l=0
-        do k=1,3*molec%natoms
-            do j=1,Nvib
-                l=l+1
-                T(j,k) = A(l)
-            enddo
-        enddo
-        deallocate(A)
-        !Compute reduced masses
-        do k=1,Nvib
-            kk=0
-            RedMass(k)=0.d0
-            do i=1,Nat
-            do j=1,3
-                kk=kk+1
-                Tmwc_ij=T(k,kk)*dsqrt(molec%atom(i)%mass)
-                RedMass(k)=RedMass(k)+Tmwc_ij**2
-            enddo
-            enddo
-        enddo
-        !Reduced masses (to account for the normalization factor in Tcart)
-        RedMass(1:Nvib) = RedMass(1:Nvib)*UMAtoAU
-        !Get atom names from masses
-        do i=1,molec%natoms
-            call atominfo_from_atmass(molec%atom(i)%mass,Zat,atname)
-            molec%atom(i)%name    = atname
-            molec%atom(i)%element = atname
-            molec%atom(i)%AtNum   = Zat
-        enddo
-
-    else if (adjustl(filetype) == "fchk-old") then
-        !FCHK file: READ VIB ANALYSIS
-        ! L_cart matrix
-        !from the fchk a vector is read where T(Nvib,3N) is stored as
-        ! T(1,1:3N), T(2,1:3N), ..., T(Nvib,1:3N)
-        ! but FCclasses needs a vector where the fast index is the first:
-        ! T(1:Nvib,1), ..., T(1:Nvib,3N)
-        is_g09_modetype=.true.
-        call read_fchk(I_INP,"Vib-Modes",dtype,N,A,IA,error)
-        if (error == 0) then
-            ! Reconstruct Lcart (non-symmetric) [in T]
-            l=0
-            do j=1,Nvib
-                do k=1,3*molec%natoms
-                    l=l+1
-                    T(j,k) = A(l)
-                enddo
-            enddo
-            deallocate(A)
-        else
-            print*, "You likely missed 'SaveNM' keyword"
-            print*, "Run 'freqchk -save' utility and come back"
-            stop
-        endif
-
-        call read_fchk(I_INP,"Vib-E2",dtype,N,A,IA,error)
-        if (error == 0) then
-           !Reduced masses (to account for the normalization factor in Tcart)
-            RedMass(1:Nvib) = A(Nvib+1:2*Nvib)*UMAtoAU
-
-            !freq based factor (to make displacements equivalent in dimensionless units
-            Freq(1:Nvib) = A(1:Nvib)
-            deallocate(A)
-        else
-            print*, "You likely missed 'SaveNM' keyword"
-            print*, "Run 'freqchk -save' utility and come back"
-            stop
-        endif
-
-    ! PERFORM THE VIBRATIONAL ANALYSIS HERE FOR FILES CONTAINING THE HESS
-    ! SO ONLY TAKE THE HESSIAN FROM THE FILE
-    elseif (adjustl(filetype) == "log") then
-        !Gaussian logfile (reading the hessian)
-        is_g09_modetype=.false.
-        !In the future, that would be good to perform the vib analysis here, instead
-        allocate(props)
-        call parse_summary(I_INP,molec,props,"read_hess")
-        ! GET lt elements of the Hessian (reconstructed in the vib analysis)
-        N=3*Nat*(3*Nat+1)/2
-        Hlt(1:N) = props%H(1:N)
-        deallocate(props)
-
-    elseif (adjustl(filetype) == "fchk") then
-        is_g09_modetype=.false.
-        !FCHK file    
-        call read_fchk(I_INP,"Cartesian Force Constants",dtype,N,A,IA,error)
-        if (error == 0) then
-            ! GET lt elements of the Hessian (reconstructed in the vib analysis)
-            Hlt(1:N) = A(1:N)
-            deallocate(A)
-        else
-            print*, "ERROR: 'Cartesian Force Constants' not found in fchk"
-            stop     
-        endif       
-        !Read job info
-        call get_jobtype_fchk(I_INP,molec%job,error)
-        molec%job%type= "SP"
+    call generic_strmol_reader(I_INP,ft,molecule,error)
+    if (error /= 0) call alert_msg("fatal","Error reading geometry (State1)")
+    ! Get job info if it is a Gaussian file
+    if (ft == "log" .or. ft== "fchk") then
+        call read_gauss_job(I_INP,ft,calc,method,basis)
+        ! Whichever, calc type was, se now need SP
+        calc="SP"
+    else
+        calc="SP"
+        method="B3LYP"
+        basis="6-31G(d)"
     endif
     close(I_INP)
+    ! Shortcuts
+    Nat = molecule%natoms
 
 
-    if (is_g09_modetype) then
-        !Transoform "Gaussian normalized" L'cart to "real" Lcart
-        !   Lcart = L'cart/sqrt(mu)
-        do j=1,Nvib
-            !Note is stored as the transpose, i.e. T(Nvib x 3Nat)
-            !     RedMass in atomic units
-            T(j,:) = T(j,:)/dsqrt(RedMass(j))!/1.895d0
-            !NOTE: the factor 1.89 has been empirically identified as necessary, but its origin is
-            !      unclear. This should be carrefully revised!
-        enddo
+    ! Vibrational analysis: either read from file or from diagonalization of Hessian
+    call split_line_back(fth,"-",fth,nm_check)
+    if (nm_check == "nm") then
+        open(I_INP,file=hessfile,status='old',iostat=IOstatus)
+        if (IOstatus /= 0) call alert_msg( "fatal","Unable to open "//trim(adjustl(hessfile)) )
+        call generic_nm_reader(I_INP,fth,Nat,Nvib,Freq,LL)
+        ! Show frequencies
+        if (verbose>0) &
+         call print_vector(6,Freq,Nvib,"Frequencies (cm-1)")
+        ! The reader provide L in Normalized Cartesian. Need to Transform to Cartesian now
+        call LcartNrm_to_Lmwc(Nat,Nvib,molecule%atom(:)%mass,LL,LL)
+        call Lmwc_to_Lcart(Nat,Nvib,molecule%atom(:)%mass,LL,LL,error)
+        close(I_INP)
     else
-        !Perform vibrational analysis
-        print*, "Diagonalizing Hessian..."
-        call diag_int(Nat,molec%atom(1:Nat)%x,   &
-                          molec%atom(1:Nat)%y,   & 
-                          molec%atom(1:Nat)%z,   &
-                          molec%atom(1:Nat)%mass,&
-                          Hlt,Nvib,T,Freq,error)
+        ! HESSIAN FILE
+        open(I_INP,file=hessfile,status='old',iostat=IOstatus)
+        if (IOstatus /= 0) call alert_msg( "fatal","Unable to open "//trim(adjustl(hessfile)) )
+        call generic_Hessian_reader(I_INP,fth,Nat,Hlt,error)
+        if (error /= 0) call alert_msg("fatal","Error reading Hessian (State1)")
+        close(I_INP)
+        
+        ! GRADIENT FILE
+        if (vertical) then
+            open(I_INP,file=gradfile,status='old',iostat=IOstatus)
+            if (IOstatus /= 0) call alert_msg( "fatal","Unable to open "//trim(adjustl(gradfile)) )
+            call generic_gradient_reader(I_INP,ftg,Nat,Grad,error)
+            close(I_INP)
+        endif
+        
+        ! VIBRATIONAL ANALYSIS
+        ! Run vibrations_Cart to get the number of Nvib (to detect linear molecules). In Cartesian we are done now
+        ! with this vibrational analysis (How to handle the gradient?)
+        call vibrations_Cart(Nat,molecule%atom(:)%X,molecule%atom(:)%Y,molecule%atom(:)%Z,molecule%atom(:)%Mass,Hlt,&
+                             Nvib,LL,Freq,error)
         if (error /= 0) then
-            print*, "Error in the diagonalization"
+            call alert_msg("fatal","Error in the diagonalization")
             stop
         endif
-        !Transform Force Constants to Freq
-        do i=1,Nvib
-            Freq(i) = dsign(dsqrt(dabs(Freq(i))*HARTtoJ/BOHRtoM**2/UMAtoKG)/2.d0/pi/clight/1.d2,Freq(i))
-        enddo
-        !Transform L to Cartesian/Normalized
-        call Lmwc_to_Lcart(Nat,Nvib,molec%atom(1:Nat)%mass,T,T)
-        T(1:Nvib,:) = T(1:Nvib,:)
-        !We are using the oppsed indexes as in vibrational_analysis module, so fix it
-        T=transpose(T)
+        !Transform L to Cartesian (output in AU(mass) as with internal)
+        call Lmwc_to_Lcart(Nat,Nvib,molecule%atom(1:Nat)%mass,LL,LL)
     endif
 
-    print*, ""
-    print*, "FREQUENCIES (cm-1)"
-    do i=1,Nvib
-        print*, Freq(i)
-    enddo
-    print*, ""
+print'(3F13.4)', LL(1:3*Nat,24)
 
     !Define the Factor to convert shift into addimensional displacements
     ! from the shift in SI units:
     Factor(1:Nvib) = dsqrt(dabs(Freq(1:Nvib))*1.d2*clight*2.d0*PI/plankbar)
     ! but we need it from au not SI
     Factor(1:Nvib)=Factor(1:Nvib)*BOHRtoM*dsqrt(AUtoKG)
- 
 
-    !NORMAL MODES SELECTION SWITCH
-    if (Nsel == 0) then
-        !Then select them all
-        Nsel = Nvib
-        do i=1,Nsel
-            nm(i) = i
-        enddo
+    ! Get the selection of normal modes to represent
+    if (adjustl(selection) == "all") then
+        Nsel=Nvib
+        nm(1:Nvib) = (/(i, i=1,Nvib)/)
+    else
+        call selection2intlist(selection,nm,Nsel)
     endif
-    if (Nsel > 1000) call alert_msg("fatal", "Too many normal modes. Dying")
 
-
-    !=========================================================
-    !MOVE NORMAL MODES (deltaQ = 0.01)
-    !=========================================================
-    ! This stuff should be introduced from command line
-    ! Displacement need to be scaled for each mode (how??)
-!     Qstep = 5.d-3
-!     Nsteps = int(Amplitude*1.d-1/Qstep)
-    !Do the opposite: fix Nsteps and modiffy the displacment
-    Nsteps = 100
-!     Qstep = Amplitude*20.d0/float(Nsteps)*249.8859d0
-    Qstep = Amplitude/float(Nsteps)
-    if ( mod(Nsteps,2) /= 0 ) Nsteps = Nsteps + 1
-    do jj=1,Nsel
-        kk=0
-        qcoord=0.d0
-        molec%atom(1:molec%natoms)%resname = "RES"
+    !==========================================================0
+    !  Normal mode displacements
+    !==========================================================0
+    ! Initialization
+    Nsteps = 101
+    if ( mod(Nsteps,2) == 0 ) Nsteps = Nsteps + 1 ! ensure odd number of steps (so we have same left and right)
+    Qstep = Amplitude/float(Nsteps-1)*2.d0  ! Do the range (-A ... +A)
+    molecule%atom(1:molecule%natoms)%resname = "RES" ! For printing
+    ! Run over all selected modes/internals
+    do jj=1,Nsel 
+        k=0 ! equilibrium corresponds to k=0
         j = nm(jj)
-        write(grofile(jj),*) j
-        molec%title = "Animation of normal mode "//trim(adjustl(grofile(jj)))
-        g09file="Mode"//trim(adjustl(grofile(jj)))//"_cart.com" 
-        g96file="Coord"//trim(adjustl(dummy_char))//"_int.g96"
-        numfile="Mode"//trim(adjustl(grofile(jj)))//"_cart_num.com"
-        qfile="Mode"//trim(adjustl(grofile(jj)))//"_cart_steps.dat"
-        grofile(jj) = "Mode"//trim(adjustl(grofile(jj)))//"_cart.gro"
-        print*, "Writting results to: "//trim(adjustl(grofile(jj)))
-        open(O_GRO,file=grofile(jj))
-        open(O_Q  ,file=qfile)
+        if (verbose>0) &
+         print'(X,A,I0,A)', "Generating Mode ", j, "..."
+
+        ! Set initial values for the scanned coordinate
+        qcoord = 0.d0 
+
+        ! Prepare and open files
+        call prepare_files(j,grofile,g09file,g96file,numfile,qfile,title)
+        open(O_GRO,file=grofile)
         open(O_G09,file=g09file)
-        open(O_G09,file=g96file)
+        open(O_G96,file=g96file)
+        open(O_Q  ,file=qfile)
+        open(O_NUM,file=numfile)
 
         !===========================
         !Start from equilibrium. 
         !===========================
-        print*, "STEP:", kk
-        call write_gro(O_GRO,molec)
+        if (verbose>1) &
+         print'(/,A,I0)', "STEP:", k
+        ! Update
+        write(molecule%title,'(A,I0,A,2(X,F12.6))') &
+         trim(adjustl((title)))//" Step ",k," Disp = ", qcoord, qcoord*Factor(j)
+        ! Print initial structure
+        call write_gro(O_GRO,molecule)
         !===========================
-        !Half Forward oscillation
+        !Half Forward oscillation: from step "Eq + dQ" to "Eq + (N-1)/2 dQ"
         !===========================
-        do istep = 1,nsteps/2
-            kk=kk+1
+        !Initialize distacen criterion for rmsd_fit_frame_brute SR
+        dist=0.d0
+        do istep = 1,(nsteps-1)/2
+            k=k+1
+            if (verbose>1) &
+             print'(/,A,I0)', "STEP:", k
+            ! Update values
             qcoord = qcoord + Qstep/Factor(j)
-            print*, "STEP:", kk
-            write(dummy_char,*) kk
-            molec%title = trim(adjustl(grofile(jj)))//".step "//trim(adjustl(dummy_char))
-            do i = 1, molec%natoms
-                k=3*(i-1) + 1
-                molec%atom(i)%x = molec%atom(i)%x + T(j,k)   * Qstep /Factor(j)
-                molec%atom(i)%y = molec%atom(i)%y + T(j,k+1) * Qstep /Factor(j)
-                molec%atom(i)%z = molec%atom(i)%z + T(j,k+2) * Qstep /Factor(j)
-                !Note: itcould be reduced-mass weighted by mult * dsqrt(Freq(j)
-            enddo
-            call write_gro(O_GRO,molec)
-            !Write the max amplitude step to G09 scan
-            if (kk==nsteps/2) then
-                call write_gcom(O_G09,molec)
+            write(molecule%title,'(A,I0,A,2(X,F12.6))') &
+             trim(adjustl((title)))//" Step ",k," Disp = ", qcoord, qcoord*Factor(j)
+            ! Displace
+            call displace_Xcoord(LL(1:3*Nat,j),molecule%natoms,Qstep/Factor(j),&
+                                 molecule%atom(:)%x,molecule%atom(:)%y,molecule%atom(:)%z)
+            ! PRINT
+            ! Write GRO from the beginign and G96/G09 only when reach max amplitude
+            call write_gro(O_GRO,molecule)
+            if (k==(nsteps-1)/2) then
+                call write_gcom(O_G09,molecule,g09file,calc,method,basis,molecule%title)
+                call write_g96(O_G96,molecule)
                 write(O_Q,*) qcoord, qcoord*Factor(j)
             endif
         enddo
         !=======================================
-        ! Reached amplitude. Back oscillation
+        ! Reached amplitude. Back oscillation: from step "MaxAmp + dQ" to "MaxAmp + (N-2) dQ" == -MaxAmp
         !=======================================
-        do istep = 1,nsteps/2-3
-            kk=kk+1
+        ! This is the part reported in G09/G96 files
+        do istep = 1,nsteps-1
+            k=k+1
+            if (verbose>1) &
+             print'(/,A,I0)', "STEP:", k
+            ! Update values
             qcoord = qcoord - Qstep/Factor(j)
-            print*, "STEP:", kk
-            write(dummy_char,*) kk
-            molec%title = trim(adjustl(grofile(jj)))//".step "//trim(adjustl(dummy_char))
-            do i = 1, molec%natoms
-                k=3*(i-1) + 1
-                molec%atom(i)%x = molec%atom(i)%x - T(j,k) * Qstep   /Factor(j)
-                molec%atom(i)%y = molec%atom(i)%y - T(j,k+1) * Qstep /Factor(j)
-                molec%atom(i)%z = molec%atom(i)%z - T(j,k+2) * Qstep /Factor(j)
-                !Note: itcould be reduced-mass weighted by mult * dsqrt(Freq(j)
-            enddo
-            call write_gro(O_GRO,molec)
-            ! Write G09 scan every 10 steps and G96 every step
-            write(molec%title,'(A,I0,A,2(X,F12.6))') "Step ",k," Disp = ", qcoord, qcoord*Factor(j)
-            call write_g96(O_G96,molec)
-            if (mod(kk,10) == 0) then
-                molec%job%title=trim(adjustl(grofile(jj)))//".step "//trim(adjustl(dummy_char))
-                molec%title=trim(adjustl(g09file))
-                call write_gcom(O_G09,molec)
-                write(molec%title,'(A,I0,A,2(X,F12.6))') "Step ",k," Disp = ", qcoord, qcoord*Factor(j)
-                call write_g96(O_G96,molec)
+            write(molecule%title,'(A,I0,A,2(X,F12.6))') &
+             trim(adjustl((title)))//" Step ",k," Disp = ", qcoord, qcoord*Factor(j)
+            ! Displace
+            call displace_Xcoord(LL(1:3*Nat,j),molecule%natoms,-Qstep/Factor(j),&
+                                 molecule%atom(:)%x,molecule%atom(:)%y,molecule%atom(:)%z)
+            ! PRINT
+            ! Write G96/GRO every step and G09 scan every 10 steps
+            ! except the 5 poinst around minimum, which are all printed
+            call write_gro(O_GRO,molecule)
+            call write_g96(O_G96,molecule)
+            if (mod(k,10) == 0) then
+                call write_gcom(O_G09,molecule,g09file,calc,method,basis,molecule%title)
+                write(O_Q,*) qcoord, qcoord*Factor(j)
+            endif
+            ! Write 5 poinst around minimum for numerical dierivatives
+            if (k>=nsteps-3.and.k<=nsteps+1) then
+                call write_gcom(O_NUM,molecule,numfile,calc,method,basis,molecule%title)
                 write(O_Q,*) qcoord, qcoord*Factor(j)
             endif
         enddo
         !=======================================
-        ! Reached equilibrium again (5 points for numerical second derivatives)
+        ! Reached amplitude. Half Forward oscillation (till one step before equilibrium, so that we concatenate well)
         !=======================================
-        open(O_NUM,file=numfile,status="replace")
-        do istep = 1,5
-            kk=kk+1
-            qcoord = qcoord - Qstep/Factor(j)
-            print*, "STEP:", kk
-            write(dummy_char,*) kk
-            molec%title = trim(adjustl(grofile(jj)))//".step "//trim(adjustl(dummy_char))
-            do i = 1, molec%natoms
-                k=3*(i-1) + 1
-                molec%atom(i)%x = molec%atom(i)%x - T(j,k) * Qstep   /Factor(j)
-                molec%atom(i)%y = molec%atom(i)%y - T(j,k+1) * Qstep /Factor(j)
-                molec%atom(i)%z = molec%atom(i)%z - T(j,k+2) * Qstep /Factor(j)
-                !Note: itcould be reduced-mass weighted by mult * dsqrt(Freq(j)
-            enddo
-            call write_gro(O_GRO,molec)
-            !This time write all five numbers
-            molec%job%title=trim(adjustl(grofile(jj)))//".step "//trim(adjustl(dummy_char))
-            molec%title=trim(adjustl(g09file))
-            call write_gcom(O_G09,molec)
-            write(dummy_char,*) qcoord
-            molec%job%title = "Displacement = "//trim(adjustl(dummy_char))
-            molec%title=trim(adjustl(numfile))
-            call write_gcom(O_NUM,molec)
-            write(molec%title,'(A,I0,A,2(X,F12.6))') "Step ",k," Disp = ", qcoord, qcoord*Factor(j)
-            call write_g96(O_G96,molec)
-            write(O_Q,*) qcoord, qcoord*Factor(j)
+        do istep = 1,(nsteps-1)/2-1
+            k=k+1
+            if (verbose>1) &
+             print'(/,A,I0)', "STEP:", k
+            ! Update values
+            qcoord = qcoord + Qstep/Factor(j)
+            write(molecule%title,'(A,I0,A,2(X,F12.6))') &
+             trim(adjustl((title)))//" Step ",k," Disp = ", qcoord, qcoord*Factor(j)
+            ! Displace
+            call displace_Xcoord(LL(1:3*Nat,j),molecule%natoms,Qstep/Factor(j),&
+                                 molecule%atom(:)%x,molecule%atom(:)%y,molecule%atom(:)%z)
+            ! PRINT
+            ! Write only GRO 
+            call write_gro(O_GRO,molecule)
         enddo
-        !=======================================
-        ! Continue Back oscillation
-        !=======================================
-        do istep = 1,nsteps/2-2
-            kk=kk+1
-            qcoord = qcoord - Qstep/Factor(j)
-            print*, "STEP:", kk
-            write(dummy_char,*) kk
-            molec%title = trim(adjustl(grofile(jj)))//".step "//trim(adjustl(dummy_char))
-            do i = 1, molec%natoms
-                k=3*(i-1) + 1
-                molec%atom(i)%x = molec%atom(i)%x - T(j,k) * Qstep   /Factor(j)
-                molec%atom(i)%y = molec%atom(i)%y - T(j,k+1) * Qstep /Factor(j)
-                molec%atom(i)%z = molec%atom(i)%z - T(j,k+2) * Qstep /Factor(j)
-                !Note: itcould be reduced-mass weighted by mult * dsqrt(Freq(j)
-            enddo
-            call write_gro(O_GRO,molec)
-            ! Write G09 scan every 10 steps and G96 every step
-            write(molec%title,'(A,I0,A,2(X,F12.6))') "Step ",k," Disp = ", qcoord, qcoord*Factor(j)
-            call write_g96(O_G96,molec)
-            if (mod(kk,10) == 0) then
-                call write_gcom(O_G09,molec)
-                write(O_Q,*) qcoord, qcoord*Factor(j)
-            endif
-        enddo
-        !=======================================
-        ! Reached amplitude. Half Forward oscillation (till equilibrium)
-        !=======================================
-        do istep = 1,nsteps/2-1
-            kk=kk+1
-            print*, "STEP:", kk
-            do i = 1, molec%natoms
-                k=3*(i-1) + 1
-                molec%atom(i)%x = molec%atom(i)%x + T(j,k) * Qstep   /Factor(j)
-                molec%atom(i)%y = molec%atom(i)%y + T(j,k+1) * Qstep /Factor(j)
-                molec%atom(i)%z = molec%atom(i)%z + T(j,k+2) * Qstep /Factor(j)
-                !Note: itcould be reduced-mass weighted by mult * dsqrt(Freq(j)
-            enddo
-            call write_gro(O_GRO,molec)
-        enddo
-        close(O_GRO)
-        close(O_G09)
-        close(O_Q)
-        close(O_NUM)
+        open(O_GRO)
+        open(O_G09)
+        open(O_G96)
+        open(O_Q  )
+        open(O_NUM)
     enddo
 
+    call summary_alerts
+
+    call cpu_time(tf)
+    write(0,'(/,A,X,F12.3,/)') "CPU time (s)", tf-ti
+
+    ! CALL EXTERNAL PROGRAM TO RUN ANIMATIONS
 
     if (call_vmd) then
         open(S_VMD,file="vmd_conf.dat",status="replace")
@@ -519,7 +399,7 @@ program normal_modes_Cartesian
         do i=0,Nsel-1
             j = nm(i+1)
             write(S_VMD,*) "mol representation CPK"
-            write(S_VMD,*) "mol addrep 0"
+!            write(S_VMD,*) "mol addrep 0"
             if (i==0) then
                 write(S_VMD,*) "molinfo ", i, " set drawn 1"
             else
@@ -529,14 +409,16 @@ program normal_modes_Cartesian
             write(dummy_char,'(A,I4,X,F8.2,A)') "{Mode",j, Freq(j),"cm-1}"
             dummy_char=trim(adjustl(dummy_char))
             write(S_VMD,*) "mol rename ", i, trim(dummy_char)
-            vmdcall = trim(adjustl(vmdcall))//" "//trim(adjustl(grofile(i+1)))
         enddo
         write(S_VMD,*) "display projection Orthographic"
         close(S_VMD)
         !Call vmd
         vmdcall = 'vmd -m '
         do i=1,Nsel
-        vmdcall = trim(adjustl(vmdcall))//" "//trim(adjustl(grofile(i)))
+            j = nm(i)
+            ! Get filenames (we want grofile name)
+            call prepare_files(j,grofile,g09file,g96file,numfile,qfile,title)
+            vmdcall = trim(adjustl(vmdcall))//" "//trim(adjustl(grofile))
         enddo
         vmdcall = trim(adjustl(vmdcall))//" -e vmd_conf.dat"
         call system(vmdcall)
@@ -552,13 +434,15 @@ program normal_modes_Cartesian
         !Set molecule representation
         do i=0,Nsel-1
             j = nm(i+1)
+            ! Get filenames (we want grofile name)
+            call prepare_files(j,grofile,g09file,g96file,numfile,qfile,title)
             write(S_VMD,*) "mol representation CPK"
             write(S_VMD,*) "molinfo ", i, " set drawn 0"
             write(S_VMD,*) "mol addrep ", i
             write(dummy_char,'(A,I4,X,F8.2,A)') "{Mode",j, Freq(j),"cm-1}"
             dummy_char=trim(adjustl(dummy_char))
             write(S_VMD,*) "mol rename ", i, trim(dummy_char)
-            vmdcall = trim(adjustl(vmdcall))//" "//trim(adjustl(grofile(i+1)))
+            vmdcall = trim(adjustl(vmdcall))//" "//trim(adjustl(grofile))
         enddo
         write(S_VMD,'(A)') "#====================="
         write(S_VMD,'(A)') "# Start movies"
@@ -580,9 +464,6 @@ program normal_modes_Cartesian
             write(S_VMD,*) "render Tachyon $figfile-$xx.dat"
             write(S_VMD,'(A)') '"/usr/local/lib/vmd/tachyon_LINUX" -aasamples 12 '//& 
                            '$figfile-$xx.dat -format TARGA -o $figfile-$xx.tga'
-            ! Add frequency infor 
-            write(tmpfile,'(A,F7.1,A)') &
-                  trim(adjustl(tmpfile))//" (Freq = ", Freq(j), " cm-1)"
             write(S_VMD,'(A)') 'convert -font URW-Palladio-Roman -pointsize 30 -draw '//&
                            '"text 30,70 '//"'"//trim(adjustl(tmpfile))//"'"//&
                            '" $figfile-$xx.tga $figfile-$xx.jpg'
@@ -596,13 +477,13 @@ program normal_modes_Cartesian
         !Call vmd
         vmdcall = 'vmd -m '
         do i=1,Nsel
-        vmdcall = trim(adjustl(vmdcall))//" "//trim(adjustl(grofile(i)))
+        vmdcall = trim(adjustl(vmdcall))//" "//trim(adjustl(grofile))
         enddo
         vmdcall = trim(adjustl(vmdcall))//" -e vmd_movie.dat -size 500 500"
-        open(O_LIS,file="movie.cmd",status="replace")
-        write(O_LIS,'(A)') trim(adjustl(vmdcall))
-        write(O_LIS,'(A)') "rm Mode*jpg Mode*dat Mode*tga"
-        close(O_LIS)
+        open(O_MOV,file="movie.cmd",status="replace")
+        write(O_MOV,'(A)') trim(adjustl(vmdcall))
+        write(O_MOV,'(A)') "rm Mode*jpg Mode*dat Mode*tga"
+        close(O_MOV)
         print*, ""
         print*, "============================================================"
         print*, "TO GENERATE THE MOVIES (AVI) EXECUTE COMMANDS IN 'movie.cmd'"
@@ -611,34 +492,35 @@ program normal_modes_Cartesian
         print*, ""
     endif
 
-
     stop
+
 
     !==============================================
     contains
     !=============================================
 
-    subroutine parse_input(inpfile,addfile,nmfile,nm,Nsel,Amplitude,filetype,verbose,call_vmd,movie_cycles)
+    subroutine parse_input(&
+                           ! input data
+                           inpfile,ft,hessfile,fth,gradfile,ftg,                 &
+                           ! Options (general)
+                           Amplitude,call_vmd,include_hbonds,selection,vertical, &
+                           ! Movie
+                           movie_vmd, movie_cycles)
     !==================================================
     ! My input parser (gromacs style)
     !==================================================
         implicit none
 
-        character(len=*),intent(inout) :: inpfile,addfile,nmfile,filetype
-        logical,intent(inout) ::  verbose, call_vmd
-        integer,dimension(:),intent(inout) :: nm
-        integer,intent(inout) :: Nsel, movie_cycles
-        real(8),intent(out) :: Amplitude
+        character(len=*),intent(inout) :: inpfile,ft,hessfile,fth,gradfile,ftg,selection
+        real(8),intent(inout)          :: Amplitude
+        logical,intent(inout)          :: call_vmd, include_hbonds,vertical,movie_vmd
+        integer,intent(inout)          :: movie_cycles
+
         ! Local
         logical :: argument_retrieved,  &
                    need_help = .false.
         integer:: i
         character(len=200) :: arg
-        real(8) :: maxd
-
-        !Prelimirary defaults
-        Nsel = 0
-        maxd=Amplitude*2.d0
 
         argument_retrieved=.false.
         do i=1,iargc()
@@ -652,26 +534,40 @@ program normal_modes_Cartesian
                     call getarg(i+1, inpfile)
                     argument_retrieved=.true.
                 case ("-ft") 
-                    call getarg(i+1, filetype)
+                    call getarg(i+1, ft)
                     argument_retrieved=.true.
-                case ("-add") 
-                    call getarg(i+1, addfile)
+
+                case ("-fhess") 
+                    call getarg(i+1, hessfile)
                     argument_retrieved=.true.
+                case ("-fth") 
+                    call getarg(i+1, fth)
+                    argument_retrieved=.true.
+
+                case ("-fgrad") 
+                    call getarg(i+1, gradfile)
+                    argument_retrieved=.true.
+                case ("-ftg") 
+                    call getarg(i+1, ftg)
+                    argument_retrieved=.true.
+! 
+!                 case ("-sym")
+!                     use_symmetry=.true.
+!                 case ("-nosym")
+!                     use_symmetry=.false.
+
+                case ("-vert")
+                    vertical=.true.
+                case ("-novert")
+                    vertical=.false.
 
                 case ("-nm") 
-                    call getarg(i+1, arg)
-                    argument_retrieved=.true.
-                    call string2vector_int(arg,nm,Nsel)
-
-                case ("-nmf") 
-                    call getarg(i+1, nmfile)
+                    call getarg(i+1, selection)
                     argument_retrieved=.true.
 
-                case ("-maxd") 
+                case ("-disp") 
                     call getarg(i+1, arg)
-                    read(arg,*) maxd
-                    !The whole Amplitude is twide the max displacement
-                    Amplitude = maxd*2
+                    read(arg,*) Amplitude
                     argument_retrieved=.true.
 
                 case ("-vmd")
@@ -680,51 +576,59 @@ program normal_modes_Cartesian
                 case ("-movie")
                     call getarg(i+1, arg)
                     read(arg,*) movie_cycles
+                    movie_vmd=.true.
                     argument_retrieved=.true.
 
-                case ("-nosym")
-                    write(0,*) trim(adjustl(arg))//" is not a valid option for Cartesian"
-                case ("-sym")
-                    write(0,*) trim(adjustl(arg))//" is not a valid option for Cartesian"
-
-                case ("-sa")
-                    write(0,*) trim(adjustl(arg))//" is not a valid option for Cartesian"
-                case ("-nosa")
-                    write(0,*) trim(adjustl(arg))//" is not a valid option for Cartesian"
-
-                case ("-readz") 
-                    write(0,*) trim(adjustl(arg))//" is not a valid option for Cartesian"
-
-                case ("-zmat")
-                    write(0,*) trim(adjustl(arg))//" is not a valid option for Cartesian"
-                case ("-nozmat")
-                    write(0,*) trim(adjustl(arg))//" is not a valid option for Cartesian"
-
-                case ("-v")
-                    verbose=.true.
+                case ("-include_hb")
+                    include_hbonds=.true.
         
                 case ("-h")
                     need_help=.true.
+
+                ! Control verbosity
+                case ("-quiet")
+                    verbose=0
+                case ("-concise")
+                    verbose=1
+                case ("-v")
+                    verbose=2
+                case ("-vv")
+                    verbose=3
 
                 case default
                     call alert_msg("fatal","Unkown command line argument: "//adjustl(arg))
             end select
         enddo 
 
+       ! Manage defaults
+       ! If not declared, hessfile and gradfile are the same as inpfile
+       if (adjustl(hessfile) == "same") then
+           hessfile=inpfile
+           if (adjustl(fth) == "guess")  fth=ft
+       endif
+       if (adjustl(gradfile) == "same") then
+           gradfile=inpfile
+           if (adjustl(ftg) == "guess")  ftg=ft
+       endif
+
+
        !Print options (to stderr)
         write(0,'(/,A)') '--------------------------------------------------'
-        write(0,'(/,A)') '            NORMAL MODES in CARTESIAN '    
-        write(0,'(/,A)') '       Generator of normal mode animations' 
-        write(0,'(/,A)') '         Revision: nm_cartesian-140320-1'
+        write(0,'(/,A)') '          CARTESIAN MODES ANIMATION '    
+        write(0,'(/,A)') '         Perform vibrational analysis'
         write(0,'(/,A)') '--------------------------------------------------'
         write(0,*) '-f              ', trim(adjustl(inpfile))
-        write(0,*) '-ft             ', trim(adjustl(filetype))
-        write(0,*) '-nm            ', nm(1),"-",nm(Nsel)
-!         write(0,*) '-nmf           ', nm(1:Nsel)
+        write(0,*) '-ft             ', trim(adjustl(ft))
+        write(0,*) '-fhess          ', trim(adjustl(hessfile))
+        write(0,*) '-fth            ', trim(adjustl(fth))
+        write(0,*) '-fgrad          ', trim(adjustl(gradfile))
+        write(0,*) '-ftg            ', trim(adjustl(ftg))
+        write(0,*) '-nm             ', trim(adjustl(selection))
+!         write(6,*) '-[no]sym       ',  use_symmetry
+        write(6,*) '-[no]vert      ',  vertical
         write(0,*) '-vmd           ',  call_vmd
         write(0,*) '-movie (cycles)',  movie_cycles
-        write(0,*) '-maxd          ',  Amplitude
-        write(0,*) '-v             ', verbose
+        write(0,*) '-disp          ',  Amplitude
         write(0,*) '-h             ',  need_help
         write(0,*) '--------------------------------------------------'
         if (need_help) call alert_msg("fatal", 'There is no manual (for the moment)' )
@@ -732,46 +636,50 @@ program normal_modes_Cartesian
         return
     end subroutine parse_input
 
+    subroutine prepare_files(icoord,grofile,g09file,g96file,numfile,qfile,title)
 
-    subroutine generic_strfile_read(unt,filetype,molec)
+        integer,intent(in) :: icoord
+        character(len=*),intent(out) :: grofile,g09file,g96file,numfile,qfile,title
 
-        integer, intent(in) :: unt
-        character(len=*),intent(in) :: filetype
-        type(str_resmol),intent(inout) :: molec
+        !Local
+        character(len=150) :: dummy_char
 
-        !local
-        type(str_molprops) :: props
-
-        select case (adjustl(filetype))
-            case("gro")
-             call read_gro(I_INP,molec)
-             call atname2element(molec)
-             call assign_masses(molec)
-            case("fcc")
-             call read_fccstate_atoms(I_INP,molec)
-             molec%atom(1:molec%natoms)%name="X"
-            case("pdb")
-             call read_pdb_new(I_INP,molec)
-             call atname2element(molec)
-             call assign_masses(molec)
-            case("log")
-             call parse_summary(I_INP,molec,props,"struct_only")
-             call atname2element(molec)
-             call assign_masses(molec)
-            case("fchk")
-             call read_fchk_geom(I_INP,molec)
-             call atname2element(molec)
-!              call assign_masses(molec) !read_fchk_geom includes the fchk masses
-            case default
-             call alert_msg("fatal","File type not supported: "//filetype)
-        end select
-
+        write(dummy_char,"(I0,X,A)") icoord
+        title   = "Animation of normal mode "//trim(adjustl(dummy_char))
+        g09file = "Mode"//trim(adjustl(dummy_char))//"_Cart.com"
+        g96file = "Mode"//trim(adjustl(dummy_char))//"_Cart.g96"
+        qfile   = "Mode"//trim(adjustl(dummy_char))//"_Cart_steps.dat"
+        grofile = "Mode"//trim(adjustl(dummy_char))//"_Cart.gro"
+        numfile = "Mode"//trim(adjustl(dummy_char))//"_Cart_num.com"
 
         return
 
+    end subroutine prepare_files
 
-    end subroutine generic_strfile_read
 
+    subroutine displace_Xcoord(Lc,Nat,Qstep,X,Y,Z)
 
-end program normal_modes_Cartesian
+        real(8),dimension(:),intent(in)   :: Lc
+        real(8),intent(in)                :: Qstep 
+        integer,intent(in)                :: Nat
+        real(8),dimension(:),intent(inout):: X,Y,Z
+
+        !Local
+        integer :: k, kk
+        real(8) :: magic_number
+
+        magic_number=1.8895d0
+
+        do k=1,Nat
+            kk = 3*(k-1)
+            X(k) = X(k) + Lc(kk+1) * Qstep /magic_number
+            Y(k) = Y(k) + Lc(kk+2) * Qstep /magic_number
+            Z(k) = Z(k) + Lc(kk+3) * Qstep /magic_number
+        enddo
+
+        return
+       
+    end subroutine displace_Xcoord
+
+end program normal_modes_cartesian
 

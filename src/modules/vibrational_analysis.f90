@@ -13,11 +13,15 @@ module vibrational_analysis
     !Common declarations:
     !===================
     use matrix
+    use matrix_print
+    use verbosity
+    use constants
+
     implicit none
 
     contains
 
-    subroutine vibrations_Cart(Nat,X,Y,Z,Mass,Hlt,Nvib,L,FC,error_flag)
+    subroutine vibrations_Cart(Nat,X,Y,Z,Mass,Hlt,Nvib,L,Freq,error_flag)
 
         !==============================================================
         ! This code is part of MOLECULAR_TOOLS
@@ -32,8 +36,8 @@ module vibrational_analysis
         ! Mass    (inp) real/vector   Atomic masses (AMU)
         ! Hlt     (inp) real/vector   Lower triangular part of the Hessian in Cartesian coordinates (AU)
         ! Nvib    (out) int /scalar   Number of vibrational degrees of freedom
-        ! L       (out) real/matrix   Normal modes (vibrations only) in Cartesian coordinates (AU)
-        ! FC      (out) real/vector   Force constants (AU)
+        ! L       (out) real/matrix   Normal modes (vibrations only) in Cartesian coordinates (Dimless)
+        ! Freq    (out) real/vector   Frequencies (cm-1)
         ! error_flag (out) flag  0 : success
         !                        1 : Wrong number of Trans+Rot (<5)
         !                        2 : Wrong number of independent vectors
@@ -43,7 +47,7 @@ module vibrational_analysis
         ! We assume the compiler would recognise them (true for gfortran, ifort)  
         !
         ! General note: better not to "reuse" output arrays as work arrays if the output
-        ! size is not as large as the work to do. E.g., FC can simply be (1:Nvib), so 
+        ! size is not as large as the work to do. E.g., Freq can simply be (1:Nvib), so 
         ! do not use is as a work array for (1:3*Nat)     
         !
         !==============================================================
@@ -57,7 +61,7 @@ module vibrational_analysis
         real(kind=8),dimension(:),intent(in)    :: Hlt
         integer,intent(out)                     :: Nvib
         real(kind=8),dimension(:,:),intent(out) :: L
-        real(kind=8),dimension(:),intent(out)   :: FC
+        real(kind=8),dimension(:),intent(out)   :: Freq
         integer,intent(out),optional :: error_flag
 
         !Local
@@ -71,15 +75,19 @@ module vibrational_analysis
         real(kind=8),dimension(3,3) :: MI, Xrot
         real(kind=8),dimension(1:3*Nat,1:3*Nat+6) :: D
         real(kind=8),dimension(3*Nat,3*Nat)       :: H
+        real(kind=8),dimension(Nat)               :: Mass_local
+
+        !Working in AU: transform mass to AU
+        Mass_local(1:Nat) = Mass(1:Nat) * AMUtoAU
 
         !Get COM 
         RCOM(1:3) = 0.d0
         MassTot   = 0.d0
         do i=1,Nat
-            RCOM(1) = RCOM(1) + X(i)*Mass(i)
-            RCOM(2) = RCOM(2) + Y(i)*Mass(i)
-            RCOM(3) = RCOM(3) + Z(i)*Mass(i)
-            MassTot = MassTot + Mass(i)
+            RCOM(1) = RCOM(1) + X(i)*Mass_local(i)
+            RCOM(2) = RCOM(2) + Y(i)*Mass_local(i)
+            RCOM(3) = RCOM(3) + Z(i)*Mass_local(i)
+            MassTot = MassTot + Mass_local(i)
         enddo
         RCOM(1:3) = RCOM(1:3)/MassTot
 
@@ -88,13 +96,13 @@ module vibrational_analysis
         do i=1,Nat
             R=(/X(i)-RCOM(1),Y(i)-RCOM(2),Z(i)-RCOM(3)/)
             !diag
-            MI(1,1)=MI(1,1)+Mass(i)*(R(2)**2+R(3)**2)
-            MI(2,2)=MI(2,2)+Mass(i)*(R(1)**2+R(3)**2)
-            MI(3,3)=MI(3,3)+Mass(i)*(R(1)**2+R(2)**2)
+            MI(1,1)=MI(1,1)+Mass_local(i)*(R(2)**2+R(3)**2)
+            MI(2,2)=MI(2,2)+Mass_local(i)*(R(1)**2+R(3)**2)
+            MI(3,3)=MI(3,3)+Mass_local(i)*(R(1)**2+R(2)**2)
             !off-diag
-            MI(2,1)=MI(2,1)-Mass(i)*(R(2)*R(1))
-            MI(3,1)=MI(3,1)-Mass(i)*(R(3)*R(1))
-            MI(3,2)=MI(3,2)-Mass(i)*(R(3)*R(2))
+            MI(2,1)=MI(2,1)-Mass_local(i)*(R(2)*R(1))
+            MI(3,1)=MI(3,1)-Mass_local(i)*(R(3)*R(1))
+            MI(3,2)=MI(3,2)-Mass_local(i)*(R(3)*R(2))
        enddo
        do i=1,3
           do j=1,i-1
@@ -103,7 +111,7 @@ module vibrational_analysis
         enddo
 
         !Diagonalize to get the rotation to the principal axes
-        call diagonalize_full(MI(1:3,1:3),3,Xrot(1:3,1:3),FC(1:3),"lapack")
+        call diagonalize_full(MI(1:3,1:3),3,Xrot(1:3,1:3),Freq(1:3),"lapack")
         !Note we need to transpose to follow G09 white paper
         Xrot=transpose(Xrot)
 
@@ -119,11 +127,11 @@ module vibrational_analysis
         do i=1,3*Nat,3
             j=(i-1)/3+1
             !D(1)
-            D(i  ,1) = dsqrt(Mass(j)) 
+            D(i  ,1) = dsqrt(Mass_local(j)) 
             !D(2)
-            D(i+1,2) = dsqrt(Mass(j)) 
+            D(i+1,2) = dsqrt(Mass_local(j)) 
             !D(3)
-            D(i+2,3) = dsqrt(Mass(j)) 
+            D(i+2,3) = dsqrt(Mass_local(j)) 
         enddo
         !Normalize
         D(1:3*Nat,1) = D(1:3*Nat,1)/sqrt(dot_product(D(1:3*Nat,1),D(1:3*Nat,1)))
@@ -137,17 +145,17 @@ module vibrational_analysis
             R=(/X(j)-RCOM(1),Y(j)-RCOM(2),Z(j)-RCOM(3)/)
             R(1:3) = matmul(Xrot(1:3,1:3),R(1:3))
             !D(4)
-            D(i  ,4) = (R(2)*Xrot(3,1) - R(3)*Xrot(2,1))*dsqrt(Mass(j)) 
-            D(i+1,4) = (R(2)*Xrot(3,2) - R(3)*Xrot(2,2))*dsqrt(Mass(j)) 
-            D(i+2,4) = (R(2)*Xrot(3,3) - R(3)*Xrot(2,3))*dsqrt(Mass(j)) 
+            D(i  ,4) = (R(2)*Xrot(3,1) - R(3)*Xrot(2,1))*dsqrt(Mass_local(j)) 
+            D(i+1,4) = (R(2)*Xrot(3,2) - R(3)*Xrot(2,2))*dsqrt(Mass_local(j)) 
+            D(i+2,4) = (R(2)*Xrot(3,3) - R(3)*Xrot(2,3))*dsqrt(Mass_local(j)) 
             !D(5)
-            D(i  ,5) = (R(3)*Xrot(1,1) - R(1)*Xrot(3,1))*dsqrt(Mass(j)) 
-            D(i+1,5) = (R(3)*Xrot(1,2) - R(1)*Xrot(3,2))*dsqrt(Mass(j)) 
-            D(i+2,5) = (R(3)*Xrot(1,3) - R(1)*Xrot(3,3))*dsqrt(Mass(j)) 
+            D(i  ,5) = (R(3)*Xrot(1,1) - R(1)*Xrot(3,1))*dsqrt(Mass_local(j)) 
+            D(i+1,5) = (R(3)*Xrot(1,2) - R(1)*Xrot(3,2))*dsqrt(Mass_local(j)) 
+            D(i+2,5) = (R(3)*Xrot(1,3) - R(1)*Xrot(3,3))*dsqrt(Mass_local(j)) 
             !D(5)
-            D(i  ,6) = (R(1)*Xrot(2,1) - R(2)*Xrot(1,1))*dsqrt(Mass(j)) 
-            D(i+1,6) = (R(1)*Xrot(2,2) - R(2)*Xrot(1,2))*dsqrt(Mass(j)) 
-            D(i+2,6) = (R(1)*Xrot(2,3) - R(2)*Xrot(1,3))*dsqrt(Mass(j)) 
+            D(i  ,6) = (R(1)*Xrot(2,1) - R(2)*Xrot(1,1))*dsqrt(Mass_local(j)) 
+            D(i+1,6) = (R(1)*Xrot(2,2) - R(2)*Xrot(1,2))*dsqrt(Mass_local(j)) 
+            D(i+2,6) = (R(1)*Xrot(2,3) - R(2)*Xrot(1,3))*dsqrt(Mass_local(j)) 
         enddo
         !Normalize (and determine if there is one equal to zero: linear molecules)
         ii = 3
@@ -211,7 +219,7 @@ module vibrational_analysis
             k=k+1
             ii = (i-1)/3+1
             jj = (j-1)/3+1
-            H(i,j) = Hlt(k)/sqrt(Mass(ii)*Mass(jj)) 
+            H(i,j) = Hlt(k)/sqrt(Mass_local(ii)*Mass_local(jj)) 
             H(j,i) = H(i,j)
         enddo 
         enddo
@@ -224,11 +232,22 @@ module vibrational_analysis
         D = transpose(D)
 
         !Diagonalize
-        call diagonalize_full(H(1:Nvib,1:Nvib),Nvib,L(1:Nvib,1:Nvib),FC(1:Nvib),"lapack")
-
+        call diagonalize_full(H(1:Nvib,1:Nvib),Nvib,L(1:Nvib,1:Nvib),Freq(1:Nvib),"lapack")
         !Transform L from internal frame (Nvib x Nvib) into Cartesian (3Nat x Nvib) using Mass and D(3Nat x Nvib)
         ! Lcart = m^1/2 D L
         L(1:3*Nat,1:Nvib) = matmul(D(1:3*Nat,Nrt+1:3*Nat),L(1:Nvib,1:Nvib))
+
+        !Check FC
+        if (verbose>0) &
+            call print_vector(6,Freq*1.d6,Nvib,"FORCE CONSTANTS x 10^6 (A.U.)")
+
+        !Transform to FC to Freq
+        do i=1,Nvib
+              Freq(i) = sign(dsqrt(abs(Freq(i))*HARTtoJ/BOHRtoM**2/AUtoKG)/2.d0/pi/clight/1.d2,&
+                             Freq(i))
+        enddo
+        if (verbose>0) &
+            call print_vector(6,Freq,Nvib,"Frequencies (cm-1)")
 
         return
 
@@ -251,7 +270,7 @@ module vibrational_analysis
         ! Nvib    (inp) int /scalar   Number of vibrational degrees of freedom
         ! Mass    (inp) real/vector   Atomic masses (AMU)
         ! LcartNrm(inp) real/matrix   Normalized Normal modes in Cartesian (adim) (3Nat x Nvib)
-        ! Lmwc    (out) real/matrix   Normal modes in mxc              (AMU^-1/2) (3Nat x Nvib)
+        ! Lmwc    (out) real/matrix   Normal modes in mxc          (mass_AU^-1/2) (3Nat x Nvib)
         !          
         !Notes
         ! We can use the same matrix as input and as output as there is
@@ -267,6 +286,10 @@ module vibrational_analysis
         !Local
         integer :: i, j, k, kk
         real(8) :: p1
+        real(kind=8),dimension(Nat) :: Mass_local
+
+        !Working in AU: transform mass to AU
+        Mass_local(1:Nat) = Mass(1:Nat) * AMUtoAU
 
         do k=1,Nvib
             kk=0
@@ -274,7 +297,7 @@ module vibrational_analysis
             do i=1,Nat
             do j=1,3
                 kk=kk+1
-                Lmwc(kk,k)=LcartNrm(kk,k)*dsqrt(Mass(i))
+                Lmwc(kk,k)=LcartNrm(kk,k)*dsqrt(Mass_local(i))
                 p1=p1+Lmwc(kk,k)**2
             enddo
             enddo
@@ -303,7 +326,7 @@ module vibrational_analysis
         ! Nvib    (inp) int /scalar   Number of vibrational degrees of freedom
         ! Mass    (inp) real/vector   Atomic masses (AMU)
         ! Lmwc    (inp) real/matrix   Normal modes in mxc (adim)           (3Nat x Nvib)
-        ! Lcart   (inp) real/matrix   Normal modes in Cartesian (AMU^-1/2) (3Nat x Nvib)
+        ! Lcart   (inp) real/matrix   Normal modes in Cartesian (mass_AU^-1/2) (3Nat x Nvib)
         ! error_flag (out) flag  0 : success
         !
         !Notes
@@ -321,11 +344,15 @@ module vibrational_analysis
         !Local
         integer :: i, ii
         integer :: error_local
+        real(kind=8),dimension(Nat) :: Mass_local
+
+        !Working in AU: transform mass to AU
+        Mass_local(1:Nat) = Mass(1:Nat) * AMUtoAU
 
         error_local = 0
         do i=1,3*Nat
             ii = (i-1)/3+1
-            Lcart(i,1:Nvib) = Lmwc(i,1:Nvib)/dsqrt(Mass(ii))
+            Lcart(i,1:Nvib) = Lmwc(i,1:Nvib)/dsqrt(Mass_local(ii))
         enddo
         if (present(error_flag)) error_flag=error_local
 
@@ -345,7 +372,7 @@ module vibrational_analysis
         !Arguments
         ! Nat     (inp) int /scalar   Number of atoms
         ! Nvib    (inp) int /scalar   Number of vibrational degrees of freedom
-        ! Lcart   (inp) real/matrix   Normal modes in mxc              (AMU^-1/2) (3Nat x Nvib)
+        ! Lcart   (inp) real/matrix   Normal modes in mxc              (AU^-1/2) (3Nat x Nvib)
         ! LcartNrm(out) real/matrix   Normalized Normal modes in Cartesian (adim) (3Nat x Nvib)
         ! error_flag (out) flag  0 : success
         !                        1 : 
@@ -393,7 +420,7 @@ module vibrational_analysis
         !Arguments
         ! Nat     (inp) int /scalar   Number of atoms
         ! Nvib    (inp) int /scalar   Number of vibrational degrees of freedom
-        ! Lcart   (inp) real/matrix   Normal modes in mxc              (AMU^-1/2) (3Nat x Nvib)
+        ! Lcart   (inp) real/matrix   Normal modes in mxc              (mass_AU^-1/2) (3Nat x Nvib)
         ! mu      (out) real/vector   reduced mass array (AMU) (Nvib)
         ! error_flag (out) flag  0 : success
         !                        1 : 
@@ -420,7 +447,7 @@ module vibrational_analysis
                 mu(i) = mu(i) + Lcart(j,i)**2
             enddo
             !Reduced_mass(i) = 1.d0/Factor
-            mu(i) = 1.d0/dsqrt(mu(i))
+            mu(i) = 1.d0/dsqrt(mu(i)) / AMUtoAU
         enddo
         if (present(error_flag)) error_flag=error_local
 

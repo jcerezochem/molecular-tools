@@ -35,7 +35,8 @@ module constants
                            BOHRtoAMS = 5.2917720859D-1, &
                            BOHRtoANGS= 5.2917720859D-1, &
                            UMAtoKG   = 1.66053873d-27,  &
-                           UMAtoAU   = 1.82288839d3,    &
+                           UMAtoAU   = 1.82288839d3,    & ! deprecated (keep for comopatibility)
+                           AMUtoAU   = 1.82288839d3,    &
                            AUtoKG    = 9.10938291d-31,  &
                            BOHRtoM   = 5.291772083d-11, &
                            BOHRtoNM  = 5.291772083d-2,  &

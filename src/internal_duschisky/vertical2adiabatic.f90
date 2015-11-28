@@ -518,11 +518,11 @@ program vertical2adiabatic
        ! If not declared, hessfile and gradfile are the same as inpfile
        if (adjustl(hessfile) == "same") then
            hessfile=inpfile
-           fth=ft
+           if (adjustl(fth) == "guess")  fth=ft
        endif
        if (adjustl(gradfile) == "same") then
            gradfile=inpfile
-           ftg=ft
+           if (adjustl(ftg) == "guess")  ftg=ft
        endif
 
 

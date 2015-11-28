@@ -21,6 +21,7 @@ module generic_io
     use molpro_manage
     use gmx_manage
     use pdb_manage
+    use fcc_manage
     implicit none
 
     contains
@@ -125,8 +126,9 @@ module generic_io
         character(len=*),intent(in)     :: filetype
         integer,intent(inout)           :: Nat
         real(8),dimension(:),intent(out):: X,Y,Z
-        character(len=*),dimension(:),intent(out) :: AtName
-        real(8),dimension(:),intent(out):: Mass
+        ! Made inout to handle incomplete files (fcc)
+        character(len=*),dimension(:),intent(inout) :: AtName
+        real(8),dimension(:),intent(inout):: Mass
         integer,intent(out),optional    :: error_flag
 
         !Local
@@ -135,6 +137,7 @@ module generic_io
         integer,dimension(:),allocatable :: IA
         character(len=1)                 :: data_type
         integer                          :: N
+        integer,dimension(size(AtName))  :: AtNum
         !Other local
         integer                          :: i,j
         integer                          :: error_local
@@ -144,6 +147,18 @@ module generic_io
             case("log")
              call read_gauslog_geom(unt,Nat,AtName,X,Y,Z,error_local)
              call assign_masses(Nat,AtName,Mass)
+            case("log-inpori")
+             call read_gauslog_stdori(unt,Nat,AtNum,X,Y,Z,"Input orientation",error_local)
+             do i=1,Nat
+                  AtName(i) = atname_from_atnum(AtNum(i))
+                  Mass(i)   = atmass_from_atnum(AtNum(i))
+             enddo
+            case("log-stdori")
+             call read_gauslog_stdori(unt,Nat,AtNum,X,Y,Z,"Standard orientation",error_local)
+             do i=1,Nat
+                  AtName(i) = atname_from_atnum(AtNum(i))
+                  Mass(i)   = atmass_from_atnum(AtNum(i))
+             enddo
             case("fchk")
              call read_fchk(unt,'Current cartesian coordinates',data_type,N,A,IA,error_local)
              do i=1,N,3
@@ -181,6 +196,8 @@ module generic_io
             case("pdb")
              call read_pdb_geom(unt,Nat,AtName,X,Y,Z)
              call assign_masses(Nat,AtName,Mass)
+            case("fcc")
+             call read_fccstate_geom(unt,Nat,X,Y,Z)
             case default
              write(0,*) "Unsupported filetype:"//trim(adjustl(filetype))
 !              call supported_filetype_list('freq')
@@ -277,7 +294,7 @@ module generic_io
         character(len=1)                 :: data_type
         integer                          :: N
         !For gausslog read
-        character(12*size(Grad))         :: section
+        character(12*3*Nat)              :: section
         !Other auxiliar
         integer                          :: i
         integer                          :: error_local
@@ -340,7 +357,7 @@ module generic_io
         character(len=1)                 :: data_type
         integer                          :: N
         !For gausslog read
-        character(12*size(Hlt))          :: section
+        character(12*9*Nat*Nat)          :: section
         !Other auxiliar
         integer                          :: i
         integer                          :: error_local
@@ -467,6 +484,91 @@ module generic_io
          return
 
     end subroutine generic_dip_reader
+
+
+    subroutine generic_nm_reader(unt,filetype,Nat,Nvib,Freq,L,error_flag)
+
+        !==============================================================
+        ! This code is part of FCC_TOOLS
+        !==============================================================
+        !Description
+        ! Generic Hessian reader, using the modules for each QM program
+        !
+        !Arguments
+        ! unt     (inp)  int /scalar   Unit of the file
+        ! filetype(inp)  char/scalar   Filetype  
+        ! Nat     (int)  int /scalar   Number of atoms
+        ! Freq     (out)  real/vector  Frequencies (cm-1)
+        ! L        (out)  real/matrix  Normal modes (Cartesian normalized, adim)
+        ! error_flag (out) flag        0: Success
+        !                              1: 
+        !
+        !==============================================================
+
+        integer,intent(in)              :: unt
+        character(len=*),intent(in)     :: filetype
+        integer,intent(in)              :: Nat
+        ! gauss files get Nvib here, fcc need it externally
+        integer,intent(inout)           :: Nvib
+        real(8),dimension(:),intent(out):: Freq
+        real(8),dimension(:,:),intent(out):: L
+        integer,intent(out),optional    :: error_flag
+
+        !Local
+        !Variables for read_fchk
+        real(8),dimension(:),allocatable :: A
+        integer,dimension(:),allocatable :: IA
+        character(len=1)                 :: data_type
+        integer                          :: N
+        !Other auxiliar
+        integer                          :: i, j, k
+        integer                          :: error_local
+
+        rewind(unt)
+
+        error_local = 0
+        select case (adjustl(filetype))
+            case("log")
+             call read_glog_nm(unt,Nvib,Nat,Freq,L,error_local)
+            case("fchk")
+             call read_fchk(unt,'Number of Normal Modes',data_type,N,A,IA,error_local)
+             if (error_local /= 0) then
+                 call alert_msg("fatal","The fchk does not contain normal modes")
+                 if (present(error_flag)) error_flag=error_local
+                 return
+             endif
+             Nvib=IA(1)
+             deallocate(IA)
+             call read_fchk(unt,'Vib-Modes',data_type,N,A,IA,error_local)
+             if (error_local /= 0) then
+                 if (present(error_flag)) error_flag=error_local
+                 return
+             endif
+             ! Reconstruct Lcart 
+             k=0
+             do i=1,Nvib
+                 do j=1,3*Nat
+                     k=k+1
+                     L(j,i) = A(k)
+                 enddo
+             enddo
+             deallocate(A)
+             call read_fchk(unt,'Vib-E2',data_type,N,A,IA,error_local)
+             Freq(1:Nvib) = A(1:Nvib)
+             deallocate(A)
+            case("fcc")
+             call read_fccstate_nm(unt,Nvib,Nat,Freq,L)
+            case default
+             call alert_msg("fatal","Unsupported filetype (normal modes):"//trim(adjustl(filetype)))
+!              call supported_filetype_list('freq')
+             error_local = 99
+         end select
+
+         if (present(error_flag)) error_flag=error_local
+
+         return
+
+    end subroutine generic_nm_reader
 
 
 end module generic_io

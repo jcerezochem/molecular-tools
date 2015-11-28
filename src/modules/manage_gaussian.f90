@@ -97,6 +97,7 @@ module gaussian_manage
                 ! space and continue
                 if (len(section)-len_trim(section) <= len_trim(line)) then
                     error_flag = error_flag - len_trim(line)
+                    call alert_msg("warning","Section length is too small. The application may missbehave")
                     section=section(len_trim(line)+1:len(section))
                 endif
                 !Append last line to section
@@ -110,6 +111,8 @@ module gaussian_manage
                 read(unt,'(X,A)',IOSTAT=IOstatus) line
                 if ( IOstatus < 0 ) then
                     error_flag = i+10
+                    write(section,'(I0)') i
+                    call alert_msg("fatal","Error reading line: "//trim(adjustl(section)))
                     rewind(unt)
                     return
                 endif
@@ -120,10 +123,11 @@ module gaussian_manage
             endif
             if (line == "@") then
                 error_flag = 1
+                write(section,'(I0)') isection
+                call alert_msg("fatal","End of summary while reading section "//trim(adjustl(section)))
                 rewind(unt)
                 return
             endif
-
         enddo
 
         return
@@ -512,12 +516,12 @@ module gaussian_manage
         elseif (nitems == 1) then
             !Read Z-mat...
             error_flag=1
-            call alert_msg("warning","Z-mat reading from G09 summary not yet implemented")
+            call alert_msg("fatal","Z-mat reading from G09 summary not yet implemented")
             rewind(unt)
             return
         else 
             error_flag=2
-            call alert_msg("warning","Unexpected structure format in G09 summary section")
+            call alert_msg("fatal","Unexpected structure format in G09 summary section")
             rewind(unt)
             return
         endif
@@ -526,6 +530,117 @@ module gaussian_manage
         return
 
     end subroutine read_gauslog_geom
+
+    subroutine read_gauslog_stdori(unt,Nat,AtNum,X,Y,Z,orientation,error_flag)
+
+        !==============================================================
+        ! This code is part of MOLECULAR_TOOLS
+        !==============================================================
+        !Description
+        ! Get geometry and atom names from section 4. The number of atoms
+        ! is also taken (since they are needed), using read_gausslog_natoms
+        ! USES ROUTINES IN THIS MODULE
+        !
+        !Arguments
+        ! unt     (inp) int /scalar    unit for the file 
+        ! Nat     (out) int /scalar    Number of atoms
+        ! AtName  (out) char/vertor    Atom names
+        ! X,Y,Z   (out) real/vectors   Coordinate vectors (ANGSTRONG)
+        ! io_flag  (io ) flag          Error flag:
+        !                                   0 : Success
+        !                                   1 : required Z-mat, but not implemented
+        !                                   2 : Unkonwn format
+        !                       +/-(100000+i) : Error in read_gausslog_natoms call: +/-i
+        !                       +/-(200000+i) : Error in summary_parser call: +/-i
+        !
+        !Notes:
+        ! TODO: Add Z-matrix support (currently rises and error)
+        !
+        !==============================================================
+
+        implicit none
+
+        !Arguments
+        integer,intent(in)               :: unt
+        integer,intent(inout)            :: Nat
+        integer,dimension(:),intent(out) :: AtNum
+#ifdef DOUBLE
+        real(8),dimension(:),intent(out) :: X,Y,Z
+#else
+        real,dimension(:),intent(out)    :: X,Y,Z
+#endif
+        character(len=*),intent(in),optional :: orientation
+        integer,intent(out),optional :: error_flag
+
+        !Reading stuff
+        character(len=50) :: header_of_section, &
+                             end_of_section
+        integer :: n_useles_lines
+        character(len=240) :: line=""
+
+        !Auxiliar variables and Dummies
+        character(len=30)  :: dummy_char
+        integer            :: dummy_int, error_local
+        character(len=100) :: orientation_local
+
+        !Counters
+        integer :: i,j
+        !I/O stuff
+        !status
+        integer :: IOstatus
+        !===================
+
+        if (present(orientation)) then
+            orientation_local = adjustl(orientation)
+        else
+            orientation_local = "Standard orientation"
+        endif
+
+        !Set variables
+        header_of_section=trim(adjustl(orientation_local))
+        end_of_section="----------"
+        n_useles_lines=4
+
+        rewind(unt)
+
+        ! Take the first Standard orientation in file 
+        error_local = 1
+        do 
+            read(unt,'(X,A)',IOSTAT=IOstatus) line
+            ! Two possible scenarios while reading:
+            ! 1) End of file
+            if ( IOstatus < 0 ) then
+                if (error_local == 1) call alert_msg("fatal","Exit without finding "&
+                                                   //trim(adjustl(orientation_local)))
+                rewind(unt)
+                return
+            endif 
+            ! 2) Found what looked for!      
+            if ( INDEX(line,trim(adjustl(header_of_section))) /= 0 ) exit
+        enddo
+        error_local = 0
+        ! Overpass lines until reaching the target table
+        do j=1,n_useles_lines
+            read(unt,'(X,A)',IOSTAT=IOstatus) line 
+        enddo
+
+        ! Read Standard orientation to a predefined end of table (no need to know the number of atoms)
+        do 
+            read(unt,'(X,A)',IOSTAT=IOstatus) line
+            ! Three possible scenarios while reading:
+            ! 1) End of file
+            if ( IOstatus < 0 ) call alert_msg("fatal","Unexpected end of file while scanning "&
+                                               //trim(adjustl(orientation_local)))
+            ! 2) End of table
+            if ( INDEX(line,trim(adjustl(end_of_section))) /= 0 ) exit    
+            ! 3) Table entry
+            read(line,*) i, AtNum(i), dummy_int, X(i), Y(i), Z(i)
+        enddo
+        Nat = i
+
+        return
+
+    end subroutine read_gauslog_stdori
 
 
     subroutine read_fchk(unt,section,data_type,N,A,I,error_flag)
@@ -1206,6 +1321,131 @@ module gaussian_manage
         return
 
     end subroutine read_gauss_job
+
+
+    subroutine read_glog_nm(unt,Nvib,Nat,Freq,L,err_label)
+
+        !==============================================================
+        ! This code is part of MOLECULAR_TOOLS 
+        !==============================================================
+        !Description
+        ! Read normal mode information from Gaussian log file. It reads 
+        ! frequencies and normal mode description through the cartesian
+        ! 
+        ! NOTES
+        !  Gets the LAST frequency section in the file (if more than one
+        !  job is present)
+        !==============================================================
+
+        integer,intent(in)  :: unt
+        integer, intent(in) :: Nat
+        integer, intent(out) :: Nvib
+#ifdef DOUBLE
+        double precision,dimension(:),intent(out)   :: freq
+        double precision,dimension(:,:),intent(out) :: L
+#else
+        real,dimension(:),intent(out) :: freq
+        real,dimension(:,:),intent(out) :: L
+#endif
+        integer,intent(out) :: err_label
+
+        !Lookup auxiliar variables
+        character(len=240) :: line, subline, cnull
+        character(len=2) :: modes, modes_prev
+        character(len=4) splitter
+        character(len=10000) :: cfreq, cRedMass
+        character(len=10000),dimension(1:1000) :: cL
+        integer :: nlines, N
+
+
+        !Counters and dummies (TODO: dummies module)
+        integer :: i,j, IOstatus, k
+
+        ! Initialize strings that will harvest the information
+        cfreq = ""
+        cL = ""
+        modes=""
+        modes_prev=""
+        err_label = -1
+        do
+            read(unt,'(X,A)',IOSTAT=IOstatus) line
+            if ( IOstatus /= 0) exit
+
+            if ( INDEX(line,"Frequencies") /= 0 ) then
+                err_label = 0
+                !We use the separator to differeciate HP modes and LP modes
+                if ( INDEX(line,'---') /= 0 ) then
+                    !High precision modes
+                    splitter="---"
+                    nlines=3*Nat
+                    modes="HP"
+                else
+                    !Low precision modes
+                    splitter="--"
+                    nlines=Nat
+                    modes="LP"
+                endif
+
+                ! When HP modes are available:
+                ! LP modes come after HP, but they are not interesting. So its time to leave
+                if ( modes == "LP" .and. modes_prev == "HP" ) then
+                    modes = "HP"
+                    nlines=3*Nat
+                    exit
+                endif
+                modes_prev = modes
+
+                !We form a superstring with all Frequencies (as characters): cfreq
+                call split_line(line,trim(adjustl(splitter)),line,subline)
+                cfreq = trim(adjustl(cfreq))//" "//trim(adjustl(subline))
+
+                !Now read RedMass (that is below Frequencies). Use the same splitter as for Frequencies
+                read(unt,'(X,A)',IOSTAT=IOstatus) line ! skipped (can be recalculated later on)
+
+                !Look for the Lcart matrix (i.e., we continue reading till we find it)
+                do 
+                    read(unt,'(X,A)',IOSTAT=IOstatus) line
+                    if ( IOstatus /= 0) call alert_msg("fatal","Could not get normal modes from glog")
+                    if ( INDEX(line,"Atom") /= 0 ) exit
+                enddo
+                do i=1,nlines
+                    if (modes == "HP") then
+                        read(unt,'(A23,A)') cnull, line
+                    elseif (modes == "LP") then
+                        read(unt,'(A13,A)') cnull, line
+                    endif
+                    cL(i) = trim(adjustl(cL(i)))//" "//trim(adjustl(line))
+                enddo
+
+            endif
+        enddo
+
+        if (err_label == -1 ) return
+
+        !We now read the superstrings cfreq. Also provide Nvib
+        call string2vector(cfreq,Freq,Nvib,sep=" ")
+        
+        do i=1,nlines
+            if ( modes == "LP" ) then
+                ! In LP modes coordinates for a given atom are grouped therefore
+                ! it's read using the fast index (row) running i-2 --> i
+                j = i*3
+                read(cL(i),*) L(j-2:j,1:Nvib)
+            elseif ( modes == "HP" ) then
+                ! HP modes are read line by line through the 3Nat coordinates
+                read(cL(i),*) L(i,1:Nvib)
+            endif
+        enddo
+
+        if ( modes == "LP" ) then
+            call alert_msg("warning","Low precision modes read from glog")
+            err_label = 1
+        endif
+
+        rewind(unt)
+        return
+
+    end subroutine read_glog_nm
 
 
 end module gaussian_manage

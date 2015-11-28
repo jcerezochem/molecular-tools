@@ -60,17 +60,45 @@ module fcc_manage
 
     end subroutine read_fccstate_atoms
 
+    subroutine read_fccstate_geom(unt,Nat,X,Y,Z)
 
-    subroutine read_fccstate_freq(unt,Nvib,Nat,Freq,A)
+        integer,intent(in) :: unt
+        integer,intent(in) :: Nat
+        real(8),dimension(:),intent(out)  :: X,Y,Z
+        ! Local
+        integer :: i, j
+
+        rewind(unt)
+
+        do i=1,Nat 
+            read(unt,*) X(i)
+            read(unt,*) Y(i)
+            read(unt,*) Z(i)
+        enddo
+
+        return
+
+    end subroutine read_fccstate_geom
+
+    subroutine read_fccstate_nm(unt,Nvib,Nat,Freq,L)
 
         integer,intent(in) :: unt
         integer,intent(in) :: Nvib,Nat
-        real(8),dimension(:),intent(out) :: Freq,A
+        real(8),dimension(:),intent(out)  :: Freq
+        real(8),dimension(:,:),intent(out):: L
         ! Local
-        integer :: i
+        integer :: i, j
 
-        do i=1,3*Nat*Nvib
-            read(unt,*) A(i)
+        rewind(unt)
+
+        do i=1,3*Nat 
+            read(unt,*) 
+        enddo
+
+        do i=1,3*Nat
+            do j=1,Nvib
+                read(unt,*) L(i,j)
+            enddo
         enddo
 
         do i=1,Nvib
@@ -79,6 +107,6 @@ module fcc_manage
 
         return
 
-    end subroutine read_fccstate_freq
+    end subroutine read_fccstate_nm
 
 end module fcc_manage

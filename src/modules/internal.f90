@@ -795,7 +795,7 @@ module internal_module
         if (verbose>0) &
             call print_vector(6,Freq*1.d6,Nvib,"FORCE CONSTANTS x 10^6 (A.U.)")
 
-        !Check freqcuencies
+        !Transform to FC to Freq
         do i=1,Nvib
               Freq(i) = sign(dsqrt(abs(Freq(i))*HARTtoJ/BOHRtoM**2/AUtoKG)/2.d0/pi/clight/1.d2,&
                              Freq(i))

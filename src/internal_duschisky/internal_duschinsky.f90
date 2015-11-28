@@ -222,11 +222,11 @@ program internal_duschinski
     enddo
     deallocate(A)
 
-!     ! GRADIENT FILE
-!     open(I_INP,file=gradfile,status='old',iostat=IOstatus)
-!     if (IOstatus /= 0) call alert_msg( "fatal","Unable to open "//trim(adjustl(gradfile)) )
-!     call generic_gradient_reader(I_INP,ftg,Nat,Grad,error)
-!     close(I_INP)
+    ! GRADIENT FILE
+    open(I_INP,file=gradfile,status='old',iostat=IOstatus)
+    if (IOstatus /= 0) call alert_msg( "fatal","Unable to open "//trim(adjustl(gradfile)) )
+    call generic_gradient_reader(I_INP,ftg,Nat,Grad,error)
+    close(I_INP)
 
     ! MANAGE INTERNAL COORDS
     ! ---------------------------------
@@ -266,13 +266,12 @@ program internal_duschinski
     !SOLVE GF METHOD TO GET NM AND FREQ
     call internal_Wilson(state1,Nvib,S1,B,ModeDef)
     call internal_Gmetric(Nat,Nvib,state1%atom(:)%mass,B,G1)
-!     if (vertical) then
-!         call NumBder(state1,Nvib,Bder)
-!         call HessianCart2int(Nat,Nvib,Hess,state1%atom(:)%mass,B,G1,Grad=Grad,Bder=Bder)
-!     else
-!         call HessianCart2int(Nat,Nvib,Hess,state1%atom(:)%mass,B,G1)
-!     endif
-    call HessianCart2int(Nat,Nvib,Hess,state1%atom(:)%mass,B,G1)
+    if (vertical) then
+        call NumBder(state1,Nvib,Bder)
+        call HessianCart2int(Nat,Nvib,Hess,state1%atom(:)%mass,B,G1,Grad=Grad,Bder=Bder)
+    else
+        call HessianCart2int(Nat,Nvib,Hess,state1%atom(:)%mass,B,G1)
+    endif
     call gf_method(Nvib,G1,Hess,L1,Freq1,X,X1inv)
     if (verbose>0) then
         ! Analyze normal modes
@@ -825,19 +824,19 @@ program internal_duschinski
        ! If not declared, hessfile and gradfile are the same as inpfile
        if (adjustl(hessfile) == "same") then
            hessfile=inpfile
-           fth=ft
+           if (adjustl(fth) == "guess")  fth=ft
        endif
        if (adjustl(gradfile) == "same") then
            gradfile=inpfile
-           ftg=ft
+           if (adjustl(ftg) == "guess")  ftg=ft
        endif
        if (adjustl(hessfile2) == "same") then
            hessfile2=inpfile2
-           fth2=ft2
+           if (adjustl(fth2) == "guess")  fth2=ft2
        endif
        if (adjustl(gradfile2) == "same") then
            gradfile2=inpfile2
-           ftg2=ft2
+           if (adjustl(ftg2) == "guess")  ftg2=ft2
        endif
 
        !Print options (to stderr)

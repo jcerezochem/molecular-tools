@@ -220,34 +220,40 @@ module line_preprocess
     end subroutine set_word_upper_case
 
 
-    subroutine string2vector(raw_vector,array_vector,n_elem)
+    subroutine string2vector(raw_vector,array_vector,n_elem,sep)
 
         !Description
         ! Tranforms a string of comma sepparated values into an
         ! array of such real vaues 
 
-        character(len=*),intent(inout) :: raw_vector
-#ifdef DOUBLE
-        double precision,dimension(:),intent(out) :: array_vector
-#else
-        real,dimension(:),intent(out) :: array_vector
-#endif
+        character(len=*),intent(in) :: raw_vector
+        real(8),dimension(:),intent(out) :: array_vector
         integer,intent(out) :: n_elem
+        character(len=*),intent(in) :: sep !separador
 
         !Local
+        character(len=len_trim(raw_vector)) :: raw_vector_copy
         character(len=240) :: auxchar
         integer :: i
     
         
-        !Read unknown length vector (comma sepparated)
+        !Copy the original vector to avoid modifying it
+        raw_vector_copy = trim(adjustl(raw_vector))
+
+        !Read unknown length vector
         i=0
         do 
             i=i+1
-            if ( INDEX(raw_vector,',') /= 0 ) then
-                call split_line(raw_vector,',',auxchar,raw_vector)
+            if (len_trim(raw_vector_copy) == 0) then
+                i=i-1
+                exit
+            else if ( INDEX(raw_vector_copy,sep) /= 0 ) then
+                call split_line(raw_vector_copy,sep,auxchar,raw_vector_copy)
                 read(auxchar,*) array_vector(i)
+                ! By adjustl-ing every time we avoid double counting blank spaces
+                raw_vector_copy = adjustl(raw_vector_copy)
             else 
-                read(raw_vector,*) array_vector(i)
+                read(raw_vector_copy,*) array_vector(i)
                 exit
             endif
         enddo  
@@ -257,30 +263,40 @@ module line_preprocess
 
     end subroutine string2vector
 
-    subroutine string2vector_int(raw_vector,array_vector,n_elem)
+    subroutine string2vector_int(raw_vector,array_vector,n_elem,sep)
 
         !Description
         ! Tranforms a string of comma sepparated values into an
         ! array of such integer vaues (integer version) 
 
-        character(len=*),intent(inout) :: raw_vector
+        character(len=*),intent(in) :: raw_vector
         integer,dimension(:),intent(out) :: array_vector
         integer,intent(out) :: n_elem
+        character(len=*),intent(in) :: sep !separador
 
         !Local
+        character(len=len_trim(raw_vector)) :: raw_vector_copy
         character(len=240) :: auxchar
         integer :: i
     
         
-        !Read unknown length vector (comma sepparated)
+        !Copy the original vector to avoid modifying it
+        raw_vector_copy = trim(adjustl(raw_vector))
+
+        !Read unknown length vector
         i=0
         do 
             i=i+1
-            if ( INDEX(raw_vector,',') /= 0 ) then
-                call split_line(raw_vector,',',auxchar,raw_vector)
+            if (len_trim(raw_vector_copy) == 0) then
+                i=i-1
+                exit
+            else if ( INDEX(raw_vector_copy,sep) /= 0 ) then
+                call split_line(raw_vector_copy,sep,auxchar,raw_vector_copy)
                 read(auxchar,*) array_vector(i)
+                ! By adjustl-ing every time we avoid double counting blank spaces
+                raw_vector_copy = adjustl(raw_vector_copy)
             else 
-                read(raw_vector,*) array_vector(i)
+                read(raw_vector_copy,*) array_vector(i)
                 exit
             endif
         enddo  
@@ -301,7 +317,7 @@ module line_preprocess
         character(len=*),intent(in) :: raw_vector
         character(len=*),dimension(:),intent(out) :: array_vector
         integer,intent(out) :: n_elem
-        character(len=*) :: sep !separador
+        character(len=*),intent(in) :: sep !separador
 
         !Local
         character(len=len_trim(raw_vector)) :: raw_vector_copy
@@ -341,6 +357,9 @@ module line_preprocess
     ! Functions that get character from numbers
 
     function int20char(i,length) result(c)
+
+        ! Converts an integer into a char of a given length
+        ! If length>digits, complete with zeroes
 
         integer,intent(in)    :: i
         integer,intent(in)    :: length
