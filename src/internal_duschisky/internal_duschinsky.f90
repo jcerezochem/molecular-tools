@@ -283,8 +283,8 @@ program internal_duschinski
     endif
 
     ! Compute new state_file
-    ! T(g09) = mu^1/2 m B^t G^-1 L
-    call Lmwc_to_Lcart(Nat,Nvib,state1%atom(:)%mass,L1,Aux,error)
+    ! T1(g09) = mu^1/2 m B^t G1^-1 L1
+    call Ls_to_Lcart(Nat,Nvib,state1%atom(:)%mass,B,G1,L1,Aux,error)
     call Lcart_to_LcartNrm(Nat,Nvib,Aux,Aux2,error)
     !Checking normalization
     if (verbose>0) then
@@ -301,6 +301,11 @@ program internal_duschinski
     !Print state
     open(O_STAT,file="state_file_1")
     call set_geom_units(state1,"Angs")
+    do i=1,Nat
+        write(O_STAT,*) state1%atom(i)%x
+        write(O_STAT,*) state1%atom(i)%y
+        write(O_STAT,*) state1%atom(i)%z
+    enddo
     do i=1,3*Nat
     do j=1,Nvib
         write(O_STAT,*) Aux2(i,j)
@@ -310,7 +315,6 @@ program internal_duschinski
         write(O_STAT,'(F12.5)') Freq1(j)
     enddo
     close(O_STAT)
-
 
     ! If only one state is give, exit now
     if (adjustl(inpfile2) == "none") stop
@@ -434,8 +438,7 @@ program internal_duschinski
     endif
 
     ! Compute new state_file
-    ! T(g09) = mu^1/2 m B^t G^-1 L
-    call Lmwc_to_Lcart(Nat,Nvib,state2%atom(:)%mass,L2,Aux,error)
+    call Ls_to_Lcart(Nat,Nvib,state2%atom(:)%mass,B,G2,L2,Aux,error)
     call Lcart_to_LcartNrm(Nat,Nvib,Aux,Aux2,error)
     !Checking normalization
     if (verbose>0) then
@@ -451,7 +454,12 @@ program internal_duschinski
     endif
     !Print state
     open(O_STAT,file="state_file_2")
-    call set_geom_units(state1,"Angs")
+    call set_geom_units(state2,"Angs")
+    do i=1,Nat
+        write(O_STAT,*) state2%atom(i)%x
+        write(O_STAT,*) state2%atom(i)%y
+        write(O_STAT,*) state2%atom(i)%z
+    enddo
     do i=1,3*Nat
     do j=1,Nvib
         write(O_STAT,*) Aux2(i,j)

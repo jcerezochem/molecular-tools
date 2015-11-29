@@ -409,6 +409,108 @@ module vibrational_analysis
 
     end subroutine Lcart_to_LcartNrm
 
+
+    subroutine Ls_to_Lcart(Nat,Nvib,Mass,B,G,Ls,Lcart,error_flag)
+
+        !==============================================================
+        ! This code is part of MOLECULAR_TOOLS
+        !==============================================================
+        !Description
+        ! Tranform the Ls into the Lcart:
+        !    Lcart = m^-1 B^t Ginv Ls
+        !
+        !Arguments
+        ! Nat     (inp) int /scalar   Number of atoms
+        ! Nvib    (inp) int /scalar   Number of vibrational degrees of freedom (Ns should be = Nvib!!)
+        ! Mass    (inp) real/vector   Atomic masses (AMU)
+        ! B       (inp) real/matrix   B Wilsn matrix (AU)
+        ! G       (inp) real/matrix   G metric matrix (AU)
+        ! Ls      (inp) real/matrix   Normal modes in internal coords (Nvib x Nvib)
+        ! Lcart   (inp) real/matrix   Normal modes in Cartesian (mass_AU^-1/2) (3Nat x Nvib)
+        ! error_flag (out) flag  0 : success
+        !
+        !Notes
+        ! We can use the same matrix as input and as output as there is
+        ! no conflict
+        ! Only valid for Ns=Nvib
+        !
+        !==============================================================
+
+        integer,intent(in)                      :: Nat, Nvib
+        real(kind=8),dimension(:),intent(in)    :: Mass
+        real(kind=8),dimension(:,:),intent(in)  :: B
+        real(kind=8),dimension(:,:),intent(in)  :: G
+        real(kind=8),dimension(:,:),intent(in)  :: Ls
+        real(kind=8),dimension(:,:),intent(out) :: Lcart
+        integer,intent(out),optional            :: error_flag
+
+        !Local
+        integer :: i, ii
+        integer :: error_local
+        real(kind=8),dimension(Nat) :: Mass_local
+        real(kind=8),dimension(Nvib,Nvib) :: Ginv
+        
+        !Working in AU: transform mass to AU
+        Mass_local(1:Nat) = Mass(1:Nat) * AMUtoAU
+
+        ! Compute G^-1 
+        Ginv(1:Nvib,1:Nvib) = inverse_realgen(Nvib,G)
+
+        ! Compute B^t G^-1
+        Lcart(1:3*Nat,1:Nvib)= matrix_product(3*Nat,Nvib,Nvib,B,Ginv,tA=.true.)
+        ! Compute [B^t G^-1] L
+        Lcart(1:3*Nat,1:Nvib) = matrix_product(3*Nat,Nvib,Nvib,Lcart,Ls)
+        ! Compute m^-1 [B^t G^-1 L] 
+        do i=1,3*Nat
+            ii = (i-1)/3+1
+            Lcart(i,1:Nvib) = Lcart(i,1:Nvib)/Mass_local(ii)
+        enddo
+
+        return 
+
+    end subroutine Ls_to_Lcart
+
+    subroutine Lcart_to_Ls(Nat,Nvib,B,Lcart,Ls,error_flag)
+
+        !==============================================================
+        ! This code is part of MOLECULAR_TOOLS
+        !==============================================================
+        !Description
+        ! Tranform the Lcart into the Ls:
+        !    Ls = B Lcart 
+        !
+        !Arguments
+        ! Nat     (inp) int /scalar   Number of atoms
+        ! Nvib    (inp) int /scalar   Number of vibrational degrees of freedom (Ns should be = Nvib!!)
+        ! B       (inp) real/matrix   B Wilsn matrix (AU)
+        ! Lcart   (inp) real/matrix   Normal modes in internal coords (Nvib x Nvib)
+        ! Ls      (inp) real/matrix   Normal modes in Cartesian (mass_AU^-1/2) (3Nat x Nvib)
+        ! error_flag (out) flag  0 : success
+        !
+        !Notes
+        ! We can use the same matrix as input and as output as there is
+        ! no conflict
+        ! Only valid for Ns=Nvib
+        !
+        !==============================================================
+
+        integer,intent(in)                      :: Nat, Nvib
+        real(kind=8),dimension(:,:),intent(in)  :: B
+        real(kind=8),dimension(:,:),intent(in)  :: Lcart
+        real(kind=8),dimension(:,:),intent(out) :: Ls
+        integer,intent(out),optional            :: error_flag
+
+        !Local
+        integer :: i, ii
+        integer :: error_local
+
+        ! Compute B Lcart
+        Ls(1:Nvib,1:Nvib)= matrix_product(Nvib,Nvib,3*Nat,B,Lcart)
+
+        return 
+
+    end subroutine Lcart_to_Ls
+
     subroutine mu_from_Lcart(Nat,Nvib,Lcart,mu,error_flag)
 
         !==============================================================

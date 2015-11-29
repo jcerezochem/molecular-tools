@@ -117,10 +117,11 @@ program normal_modes_cartesian
                S_VMD=30
 
     !files
-    character(len=10) :: ft ="guess",  ftg="guess",  fth="guess", nm_check=""
+    character(len=10) :: ft ="guess",  ftg="guess",  fth="guess", ftn="guess"
     character(len=200):: inpfile  ="state1.fchk", &
                          gradfile ="same", &
                          hessfile ="same", &
+                         nmfile   ="none",   &
                          symm_file="none"
     !Structure files to be created
     character(len=100) :: g09file,qfile, tmpfile, g96file, grofile,numfile
@@ -141,14 +142,12 @@ program normal_modes_cartesian
     ! 0. GET COMMAND LINE ARGUMENTS
     call parse_input(&
                      ! input data
-                     inpfile,ft,hessfile,fth,gradfile,ftg,                 &
+                     inpfile,ft,hessfile,fth,gradfile,ftg,nmfile,ftn,      &
                      ! Options (general)
                      Amplitude,call_vmd,include_hbonds,selection,vertical, &
                      ! Movie
                      movie_vmd, movie_cycles)
 
-
-    ! INTERNAL VIBRATIONAL ANALYSIS
  
     ! 1. READ DATA
     ! ---------------------------------
@@ -159,12 +158,14 @@ program normal_modes_cartesian
     call split_line_back(hessfile,".",null,fth)
     if (ftg == "guess") &
     call split_line_back(gradfile,".",null,ftg)
+    if (ftn == "guess") &
+    call split_line_back(nmfile,".",null,ftn)
 
     ! Manage special files (fcc) 
-    if (adjustl(ft) == "fcc" .or. adjustl(fth) == "fcc-nm") then
-        call alert_msg("note","fcc files needs fcc-input as -f and statefile as -fth")
+    if (adjustl(ft) == "fcc" .or. adjustl(ftn) == "fcc") then
+        call alert_msg("note","fcc files needs fcc-input as -f and statefile as -ftn")
         ft ="fcc"
-        fth="fcc-nm"
+        ftn="fcc"
         ! inpfile has Nat, Nvib, and Masses          <= in inpfile
         ! statefile has coordinates and normal modes <= in hessfile
         ! Generic generic readers parse the state (not the inpfile)
@@ -183,8 +184,9 @@ program normal_modes_cartesian
         enddo
         close(I_INP)
         ! Now put the statefile in the inpfile
-        inpfile=hessfile
-    elseif (adjustl(fth) == "log-nm") then
+        inpfile=nmfile
+    elseif (adjustl(ftn) == "log") then
+        ! Need to read the standard orientation, not from summary section
         ft = "log-stdori"
     endif
         
@@ -209,11 +211,10 @@ program normal_modes_cartesian
 
 
     ! Vibrational analysis: either read from file or from diagonalization of Hessian
-    call split_line_back(fth,"-",fth,nm_check)
-    if (nm_check == "nm") then
-        open(I_INP,file=hessfile,status='old',iostat=IOstatus)
-        if (IOstatus /= 0) call alert_msg( "fatal","Unable to open "//trim(adjustl(hessfile)) )
-        call generic_nm_reader(I_INP,fth,Nat,Nvib,Freq,LL)
+    if (adjustl(nmfile) /= "none") then
+        open(I_INP,file=nmfile,status='old',iostat=IOstatus)
+        if (IOstatus /= 0) call alert_msg( "fatal","Unable to open "//trim(adjustl(nmfile)) )
+        call generic_nm_reader(I_INP,ftn,Nat,Nvib,Freq,LL)
         ! Show frequencies
         if (verbose>0) &
          call print_vector(6,Freq,Nvib,"Frequencies (cm-1)")
@@ -249,8 +250,6 @@ program normal_modes_cartesian
         !Transform L to Cartesian (output in AU(mass) as with internal)
         call Lmwc_to_Lcart(Nat,Nvib,molecule%atom(1:Nat)%mass,LL,LL)
     endif
-
-print'(3F13.4)', LL(1:3*Nat,24)
 
     !Define the Factor to convert shift into addimensional displacements
     ! from the shift in SI units:
@@ -501,7 +500,7 @@ print'(3F13.4)', LL(1:3*Nat,24)
 
     subroutine parse_input(&
                            ! input data
-                           inpfile,ft,hessfile,fth,gradfile,ftg,                 &
+                           inpfile,ft,hessfile,fth,gradfile,ftg,nmfile,ftn,      &
                            ! Options (general)
                            Amplitude,call_vmd,include_hbonds,selection,vertical, &
                            ! Movie
@@ -511,7 +510,7 @@ print'(3F13.4)', LL(1:3*Nat,24)
     !==================================================
         implicit none
 
-        character(len=*),intent(inout) :: inpfile,ft,hessfile,fth,gradfile,ftg,selection
+        character(len=*),intent(inout) :: inpfile,ft,hessfile,fth,gradfile,ftg,nmfile,ftn,selection
         real(8),intent(inout)          :: Amplitude
         logical,intent(inout)          :: call_vmd, include_hbonds,vertical,movie_vmd
         integer,intent(inout)          :: movie_cycles
@@ -549,6 +548,13 @@ print'(3F13.4)', LL(1:3*Nat,24)
                     argument_retrieved=.true.
                 case ("-ftg") 
                     call getarg(i+1, ftg)
+                    argument_retrieved=.true.
+
+                case ("-fnm") 
+                    call getarg(i+1, nmfile)
+                    argument_retrieved=.true.
+                case ("-ftn") 
+                    call getarg(i+1, ftn)
                     argument_retrieved=.true.
 ! 
 !                 case ("-sym")
@@ -602,13 +608,26 @@ print'(3F13.4)', LL(1:3*Nat,24)
 
        ! Manage defaults
        ! If not declared, hessfile and gradfile are the same as inpfile
-       if (adjustl(hessfile) == "same") then
-           hessfile=inpfile
-           if (adjustl(fth) == "guess")  fth=ft
-       endif
-       if (adjustl(gradfile) == "same") then
-           gradfile=inpfile
-           if (adjustl(ftg) == "guess")  ftg=ft
+       ! unless we are using nm file
+       if (adjustl(nmfile) == "none") then
+           if (adjustl(hessfile) == "same") then
+               hessfile=inpfile
+               if (adjustl(fth) == "guess")  fth=ft
+           endif
+           if (adjustl(gradfile) == "same") then
+               gradfile=inpfile
+               if (adjustl(ftg) == "guess")  ftg=ft
+           endif
+           ftn="-"
+       else
+           if (adjustl(hessfile) /= "same") &
+            call alert_msg("note","Using nm file, disabling Hessian file")
+           hessfile="none"
+           fth="-"
+           if (adjustl(hessfile) /= "same") &
+            call alert_msg("note","Using nm file, disabling gradient file")
+           gradfile="none"
+           ftg="-"
        endif
 
 
@@ -623,6 +642,8 @@ print'(3F13.4)', LL(1:3*Nat,24)
         write(0,*) '-fth            ', trim(adjustl(fth))
         write(0,*) '-fgrad          ', trim(adjustl(gradfile))
         write(0,*) '-ftg            ', trim(adjustl(ftg))
+        write(0,*) '-fnm            ', trim(adjustl(nmfile))
+        write(0,*) '-ftn            ', trim(adjustl(ftn))
         write(0,*) '-nm             ', trim(adjustl(selection))
 !         write(6,*) '-[no]sym       ',  use_symmetry
         write(6,*) '-[no]vert      ',  vertical

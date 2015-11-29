@@ -87,7 +87,7 @@ program normal_modes_animation
 
     !====================== 
     ! PES topology and normal mode things
-    real(8),dimension(:),allocatable :: A
+    real(8),dimension(:),allocatable :: Hlt
     real(8),dimension(1:NDIM,1:NDIM) :: Hess, LL
     real(8),dimension(NDIM) :: Freq, Factor, Grad
     !Moving normal modes
@@ -136,10 +136,11 @@ program normal_modes_animation
                S_VMD=30
 
     !files
-    character(len=10) :: ft ="guess",  ftg="guess",  fth="guess"
+    character(len=10) :: ft ="guess",  ftg="guess",  fth="guess", ftn="guess"
     character(len=200):: inpfile  ="state1.fchk", &
                          gradfile ="same", &
                          hessfile ="same", &
+                         nmfile   ="none", &
                          intfile  ="none", &
                          rmzfile  ="none", &
                          symm_file="none"
@@ -159,7 +160,7 @@ program normal_modes_animation
     ! 0. GET COMMAND LINE ARGUMENTS
     call parse_input(&
                      ! input data
-                     inpfile,ft,hessfile,fth,gradfile,ftg,                 &
+                     inpfile,ft,hessfile,fth,gradfile,ftg,nmfile,ftn,      &
                      ! Options (general)
                      Amplitude,call_vmd,include_hbonds,selection,vertical, &
                      ! Movie
@@ -179,7 +180,38 @@ program normal_modes_animation
     call split_line_back(hessfile,".",null,fth)
     if (ftg == "guess") &
     call split_line_back(gradfile,".",null,ftg)
+    if (ftn == "guess") &
+    call split_line_back(nmfile,".",null,ftn)
 
+    ! Manage special files (fcc) 
+    if (adjustl(ft) == "fcc" .or. adjustl(ftn) == "fcc") then
+        call alert_msg("note","fcc files needs fcc-input as -f and statefile as -ftn")
+        ft ="fcc"
+        ftn="fcc"
+        ! inpfile has Nat, Nvib, and Masses          <= in inpfile
+        ! statefile has coordinates and normal modes <= in hessfile
+        ! Generic generic readers parse the state (not the inpfile)
+        ! so we get the info here
+        open(I_INP,file=inpfile,status='old',iostat=IOstatus)
+        if (IOstatus /= 0) call alert_msg( "fatal","Unable to open "//trim(adjustl(inpfile)) )
+        read(I_INP,*) Nat 
+        molecule%natoms = Nat
+        read(I_INP,*) Nvib
+        do i=1,Nat 
+            read(I_INP,*) molecule%atom(i)%mass
+            !Set atomnames from atommasses
+            call atominfo_from_atmass(molecule%atom(i)%mass,  &
+                                      molecule%atom(i)%AtNum, &
+                                      molecule%atom(i)%name)
+        enddo
+        close(I_INP)
+        ! Now put the statefile in the inpfile
+        inpfile=nmfile
+    elseif (adjustl(ftn) == "log") then
+        ! Need to read the standard orientation, not from summary section
+        ft = "log-stdori"
+    endif
+        
     ! STRUCTURE FILE
     open(I_INP,file=inpfile,status='old',iostat=IOstatus)
     if (IOstatus /= 0) call alert_msg( "fatal","Unable to open "//trim(adjustl(inpfile)) )
@@ -199,32 +231,49 @@ program normal_modes_animation
     ! Shortcuts
     Nat = molecule%natoms
 
-    ! HESSIAN FILE
-    open(I_INP,file=hessfile,status='old',iostat=IOstatus)
-    if (IOstatus /= 0) call alert_msg( "fatal","Unable to open "//trim(adjustl(hessfile)) )
-    allocate(A(1:3*Nat*(3*Nat+1)/2))
-    call generic_Hessian_reader(I_INP,fth,Nat,A,error) 
-    if (error /= 0) call alert_msg("fatal","Error reading Hessian (State1)")
-    close(I_INP)
-    ! Run vibrations_Cart to get the number of Nvib (to detect linear molecules)
-    call vibrations_Cart(Nat,molecule%atom(:)%X,molecule%atom(:)%Y,molecule%atom(:)%Z,molecule%atom(:)%Mass,A,&
-                         Nvib,LL,Freq,error)
-    k=0
-    do i=1,3*Nat
-    do j=1,i
-        k=k+1
-        Hess(i,j) = A(k)
-        Hess(j,i) = A(k)
-    enddo 
-    enddo
-    deallocate(A)
-
-    ! GRADIENT FILE
-    if (vertical) then
-        open(I_INP,file=gradfile,status='old',iostat=IOstatus)
-        if (IOstatus /= 0) call alert_msg( "fatal","Unable to open "//trim(adjustl(gradfile)) )
-        call generic_gradient_reader(I_INP,ftg,Nat,Grad,error)
-        close(I_INP)
+    !Only read Grad/Hess or nm if we want to scan norma modes
+    if (scan_type == "NM") then
+        ! Vibrational analysis: either read from file or from diagonalization of Hessian
+        if (adjustl(nmfile) /= "none") then
+            open(I_INP,file=nmfile,status='old',iostat=IOstatus)
+            if (IOstatus /= 0) call alert_msg( "fatal","Unable to open "//trim(adjustl(nmfile)))
+            call generic_nm_reader(I_INP,ftn,Nat,Nvib,Freq,LL)
+            ! Show frequencies
+            if (verbose>0) &
+             call print_vector(6,Freq,Nvib,"Frequencies (cm-1)")
+            ! The reader provide L in Normalized Cartesian. Need to Transform to Cartesian now
+            call LcartNrm_to_Lmwc(Nat,Nvib,molecule%atom(:)%mass,LL,LL)
+            call Lmwc_to_Lcart(Nat,Nvib,molecule%atom(:)%mass,LL,LL,error)
+            close(I_INP)
+        else
+            ! HESSIAN FILE
+            open(I_INP,file=hessfile,status='old',iostat=IOstatus)
+            if (IOstatus /= 0) call alert_msg( "fatal","Unable to open "//trim(adjustl(hessfile)))
+            allocate(Hlt(1:3*Nat*(3*Nat+1)/2))
+            call generic_Hessian_reader(I_INP,fth,Nat,Hlt,error)
+            if (error /= 0) call alert_msg("fatal","Error reading Hessian (State1)")
+            close(I_INP)
+            ! Run vibrations_Cart to get the number of Nvib (to detect linear molecules)
+            call vibrations_Cart(Nat,molecule%atom(:)%X,molecule%atom(:)%Y,molecule%atom(:)%Z,&
+                                 molecule%atom(:)%Mass,Hlt,Nvib,LL,Freq,error)
+            k=0
+            do i=1,3*Nat
+            do j=1,i
+                k=k+1
+                Hess(i,j) = Hlt(k)
+                Hess(j,i) = Hlt(k)
+            enddo 
+            enddo
+            deallocate(Hlt)
+           
+            ! GRADIENT FILE
+            if (vertical) then
+                open(I_INP,file=gradfile,status='old',iostat=IOstatus)
+                if (IOstatus /= 0) call alert_msg( "fatal","Unable to open "//trim(adjustl(gradfile)))
+                call generic_gradient_reader(I_INP,ftg,Nat,Grad,error)
+                close(I_INP)
+            endif
+        endif
     endif
 
     ! MANAGE INTERNAL COORDS
@@ -290,16 +339,21 @@ program normal_modes_animation
         !--------------------------------------
         ! 2. Normal Mode SCAN
         !--------------------------------------
-        !SOLVE GF METHOD TO GET NM AND FREQ
         call internal_Wilson(molecule,Nvib,S,B,ModeDef)
-        call internal_Gmetric(Nat,Nvib,molecule%atom(:)%mass,B,G)
-        if (vertical) then
-            call NumBder(molecule,Nvib,Bder)
-            call HessianCart2int(Nat,Nvib,Hess,molecule%atom(:)%mass,B,G,Grad=Grad,Bder=Bder)
+        if (nmfile == "none") then
+            !SOLVE GF METHOD TO GET NM AND FREQ
+            call internal_Gmetric(Nat,Nvib,molecule%atom(:)%mass,B,G)
+            if (vertical) then
+                call NumBder(molecule,Nvib,Bder)
+                call HessianCart2int(Nat,Nvib,Hess,molecule%atom(:)%mass,B,G,Grad=Grad,Bder=Bder)
+            else
+                call HessianCart2int(Nat,Nvib,Hess,molecule%atom(:)%mass,B,G)
+            endif
+            call gf_method(Nvib,G,Hess,LL,Freq,X,Xinv)
         else
-            call HessianCart2int(Nat,Nvib,Hess,molecule%atom(:)%mass,B,G)
+            ! Transform LcartNrm read from file to Ls
+            call Lcart_to_Ls(Nat,Nvib,B,LL,LL,error)
         endif
-        call gf_method(Nvib,G,Hess,LL,Freq,X,Xinv)
         !Define the Factor to convert shift into addimensional displacements
         ! from the shift in SI units:
         Factor(1:Nvib) = dsqrt(dabs(Freq(1:Nvib))*1.d2*clight*2.d0*PI/plankbar)
@@ -590,7 +644,7 @@ program normal_modes_animation
 
     subroutine parse_input(&
                            ! input data
-                           inpfile,ft,hessfile,fth,gradfile,ftg,                 &
+                           inpfile,ft,hessfile,fth,gradfile,ftg,nmfile,ftn,      &
                            ! Options (general)
                            Amplitude,call_vmd,include_hbonds,selection,vertical, &
                            ! Movie
@@ -602,7 +656,7 @@ program normal_modes_animation
     !==================================================
         implicit none
 
-        character(len=*),intent(inout) :: inpfile,ft,hessfile,fth,gradfile,ftg, &
+        character(len=*),intent(inout) :: inpfile,ft,hessfile,fth,gradfile,ftg,nmfile,ftn, &
                                           intfile,rmzfile,scan_type,def_internal,selection
         real(8),intent(inout)          :: Amplitude
         logical,intent(inout)          :: call_vmd, include_hbonds,vertical, use_symmetry,movie_vmd
@@ -642,6 +696,13 @@ program normal_modes_animation
                     argument_retrieved=.true.
                 case ("-ftg") 
                     call getarg(i+1, ftg)
+                    argument_retrieved=.true.
+
+                case ("-fnm") 
+                    call getarg(i+1, nmfile)
+                    argument_retrieved=.true.
+                case ("-ftn") 
+                    call getarg(i+1, ftn)
                     argument_retrieved=.true.
 
                 case ("-intfile") 
@@ -713,13 +774,26 @@ program normal_modes_animation
 
        ! Manage defaults
        ! If not declared, hessfile and gradfile are the same as inpfile
-       if (adjustl(hessfile) == "same") then
-           hessfile=inpfile
-           if (adjustl(fth) == "guess")  fth=ft
-       endif
-       if (adjustl(gradfile) == "same") then
-           gradfile=inpfile
-           if (adjustl(ftg) == "guess")  ftg=ft
+       ! unless we are using nm file
+       if (adjustl(nmfile) == "none") then
+           if (adjustl(hessfile) == "same") then
+               hessfile=inpfile
+               if (adjustl(fth) == "guess")  fth=ft
+           endif
+           if (adjustl(gradfile) == "same") then
+               gradfile=inpfile
+               if (adjustl(ftg) == "guess")  ftg=ft
+           endif
+           ftn="-"
+       else
+           if (adjustl(hessfile) /= "same") &
+            call alert_msg("note","Using nm file, disabling Hessian file")
+           hessfile="none"
+           fth="-"
+           if (adjustl(hessfile) /= "same") &
+            call alert_msg("note","Using nm file, disabling gradient file")
+           gradfile="none"
+           ftg="-"
        endif
 
        ! Select internal or normal modes
@@ -743,6 +817,8 @@ program normal_modes_animation
         write(0,*) '-fth            ', trim(adjustl(fth))
         write(0,*) '-fgrad          ', trim(adjustl(gradfile))
         write(0,*) '-ftg            ', trim(adjustl(ftg))
+        write(0,*) '-fnm            ', trim(adjustl(nmfile))
+        write(0,*) '-ftn            ', trim(adjustl(ftn))
         write(0,*) '-intmode        ', trim(adjustl(def_internal))
         write(0,*) '-intfile        ', trim(adjustl(intfile))
         write(0,*) '-rmzfile        ', trim(adjustl(rmzfile))
