@@ -134,10 +134,10 @@ program normal_modes_cartesian
     real(8) :: ti, tf
     !===================
 
+    call cpu_time(ti)
+
     ! Activate notes
     silent_notes = .false.
-
-    call cpu_time(ti)
 
     ! 0. GET COMMAND LINE ARGUMENTS
     call parse_input(&
@@ -271,6 +271,7 @@ program normal_modes_cartesian
     ! Initialization
     Nsteps = 101
     if ( mod(Nsteps,2) == 0 ) Nsteps = Nsteps + 1 ! ensure odd number of steps (so we have same left and right)
+    ! Qstep is dimless
     Qstep = Amplitude/float(Nsteps-1)*2.d0  ! Do the range (-A ... +A)
     molecule%atom(1:molecule%natoms)%resname = "RES" ! For printing
     ! Run over all selected modes/internals
@@ -311,11 +312,12 @@ program normal_modes_cartesian
             if (verbose>1) &
              print'(/,A,I0)', "STEP:", k
             ! Update values
+            ! qcoord has AU
             qcoord = qcoord + Qstep/Factor(j)
             write(molecule%title,'(A,I0,A,2(X,F12.6))') &
              trim(adjustl((title)))//" Step ",k," Disp = ", qcoord, qcoord*Factor(j)
-            ! Displace
-            call displace_Xcoord(LL(1:3*Nat,j),molecule%natoms,Qstep/Factor(j),&
+            ! Displace in AA
+            call displace_Xcoord(LL(1:3*Nat,j),molecule%natoms,Qstep/Factor(j)*BOHRtoANGS,&
                                  molecule%atom(:)%x,molecule%atom(:)%y,molecule%atom(:)%z)
             ! PRINT
             ! Write GRO from the beginign and G96/G09 only when reach max amplitude
@@ -338,8 +340,8 @@ program normal_modes_cartesian
             qcoord = qcoord - Qstep/Factor(j)
             write(molecule%title,'(A,I0,A,2(X,F12.6))') &
              trim(adjustl((title)))//" Step ",k," Disp = ", qcoord, qcoord*Factor(j)
-            ! Displace
-            call displace_Xcoord(LL(1:3*Nat,j),molecule%natoms,-Qstep/Factor(j),&
+            ! Displace in AA
+            call displace_Xcoord(LL(1:3*Nat,j),molecule%natoms,-Qstep/Factor(j)*BOHRtoANGS,&
                                  molecule%atom(:)%x,molecule%atom(:)%y,molecule%atom(:)%z)
             ! PRINT
             ! Write G96/GRO every step and G09 scan every 10 steps
@@ -353,7 +355,6 @@ program normal_modes_cartesian
             ! Write 5 poinst around minimum for numerical dierivatives
             if (k>=nsteps-3.and.k<=nsteps+1) then
                 call write_gcom(O_NUM,molecule,numfile,calc,method,basis,molecule%title)
-                write(O_Q,*) qcoord, qcoord*Factor(j)
             endif
         enddo
         !=======================================
@@ -367,8 +368,8 @@ program normal_modes_cartesian
             qcoord = qcoord + Qstep/Factor(j)
             write(molecule%title,'(A,I0,A,2(X,F12.6))') &
              trim(adjustl((title)))//" Step ",k," Disp = ", qcoord, qcoord*Factor(j)
-            ! Displace
-            call displace_Xcoord(LL(1:3*Nat,j),molecule%natoms,Qstep/Factor(j),&
+            ! Displace in AA
+            call displace_Xcoord(LL(1:3*Nat,j),molecule%natoms,Qstep/Factor(j)*BOHRtoANGS,&
                                  molecule%atom(:)%x,molecule%atom(:)%y,molecule%atom(:)%z)
             ! PRINT
             ! Write only GRO 
@@ -624,7 +625,7 @@ program normal_modes_cartesian
             call alert_msg("note","Using nm file, disabling Hessian file")
            hessfile="none"
            fth="-"
-           if (adjustl(hessfile) /= "same") &
+           if (adjustl(gradfile) /= "same") &
             call alert_msg("note","Using nm file, disabling gradient file")
            gradfile="none"
            ftg="-"
@@ -689,13 +690,13 @@ program normal_modes_cartesian
         integer :: k, kk
         real(8) :: magic_number
 
-        magic_number=1.8895d0
+!         magic_number=1.8895d0
 
         do k=1,Nat
             kk = 3*(k-1)
-            X(k) = X(k) + Lc(kk+1) * Qstep /magic_number
-            Y(k) = Y(k) + Lc(kk+2) * Qstep /magic_number
-            Z(k) = Z(k) + Lc(kk+3) * Qstep /magic_number
+            X(k) = X(k) + Lc(kk+1) * Qstep
+            Y(k) = Y(k) + Lc(kk+2) * Qstep
+            Z(k) = Z(k) + Lc(kk+3) * Qstep
         enddo
 
         return

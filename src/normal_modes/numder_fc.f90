@@ -107,7 +107,7 @@ program numder_fc
 
     print*, ""
     print*, " Disp(a.u.)      der+(a.u.)      der-(a.u.)       FC(a.u.)       Freq(cm-1)"
-    print*, "==========================================================================0======="
+    print*, "================================================================================="
 
     !Computation taking computing the first ders at points 2 and 4
     delta = R(3)-R(1)

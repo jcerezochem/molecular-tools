@@ -157,6 +157,9 @@ program normal_modes_animation
 
     call cpu_time(ti)
 
+    ! Activate notes
+    silent_notes = .false.
+
     ! 0. GET COMMAND LINE ARGUMENTS
     call parse_input(&
                      ! input data
@@ -368,6 +371,7 @@ program normal_modes_animation
     ! Initialization
     Nsteps = 101
     if ( mod(Nsteps,2) == 0 ) Nsteps = Nsteps + 1 ! ensure odd number of steps (so we have same left and right)
+    ! Qstep is dimless
     Qstep = Amplitude/float(Nsteps-1)*2.d0  ! Do the range (-A ... +A)
     molecule%atom(1:molecule%natoms)%resname = "RES" ! For printing
     ! Run over all selected modes/internals
@@ -423,6 +427,7 @@ program normal_modes_animation
             if (verbose>1) &
              print'(/,A,I0)', "STEP:", k
             ! Update values
+            ! qcoord has AU
             qcoord = qcoord + Qstep/Factor(j)
             write(molecule%title,'(A,I0,A,2(X,F12.6))') &
              trim(adjustl((title)))//" Step ",k," Disp = ", qcoord, qcoord*Factor(j)
@@ -483,7 +488,6 @@ program normal_modes_animation
             ! Write 5 poinst around minimum for numerical dierivatives
             if (k>=nsteps-3.and.k<=nsteps+1) then
                 call write_gcom(O_NUM,molecule,numfile,calc,method,basis,molecule%title)
-                write(O_Q,*) qcoord, qcoord*Factor(j)
             endif
             ! Save state as reference frame for RMSD fit (in AA)
             molec_aux=molecule
@@ -790,7 +794,7 @@ program normal_modes_animation
             call alert_msg("note","Using nm file, disabling Hessian file")
            hessfile="none"
            fth="-"
-           if (adjustl(hessfile) /= "same") &
+           if (adjustl(gradfile) /= "same") &
             call alert_msg("note","Using nm file, disabling gradient file")
            gradfile="none"
            ftg="-"
