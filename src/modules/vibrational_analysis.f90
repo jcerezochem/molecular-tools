@@ -238,7 +238,7 @@ module vibrational_analysis
         L(1:3*Nat,1:Nvib) = matmul(D(1:3*Nat,Nrt+1:3*Nat),L(1:Nvib,1:Nvib))
 
         !Check FC
-        if (verbose>0) &
+        if (verbose>1) &
             call print_vector(6,Freq*1.d6,Nvib,"FORCE CONSTANTS x 10^6 (A.U.)")
 
         !Transform to FC to Freq
@@ -248,6 +248,9 @@ module vibrational_analysis
         enddo
         if (verbose>0) &
             call print_vector(6,Freq,Nvib,"Frequencies (cm-1)")
+
+        if (verbose>2) &
+            call MAT0(6,L,3*Nat,Nvib,"Lmwc matrix")
 
         return
 

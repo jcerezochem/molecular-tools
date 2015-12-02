@@ -91,7 +91,7 @@ program normal_modes_animation
     real(8),dimension(1:NDIM,1:NDIM) :: Hess, LL
     real(8),dimension(NDIM) :: Freq, Factor, Grad
     !Moving normal modes
-    character(len=50) :: selection="all"
+    character(len=50) :: selection="none"
     real(8) :: Amplitude = 2.d0, qcoord
     integer,dimension(1:NDIM) :: nm=0
     real(8) :: Qstep
@@ -112,7 +112,7 @@ program normal_modes_animation
     !Save definitio of the modes in character
     character(len=100),dimension(NDIM) :: ModeDef
     !VECTORS
-    real(8),dimension(NDIM) :: S
+    real(8),dimension(NDIM) :: S, Sref
     integer,dimension(NDIM) :: S_sym
     ! Switches
     character(len=5) :: def_internal="ZMAT"
@@ -222,6 +222,7 @@ program normal_modes_animation
     if (error /= 0) call alert_msg("fatal","Error reading geometry (State1)")
     ! Get job info if it is a Gaussian file
     if (ft == "log" .or. ft== "fchk") then
+        rewind(I_INP) ! this should be a generic_job_rewind() call
         call read_gauss_job(I_INP,ft,calc,method,basis)
         ! Whichever, calc type was, se now need SP
         calc="SP"
@@ -322,6 +323,8 @@ program normal_modes_animation
     if (adjustl(selection) == "all") then
         Nsel=Nvib
         nm(1:Nvib) = (/(i, i=1,Nvib)/)
+    else if (adjustl(selection) == "none") then
+        Nsel=0
     else
         call selection2intlist(selection,nm,Nsel)
     endif
@@ -349,6 +352,12 @@ program normal_modes_animation
             if (vertical) then
                 call NumBder(molecule,Nvib,Bder)
                 call HessianCart2int(Nat,Nvib,Hess,molecule%atom(:)%mass,B,G,Grad=Grad,Bder=Bder)
+                if (verbose>2) then
+                    do i=1,Nvib
+                        write(tmpfile,'(A,I0,A)') "Bder, ic=",i
+                        call MAT0(6,Bder(i,:,:),3*Nat,3*Nat,trim(tmpfile))
+                    enddo
+                endif
             else
                 call HessianCart2int(Nat,Nvib,Hess,molecule%atom(:)%mass,B,G)
             endif
@@ -369,6 +378,15 @@ program normal_modes_animation
     !  Normal mode displacements
     !==========================================================0
     ! Initialization
+    Sref = S
+    ! To ensure that we always have the same orientation, we stablish the reference here
+    ! this can be used to use the input structure as reference (this might need also a 
+    ! traslation if not at COM -> not necesary, the L matrices are not dependent on the 
+    ! COM position, only on the orientation)
+    call zmat2cart(molecule,S)
+    ! Save state as reference frame for RMSD fit (in AA)
+    molec_aux=molecule
+    ! Default steps (to be set by the user..)
     Nsteps = 101
     if ( mod(Nsteps,2) == 0 ) Nsteps = Nsteps + 1 ! ensure odd number of steps (so we have same left and right)
     ! Qstep is dimless
@@ -388,7 +406,7 @@ program normal_modes_animation
 
         ! Set initial values for the scanned coordinate
         if (scan_type =="IN") then
-            qcoord = S(j)
+            qcoord = Sref(j)
         else
             qcoord = 0.d0
         endif 
@@ -412,6 +430,11 @@ program normal_modes_animation
          trim(adjustl((title)))//" Step ",k," Disp = ", qcoord, qcoord*Factor(j)
 !         S = filter_coordinates(S,map)
         call zmat2cart(molecule,S)
+        !call rmsd_fit_frame(state,ref): efficient but not always works. If so, it uses rmsd_fit_frame_brute(state,ref)
+        call rmsd_fit_frame(molecule,molec_aux,info)
+        if (info /= 0) then
+            call rmsd_fit_frame_brute(molecule,molec_aux,dist)
+        endif
         !Transform to AA and export coords and put back into BOHR
         call set_geom_units(molecule,"Angs")
         call write_gro(O_GRO,molecule)
@@ -431,8 +454,10 @@ program normal_modes_animation
             qcoord = qcoord + Qstep/Factor(j)
             write(molecule%title,'(A,I0,A,2(X,F12.6))') &
              trim(adjustl((title)))//" Step ",k," Disp = ", qcoord, qcoord*Factor(j)
-            ! Displace
-            call displace_Scoord(LL(:,j),molecule%geom%nbonds,molecule%geom%nangles,molecule%geom%ndihed,Qstep/Factor(j),S)
+            ! Displace (displace always from reference to avoid error propagation)
+            i=istep
+            S=Sref
+            call displace_Scoord(LL(:,j),molecule%geom%nbonds,molecule%geom%nangles,molecule%geom%ndihed,Qstep/Factor(j)*i,S)
             ! Get Cart coordinates
             call zmat2cart(molecule,S)
             !call rmsd_fit_frame(state,ref): efficient but not always works. If so, it uses rmsd_fit_frame_brute(state,ref)
@@ -465,8 +490,10 @@ program normal_modes_animation
             qcoord = qcoord - Qstep/Factor(j)
             write(molecule%title,'(A,I0,A,2(X,F12.6))') &
              trim(adjustl((title)))//" Step ",k," Disp = ", qcoord, qcoord*Factor(j)
-            ! Displace
-            call displace_Scoord(LL(:,j),molecule%geom%nbonds,molecule%geom%nangles,molecule%geom%ndihed,-Qstep/Factor(j),S)
+            ! Displace (displace always from reference to avoid error propagation)
+            i=(nsteps-1)/2-istep
+            S=Sref
+            call displace_Scoord(LL(:,j),molecule%geom%nbonds,molecule%geom%nangles,molecule%geom%ndihed,Qstep/Factor(j)*i,S)
             ! Get Cart coordinates
             call zmat2cart(molecule,S)
             !Transform to AA and comparae with last step (stored in state) -- comparison in AA
@@ -503,8 +530,10 @@ program normal_modes_animation
             qcoord = qcoord + Qstep/Factor(j)
             write(molecule%title,'(A,I0,A,2(X,F12.6))') &
              trim(adjustl((title)))//" Step ",k," Disp = ", qcoord, qcoord*Factor(j)
-            ! Displace
-            call displace_Scoord(LL(:,j),molecule%geom%nbonds,molecule%geom%nangles,molecule%geom%ndihed,Qstep/Factor(j),S)
+            ! Displace (displace always from reference to avoid error propagation)
+            i=-(nsteps-1)/2+istep
+            S=Sref
+            call displace_Scoord(LL(:,j),molecule%geom%nbonds,molecule%geom%nangles,molecule%geom%ndihed,Qstep/Factor(j)*i,S)
             ! Get Cart coordinates
             call zmat2cart(molecule,S)
             !call rmsd_fit_frame(state,ref): efficient but not always works. If so, it uses rmsd_fit_frame_brute(state,ref)
@@ -764,6 +793,7 @@ program normal_modes_animation
                 ! Control verbosity
                 case ("-quiet")
                     verbose=0
+                    silent_notes = .true.
                 case ("-concise")
                     verbose=1
                 case ("-v")
@@ -828,8 +858,8 @@ program normal_modes_animation
         write(0,*) '-rmzfile        ', trim(adjustl(rmzfile))
         write(0,*) '-nm             ', trim(adjustl(nm_selection))
         write(0,*) '-int            ', trim(adjustl(int_selection))
-        write(6,*) '-[no]sym       ',  use_symmetry
-        write(6,*) '-[no]vert      ',  vertical
+        write(0,*) '-[no]sym       ',  use_symmetry
+        write(0,*) '-[no]vert      ',  vertical
         write(0,*) '-vmd           ',  call_vmd
         write(0,*) '-movie (cycles)',  movie_cycles
         write(0,*) '-disp          ',  Amplitude

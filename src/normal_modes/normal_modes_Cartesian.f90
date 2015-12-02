@@ -52,9 +52,10 @@ program normal_modes_cartesian
 
     !====================== 
     !Options 
-    logical :: use_symmetry=.false., &
-               include_hbonds=.false., &
-               vertical=.false.
+    logical :: use_symmetry=.false.,    &
+               include_hbonds=.false.,  &
+               vertical=.false.,        &
+               full_diagonalize=.false.
     !======================
 
     !====================== 
@@ -79,23 +80,23 @@ program normal_modes_cartesian
 
     !=============
     !Counters
-    integer :: i,j,k,l, jj
+    integer :: i,j,k,l, ii, jj, kk
     !=============
 
     !====================== 
     ! PES topology and normal mode things
-    real(8),dimension(:),allocatable :: A
     real(8),dimension(1:NDIM,1:NDIM) :: LL
     real(8),dimension(1:NDIM*NDIM)   :: Hlt
+    real(8),dimension(:,:),allocatable :: Hess
     real(8),dimension(NDIM) :: Freq, Factor, Grad
     !Moving normal modes
-    character(len=50) :: selection="all"
+    character(len=50) :: selection="none"
     real(8) :: Amplitude = 2.d0, qcoord
     integer,dimension(1:NDIM) :: nm=0
     real(8) :: Qstep
     logical :: call_vmd = .false.
     character(len=10000) :: vmdcall
-    integer :: Nsteps, Nsel, istep
+    integer :: Nsteps, Nsel=0, istep
     !MOVIE things
     logical :: movie_vmd = .false.
     integer :: movie_cycles=0,& !this means no movie
@@ -145,6 +146,8 @@ program normal_modes_cartesian
                      inpfile,ft,hessfile,fth,gradfile,ftg,nmfile,ftn,      &
                      ! Options (general)
                      Amplitude,call_vmd,include_hbonds,selection,vertical, &
+                     ! Options (Cartesian)
+                     full_diagonalize,                                     &
                      ! Movie
                      movie_vmd, movie_cycles)
 
@@ -197,6 +200,7 @@ program normal_modes_cartesian
     if (error /= 0) call alert_msg("fatal","Error reading geometry (State1)")
     ! Get job info if it is a Gaussian file
     if (ft == "log" .or. ft== "fchk") then
+        rewind(I_INP) ! this should be a generic_job_rewind() call
         call read_gauss_job(I_INP,ft,calc,method,basis)
         ! Whichever, calc type was, se now need SP
         calc="SP"
@@ -239,13 +243,45 @@ program normal_modes_cartesian
         endif
         
         ! VIBRATIONAL ANALYSIS
-        ! Run vibrations_Cart to get the number of Nvib (to detect linear molecules). In Cartesian we are done now
-        ! with this vibrational analysis (How to handle the gradient?)
-        call vibrations_Cart(Nat,molecule%atom(:)%X,molecule%atom(:)%Y,molecule%atom(:)%Z,molecule%atom(:)%Mass,Hlt,&
-                             Nvib,LL,Freq,error)
-        if (error /= 0) then
-            call alert_msg("fatal","Error in the diagonalization")
-            stop
+        ! Using either the full 3Natx3Nat space of internal frame (default)
+        if (full_diagonalize) then
+            ! Diag in 3Natx3Nat
+            allocate(Hess(1:3*Nat,1:3*Nat))
+            !Massweight the Hessian
+            k=0
+            do i=1,3*Nat
+            do j=1,i
+                k=k+1
+                ii = (i-1)/3+1
+                jj = (j-1)/3+1
+                Hess(i,j) = Hlt(k)/sqrt(molecule%atom(ii)%mass * &
+                                        molecule%atom(jj)%mass) / AMUtoAU
+                Hess(j,i) = Hess(i,j)
+            enddo 
+            enddo
+            ! Make Nvib equal to full space dimension
+            Nvib = 3*Nat
+            call diagonalize_full(Hess(1:Nvib,1:Nvib),Nvib,LL(1:Nvib,1:Nvib),Freq(1:Nvib),"lapack")
+            deallocate(Hess)
+            !Check FC
+            if (verbose>1) &
+             call print_vector(6,Freq*1.d6,Nvib,"FORCE CONSTANTS x 10^6 (A.U.)")
+            !Transform to FC to Freq
+            do i=1,Nvib
+                  Freq(i) = sign(dsqrt(abs(Freq(i))*HARTtoJ/BOHRtoM**2/AUtoKG)/2.d0/pi/clight/1.d2,&
+                                 Freq(i))
+            enddo
+            if (verbose>0) &
+                call print_vector(6,Freq,Nvib,"Frequencies (cm-1)")
+        else
+            ! Run vibrations_Cart to get the number of Nvib (to detect linear molecules). In Cartesian we are done now
+            ! with this vibrational analysis (How to handle the gradient?)
+            call vibrations_Cart(Nat,molecule%atom(:)%X,molecule%atom(:)%Y,molecule%atom(:)%Z,molecule%atom(:)%Mass,Hlt,&
+                                 Nvib,LL,Freq,error)
+            if (error /= 0) then
+                call alert_msg("fatal","Error in the diagonalization")
+                stop
+            endif
         endif
         !Transform L to Cartesian (output in AU(mass) as with internal)
         call Lmwc_to_Lcart(Nat,Nvib,molecule%atom(1:Nat)%mass,LL,LL)
@@ -261,6 +297,8 @@ program normal_modes_cartesian
     if (adjustl(selection) == "all") then
         Nsel=Nvib
         nm(1:Nvib) = (/(i, i=1,Nvib)/)
+    else if (adjustl(selection) == "none") then
+        Nsel=0
     else
         call selection2intlist(selection,nm,Nsel)
     endif
@@ -285,7 +323,7 @@ program normal_modes_cartesian
         qcoord = 0.d0 
 
         ! Prepare and open files
-        call prepare_files(j,grofile,g09file,g96file,numfile,qfile,title)
+        call prepare_files(j,grofile,g09file,g96file,numfile,qfile,title,full_diagonalize)
         open(O_GRO,file=grofile)
         open(O_G09,file=g09file)
         open(O_G96,file=g96file)
@@ -417,7 +455,7 @@ program normal_modes_cartesian
         do i=1,Nsel
             j = nm(i)
             ! Get filenames (we want grofile name)
-            call prepare_files(j,grofile,g09file,g96file,numfile,qfile,title)
+            call prepare_files(j,grofile,g09file,g96file,numfile,qfile,title,full_diagonalize)
             vmdcall = trim(adjustl(vmdcall))//" "//trim(adjustl(grofile))
         enddo
         vmdcall = trim(adjustl(vmdcall))//" -e vmd_conf.dat"
@@ -435,7 +473,7 @@ program normal_modes_cartesian
         do i=0,Nsel-1
             j = nm(i+1)
             ! Get filenames (we want grofile name)
-            call prepare_files(j,grofile,g09file,g96file,numfile,qfile,title)
+            call prepare_files(j,grofile,g09file,g96file,numfile,qfile,title,full_diagonalize)
             write(S_VMD,*) "mol representation CPK"
             write(S_VMD,*) "molinfo ", i, " set drawn 0"
             write(S_VMD,*) "mol addrep ", i
@@ -504,6 +542,8 @@ program normal_modes_cartesian
                            inpfile,ft,hessfile,fth,gradfile,ftg,nmfile,ftn,      &
                            ! Options (general)
                            Amplitude,call_vmd,include_hbonds,selection,vertical, &
+                           ! Options (Cartesian)
+                           full_diagonalize,                                     &
                            ! Movie
                            movie_vmd, movie_cycles)
     !==================================================
@@ -513,7 +553,7 @@ program normal_modes_cartesian
 
         character(len=*),intent(inout) :: inpfile,ft,hessfile,fth,gradfile,ftg,nmfile,ftn,selection
         real(8),intent(inout)          :: Amplitude
-        logical,intent(inout)          :: call_vmd, include_hbonds,vertical,movie_vmd
+        logical,intent(inout)          :: call_vmd, include_hbonds,vertical,movie_vmd,full_diagonalize
         integer,intent(inout)          :: movie_cycles
 
         ! Local
@@ -568,6 +608,11 @@ program normal_modes_cartesian
                 case ("-novert")
                     vertical=.false.
 
+                case ("-fulldiag")
+                    full_diagonalize=.true.
+                case ("-nofulldiag")
+                    full_diagonalize=.false.
+
                 case ("-nm") 
                     call getarg(i+1, selection)
                     argument_retrieved=.true.
@@ -595,6 +640,7 @@ program normal_modes_cartesian
                 ! Control verbosity
                 case ("-quiet")
                     verbose=0
+                    silent_notes = .true.
                 case ("-concise")
                     verbose=1
                 case ("-v")
@@ -647,7 +693,8 @@ program normal_modes_cartesian
         write(0,*) '-ftn            ', trim(adjustl(ftn))
         write(0,*) '-nm             ', trim(adjustl(selection))
 !         write(6,*) '-[no]sym       ',  use_symmetry
-        write(6,*) '-[no]vert      ',  vertical
+        write(0,*) '-[no]vert      ',  vertical
+        write(0,*) '-[no]fulldiag  ',  full_diagonalize
         write(0,*) '-vmd           ',  call_vmd
         write(0,*) '-movie (cycles)',  movie_cycles
         write(0,*) '-disp          ',  Amplitude
@@ -658,21 +705,29 @@ program normal_modes_cartesian
         return
     end subroutine parse_input
 
-    subroutine prepare_files(icoord,grofile,g09file,g96file,numfile,qfile,title)
+    subroutine prepare_files(icoord,grofile,g09file,g96file,numfile,qfile,title,fulldiag)
 
         integer,intent(in) :: icoord
         character(len=*),intent(out) :: grofile,g09file,g96file,numfile,qfile,title
+        logical,intent(in) :: fulldiag
 
         !Local
         character(len=150) :: dummy_char
+        character(len=5)   :: full_label
+
+        if (full_diagonalize) then
+            full_label="full-"
+        else
+            full_label=""
+        endif
 
         write(dummy_char,"(I0,X,A)") icoord
         title   = "Animation of normal mode "//trim(adjustl(dummy_char))
-        g09file = "Mode"//trim(adjustl(dummy_char))//"_Cart.com"
-        g96file = "Mode"//trim(adjustl(dummy_char))//"_Cart.g96"
-        qfile   = "Mode"//trim(adjustl(dummy_char))//"_Cart_steps.dat"
-        grofile = "Mode"//trim(adjustl(dummy_char))//"_Cart.gro"
-        numfile = "Mode"//trim(adjustl(dummy_char))//"_Cart_num.com"
+        g09file = "Mode"//trim(adjustl(dummy_char))//"_"//trim(full_label)//"Cart.com"
+        g96file = "Mode"//trim(adjustl(dummy_char))//"_"//trim(full_label)//"Cart.g96"
+        qfile   = "Mode"//trim(adjustl(dummy_char))//"_"//trim(full_label)//"Cart_steps.dat"
+        grofile = "Mode"//trim(adjustl(dummy_char))//"_"//trim(full_label)//"Cart.gro"
+        numfile = "Mode"//trim(adjustl(dummy_char))//"_"//trim(full_label)//"Cart_num.com"
 
         return
 

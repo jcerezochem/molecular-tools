@@ -92,7 +92,7 @@ module generic_io
             case("g96")
              call read_g96_natoms(unt,Nat)
             case default
-             write(0,*) "Unsupported filetype:"//trim(adjustl(filetype))
+             call alert_msg("fatal","Unsupported filetype:"//trim(adjustl(filetype)))
 !              call supported_filetype_list('freq')
              error_local = 99
          end select
@@ -199,7 +199,7 @@ module generic_io
             case("fcc")
              call read_fccstate_geom(unt,Nat,X,Y,Z)
             case default
-             write(0,*) "Unsupported filetype:"//trim(adjustl(filetype))
+             call alert_msg("fatal","Unsupported filetype:"//trim(adjustl(filetype)))
 !              call supported_filetype_list('freq')
              error_local = 99
          end select
@@ -251,7 +251,7 @@ module generic_io
             case("pdb")
              call write_pdb_geom(unt,Nat,AtName,X,Y,Z)
             case default
-             write(0,*) "Unsupported filetype (write):"//trim(adjustl(filetype))
+             call alert_msg("fatal","Unsupported filetype:"//trim(adjustl(filetype)))
 !              call supported_filetype_list('freq')
              error_local = 99
          end select
@@ -315,7 +315,7 @@ module generic_io
              enddo
              deallocate(A)
             case default
-             write(0,*) "Unsupported filetype:"//trim(adjustl(filetype))
+             call alert_msg("fatal","Unsupported filetype:"//trim(adjustl(filetype)))
 !              call supported_filetype_list('grad')
              error_local = 99
          end select
@@ -388,7 +388,7 @@ module generic_io
             case("gmx")
              call read_gmx_hess(unt,Nat,Hlt,error_local)
             case default
-             write(0,*) "Unsupported filetype:"//trim(adjustl(filetype))
+             call alert_msg("fatal","Unsupported filetype:"//trim(adjustl(filetype)))
 !              call supported_filetype_list('freq')
              error_local = 99
          end select
@@ -475,7 +475,7 @@ module generic_io
             case("molpro")
              call alert_msg("fatal","Filetype not supported")
             case default
-             write(0,*) "Unsupported filetype:"//trim(adjustl(filetype))
+             call alert_msg("fatal","Unsupported filetype:"//trim(adjustl(filetype)))
 !              call supported_filetype_list('freq')
              error_local = 99
          end select
@@ -559,7 +559,7 @@ module generic_io
             case("fcc")
              call read_fccstate_nm(unt,Nvib,Nat,Freq,L)
             case default
-             call alert_msg("fatal","Unsupported filetype (normal modes):"//trim(adjustl(filetype)))
+             call alert_msg("fatal","Unsupported filetype:"//trim(adjustl(filetype)))
 !              call supported_filetype_list('freq')
              error_local = 99
          end select

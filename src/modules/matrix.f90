@@ -757,11 +757,11 @@ module matrix
     function matrix_basisrot(M,N,X,A,counter) result(P)
 
         !=============================================
-        ! Rotation by X of basis set T: 
+        ! Rotation by X of basis set A: 
         ! NORMAL (counter=.false.)
-        ! P = X A X^t, where X(M,N) and T(N,N)
+        ! P = X A X^t, where X(M,N) and A(N,N)
         ! INVERSE (counter=.true.)
-        ! P = X^t A X, where X(M,N) and T(N,N)
+        ! P = X^t A X, where X(M,N) and A(N,N)
         !=============================================
 
         integer,intent(in)                   :: M,N

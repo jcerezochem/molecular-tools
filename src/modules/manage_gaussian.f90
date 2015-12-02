@@ -23,6 +23,37 @@ module gaussian_manage
 
     contains
 
+    subroutine rewind_summary(unt)
+
+        ! Rewind the current summary section
+        ! This is useful when we want to re-do
+        ! summary_parser on the same section several times
+        ! but the file has several jobs and we do not want 
+        ! to make a full rewind
+        ! If detects top of file (by the line "Entering Gaussian System"
+        ! returns with a note)
+
+        integer,intent(in) :: unt
+        ! Local
+        character(len=240) :: line
+
+        read(unt,'(A)') line
+        do while (index(line,"GINC") == 0)
+            backspace(unt)
+            backspace(unt)
+            read(unt,'(A)') line
+            if (index(line,"Entering Gaussian System")/=0) then
+                call alert_msg("note","Reached top of file while rewind_summary")
+                return
+            endif
+        enddo
+        ! Go one before
+        backspace(unt)
+
+        return
+
+    end subroutine rewind_summary
+
     subroutine summary_parser(unt,isect,section,error_flag)
 
         !==============================================================
@@ -49,7 +80,7 @@ module gaussian_manage
         !                             7: Gradient
         ! section (out) char/scalar   string with the selected section
         ! error_flag (out) flag  0 : success
-        !                        1 : Requested secction not present in the summary
+        !                        1 : Requested section not present in the summary
         !                            Returns the last section read
         !                     10+i : read error in line i
         !                       -i : the section size is i characters larger then
@@ -70,7 +101,7 @@ module gaussian_manage
         integer :: i, isection
         ! I/O
         integer :: IOstatus
-        character(len=240) :: line
+        character(len=240) :: line, msg
 
         !Locate summary
         error_flag = 0
@@ -80,14 +111,16 @@ module gaussian_manage
             read(unt,'(X,A)',IOSTAT=IOstatus) line
             if ( IOstatus < 0 ) then
                 error_flag = i+10
-                rewind(unt)
+                line=""
+                write(line,'(A,I0)') "Error reading g09 file. Last line read: ", i
+                call alert_msg("fatal",line)
                 return
             endif
             if ( INDEX(line,"GINC") /= 0 ) exit
         enddo
 
         !Read sections
-        isection = 1
+        i=0 ! Restart counter from begining of summary section
         do isection=1,7
             error_flag = 0
             section    = ""
@@ -97,7 +130,12 @@ module gaussian_manage
                 ! space and continue
                 if (len(section)-len_trim(section) <= len_trim(line)) then
                     error_flag = error_flag - len_trim(line)
-                    call alert_msg("warning","Section length is too small. The application may missbehave")
+                    write(msg,'(A,I0)') "String cannot hold section ",isection
+                    if (isect == isection) then
+                        call alert_msg("fatal",trim(msg))
+                    else
+                        call alert_msg("note",trim(msg))
+                    endif
                     section=section(len_trim(line)+1:len(section))
                 endif
                 !Append last line to section
@@ -111,21 +149,18 @@ module gaussian_manage
                 read(unt,'(X,A)',IOSTAT=IOstatus) line
                 if ( IOstatus < 0 ) then
                     error_flag = i+10
-                    write(section,'(I0)') i
-                    call alert_msg("fatal","Error reading line: "//trim(adjustl(section)))
-                    rewind(unt)
+                    write(msg,'(A,I0)') "Error reading summary line: ",i
+                    call alert_msg("fatal",msg)
                     return
                 endif
             enddo
             if (isection == isect) then
-                rewind(unt)
                 return
             endif
             if (line == "@") then
                 error_flag = 1
                 write(section,'(I0)') isection
                 call alert_msg("fatal","End of summary while reading section "//trim(adjustl(section)))
-                rewind(unt)
                 return
             endif
         enddo
@@ -158,7 +193,7 @@ module gaussian_manage
         !                             7: Gradient
         ! section (out) int /scalar   Length of the string to store the section isect
         ! error_flag (out) flag  0 : success
-        !                        1 : Requested secction not present in the summary
+        !                        1 : Requested section not present in the summary
         !                            Returns the last section read
         !                     10+i : read error in line i
         !                       -i : the section size is i characters larger then
@@ -190,7 +225,6 @@ module gaussian_manage
             read(unt,'(X,A)',IOSTAT=IOstatus) line
             if ( IOstatus < 0 ) then
                 error_flag = i+10
-                rewind(unt)
                 return
             endif
             if ( INDEX(line,"GINC") /= 0 ) exit
@@ -215,23 +249,19 @@ module gaussian_manage
                 read(unt,'(X,A)',IOSTAT=IOstatus) line
                 if ( IOstatus < 0 ) then
                     error_flag = i+10
-                    rewind(unt)
                     return
                 endif
             enddo
             if (isection == isect) then
-                rewind(unt)
                 return
             endif
             if (line == "@") then
                 error_flag = 1
-                rewind(unt)
                 return
             endif
 
         enddo
 
-        rewind(unt)
         return
 
     end subroutine estimate_section_length
@@ -304,12 +334,10 @@ module gaussian_manage
                     io_flag=-j
                     call alert_msg("warning","Property "//trim(adjustl(property))// &
                                    " cannot be allocated. Provide len of size "//auxchar)
-                    rewind(unt)
                     return
                 endif
                 !Warning about summary_parser errors
                 if ( (io_flag < 0) .and. len_trim(prop_section) == 0) io_flag=4
-                rewind(unt)
                 return
             endif
         enddo
@@ -320,7 +348,6 @@ module gaussian_manage
             io_flag = 2
         endif
 
-        rewind(unt)
         return
         
     end subroutine read_gausslog_property
@@ -408,7 +435,6 @@ module gaussian_manage
             natoms = natoms + j
         enddo
 
-        rewind(unt)
         return
 
     end subroutine read_gausslog_natoms
@@ -453,15 +479,14 @@ module gaussian_manage
         character(len=200)    :: geom_char 
         character,dimension(4) :: dummy_char
 
-        ! Natoms
+        ! Get Natoms and rewind section 
         call read_gausslog_natoms(unt,Nat,error_flag)
+        call rewind_summary(unt)
         if (error_flag < 0) then
             error_flag = error_flag - 100000
-            rewind(unt)
             return
         elseif (error_flag > 0) then
             error_flag = error_flag + 100000
-            rewind(unt)
             return
         endif
 
@@ -469,11 +494,9 @@ module gaussian_manage
         call summary_parser(unt,4,string,error_flag)
         if (error_flag < 0) then
             error_flag = error_flag - 200000
-            rewind(unt)
             return
         elseif (error_flag > 0) then
             error_flag = error_flag + 200000
-            rewind(unt)
             return
         endif
         !Throw "charge mult" away
@@ -517,16 +540,13 @@ module gaussian_manage
             !Read Z-mat...
             error_flag=1
             call alert_msg("fatal","Z-mat reading from G09 summary not yet implemented")
-            rewind(unt)
             return
         else 
             error_flag=2
             call alert_msg("fatal","Unexpected structure format in G09 summary section")
-            rewind(unt)
             return
         endif
 
-        rewind(unt)
         return
 
     end subroutine read_gauslog_geom
@@ -601,7 +621,7 @@ module gaussian_manage
         end_of_section="----------"
         n_useles_lines=4
 
-        rewind(unt)
+!         rewind(unt)
 
         ! Take the first Standard orientation in file 
         error_local = 1
@@ -612,7 +632,6 @@ module gaussian_manage
             if ( IOstatus < 0 ) then
                 if (error_local == 1) call alert_msg("fatal","Exit without finding "&
                                                    //trim(adjustl(orientation_local)))
-                rewind(unt)
                 return
             endif 
             ! 2) Found what looked for!      
@@ -679,7 +698,9 @@ module gaussian_manage
         !I/O
         integer :: IOstatus
         
-        
+        ! This is the only subroutine that must be rewind first
+        rewind(unt)        
+
         ! Search section
         if (present(error_flag)) error_flag = 0
         do
@@ -689,7 +710,6 @@ module gaussian_manage
                 if ( IOstatus < 0 ) then
                     call alert_msg("warning","Section '"//trim(adjustl(section))//"' not present in the FCHK file.")
                     if (present(error_flag)) error_flag=1
-                    rewind(unt)
                     return
                 endif
                 ! 2) Found what looked for!      
@@ -722,7 +742,6 @@ module gaussian_manage
             endif
         endif 
 
-        rewind(unt)
         return
 
     end subroutine read_fchk
@@ -956,7 +975,6 @@ module gaussian_manage
                 ! 1) End of file
                 if ( IOstatus < 0 ) then
                     if (present(error_flag)) error_flag = -ii
-                    rewind(unt)
                     return
                 endif
                 ! 2) Found a Excited State section
@@ -1028,7 +1046,6 @@ module gaussian_manage
                 ! 1) End of file
                 if ( IOstatus < 0 ) then
                     if (present(error_flag)) error_flag = -ii
-                    rewind(unt)
                     return
                 endif
                 ! 2) Found what looked for!      
@@ -1252,7 +1269,7 @@ module gaussian_manage
         !Local
         integer :: n_elem
         integer :: error_local
-        character(len=100) :: info_section
+        character(len=500) :: info_section
         character :: null, sep
         character(len=20),dimension(3) :: char_array
         ! Counters
@@ -1442,7 +1459,6 @@ module gaussian_manage
             err_label = 1
         endif
 
-        rewind(unt)
         return
 
     end subroutine read_glog_nm
