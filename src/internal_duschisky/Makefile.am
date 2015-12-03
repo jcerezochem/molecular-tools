@@ -29,7 +29,8 @@ vertical2adiabatic_new_SOURCES = ../modules/alerts.f90\
                              ../modules/internal.f90\
                              ../modules/vibrational_analysis.f90\
                              vertical2adiabatic.f90
-vertical2adiabatic_new_LDFLAGS = @LIBS@
+# vertical2adiabatic_new_LDFLAGS = -L/home/cerezo/dev/MY_PROJECTS/GIT/molecular-tools/AnalyticalBders -lbders @LIBS@ 
+vertical2adiabatic_new_FCFLAGS = -L/home/cerezo/dev/MY_PROJECTS/GIT/molecular-tools/AnalyticalBders -lbders @LIBS@ 
 
 verticalPCCP_SOURCES = ../modules/alerts.f90\
                              ../modules/line_preprocess.f90\
@@ -58,7 +59,7 @@ verticalPCCP_SOURCES = ../modules/alerts.f90\
                              ../modules/internal.f90\
                              ../modules/vibrational_analysis.f90\
                              verticalPCCP.f90
-verticalPCCP_LDFLAGS = @LIBS@
+verticalPCCP_LDFLAGS = -L/home/cerezo/dev/MY_PROJECTS/GIT/molecular-tools/AnalyticalBders -lbders @LIBS@ 
 
 internal_duschinsky_new_SOURCES = ../modules/alerts.f90\
                              ../modules/line_preprocess.f90\
@@ -87,7 +88,7 @@ internal_duschinsky_new_SOURCES = ../modules/alerts.f90\
                              ../modules/internal.f90\
                              ../modules/vibrational_analysis.f90\
                              internal_duschinsky.f90
-internal_duschinsky_new_LDFLAGS = @LIBS@
+internal_duschinsky_new_LDFLAGS = -L/home/cerezo/dev/MY_PROJECTS/GIT/molecular-tools/AnalyticalBders -lbders @LIBS@ 
 
 zmat2internalset_SOURCES = ../modules/alerts.f90\
                              ../modules/line_preprocess.f90\
@@ -115,6 +116,6 @@ zmat2internalset_SOURCES = ../modules/alerts.f90\
                              ../modules/symmetry.f90\
                              ../modules/internal.f90\
                              zmat2internalset.f90
-zmat2internalset_LDFLAGS = @LIBS@
+zmat2internalset_LDFLAGS = -L/home/cerezo/dev/MY_PROJECTS/GIT/molecular-tools/AnalyticalBders -lbders @LIBS@ 
 
 CLEANFILES =*.mod 

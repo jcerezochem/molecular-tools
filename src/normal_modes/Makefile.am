@@ -1,6 +1,6 @@
 AUTOMAKE_OPTIONS = subdir-objects
 
-bin_PROGRAMS = nm_internal_new numder_fc numder_L prj_nm_internal_new nm_cartesian_new
+bin_PROGRAMS = nm_internal_new numder_fc numder_L prj_nm_internal_new nm_cartesian_new gen_Lder_numx
 
 # freq2fc   vibrations_cart
 
@@ -15,6 +15,7 @@ nm_internal_new_SOURCES = ../modules/alerts.f90                 \
                              ../modules/matrix_print.f90        \
                              ../modules/structure_types.f90     \
                              ../modules/molecular_structure.f90 \
+                             ../modules/metrics.f90             \
                              ../modules/atomic_geom.f90         \
                              ../modules/symmetry.f90            \
                              ../modules/manage_fcc.f90          \
@@ -49,6 +50,8 @@ nm_cartesian_new_SOURCES =../modules/alerts.f90                 \
                              ../modules/matrix_print.f90        \
                              ../modules/structure_types.f90     \
                              ../modules/molecular_structure.f90 \
+                             ../modules/metrics.f90             \
+                             ../modules/atomic_geom.f90         \
                              ../modules/manage_fcc.f90          \
                              ../modules/manage_gamess.f90       \
                              ../modules/manage_gaussian.f90     \
@@ -62,35 +65,40 @@ nm_cartesian_new_SOURCES =../modules/alerts.f90                 \
                              ../modules/manage_gro.f90          \
                              ../modules/generic_io.f90          \
                              ../modules/generic_io_molec.f90    \
-                             ../modules/atomic_geom.f90         \
                              ../modules/symmetry.f90            \
                              ../modules/vibrational_analysis.f90\
                              normal_modes_Cartesian.f90
 nm_cartesian_new_LDFLAGS = @LIBS@
 
-# # ============
-# # vibratios_cart
-# # ============
-# vibrations_cart_SOURCES =../modules/alerts.f90\
-#                       ../modules/line_preprocess.f90\
-#                       ../modules/constants_mod.f90\
-#                       ../modules/MatrixMod.f90\
-#                       ../modules/matrix_print.f90\
-#                       ../modules/vibrational_analysis.f90\
-#                       ../modules/structure_types_v4.f90\
-#                       ../modules/gro_manage_v4.f90\
-#                       ../modules/pdb_manage_v4.f90\
-#                       ../modules/gaussian_manage_v4.f90\
-#                       ../modules/gaussian_manage_vNoTypes.f90\
-#                       ../modules/gaussian_manage_lowlevel.f90\
-#                       ../modules/gaussian_fchk_manage_v4.f90\
-#                       ../modules/fcc_manage.f90\
-#                       ../modules/xyz_manage_v4.f90\
-#                       ../modules/molecular_structure.f90\
-#                       ../modules/ff_build_module_v4.f90\
-#                       ../modules/atomic_geom_v2.f90\
-#                       vibrations_cart.f90
-# vibrations_cart_LDFLAGS = @LIBS@
+# ============
+# gen_Lder_numx
+# ============
+gen_Lder_numx_SOURCES =../modules/alerts.f90                 \
+                             ../modules/line_preprocess.f90     \
+                             ../modules/constants.f90           \
+                             ../modules/verbosity.f90           \
+                             ../modules/matrix.f90              \
+                             ../modules/matrix_print.f90        \
+                             ../modules/structure_types.f90     \
+                             ../modules/molecular_structure.f90 \
+                             ../modules/metrics.f90             \
+                             ../modules/atomic_geom.f90         \
+                             ../modules/manage_fcc.f90          \
+                             ../modules/manage_gamess.f90       \
+                             ../modules/manage_gaussian.f90     \
+                             ../modules/manage_gmx.f90          \
+                             ../modules/manage_molcas.f90       \
+                             ../modules/manage_molden.f90       \
+                             ../modules/manage_molpro.f90       \
+                             ../modules/manage_pdb.f90          \
+                             ../modules/manage_psi4.f90         \
+                             ../modules/manage_xyz.f90          \
+                             ../modules/manage_gro.f90          \
+                             ../modules/generic_io.f90          \
+                             ../modules/generic_io_molec.f90    \
+                             gen_Lder_numx.f90
+gen_Lder_numx_LDFLAGS = @LIBS@
+
 # 
 # # ========
 # # freq2fc
@@ -154,6 +162,8 @@ prj_nm_internal_new_SOURCES =../modules/alerts.f90              \
                              ../modules/matrix_print.f90        \
                              ../modules/structure_types.f90     \
                              ../modules/molecular_structure.f90 \
+                             ../modules/metrics.f90             \
+                             ../modules/atomic_geom.f90         \
                              ../modules/manage_fcc.f90          \
                              ../modules/manage_gamess.f90       \
                              ../modules/manage_gaussian.f90     \
@@ -169,7 +179,6 @@ prj_nm_internal_new_SOURCES =../modules/alerts.f90              \
                              ../modules/generic_io.f90          \
                              ../modules/generic_io_molec.f90    \
                              ../modules/ff_build.f90            \
-                             ../modules/atomic_geom.f90         \
                              ../modules/symmetry.f90            \
                              ../modules/internal.f90            \
                              ../modules/vibrational_analysis.f90\

@@ -22,6 +22,7 @@ libmoleculartools_a_SOURCES =         \
 \
     structure_types.f90               \
 \
+    metrics.f90                       \
     atomic_geom.f90                   \
     molecular_structure.f90           \
 \

@@ -74,6 +74,8 @@ AC_SUBST([FFT_SR_SRC])
 AM_CONDITIONAL([FFTW],[test x$use_fftw = xyes])
 
 
+LIBS="$LIBS -L/home/cerezo/dev/MY_PROJECTS/GIT/molecular-tools/AnalyticalBders -lbders"
+
 # Checks for header files.
 
 # Checks for typedefs, structures, and compiler characteristics.
@@ -82,11 +84,11 @@ AM_CONDITIONAL([FFTW],[test x$use_fftw = xyes])
 
 AC_CONFIG_FILES([Makefile
                  src/modules/Makefile
-                 src/internal_duschisky/Makefile
                  src/normal_modes/Makefile          
 ])        
 AC_OUTPUT    
         
+#                 src/internal_duschisky/Makefile
 
 #                 src/file_management/Makefile          
 #                 src/bonded_info/Makefile  

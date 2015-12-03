@@ -1,8 +1,8 @@
 SUBDIRS =                        \
           src/modules            \
-          src/internal_duschisky \
           src/normal_modes       
 
+#          src/internal_duschisky \
 #          src/file_management    \
 #          src/bonded_info        \
 #          src/build_top          \

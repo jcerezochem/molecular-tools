@@ -149,11 +149,13 @@ module xyz_manage
         job="#p"
         if (present(calc)) then
             job=trim(adjustl(job))//" "//trim(adjustl(calc))
-        endif !no alternative (e.g. default==SP)
+        else
+            job=trim(adjustl(job))//" SP"
+        endif
         if (present(method)) then
             job=trim(adjustl(job))//" "//trim(adjustl(method))//"/"
         else
-            job=trim(adjustl(job))//"B3LYP/"
+            job=trim(adjustl(job))//" B3LYP/"
         endif
         if (present(basis)) then
             job=trim(adjustl(job))//trim(adjustl(basis))

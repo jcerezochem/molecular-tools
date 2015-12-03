@@ -29,7 +29,7 @@ module atomic_geom
 
     contains
 
-    function calc_dist(atom1, atom2) result(b)
+    function calc_atm_dist(atom1, atom2) result(b)
 
         type(str_atom),intent(in) :: atom1, atom2
 #ifdef DOUBLE
@@ -57,11 +57,11 @@ module atomic_geom
 
         return
 
-    end function calc_dist
+    end function calc_atm_dist
 
 !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-    function calc_angle(atom1,atom2,atom3) result(a)
+    function calc_atm_angle(atom1,atom2,atom3) result(a)
 
         type(str_atom),intent(in) :: atom1, atom2, atom3
 #ifdef DOUBLE
@@ -104,11 +104,11 @@ module atomic_geom
 
         return
 
-    end function calc_angle
+    end function calc_atm_angle
 
 !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-    function calc_cosangle(atom1,atom2,atom3) result(a)
+    function calc_atm_cosangle(atom1,atom2,atom3) result(a)
 
         type(str_atom),intent(in) :: atom1, atom2, atom3
 #ifdef DOUBLE
@@ -148,11 +148,11 @@ module atomic_geom
 
         return
 
-    end function calc_cosangle
+    end function calc_atm_cosangle
 
 !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-    function calc_dihed(atom1,atom2,atom3,atom4) result(dh)
+    function calc_atm_dihed(atom1,atom2,atom3,atom4) result(dh)
 
         !----------------------------------------------------------------
         ! Esta función coloca el dihedro en una orientación estandard
@@ -290,9 +290,9 @@ module atomic_geom
         
         return
 
-     end function calc_dihed
+     end function calc_atm_dihed
 
-    function calc_improper(atom_1,atom_2,atom_3,atom_4) result(im)
+    function calc_atm_improper(atom_1,atom_2,atom_3,atom_4) result(im)
 
         !----------------------------------------------------------------
         ! Ańgulo formado por el vector 4-1 con el plano 2-3-4
@@ -356,9 +356,9 @@ module atomic_geom
 
         return
 
-    end function calc_improper
+    end function calc_atm_improper
 
-    function calc_dihed_new(atom_1,atom_2,atom_3,atom_4) result(dh)
+    function calc_atm_dihed_new(atom_1,atom_2,atom_3,atom_4) result(dh)
 
         !----------------------------------------------------------------
         ! Esta función coloca el dihedro en una orientación estandard
@@ -369,6 +369,7 @@ module atomic_geom
         !----------------------------------------------------------------
 
         use constants
+        use matrix
 
         implicit none
 
@@ -384,252 +385,142 @@ module atomic_geom
 #endif
         integer::i
 
-    !New frame 
-    !1. Traslate to have atom 3 at origin
-    aux_atom_1%x = atom_1%x - atom_3%x
-    aux_atom_1%y = atom_1%y - atom_3%y
-    aux_atom_1%z = atom_1%z - atom_3%z
-    aux_atom_2%x = atom_2%x - atom_3%x
-    aux_atom_2%y = atom_2%y - atom_3%y
-    aux_atom_2%z = atom_2%z - atom_3%z
-    aux_atom_4%x = atom_4%x - atom_3%x
-    aux_atom_4%y = atom_4%y - atom_3%y
-    aux_atom_4%z = atom_4%z - atom_3%z
-    !2. Rotate to place atom 2 on -x axis
-    ! Find rotation axis and angle with vector product of position(atom i_a) X (-1,0,0)
-    v1 =  0.d0
-    v2 = -aux_atom_2%z
-    v3 =  aux_atom_2%y
+        !New frame 
+        !1. Traslate to have atom 3 at origin
+        aux_atom_1%x = atom_1%x - atom_3%x
+        aux_atom_1%y = atom_1%y - atom_3%y
+        aux_atom_1%z = atom_1%z - atom_3%z
+        aux_atom_2%x = atom_2%x - atom_3%x
+        aux_atom_2%y = atom_2%y - atom_3%y
+        aux_atom_2%z = atom_2%z - atom_3%z
+        aux_atom_4%x = atom_4%x - atom_3%x
+        aux_atom_4%y = atom_4%y - atom_3%y
+        aux_atom_4%z = atom_4%z - atom_3%z
+        !2. Rotate to place atom 2 on -x axis
+        ! Find rotation axis and angle with vector product of position(atom i_a) X (-1,0,0)
+        v1 =  0.d0
+        v2 = -aux_atom_2%z
+        v3 =  aux_atom_2%y
 #ifdef DOUBLE
-    baux = dsqrt(aux_atom_2%x**2+aux_atom_2%y**2+aux_atom_2%z**2)
-    sinTheta = dsqrt(aux_atom_2%y**2+aux_atom_2%z**2)/baux
-    Theta =  dasin(sinTheta)
+        baux = dsqrt(aux_atom_2%x**2+aux_atom_2%y**2+aux_atom_2%z**2)
+        sinTheta = dsqrt(aux_atom_2%y**2+aux_atom_2%z**2)/baux
+        Theta =  dasin(sinTheta)
 #else
-    baux = sqrt(aux_atom_2%x**2+aux_atom_2%y**2+aux_atom_2%z**2)
-    sinTheta = sqrt(aux_atom_2%y**2+aux_atom_2%z**2)/baux
-    Theta =  asin(sinTheta)
+        baux = sqrt(aux_atom_2%x**2+aux_atom_2%y**2+aux_atom_2%z**2)
+        sinTheta = sqrt(aux_atom_2%y**2+aux_atom_2%z**2)/baux
+        Theta =  asin(sinTheta)
 #endif
-    !Fix rotation (no need to chech y and z??? see below
-    if (aux_atom_2%x > 0) Theta = PI-Theta
+        !Fix rotation (no need to chech y and z??? see below
+        if (aux_atom_2%x > 0) Theta = PI-Theta
+        
+        
+        !Only rotate if needed
+        if (Theta == PI) then
+            aux_atom_1%x = -aux_atom_1%x
+            aux_atom_1%x = -aux_atom_1%x
+            aux_atom_1%x = -aux_atom_1%x
+            aux_atom_4%x = -aux_atom_4%x
+            aux_atom_4%x = -aux_atom_4%x
+            aux_atom_4%x = -aux_atom_4%x
+            aux_atom_2%x = -aux_atom_2%x
+            aux_atom_2%x = -aux_atom_2%x
+            aux_atom_2%x = -aux_atom_2%x
+        else if (Theta /= 0.d0) then
+            call rotation_3D(aux_atom_1%x,&
+                         aux_atom_1%y,&
+                         aux_atom_1%z,&
+                         v1,v2,v3,Theta)
+            call rotation_3D(aux_atom_4%x,&
+                         aux_atom_4%y,&
+                         aux_atom_4%z,&
+                         v1,v2,v3,Theta)
+            call rotation_3D(aux_atom_2%x,&
+                         aux_atom_2%y,&
+                         aux_atom_2%z,&
+                         v1,v2,v3,Theta)
+        endif
+        if (aux_atom_2%x>0.d0) then
+            print*, "ERROR IN calc_dihed_new - 1"
+            stop
+        endif
+        
+        !Normalize projections
+#ifdef DOUBLE
+        baux = dsqrt(aux_atom_1%y**2+aux_atom_1%z**2)
+#else
+        baux = sqrt(aux_atom_1%y**2+aux_atom_1%z**2)
+#endif
+        if (baux == 0.d0) then
+            print*, "Singularity when computing dihedral"
+            stop
+        endif
+        aux_atom_1%y = aux_atom_1%y/baux
+        aux_atom_1%z = aux_atom_1%z/baux
+#ifdef DOUBLE
+        baux = dsqrt(aux_atom_4%y**2+aux_atom_4%z**2)
+#else
+        baux = sqrt(aux_atom_4%y**2+aux_atom_4%z**2)
+#endif
+        aux_atom_4%y = aux_atom_4%y/baux
+        aux_atom_4%z = aux_atom_4%z/baux
+        !Scalar product
+        baux = aux_atom_1%y*aux_atom_4%y+aux_atom_1%z*aux_atom_4%z
+#ifdef DOUBLE
+        if (dabs(dabs(baux) - 1.d0) < 1.d-10) baux=sign(1.d0,baux)
+        dh = dacos(baux)
+#else
+        if (abs(abs(baux) - 1.) < 1.e-10) baux=sign(1.,baux)
+        dh = acos(baux)
+#endif
 
-
-    !Only rotate if needed
-    if (Theta == PI) then
-        aux_atom_1%x = -aux_atom_1%x
-        aux_atom_1%x = -aux_atom_1%x
-        aux_atom_1%x = -aux_atom_1%x
-        aux_atom_4%x = -aux_atom_4%x
-        aux_atom_4%x = -aux_atom_4%x
-        aux_atom_4%x = -aux_atom_4%x
-        aux_atom_2%x = -aux_atom_2%x
-        aux_atom_2%x = -aux_atom_2%x
-        aux_atom_2%x = -aux_atom_2%x
-    else if (Theta /= 0.d0) then
-        call rotation_3D_(aux_atom_1%x,&
-                     aux_atom_1%y,&
-                     aux_atom_1%z,&
-                     v1,v2,v3,Theta)
-        call rotation_3D_(aux_atom_4%x,&
-                     aux_atom_4%y,&
-                     aux_atom_4%z,&
-                     v1,v2,v3,Theta)
-        call rotation_3D_(aux_atom_2%x,&
-                     aux_atom_2%y,&
-                     aux_atom_2%z,&
-                     v1,v2,v3,Theta)
-    endif
-    if (aux_atom_2%x>0.d0) then
-        print*, "ERROR IN calc_dihed_new - 1"
-        stop
-    endif
-
-    !Normalize projections
+        !Check sign
+        !Rotation around X to place 1-2 projection on +y
+        ! Find rotation axis and angle with vector product of position(atom i_a) Y (0,+1,0) => (1,0,0)
 #ifdef DOUBLE
-    baux = dsqrt(aux_atom_1%y**2+aux_atom_1%z**2)
+        baux = dsqrt(aux_atom_1%y**2+aux_atom_1%z**2)
 #else
-    baux = sqrt(aux_atom_1%y**2+aux_atom_1%z**2)
+        baux = sqrt(aux_atom_1%y**2+aux_atom_1%z**2)
 #endif
-    if (baux == 0.d0) then
-        print*, "Singularity when computing dihedral"
-        stop
-    endif
-    aux_atom_1%y = aux_atom_1%y/baux
-    aux_atom_1%z = aux_atom_1%z/baux
+        if (baux == 0.d0) then
+            print*, "Singularity when computing dihedral"
+            stop
+        endif
 #ifdef DOUBLE
-    baux = dsqrt(aux_atom_4%y**2+aux_atom_4%z**2)
+        sinTheta = dabs(aux_atom_1%z)/baux
+        Theta =  dasin(sinTheta)
 #else
-    baux = sqrt(aux_atom_4%y**2+aux_atom_4%z**2)
+        sinTheta = abs(aux_atom_1%z)/baux
+        Theta =  asin(sinTheta)
 #endif
-    aux_atom_4%y = aux_atom_4%y/baux
-    aux_atom_4%z = aux_atom_4%z/baux
-    !Scalar product
-    baux = aux_atom_1%y*aux_atom_4%y+aux_atom_1%z*aux_atom_4%z
-#ifdef DOUBLE
-    if (dabs(dabs(baux) - 1.d0) < 1.d-10) baux=sign(1.d0,baux)
-    dh = dacos(baux)
-#else
-    if (abs(abs(baux) - 1.) < 1.e-10) baux=sign(1.,baux)
-    dh = acos(baux)
-#endif
-
-    !Check sign
-    !Rotation around X to place 1-2 projection on +y
-    ! Find rotation axis and angle with vector product of position(atom i_a) Y (0,+1,0) => (1,0,0)
-#ifdef DOUBLE
-    baux = dsqrt(aux_atom_1%y**2+aux_atom_1%z**2)
-#else
-    baux = sqrt(aux_atom_1%y**2+aux_atom_1%z**2)
-#endif
-    if (baux == 0.d0) then
-        print*, "Singularity when computing dihedral"
-        stop
-    endif
-#ifdef DOUBLE
-    sinTheta = dabs(aux_atom_1%z)/baux
-    Theta =  dasin(sinTheta)
-#else
-    sinTheta = abs(aux_atom_1%z)/baux
-    Theta =  asin(sinTheta)
-#endif
-    !Fix rotation (it's clockwise if not inverted)
-    if (aux_atom_1%y < 0) Theta = PI-Theta
-    if (aux_atom_1%z > 0) Theta = -Theta
-    call rotation_3D_(aux_atom_1%x,&
-                     aux_atom_1%y,&
-                     aux_atom_1%z,&
-                     1.d0,0.d0,0.d0,Theta)
-    call rotation_3D_(aux_atom_4%x,&
-                     aux_atom_4%y,&
-                     aux_atom_4%z,&
-                     1.d0,0.d0,0.d0,Theta)
-    if (aux_atom_1%y<0.d0) then
-        print*, "ERROR IN calc_dihed_new - 2"
-        stop
-    endif
- 
+        !Fix rotation (it's clockwise if not inverted)
+        if (aux_atom_1%y < 0) Theta = PI-Theta
+        if (aux_atom_1%z > 0) Theta = -Theta
+        call rotation_3D(aux_atom_1%x,&
+                         aux_atom_1%y,&
+                         aux_atom_1%z,&
+                         1.d0,0.d0,0.d0,Theta)
+        call rotation_3D(aux_atom_4%x,&
+                         aux_atom_4%y,&
+                         aux_atom_4%z,&
+                         1.d0,0.d0,0.d0,Theta)
+        if (aux_atom_1%y<0.d0) then
+            print*, "ERROR IN calc_dihed_new - 2"
+            stop
+        endif
+        
 ! print*, ""
 !     print*, aux_atom_4%x,aux_atom_4%y,aux_atom_4%z
 ! print*, "Dihed", dh
 #ifdef DOUBLE
-    dh = sign(dabs(dh),aux_atom_4%z)
+        dh = sign(dabs(dh),aux_atom_4%z)
 #else
-    dh = sign(abs(dh),aux_atom_4%z)
+        dh = sign(abs(dh),aux_atom_4%z)
 #endif
 ! print*, "Dihed", dh
 
-    return
+        return
 
-    contains
-
-    subroutine rotation_3D_(vx,vy,vz,tx,ty,tz,Theta) 
-
-        !Description:
-        ! Subroutine to rotate the vector (vx,vy,vz) around the axis
-        ! defined by (tx,ty,tz) an angle Theta (rad).
-
-#ifdef DOUBLE
-        real(8), intent(inout) :: vx,vy,vz
-        real(8), intent(in)    :: tx,ty,tz, Theta
-
-        !Local
-        real(8),dimension(1:3,1:3) :: R
-        real(8) :: vx_tmp, vy_tmp, tmod
-        real(8) :: ux, uy, uz 
-#else
-        real, intent(inout) :: vx,vy,vz
-        real, intent(in)    :: tx,ty,tz, Theta
-
-        !Local
-        real,dimension(1:3,1:3) :: R
-        real :: vx_tmp, vy_tmp, tmod
-        real :: ux, uy, uz 
-#endif
-
-        ! Vector u must be unitary
-        tmod = sqrt(tx**2 + ty**2 + tz**2)
-        ux = tx/tmod
-        uy = ty/tmod
-        uz = tz/tmod
-
-        ! Form 3D-rotation matrix (from Wikipedia)
-        R(1,1) = cos(Theta) + ux**2*(1.0-cos(Theta))
-        R(1,2) = ux*uy*(1.0-cos(Theta)) - uz*sin(Theta)
-        R(1,3) = ux*uz*(1.0-cos(Theta)) + uy*sin(Theta)
-        R(2,1) = ux*uy*(1.0-cos(Theta)) + uz*sin(Theta)
-        R(2,2) = cos(Theta) + uy**2*(1.0-cos(Theta))
-        R(2,3) = uy*uz*(1.0-cos(Theta)) - ux*sin(Theta)
-        R(3,1) = ux*uz*(1.0-cos(Theta)) - uy*sin(Theta)
-        R(3,2) = uy*uz*(1.0-cos(Theta)) + ux*sin(Theta)
-        R(3,3) = cos(Theta) + uz**2*(1.0-cos(Theta))
-
-        ! Apply rotaion
-        vx_tmp = vx*R(1,1) + vy*R(1,2) + vz*R(1,3)
-        vy_tmp = vx*R(2,1) + vy*R(2,2) + vz*R(2,3)
-        vz =     vx*R(3,1) + vy*R(3,2) + vz*R(3,3)
-        vx = vx_tmp 
-        vy = vy_tmp 
-
-       return
-
-    end subroutine rotation_3D_
-
-end function calc_dihed_new
-
-subroutine rotation_3D(vx,vy,vz,tx,ty,tz,Theta,RR) 
-
-        !Description:
-        ! Subroutine to rotate the vector (vx,vy,vz) around the axis
-        ! defined by (tx,ty,tz) an angle Theta (rad).
-
-#ifdef DOUBLE
-        real(8), intent(inout) :: vx,vy,vz
-        real(8), intent(in)    :: tx,ty,tz, Theta
-        real(8), dimension(1:3,1:3), intent(out), optional :: RR 
-
-        !Local
-        real(8),dimension(1:3,1:3) :: R
-        real(8) :: vx_tmp, vy_tmp, tmod
-        real(8) :: ux, uy, uz 
-#else
-        real, intent(inout) :: vx,vy,vz
-        real, intent(in)    :: tx,ty,tz, Theta
-        real, dimension(1:3,1:3), intent(out), optional :: RR 
-
-        !Local
-        real,dimension(1:3,1:3) :: R
-        real :: vx_tmp, vy_tmp, tmod
-        real :: ux, uy, uz 
-#endif
-
-        ! Vector u must be unitary
-        tmod = sqrt(tx**2 + ty**2 + tz**2)
-        ux = tx/tmod
-        uy = ty/tmod
-        uz = tz/tmod
-
-        ! Form 3D-rotation matrix (from Wikipedia)
-        R(1,1) = cos(Theta) + ux**2*(1.0-cos(Theta))
-        R(1,2) = ux*uy*(1.0-cos(Theta)) - uz*sin(Theta)
-        R(1,3) = ux*uz*(1.0-cos(Theta)) + uy*sin(Theta)
-        R(2,1) = ux*uy*(1.0-cos(Theta)) + uz*sin(Theta)
-        R(2,2) = cos(Theta) + uy**2*(1.0-cos(Theta))
-        R(2,3) = uy*uz*(1.0-cos(Theta)) - ux*sin(Theta)
-        R(3,1) = ux*uz*(1.0-cos(Theta)) - uy*sin(Theta)
-        R(3,2) = uy*uz*(1.0-cos(Theta)) + ux*sin(Theta)
-        R(3,3) = cos(Theta) + uz**2*(1.0-cos(Theta))
-
-        ! Apply rotaion
-        vx_tmp = vx*R(1,1) + vy*R(1,2) + vz*R(1,3)
-        vy_tmp = vx*R(2,1) + vy*R(2,2) + vz*R(2,3)
-        vz =     vx*R(3,1) + vy*R(3,2) + vz*R(3,3)
-        vx = vx_tmp 
-        vy = vy_tmp 
-
-       RR = R
-
-       return
-
-end subroutine rotation_3D
+end function calc_atm_dihed_new
 
 
 end module atomic_geom

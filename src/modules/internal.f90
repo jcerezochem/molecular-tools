@@ -1,5 +1,6 @@
 module internal_module
 
+    use molecular_structure
     use matrix
     use matrix_print
     use verbosity
@@ -249,6 +250,433 @@ module internal_module
 
 
 
+    function Bstre(X1,Y1,Z1,X2,Y2,Z2) result(Bi)
+    
+        !==============================================================
+        ! This code is part of MOLECULAR_TOOLS 
+        !==============================================================
+        ! Description
+        !  STRETCHING:
+        !    (1)-(2)
+        !
+        !   Ref: Decius, Cross and Wilson (Section 4.2) --
+        !    The same nomenclature is used (index refer to the same
+        !    atoms, even if reversed)
+        !--------------------------------------------------------------
+
+        use line_preprocess
+        use alerts
+        use constants
+        use metrics
+        use matrix
+        use verbosity
+    
+        implicit none
+    
+        integer,parameter :: NDIM = 600
+        real(8),parameter :: ZEROp = 1.d-10 !practically zero
+
+        ! ARGUMENTS
+        real(8),intent(in)   :: X1,Y1,Z1, &
+                                X2,Y2,Z2
+        real(8),dimension(6) :: Bi
+        
+    
+        !======================
+        !LOCAL 
+        !AUXILIAR MATRICES
+        !Intenal parameters ant unitary vectors
+        real(8) :: ang1, ang2, ang3, r21, r31, r32, r43
+        real(8) :: e21x, e21y, e21z,&
+                   e31x, e31y, e31z,&
+                   e32x, e32y, e32z,&
+                   e43x, e43y, e43z
+        real(8) :: e21Pe32x,e21Pe32y,e21Pe32z,&
+                   e43Pe32x,e43Pe32y,e43Pe32z,&
+                   e32Pe21Pe32x,e32Pe21Pe32y,e32Pe21Pe32z,&
+                   e32Pe43Pe32x,e32Pe43Pe32y,e32Pe43Pe32z
+        !Counters
+        integer :: i,j,k
+        !=============
+    
+
+        r21 = calc_dist(X1,Y1,Z1,&
+                        X2,Y2,Z2)
+    
+        !Two cart displacements different from zero.
+        e21x = (X1-X2)/r21
+        e21y = (Y1-Y2)/r21
+        e21z = (Z1-Z2)/r21
+        ! s1 = e21 = -e12
+        Bi(1) = e21x
+        Bi(2) = e21y
+        Bi(3) = e21z
+        ! s2 = e12 = -e21
+        Bi(4) =-e21x
+        Bi(5) =-e21y
+        Bi(6) =-e21z
+
+        return
+
+    end function Bstre
+
+    subroutine dernumBstre(derB,X1,Y1,Z1,X2,Y2,Z2)
+
+        ! ARGUMENTS
+        real(8),dimension(6,6),intent(out) :: derB
+        real(8),intent(in)                 :: X1,Y1,Z1,X2,Y2,Z2
+
+        !Local
+        real(8),parameter :: delta=1.889726133d-3 !for numerical ders, in bohr(=10^-3 \AA, as Num freq in G09)
+
+
+        ! X1
+        derB(1,1:6) = (Bstre(X1+delta,Y1,Z1,X2,Y2,Z2) -  &
+                       Bstre(X1-delta,Y1,Z1,X2,Y2,Z2) )/ & 
+                      (2.d0*delta)
+        ! Y1
+        derB(2,1:6) = (Bstre(X1,Y1+delta,Z1,X2,Y2,Z2) -  &
+                       Bstre(X1,Y1-delta,Z1,X2,Y2,Z2) )/ & 
+                      (2.d0*delta)
+        ! Z1
+        derB(3,1:6) = (Bstre(X1,Y1,Z1+delta,X2,Y2,Z2) -  &
+                       Bstre(X1,Y1,Z1-delta,X2,Y2,Z2) )/ & 
+                      (2.d0*delta)
+        ! X2
+        derB(4,1:6) = (Bstre(X1,Y1,Z1,X2+delta,Y2,Z2) -  &
+                       Bstre(X1,Y1,Z1,X2-delta,Y2,Z2) )/ & 
+                      (2.d0*delta)
+        ! Y2
+        derB(5,1:6) = (Bstre(X1,Y1,Z1,X2,Y2+delta,Z2) -  &
+                       Bstre(X1,Y1,Z1,X2,Y2-delta,Z2) )/ & 
+                      (2.d0*delta)
+        ! Z2
+        derB(6,1:6) = (Bstre(X1,Y1,Z1,X2,Y2,Z2+delta) -  &
+                       Bstre(X1,Y1,Z1,X2,Y2,Z2-delta) )/ & 
+                      (2.d0*delta)
+
+        return
+
+    end subroutine dernumBstre
+
+    function Bbend(X1,Y1,Z1,X3,Y3,Z3,X2,Y2,Z2) result(Bi)
+    
+        !==============================================================
+        ! This code is part of MOLECULAR_TOOLS 
+        !==============================================================
+        ! Description
+        !  ANGLE:
+        !    (1)    (2)
+        !       \   /
+        !        (3)
+        !
+        !   Ref: Decius, Cross and Wilson (Section 4.2) --
+        !    The same nomenclature is used (index refer to the same
+        !    atoms, even if reversed)
+        !
+        ! NOTE: on input, the arguments are ordered as: 
+        !       (XYZ)_1, (XYZ)_3, (XYZ)_2
+        !       i.e., following a linear order in terms of connectivity
+        !       But in the subroutine, we use the same order as in the book
+        !--------------------------------------------------------------
+
+        use line_preprocess
+        use alerts
+        use constants
+        use metrics
+        use matrix
+        use verbosity
+    
+        implicit none
+    
+        integer,parameter :: NDIM = 600
+        real(8),parameter :: ZEROp = 1.d-10 !practically zero
+
+        ! ARGUMENTS
+        real(8),intent(in)   :: X1,Y1,Z1, &
+                                X2,Y2,Z2, &
+                                X3,Y3,Z3
+        real(8),dimension(9) :: Bi
+        
+    
+        !======================
+        !LOCAL 
+        !AUXILIAR MATRICES
+        !Intenal parameters ant unitary vectors
+        real(8) :: ang1, r21, r31, r32
+        real(8) :: e21x, e21y, e21z,&
+                   e31x, e31y, e31z,&
+                   e32x, e32y, e32z
+        !Counters
+        integer :: i,j,k
+        !=============
+
+
+        ang1 = calc_angle(X1,Y1,Z1,X3,Y3,Z3,X2,Y2,Z2)
+! print*, X2, ang1*180.d0/PI
+    
+        !Three cart displacements different from zero.
+        r31=calc_dist(X1,Y1,Z1,X3,Y3,Z3)
+        e31x = (X1-X3)/r31
+        e31y = (Y1-Y3)/r31
+        e31z = (Z1-Z3)/r31
+        r32=calc_dist(X2,Y2,Z2,X3,Y3,Z3)
+        e32x = (X2-X3)/r32
+        e32y = (Y2-Y3)/r32
+        e32z = (Z2-Z3)/r32
+        ! s1 = [ cos(ang1)*e31 - e32 ] / [ r31 sin(ang1)]
+        Bi(1) = (dcos(ang1)*e31x-e32x)/(r31*dsin(ang1))
+! print*, "B1", Bi(1)
+        Bi(2) = (dcos(ang1)*e31y-e32y)/(r31*dsin(ang1))
+        Bi(3) = (dcos(ang1)*e31z-e32z)/(r31*dsin(ang1))
+        ! s2 = [ cos(ang1)*e32 - e31 ] / [ r32 sin(ang1)]
+        Bi(4) = (dcos(ang1)*e32x-e31x)/(r32*dsin(ang1))
+        Bi(5) = (dcos(ang1)*e32y-e31y)/(r32*dsin(ang1))
+        Bi(6) = (dcos(ang1)*e32z-e31z)/(r32*dsin(ang1))
+        ! s3 = [(r31-r32 cos(ang1))e31 + (r32-r31 cos(ang1))e32 / [ rr3132 sin(ang1)]
+        Bi(7) = ( (r31-r32*dcos(ang1))*e31x + (r32-r31*dcos(ang1))*e32x )&
+                 / ( r31*r32*dsin(ang1))
+        Bi(8) = ( (r31-r32*dcos(ang1))*e31y + (r32-r31*dcos(ang1))*e32y )&
+                 / ( r31*r32*dsin(ang1))
+        Bi(9) = ( (r31-r32*dcos(ang1))*e31z + (r32-r31*dcos(ang1))*e32z )&
+                 / ( r31*r32*dsin(ang1))
+
+        return
+    
+    end function Bbend
+
+    subroutine dernumBbend(derB,X1,Y1,Z1,X2,Y2,Z2,X3,Y3,Z3)
+
+        ! Note that here, the arguments (XYZ)_i are in order (i=1,2,3)
+
+        ! ARGUMENTS
+        real(8),dimension(9,9),intent(out) :: derB
+        real(8),intent(in)                 :: X1,Y1,Z1,X2,Y2,Z2,X3,Y3,Z3
+
+        !Local
+        real(8),parameter :: delta=1.889726133d-3 !for numerical ders, in bohr(=10^-3 \AA, as Num freq in G09)
+
+
+        ! X1
+        derB(1,1:9) = (Bbend(X1+delta,Y1,Z1,X2,Y2,Z2,X3,Y3,Z3) -  &
+                       Bbend(X1-delta,Y1,Z1,X2,Y2,Z2,X3,Y3,Z3) )/ & 
+                      (2.d0*delta)
+! print*, "1,7", derB(1,7)
+        ! Y1
+        derB(2,1:9) = (Bbend(X1,Y1+delta,Z1,X2,Y2,Z2,X3,Y3,Z3) -  &
+                       Bbend(X1,Y1-delta,Z1,X2,Y2,Z2,X3,Y3,Z3) )/ & 
+                      (2.d0*delta)
+        ! Z1
+        derB(3,1:9) = (Bbend(X1,Y1,Z1+delta,X2,Y2,Z2,X3,Y3,Z3) -  &
+                       Bbend(X1,Y1,Z1-delta,X2,Y2,Z2,X3,Y3,Z3) )/ & 
+                      (2.d0*delta)
+        ! X2
+        derB(4,1:9) = (Bbend(X1,Y1,Z1,X2+delta,Y2,Z2,X3,Y3,Z3) -  &
+                       Bbend(X1,Y1,Z1,X2-delta,Y2,Z2,X3,Y3,Z3) )/ & 
+                      (2.d0*delta)
+        ! Y2
+        derB(5,1:9) = (Bbend(X1,Y1,Z1,X2,Y2+delta,Z2,X3,Y3,Z3) -  &
+                       Bbend(X1,Y1,Z1,X2,Y2-delta,Z2,X3,Y3,Z3) )/ & 
+                      (2.d0*delta)
+        ! Z2
+        derB(6,1:9) = (Bbend(X1,Y1,Z1,X2,Y2,Z2+delta,X3,Y3,Z3) -  &
+                       Bbend(X1,Y1,Z1,X2,Y2,Z2-delta,X3,Y3,Z3) )/ & 
+                      (2.d0*delta)
+        ! X3
+        derB(7,1:9) = (Bbend(X1,Y1,Z1,X2,Y2,Z2,X3+delta,Y3,Z3) -  &
+                       Bbend(X1,Y1,Z1,X2,Y2,Z2,X3-delta,Y3,Z3) )/ & 
+                      (2.d0*delta)
+! print*, X3+delta
+! print*, X3-delta
+! print*, "7,1", derB(7,1)
+        ! Y3
+        derB(8,1:9) = (Bbend(X1,Y1,Z1,X2,Y2,Z2,X3,Y3+delta,Z3) -  &
+                       Bbend(X1,Y1,Z1,X2,Y2,Z2,X3,Y3-delta,Z3) )/ & 
+                      (2.d0*delta)
+        ! Z3
+        derB(9,1:9) = (Bbend(X1,Y1,Z1,X2,Y2,Z2,X3,Y3,Z3+delta) -  &
+                       Bbend(X1,Y1,Z1,X2,Y2,Z2,X3,Y3,Z3-delta) )/ & 
+                      (2.d0*delta)
+
+        return
+
+    end subroutine dernumBbend
+
+    function Bdihe(X1,Y1,Z1,X2,Y2,Z2,X3,Y3,Z3,X4,Y4,Z4) result(Bi)
+    
+        !==============================================================
+        ! This code is part of MOLECULAR_TOOLS 
+        !==============================================================
+        ! Description
+        !  DIHEDRAL:
+        !    (1)       (4)
+        !      \       /
+        !       (2)-(3)
+        !
+        !   Ref: Decius, Cross and Wilson (Section 4.2) --
+        !    The same nomenclature is used (index refer to the same
+        !    atoms, even if reversed)
+        !--------------------------------------------------------------
+
+        use line_preprocess
+        use alerts
+        use constants
+        use metrics
+        use matrix
+        use verbosity
+    
+        implicit none
+    
+        integer,parameter :: NDIM = 600
+        real(8),parameter :: ZEROp = 1.d-10 !practically zero
+
+        ! ARGUMENTS
+        real(8),intent(in)   :: X1,Y1,Z1, &
+                                X2,Y2,Z2, &
+                                X3,Y3,Z3, &
+                                X4,Y4,Z4
+        real(8),dimension(12):: Bi
+        
+    
+        !======================
+        !LOCAL 
+        !AUXILIAR MATRICES
+        !Intenal parameters ant unitary vectors
+        real(8) :: ang1, ang2, ang3, r21, r31, r32, r43
+        real(8) :: e21x, e21y, e21z,&
+                   e31x, e31y, e31z,&
+                   e32x, e32y, e32z,&
+                   e43x, e43y, e43z
+        real(8) :: e21Pe32x,e21Pe32y,e21Pe32z,&
+                   e43Pe32x,e43Pe32y,e43Pe32z,&
+                   e32Pe21Pe32x,e32Pe21Pe32y,e32Pe21Pe32z,&
+                   e32Pe43Pe32x,e32Pe43Pe32y,e32Pe43Pe32z
+        !Counters
+        integer :: i,j,k
+        !=============
+   
+
+            ang1 = calc_dihed(X1,Y1,Z1,X2,Y2,Z2,X3,Y3,Z3,X4,Y4,Z4)
+    
+            !Four cart displacements different from zero (some index intercheged with Decius..)
+            ang2 = calc_angle(X1,Y1,Z1,X2,Y2,Z2,X3,Y3,Z3)
+            ang3 = calc_angle(X2,Y2,Z2,X3,Y3,Z3,X4,Y4,Z4)
+            r21  = calc_dist(X1,Y1,Z1,X2,Y2,Z2)
+
+            e21x = (X1-X2)/r21
+            e21y = (Y1-Y2)/r21
+            e21z = (Z1-Z2)/r21
+            r32  = calc_dist(X2,Y2,Z2,X3,Y3,Z3)
+            e32x = (X2-X3)/r32
+            e32y = (Y2-Y3)/r32
+            e32z = (Z2-Z3)/r32
+            r43  = calc_dist(X3,Y3,Z3,X4,Y4,Z4)
+            e43x = (X3-X4)/r43
+            e43y = (Y3-Y4)/r43
+            e43z = (Z3-Z4)/r43
+            e21Pe32x=e21y*e32z-e21z*e32y
+            e21Pe32y=e21z*e32x-e21x*e32z
+            e21Pe32z=e21x*e32y-e21y*e32x
+            e32Pe21Pe32x=e32y*e21Pe32z-e32z*e21Pe32y
+            e32Pe21Pe32y=e32z*e21Pe32x-e32x*e21Pe32z
+            e32Pe21Pe32z=e32x*e21Pe32y-e32y*e21Pe32x
+            e43Pe32x=e43y*e32z-e43z*e32y
+            e43Pe32y=e43z*e32x-e43x*e32z
+            e43Pe32z=e43x*e32y-e43y*e32x
+            e32Pe43Pe32x=e32y*e43Pe32z-e32z*e43Pe32y
+            e32Pe43Pe32y=e32z*e43Pe32x-e32x*e43Pe32z
+            e32Pe43Pe32z=e32x*e43Pe32y-e32y*e43Pe32x
+    
+            !s1
+            Bi(1)  =  -e21Pe32x/(r21*dsin(ang2)**2)
+            Bi(2)  =  -e21Pe32y/(r21*dsin(ang2)**2)
+            Bi(3)  =  -e21Pe32z/(r21*dsin(ang2)**2)
+            !s2   
+            Bi(4)  = ((r32-r21*dcos(ang2))*e21Pe32x/(r32*r21*dsin(ang2)**2) &
+                   +  dcos(ang3)*e43Pe32x/(r32*dsin(ang3)**2))
+            Bi(5)  = ((r32-r21*dcos(ang2))*e21Pe32y/(r32*r21*dsin(ang2)**2) &
+                   +  dcos(ang3)*e43Pe32y/(r32*dsin(ang3)**2))
+            Bi(6)  = ((r32-r21*dcos(ang2))*e21Pe32z/(r32*r21*dsin(ang2)**2) &
+                   +  dcos(ang3)*e43Pe32z/(r32*dsin(ang3)**2))
+            !s3   
+            Bi(7)  = ((r32-r43*dcos(ang3))*e43Pe32x/(r32*r43*dsin(ang3)**2) &
+                   +  dcos(ang2)*e21Pe32x/(r32*dsin(ang2)**2))
+            Bi(8)  = ((r32-r43*dcos(ang3))*e43Pe32y/(r32*r43*dsin(ang3)**2) &
+                   +  dcos(ang2)*e21Pe32y/(r32*dsin(ang2)**2))
+            Bi(9)  = ((r32-r43*dcos(ang3))*e43Pe32z/(r32*r43*dsin(ang3)**2) &
+                   +  dcos(ang2)*e21Pe32z/(r32*dsin(ang2)**2))
+            !s4
+            Bi(10) =  -e43Pe32x/(r43*dsin(ang3)**2)
+            Bi(11) =  -e43Pe32y/(r43*dsin(ang3)**2)
+            Bi(12) =  -e43Pe32z/(r43*dsin(ang3)**2)
+    
+        return
+    
+    end function Bdihe
+
+    subroutine dernumBdihe(derB,X1,Y1,Z1,X2,Y2,Z2,X3,Y3,Z3,X4,Y4,Z4)
+
+        ! ARGUMENTS
+        real(8),dimension(12,12),intent(out) :: derB
+        real(8),intent(in)                 :: X1,Y1,Z1,X2,Y2,Z2,X3,Y3,Z3,X4,Y4,Z4
+
+        !Local
+        real(8),parameter :: delta=1.889726133d-3 !for numerical ders, in bohr(=10^-3 \AA, as Num freq in G09)
+
+
+        ! X1
+        derB(1, 1:12)= (Bdihe(X1+delta,Y1,Z1,X2,Y2,Z2,X3,Y3,Z3,X4,Y4,Z4) -  &
+                        Bdihe(X1-delta,Y1,Z1,X2,Y2,Z2,X3,Y3,Z3,X4,Y4,Z4) )/ & 
+                       (2.d0*delta)
+        ! Y1
+        derB(2, 1:12)= (Bdihe(X1,Y1+delta,Z1,X2,Y2,Z2,X3,Y3,Z3,X4,Y4,Z4) -  &
+                        Bdihe(X1,Y1-delta,Z1,X2,Y2,Z2,X3,Y3,Z3,X4,Y4,Z4) )/ & 
+                       (2.d0*delta)
+        ! Z1
+        derB(3, 1:12)= (Bdihe(X1,Y1,Z1+delta,X2,Y2,Z2,X3,Y3,Z3,X4,Y4,Z4) -  &
+                        Bdihe(X1,Y1,Z1-delta,X2,Y2,Z2,X3,Y3,Z3,X4,Y4,Z4) )/ & 
+                       (2.d0*delta)
+        ! X2
+        derB(4, 1:12)= (Bdihe(X1,Y1,Z1,X2+delta,Y2,Z2,X3,Y3,Z3,X4,Y4,Z4) -  &
+                        Bdihe(X1,Y1,Z1,X2-delta,Y2,Z2,X3,Y3,Z3,X4,Y4,Z4) )/ & 
+                       (2.d0*delta)
+        ! Y2
+        derB(5, 1:12)= (Bdihe(X1,Y1,Z1,X2,Y2+delta,Z2,X3,Y3,Z3,X4,Y4,Z4) -  &
+                        Bdihe(X1,Y1,Z1,X2,Y2-delta,Z2,X3,Y3,Z3,X4,Y4,Z4) )/ & 
+                       (2.d0*delta)
+        ! Z2
+        derB(6, 1:12)= (Bdihe(X1,Y1,Z1,X2,Y2,Z2+delta,X3,Y3,Z3,X4,Y4,Z4) -  &
+                        Bdihe(X1,Y1,Z1,X2,Y2,Z2-delta,X3,Y3,Z3,X4,Y4,Z4) )/ & 
+                       (2.d0*delta)
+        ! X3
+        derB(7, 1:12)= (Bdihe(X1,Y1,Z1,X2,Y2,Z2,X3+delta,Y3,Z3,X4,Y4,Z4) -  &
+                        Bdihe(X1,Y1,Z1,X2,Y2,Z2,X3-delta,Y3,Z3,X4,Y4,Z4) )/ & 
+                       (2.d0*delta)
+        ! Y3
+        derB(8, 1:12)= (Bdihe(X1,Y1,Z1,X2,Y2,Z2,X3,Y3+delta,Z3,X4,Y4,Z4) -  &
+                        Bdihe(X1,Y1,Z1,X2,Y2,Z2,X3,Y3-delta,Z3,X4,Y4,Z4) )/ & 
+                       (2.d0*delta)
+        ! Z3
+        derB(9, 1:12)= (Bdihe(X1,Y1,Z1,X2,Y2,Z2,X3,Y3,Z3+delta,X4,Y4,Z4) -  &
+                        Bdihe(X1,Y1,Z1,X2,Y2,Z2,X3,Y3,Z3-delta,X4,Y4,Z4) )/ & 
+                       (2.d0*delta)
+        ! X4
+        derB(10,1:12)= (Bdihe(X1,Y1,Z1,X2,Y2,Z2,X3,Y3,Z3,X4+delta,Y4,Z4) -  &
+                        Bdihe(X1,Y1,Z1,X2,Y2,Z2,X3,Y3,Z3,X4-delta,Y4,Z4) )/ & 
+                       (2.d0*delta)
+        ! Y4
+        derB(11,1:12)= (Bdihe(X1,Y1,Z1,X2,Y2,Z2,X3,Y3,Z3,X4,Y4+delta,Z4) -  &
+                        Bdihe(X1,Y1,Z1,X2,Y2,Z2,X3,Y3,Z3,X4,Y4-delta,Z4) )/ & 
+                       (2.d0*delta)
+        ! Z4
+        derB(12,1:12)= (Bdihe(X1,Y1,Z1,X2,Y2,Z2,X3,Y3,Z3,X4,Y4,Z4+delta) -  &
+                        Bdihe(X1,Y1,Z1,X2,Y2,Z2,X3,Y3,Z3,X4,Y4,Z4-delta) )/ & 
+                       (2.d0*delta)
+
+        return
+
+    end subroutine dernumBdihe
+
     subroutine internal_Wilson(molec,Ns,S,B, &
 !                                           Optional:
                                             ICDef)
@@ -334,7 +762,7 @@ module internal_module
 
             i_1 = bond_s(i,1)
             i_2 = bond_s(i,2)
-            r21 = calc_dist(molec%atom(i_1),molec%atom(i_2))
+            r21 = calc_atm_dist(molec%atom(i_1),molec%atom(i_2))
             S(k) = r21
             if (verbose>0) &
             write(6,'(I5,X,A,2(I3,A),2F15.8)') k, trim(adjustl(molec%atom(i_1)%name))//"(",i_1,") -- "//&
@@ -367,7 +795,7 @@ module internal_module
             i_1 = angle_s(i,1)
             i_3 = angle_s(i,2)
             i_2 = angle_s(i,3)
-            ang1 = calc_angle(molec%atom(i_1),molec%atom(i_3),molec%atom(i_2))
+            ang1 = calc_atm_angle(molec%atom(i_1),molec%atom(i_3),molec%atom(i_2))
             S(k) = ang1
             if (verbose>0) &
             write(6,'(I5,X,A,3(I3,A),F15.8)') k, trim(adjustl(molec%atom(i_1)%name))//"(",i_1,") -- "//&
@@ -380,11 +808,11 @@ module internal_module
                                           trim(adjustl(molec%atom(i_2)%name))//"(",i_2,")"
     
             !Three cart displacements different from zero.
-             r31=calc_dist(molec%atom(i_1),molec%atom(i_3))
+             r31=calc_atm_dist(molec%atom(i_1),molec%atom(i_3))
              e31x = (molec%atom(i_1)%x-molec%atom(i_3)%x)/r31
              e31y = (molec%atom(i_1)%y-molec%atom(i_3)%y)/r31
              e31z = (molec%atom(i_1)%z-molec%atom(i_3)%z)/r31
-             r32=calc_dist(molec%atom(i_2),molec%atom(i_3))
+             r32=calc_atm_dist(molec%atom(i_2),molec%atom(i_3))
              e32x = (molec%atom(i_2)%x-molec%atom(i_3)%x)/r32
              e32y = (molec%atom(i_2)%y-molec%atom(i_3)%y)/r32
              e32z = (molec%atom(i_2)%z-molec%atom(i_3)%z)/r32
@@ -414,7 +842,7 @@ module internal_module
             i_2 = dihed_s(i,2)
             i_3 = dihed_s(i,3)
             i_4 = dihed_s(i,4)
-            ang1 = calc_dihed_new(molec%atom(i_1),molec%atom(i_2),molec%atom(i_3),molec%atom(i_4))
+            ang1 = calc_atm_dihed_new(molec%atom(i_1),molec%atom(i_2),molec%atom(i_3),molec%atom(i_4))
             S(k) = ang1
             if (verbose>0) &
             write(6,'(I5,X,A,4(I3,A),F15.8)') k, trim(adjustl(molec%atom(i_1)%name))//"(",i_1,") -- "//&
@@ -430,17 +858,17 @@ module internal_module
     
             !Four cart displacements different from zero (some index intercheged with Decius..)
             ! this was buggy. Changed on 10/06/2014
-            ang2 = calc_angle(molec%atom(i_1),molec%atom(i_2),molec%atom(i_3))
-            ang3 = calc_angle(molec%atom(i_2),molec%atom(i_3),molec%atom(i_4))
-            r21  = calc_dist(molec%atom(i_1),molec%atom(i_2))
+            ang2 = calc_atm_angle(molec%atom(i_1),molec%atom(i_2),molec%atom(i_3))
+            ang3 = calc_atm_angle(molec%atom(i_2),molec%atom(i_3),molec%atom(i_4))
+            r21  = calc_atm_dist(molec%atom(i_1),molec%atom(i_2))
             e21x = (molec%atom(i_1)%x-molec%atom(i_2)%x)/r21
             e21y = (molec%atom(i_1)%y-molec%atom(i_2)%y)/r21
             e21z = (molec%atom(i_1)%z-molec%atom(i_2)%z)/r21
-            r32  = calc_dist(molec%atom(i_2),molec%atom(i_3))
+            r32  = calc_atm_dist(molec%atom(i_2),molec%atom(i_3))
             e32x = (molec%atom(i_2)%x-molec%atom(i_3)%x)/r32
             e32y = (molec%atom(i_2)%y-molec%atom(i_3)%y)/r32
             e32z = (molec%atom(i_2)%z-molec%atom(i_3)%z)/r32
-            r43  = calc_dist(molec%atom(i_3),molec%atom(i_4))
+            r43  = calc_atm_dist(molec%atom(i_3),molec%atom(i_4))
             e43x = (molec%atom(i_3)%x-molec%atom(i_4)%x)/r43
             e43y = (molec%atom(i_3)%y-molec%atom(i_4)%y)/r43
             e43z = (molec%atom(i_3)%z-molec%atom(i_4)%z)/r43
@@ -490,7 +918,7 @@ module internal_module
 !             i_2 = dihed_s(i,2)
 !             i_3 = dihed_s(i,3)
 !             i_4 = dihed_s(i,4)
-!             ang1 = calc_dihed_new(molec%atom(i_1),molec%atom(i_2),molec%atom(i_3),molec%atom(i_4))
+!             ang1 = calc_atm_dihed_new(molec%atom(i_1),molec%atom(i_2),molec%atom(i_3),molec%atom(i_4))
 !             S(k) = ang1
 !             if (verbose>0) &
 !             write(6,'(I5,X,A,4(I3,A),F15.8)') k, trim(adjustl(molec%atom(i_1)%name))//"(",i_1,") -- "//&
@@ -505,17 +933,17 @@ module internal_module
 !                                           trim(adjustl(molec%atom(i_4)%name))//"(",i_4,")"
 !     
 !             !Four cart displacements different from zero (some index intercheged with Decius..)
-!             ang2 = calc_angle(molec%atom(i_1),molec%atom(i_2),molec%atom(i_3))
-!             ang3 = calc_angle(molec%atom(i_2),molec%atom(i_3),molec%atom(i_4))
-!             r21  = calc_dist(molec%atom(i_1),molec%atom(i_2))
+!             ang2 = calc_atm_angle(molec%atom(i_1),molec%atom(i_2),molec%atom(i_3))
+!             ang3 = calc_atm_angle(molec%atom(i_2),molec%atom(i_3),molec%atom(i_4))
+!             r21  = calc_atm_dist(molec%atom(i_1),molec%atom(i_2))
 !             e21x = (molec%atom(i_1)%x-molec%atom(i_2)%x)/r21
 !             e21y = (molec%atom(i_1)%y-molec%atom(i_2)%y)/r21
 !             e21z = (molec%atom(i_1)%z-molec%atom(i_2)%z)/r21
-!             r32  = calc_dist(molec%atom(i_2),molec%atom(i_3))
+!             r32  = calc_atm_dist(molec%atom(i_2),molec%atom(i_3))
 !             e32x = (molec%atom(i_2)%x-molec%atom(i_3)%x)/r32
 !             e32y = (molec%atom(i_2)%y-molec%atom(i_3)%y)/r32
 !             e32z = (molec%atom(i_2)%z-molec%atom(i_3)%z)/r32
-!             r43  = calc_dist(molec%atom(i_3),molec%atom(i_4))
+!             r43  = calc_atm_dist(molec%atom(i_3),molec%atom(i_4))
 !             e43x = (molec%atom(i_3)%x-molec%atom(i_4)%x)/r43
 !             e43y = (molec%atom(i_3)%y-molec%atom(i_4)%y)/r43
 !             e43z = (molec%atom(i_3)%z-molec%atom(i_4)%z)/r43
@@ -1031,7 +1459,7 @@ module internal_module
     
         !====================== 
         !ARGUMENTS
-        type(str_resmol),intent(in)          :: molec
+        type(str_resmol),intent(inout)       :: molec
         integer,intent(in)                   :: Ns
         real(8),dimension(:,:,:),intent(out) :: Bder    ! (Ns x 3Nat x 3Nat) the last index is the second der
         !======================
@@ -1040,7 +1468,8 @@ module internal_module
         !LOCAL
         integer :: Nat
         real(8),dimension(NDIM) :: S
-        type(str_resmol) :: molecB
+!         type(str_resmol) :: molecB
+        real(8) :: X0, Y0, Z0
         real(8),dimension(NDIM,NDIM) :: Bplus, Bmin
         integer :: verbose_current
         !Counters
@@ -1051,6 +1480,9 @@ module internal_module
         verbose_current = verbose
         !And set to quiet
         verbose = 0
+ 
+        ! This SR works in AU
+        call set_geom_units(molec,"Bohr")
     
         !shortcuts
         Nat = molec%natoms
@@ -1063,15 +1495,20 @@ module internal_module
     
         do i=1,Nat
     
+             X0=molec%atom(i)%x
+             Y0=molec%atom(i)%y
+             Z0=molec%atom(i)%z
+
             !Displace X
-            molecB = molec
             ii = 3*i-2
-            molecB%atom(i)%x = molec%atom(i)%x + delta
+            molec%atom(i)%x = X0 + delta
             !Call B matrix at this geometry   
-            call internal_Wilson(molecB,Ns,S,Bplus)
-            molecB%atom(i)%x = molec%atom(i)%x - delta
+            call internal_Wilson(molec,Ns,S,Bplus)
+            molec%atom(i)%x = X0 - delta
             !Call B matrix at this geometry   
-            call internal_Wilson(molecB,Ns,S,Bmin)
+            call internal_Wilson(molec,Ns,S,Bmin)
+            ! Restore value
+            molec%atom(i)%x = X0
     
             do j=1,Ns
             do k=1,3*Nat
@@ -1082,14 +1519,15 @@ module internal_module
             enddo
     
             !Displace Y
-            molecB = molec
             ii = 3*i-1
-            molecB%atom(i)%y = molec%atom(i)%y + delta
+            molec%atom(i)%y = Y0 + delta
             !Call B matrix at this geometry   
-            call internal_Wilson(molecB,Ns,S,Bplus)
-            molecB%atom(i)%y = molec%atom(i)%y - delta
+            call internal_Wilson(molec,Ns,S,Bplus)
+            molec%atom(i)%y = Y0 - delta
             !Call B matrix at this geometry   
-            call internal_Wilson(molecB,Ns,S,Bmin)
+            call internal_Wilson(molec,Ns,S,Bmin)
+            ! Restore value
+            molec%atom(i)%y = Y0
     
             do j=1,Ns
             do k=1,3*Nat
@@ -1100,14 +1538,14 @@ module internal_module
             enddo
     
             !Displace Z
-            molecB = molec
             ii = 3*i
-            molecB%atom(i)%z = molec%atom(i)%z + delta
+            molec%atom(i)%z = Z0 + delta
             !Call B matrix at this geometry   
-            call internal_Wilson(molecB,Ns,S,Bplus)
-            molecB%atom(i)%z = molec%atom(i)%z - delta
+            call internal_Wilson(molec,Ns,S,Bplus)
+            molec%atom(i)%z = Z0 - delta
             !Call B matrix at this geometry   
-            call internal_Wilson(molecB,Ns,S,Bmin)
+            call internal_Wilson(molec,Ns,S,Bmin)
+            molec%atom(i)%z = Z0
     
             do j=1,Ns
             do k=1,3*Nat
@@ -1125,6 +1563,332 @@ module internal_module
         return
     
     end subroutine NumBDer
+
+
+    subroutine calc_BDer(molec,Ns,Bder,analytical)
+    
+        use structure_types
+        use verbosity
+    
+        integer,parameter :: NDIM = 600
+        real(8),parameter :: delta = 1.889726133d-3 !for numerical ders, in bohr(=10^-3 \AA, as Num freq in G09)
+    
+        !====================== 
+        !ARGUMENTS
+        type(str_resmol),intent(inout)       :: molec
+        integer,intent(in)                   :: Ns
+        real(8),dimension(:,:,:),intent(out) :: Bder    ! (Ns x 3Nat x 3Nat) the last index is the second der
+        logical,intent(in),optional          :: analytical
+        !======================
+        ! Parts of Bder
+        real(8),dimension(6,6)   :: BderStre
+        real(8),dimension(9,9)   :: BderBend
+        real(8),dimension(12,12) :: BderDihe
+        character(len=50)        :: title
+
+        !======================  
+        !LOCAL
+        integer :: Nat
+        real(8),dimension(NDIM) :: S
+        real(8),dimension(NDIM,NDIM) :: Bplus, Bmin
+        real(8) :: X1,Y1,Z1,X2,Y2,Z2
+        integer :: verbose_current
+        !Counters
+        integer :: i,j,k, ii,jj,kk, irow,icol, is, i1,i2,i3,i4
+        !swith mode
+        logical :: do_analytical
+        !======================  
+
+        if (present(analytical) .and. analytical) then
+            do_analytical=.true.
+        else
+            do_analytical=.false.
+        endif
+    
+        ! This SR works in AU
+        call set_geom_units(molec,"Bohr")
+
+        !shortcuts
+        Nat = molec%natoms
+    
+        if (verbose_current>0) then
+            print*, ""
+            print*, "COMPUTING DERIVATIVES FOR B (new)..."
+            print*, ""
+        endif
+    
+        ! Computing only non-zero elements
+        Bder(1:Ns,1:3*Nat,1:3*Nat) = 0.d0
+
+        i=0
+        ! STRETCHING
+        do is=1,molec%geom%nbonds
+            i=i+1
+            i1 = molec%geom%bond(is,1)
+            i2 = molec%geom%bond(is,2)
+            if (do_analytical) then
+print*, "Computing analytical ders"
+                call DERSTRE(BderStre,                                      &
+                             molec%atom(i1)%x,molec%atom(i1)%y,molec%atom(i1)%z,&
+                             molec%atom(i2)%x,molec%atom(i2)%y,molec%atom(i2)%z)
+            else
+                call dernumBstre(BderStre,                                      &
+                             molec%atom(i1)%x,molec%atom(i1)%y,molec%atom(i1)%z,&
+                             molec%atom(i2)%x,molec%atom(i2)%y,molec%atom(i2)%z)
+            endif
+            !Retrieve actual Bder elements
+            do irow=1,6
+            do icol=1,6
+                ! Select block
+                if (irow<=3) then
+                    jj = 3*i1-3  
+                else
+                    jj = 3*i2-6 
+                endif
+                if (icol<=3) then
+                    kk = 3*i1-3  
+                else
+                    kk = 3*i2-6 
+                endif
+! print'(A,I2,A,I2,A,I2,A,I2,A)', "Mapping element ", irow,",",icol, " into ", jj+irow,",",kk+icol
+                Bder(i,jj+irow,kk+icol) = BderStre(irow,icol)
+            enddo
+            enddo
+write(title,'(A,I0)') "BderStre - ",i 
+call MAT0(6,BderStre,6,6,title)
+        enddo 
+
+        ! BENDING
+        do is=1,molec%geom%nangles
+            i=i+1
+            i1 = molec%geom%angle(is,1)
+            i2 = molec%geom%angle(is,2)
+            i3 = molec%geom%angle(is,3)
+! print*, "Atoms", i1,i2,i3
+            if (do_analytical) then
+print*, "Computing analytical ders"
+                call DERBEND(BderBend,                                          &
+                             molec%atom(i1)%x,molec%atom(i1)%y,molec%atom(i1)%z,&
+                             molec%atom(i3)%x,molec%atom(i3)%y,molec%atom(i3)%z,&
+                             molec%atom(i2)%x,molec%atom(i2)%y,molec%atom(i2)%z)
+            else
+                call dernumBbend(BderBend,                                      &
+                             molec%atom(i1)%x,molec%atom(i1)%y,molec%atom(i1)%z,&
+                             molec%atom(i2)%x,molec%atom(i2)%y,molec%atom(i2)%z,&
+                             molec%atom(i3)%x,molec%atom(i3)%y,molec%atom(i3)%z)
+            endif
+            !Retrieve actual Bder elements
+            do irow=1,9
+            do icol=1,9
+                ! Select block
+                if (irow<=3) then
+                    jj = 3*i1-3  
+                elseif (irow<=6) then
+                    jj = 3*i2-6 
+                else
+                    jj = 3*i3-9
+                endif
+                if (icol<=3) then
+                    kk = 3*i1-3  
+                elseif (icol<=6) then
+                    kk = 3*i2-6 
+                else
+                    kk = 3*i3-9
+                endif
+! print'(A,I2,A,I2,A,I2,A,I2,A)', "Mapping element ", irow,",",icol, " into ", jj+irow,",",kk+icol
+                Bder(i,jj+irow,kk+icol) = BderBend(irow,icol)
+            enddo
+            enddo
+write(title,'(A,I0)') "BderBend - ",i 
+call MAT0(6,BderBend,9,9,title)
+        enddo  
+
+        ! DIHEDRAL
+        do is=1,molec%geom%ndihed
+            i=i+1
+            i1 = molec%geom%dihed(is,1)
+            i2 = molec%geom%dihed(is,2)
+            i3 = molec%geom%dihed(is,3)
+            i4 = molec%geom%dihed(is,4)
+! print*, "Atoms", i1,i2,i3,i4
+            if (do_analytical) then
+print*, "Computing analytical ders"
+                call DERTORS(BderDihe,                                          &
+                             molec%atom(i1)%x,molec%atom(i1)%y,molec%atom(i1)%z,&
+                             molec%atom(i2)%x,molec%atom(i2)%y,molec%atom(i2)%z,&
+                             molec%atom(i3)%x,molec%atom(i3)%y,molec%atom(i3)%z,&
+                             molec%atom(i4)%x,molec%atom(i4)%y,molec%atom(i4)%z)
+            else
+                call dernumBdihe(BderDihe,                                      &
+                             molec%atom(i1)%x,molec%atom(i1)%y,molec%atom(i1)%z,&
+                             molec%atom(i2)%x,molec%atom(i2)%y,molec%atom(i2)%z,&
+                             molec%atom(i3)%x,molec%atom(i3)%y,molec%atom(i3)%z,&
+                             molec%atom(i4)%x,molec%atom(i4)%y,molec%atom(i4)%z)
+            endif
+            !Retrieve actual Bder elements
+            do irow=1,12
+            do icol=1,12
+                ! Select block
+                if (irow<=3) then
+                    jj = 3*i1-3  
+                elseif (irow<=6) then
+                    jj = 3*i2-6 
+                elseif (irow<=9) then
+                    jj = 3*i3-9 
+                else
+                    jj = 3*i4-12
+                endif
+                if (icol<=3) then
+                    kk = 3*i1-3  
+                elseif (icol<=6) then
+                    kk = 3*i2-6 
+                elseif (icol<=9) then
+                    kk = 3*i3-9 
+                else
+                    kk = 3*i4-12
+                endif
+! print'(A,I2,A,I2,A,I2,A,I2,A)', "Mapping element ", irow,",",icol, " into ", jj+irow,",",kk+icol
+                Bder(i,jj+irow,kk+icol) = BderDihe(irow,icol)
+            enddo
+            enddo
+write(title,'(A,I0)') "BderDihe - ",i 
+call MAT0(6,BderDihe,12,12,adjustl(title))
+        enddo  
+
+print*, "Total", i
+stop
+
+        return
+    
+    end subroutine calc_BDer
+
+
+    subroutine AnaBDer(molec,Ns,Bder)
+    
+        use structure_types
+        use verbosity
+    
+        integer,parameter :: NDIM = 600
+        real(8),parameter :: delta = 1.889726133d-3 !for numerical ders, in bohr(=10^-3 \AA, as Num freq in G09)
+    
+        !====================== 
+        !ARGUMENTS
+        type(str_resmol),intent(inout)       :: molec
+        integer,intent(in)                   :: Ns
+        real(8),dimension(:,:,:),intent(out) :: Bder    ! (Ns x 3Nat x 3Nat) the last index is the second der
+        !======================
+        ! Parts of Bder
+        real(8),dimension(6,6)   :: BderStre
+        real(8),dimension(9,9)   :: BderBend
+        real(8),dimension(12,12) :: BderDihe
+
+        !======================  
+        !LOCAL
+        integer :: Nat
+        real(8),dimension(NDIM) :: S
+!         type(str_resmol) :: molecB
+        real(8),dimension(NDIM,NDIM) :: Bplus, Bmin
+        integer :: verbose_current
+        !Counters
+        integer :: i,j,k, ii,jj,kk, jx,kx, is, i1,i2,i3,i4
+        !======================  
+
+        external DERSTRE
+    
+        ! This SR works in AU
+        call set_geom_units(molec,"Bohr")
+
+        !shortcuts
+        Nat = molec%natoms
+    
+        if (verbose_current>0) then
+            print*, ""
+            print*, "COMPUTING ANALYTICAL DERIVATIVES FOR B..."
+            print*, ""
+        endif
+    
+        Bder(1:Ns,1:3*Nat,1:3*Nat) = 0.d0
+
+        i=0
+        ! STRETCHING
+        do is=1,molec%geom%nbonds
+            i=i+1
+            i1 = molec%geom%bond(is,1)
+            i2 = molec%geom%bond(is,2)
+! print*, " "
+! print*, "IC=", is
+! print*, "Atoms", i1,i2
+! jj=3*i1-3
+! kk=3*i2-3
+! print*, "Cartesians", jj+1,jj+2,jj+3,kk+1,kk+2,kk+3 
+            call DERSTRE(BderStre,                                          &
+                         molec%atom(i1)%x,molec%atom(i1)%y,molec%atom(i1)%z,&
+                         molec%atom(i2)%x,molec%atom(i2)%y,molec%atom(i2)%z)
+            !Retrieve actual Bder elements
+            jj = 3*i1-3                    
+            kk = 3*i1-3
+            do jx=1,3
+            do kx=1,3
+print'(A,I2,A,I2,A,I2,A,I2,A)', "Mapping element ", jx,",",kx, " into ", jj+jx,",",kk+kx
+                Bder(i,jj+jx,kk+kx) = BderStre(jx,kx)
+            enddo
+            enddo
+            jj = 3*i1-3                      
+            kk = 3*i2-3
+            do jx=1,3
+            do kx=1,3
+print'(A,I2,A,I2,A,I2,A,I2,A)', "Mapping element ", jx,",",kx+3, " into ", jj+jx,",",kk+kx
+                Bder(i,jj+jx,kk+kx) = BderStre(jx,kx+3)
+            enddo
+            enddo 
+            jj = 3*i2-3                      
+            kk = 3*i1-3
+            do jx=1,3
+            do kx=1,3
+print'(A,I2,A,I2,A,I2,A,I2,A)', "Mapping element ", jx+3,",",kx, " into ", jj+jx,",",kk+kx
+                Bder(i,jj+jx,kk+kx) = BderStre(jx+3,kx)
+            enddo
+            enddo 
+            jj = 3*i2-3                      
+            kk = 3*i2-3
+            do jx=1,3
+            do kx=1,3
+print'(A,I2,A,I2,A,I2,A,I2,A)', "Mapping element ", jx+3,",",kx+3, " into ", jj+jx,",",kk+kx
+                Bder(i,jj+jx,kk+kx) = BderStre(jx+3,kx+3)
+            enddo
+            enddo
+
+call MAT0(6,BderStre,6,6,"BderStre")
+
+        enddo  
+stop
+
+        ! BENDING
+!         do is=1,molec%geom%nbonds
+!             i=i+1
+!             i1 = molec%geom%angle(is,1)
+!             i2 = molec%geom%angle(is,2)
+!             i3 = molec%geom%angle(is,3)
+!             call DERBEND(BderBend,                                          &
+!                          molec%atom(i1)%x,molec%atom(i1)%y,molec%atom(i1)%z,&
+!                          molec%atom(i2)%x,molec%atom(i2)%y,molec%atom(i2)%z,&
+!                          molec%atom(i3)%x,molec%atom(i3)%y,molec%atom(i3)%z)
+!             !Retrieve actual Bder elements
+!             jj = 3*i1-3                      
+!             kk = 3*i2-3
+!             do jx=1,3
+!             do kx=1,3
+!                 Bder(i,jj+jx,kk+kx) = BderStre(jx,kx)
+!             enddo
+!             enddo
+!         enddo  
+
+
+        return
+    
+    end subroutine AnaBDer
+
+
 
 
     !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%5

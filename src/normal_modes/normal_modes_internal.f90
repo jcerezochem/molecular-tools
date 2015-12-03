@@ -55,9 +55,10 @@ program normal_modes_animation
 
     !====================== 
     !Options 
-    logical :: use_symmetry=.false., &
+    logical :: use_symmetry=.false.,   &
                include_hbonds=.false., &
-               vertical=.false.
+               vertical=.false.,       &
+               analytic_Bder=.false.
     !======================
 
     !====================== 
@@ -169,7 +170,9 @@ program normal_modes_animation
                      ! Movie
                      movie_vmd, movie_cycles,                              &
                      ! Options (internal)
-                     use_symmetry,def_internal,intfile,rmzfile,scan_type)
+                     use_symmetry,def_internal,intfile,rmzfile,scan_type,  &
+                     ! (hidden)
+                     analytic_Bder)
 
 
     ! INTERNAL VIBRATIONAL ANALYSIS
@@ -350,6 +353,8 @@ program normal_modes_animation
             !SOLVE GF METHOD TO GET NM AND FREQ
             call internal_Gmetric(Nat,Nvib,molecule%atom(:)%mass,B,G)
             if (vertical) then
+! call calc_Bder(molecule,Nvib,Bder,analytic_Bder)
+! call AnaBder(molecule,Nvib,Bder)
                 call NumBder(molecule,Nvib,Bder)
                 call HessianCart2int(Nat,Nvib,Hess,molecule%atom(:)%mass,B,G,Grad=Grad,Bder=Bder)
                 if (verbose>2) then
@@ -683,7 +688,9 @@ program normal_modes_animation
                            ! Movie
                            movie_vmd, movie_cycles,                              &
                            ! Options (internal)
-                           use_symmetry,def_internal,intfile,rmzfile,scan_type)
+                           use_symmetry,def_internal,intfile,rmzfile,scan_type, &
+                           ! (hidden)
+                           analytic_Bder)
     !==================================================
     ! My input parser (gromacs style)
     !==================================================
@@ -692,7 +699,8 @@ program normal_modes_animation
         character(len=*),intent(inout) :: inpfile,ft,hessfile,fth,gradfile,ftg,nmfile,ftn, &
                                           intfile,rmzfile,scan_type,def_internal,selection
         real(8),intent(inout)          :: Amplitude
-        logical,intent(inout)          :: call_vmd, include_hbonds,vertical, use_symmetry,movie_vmd
+        logical,intent(inout)          :: call_vmd, include_hbonds,vertical, use_symmetry,movie_vmd, &
+                                          analytic_Bder
         integer,intent(inout)          :: movie_cycles
 
         ! Local
@@ -789,6 +797,13 @@ program normal_modes_animation
         
                 case ("-h")
                     need_help=.true.
+
+                ! HIDDEN FLAGS
+
+                case ("-anaBder")
+                    analytic_Bder=.true.
+                case ("-noanaBder")
+                    analytic_Bder=.false.
 
                 ! Control verbosity
                 case ("-quiet")

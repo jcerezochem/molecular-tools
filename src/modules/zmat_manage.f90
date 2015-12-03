@@ -91,7 +91,7 @@ module zmat_manage
             i_3 = angle_s(i,2)
             i_2 = angle_s(i,3)
             if (i_1.gt.natoms0 .or. i_2.gt.natoms0 .or. i_3.gt.natoms0) cycle
-            ang = calc_angle(molec%atom(i_1),molec%atom(i_3),molec%atom(i_2))
+            ang = calc_atm_angle(molec%atom(i_1),molec%atom(i_3),molec%atom(i_2))
             if (ang.gt.0.97*PI) then
                 print*, "Caution: colinear atoms"
                 is_colinear=.true.
@@ -130,7 +130,7 @@ module zmat_manage
                 molec%atom(molec%natoms)%nbonds = 2
                 molec%atom(molec%natoms)%connect(1) = iat_1
                 molec%atom(molec%natoms)%connect(2) = iat_2
-                dist=calc_dist(molec%atom(iat_1),molec%atom(iat_2))
+                dist=calc_atm_dist(molec%atom(iat_1),molec%atom(iat_2))
                 vx=(molec%atom(iat_1)%x - molec%atom(iat_2)%x)/2.d0
                 vy=(molec%atom(iat_1)%y - molec%atom(iat_2)%y)/2.d0
                 vz=(molec%atom(iat_1)%z - molec%atom(iat_2)%z)/2.d0
@@ -912,7 +912,6 @@ module zmat_manage
         type(str_resmol),intent(in)    :: molec2
         integer,intent(out) :: info
     
-        type(str_resmol)    :: molec_aux
         real(8),dimension(3,3) :: T0, R
         real(8),dimension(3) :: Vec2
     
@@ -973,7 +972,7 @@ module zmat_manage
         type(str_resmol),intent(in)    :: molec2
         real(8),intent(inout)          :: dist
     
-        type(str_resmol)    :: molec_aux
+!         type(str_resmol)    :: molec_aux
         real(8),dimension(3,3) :: T
         real(8),dimension(3,3) :: T0
         real(8),dimension(3) :: Vec2
@@ -1062,7 +1061,7 @@ module zmat_manage
         if (det<0.d0) cycle
     
         !Rotate and check sum of distances
-        molec_aux=molec
+!         molec_aux=molec
         rsum=0.d0
         do i=1,Nat
             xaux = molec%atom(i)%x
