@@ -4,6 +4,7 @@
 AC_PREREQ([2.68])
 AC_INIT([MolecularTools],[2.2.1],[jcb1@um.es])
 AM_INIT_AUTOMAKE([foreign])
+AM_EXTRA_RECURSIVE_TARGETS([clean-libs])
 AC_CONFIG_SRCDIR(src/)
 AC_LANG([Fortran])
 
@@ -24,6 +25,9 @@ fi
 if test -z $FCFLAGS; then
     FCFLAGS='-cpp -DDOUBLE -DUSE_LAPACK -I../modules/'
 fi
+
+LDFLAGS="$LDFLAGS -L$srcdir/libs/AnalyticalBders"
+
 # AC_PROG_F77([ifort,gfortran])
  # ifort compiler works, but gfortran does not!
 AC_PROG_FC([])
@@ -36,7 +40,7 @@ AC_ARG_WITH([mkl],
 
 AS_IF([test "x$with_mkl" = "xyes"],
       [AC_CHECK_LIB([mkl_intel],[zsytrf],
-                    [use_lapack=no;LIBS="-lmkl_intel"],
+                    [use_lapack=no;LIBS="$LIBS -lmkl_intel"],
                     [AC_MSG_WARN([MKL library requested but not found]);use_lapack=yes])],
       # MKL test needs some changes in the configure file:
       # sed -i "s/-lmkl_intel/-lmkl_intel_lp64 -lmkl_sequential -lmkl_core/g" configure
@@ -44,7 +48,7 @@ AS_IF([test "x$with_mkl" = "xyes"],
 
 AS_IF([test "x$use_lapack" = "xyes"],
       [AC_CHECK_LIB([lapack],[zsytrf],
-                    [have_lapack_funct=yes;LIBS="-llapack -lblas"],
+                    [have_lapack_funct=yes;LIBS="$LIBS -llapack -lblas"],
                     [have_lapack_funct=no])],
       [have_lapack_funct=yes])
 
@@ -64,6 +68,23 @@ AS_IF([test "x$with_fftw" = "xyes"],
                     [AC_MSG_WARN([FFTW functionalities cannot be used]);use_fftw=no])],
       [use_fftw=no])
 
+# Check libbders
+AC_ARG_WITH([libbders],
+    AS_HELP_STRING([--with-libbders], [B analytical derivatives library (libbders)]),
+    [with_libbders=yes],
+    [with_libbders=no; use_libbders=no])
+
+AS_IF([test "x$with_libbders" = "xyes"],
+      [AC_CHECK_LIB([bders],[derBstre],
+                    [use_libders=yes;
+                     LIBS="$LIBS -lbders -L${abs_srcdir}/libs/AnalyticalBders";
+                     FCFLAGS="$FCFLAGS -DWITH_LIBBDERS"],
+                    [AC_MSG_WARN([libders disabled]);use_libders=no])],
+      [use_libders=yes])
+# Pass info to automake
+AM_CONDITIONAL([WITH_LIBDERS], [test "$use_libders" = "yes"])
+
+
 AS_IF([test "x$use_fftw" = "xyes"],
       [FFT_SR_SRC=fftw_calculator_SR.f90],
       [FFT_SR_SRC=fft_calculator_SR.f90 ])
@@ -74,7 +95,8 @@ AC_SUBST([FFT_SR_SRC])
 AM_CONDITIONAL([FFTW],[test x$use_fftw = xyes])
 
 
-LIBS="$LIBS -L/home/cerezo/dev/MY_PROJECTS/GIT/molecular-tools/AnalyticalBders -lbders"
+# LIBS="$LIBS -L/home/cerezo/dev/MY_PROJECTS/GIT/molecular-tools/AnalyticalBders -lbders"
+# LIBS="$LIBS -L$top_srcdir/libs/AnalyticalBders -lbders"
 
 # Checks for header files.
 
@@ -83,12 +105,13 @@ LIBS="$LIBS -L/home/cerezo/dev/MY_PROJECTS/GIT/molecular-tools/AnalyticalBders -
 # Checks for library functions.
 
 AC_CONFIG_FILES([Makefile
+                 libs/AnalyticalBders/Makefile
                  src/modules/Makefile
                  src/normal_modes/Makefile          
+                 src/internal_duschisky/Makefile
 ])        
 AC_OUTPUT    
         
-#                 src/internal_duschisky/Makefile
 
 #                 src/file_management/Makefile          
 #                 src/bonded_info/Makefile  

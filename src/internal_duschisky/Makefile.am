@@ -1,5 +1,7 @@
 AUTOMAKE_OPTIONS = subdir-objects
 
+LDFLAGS = -L$(top_builddir)/libs/AnalyticalBders @LIBS@ 
+
 bin_PROGRAMS = vertical2adiabatic_new verticalPCCP internal_duschinsky_new zmat2internalset
 
 vertical2adiabatic_new_SOURCES = ../modules/alerts.f90\
@@ -10,6 +12,8 @@ vertical2adiabatic_new_SOURCES = ../modules/alerts.f90\
                              ../modules/matrix_print.f90\
                              ../modules/structure_types.f90\
                              ../modules/molecular_structure.f90\
+                             ../modules/metrics.f90             \
+                             ../modules/atomic_geom.f90\
                              ../modules/manage_fcc.f90                    \
                              ../modules/manage_gamess.f90                 \
                              ../modules/manage_gaussian.f90               \
@@ -24,13 +28,10 @@ vertical2adiabatic_new_SOURCES = ../modules/alerts.f90\
                              ../modules/generic_io.f90\
                              ../modules/generic_io_molec.f90\
                              ../modules/ff_build.f90\
-                             ../modules/atomic_geom.f90\
                              ../modules/symmetry.f90\
                              ../modules/internal.f90\
                              ../modules/vibrational_analysis.f90\
                              vertical2adiabatic.f90
-# vertical2adiabatic_new_LDFLAGS = -L/home/cerezo/dev/MY_PROJECTS/GIT/molecular-tools/AnalyticalBders -lbders @LIBS@ 
-vertical2adiabatic_new_FCFLAGS = -L/home/cerezo/dev/MY_PROJECTS/GIT/molecular-tools/AnalyticalBders -lbders @LIBS@ 
 
 verticalPCCP_SOURCES = ../modules/alerts.f90\
                              ../modules/line_preprocess.f90\
@@ -40,6 +41,8 @@ verticalPCCP_SOURCES = ../modules/alerts.f90\
                              ../modules/matrix_print.f90\
                              ../modules/structure_types.f90\
                              ../modules/molecular_structure.f90\
+                             ../modules/metrics.f90             \
+                             ../modules/atomic_geom.f90\
                              ../modules/manage_fcc.f90                    \
                              ../modules/manage_gamess.f90                 \
                              ../modules/manage_gaussian.f90               \
@@ -54,12 +57,10 @@ verticalPCCP_SOURCES = ../modules/alerts.f90\
                              ../modules/generic_io.f90\
                              ../modules/generic_io_molec.f90\
                              ../modules/ff_build.f90\
-                             ../modules/atomic_geom.f90\
                              ../modules/symmetry.f90\
                              ../modules/internal.f90\
                              ../modules/vibrational_analysis.f90\
                              verticalPCCP.f90
-verticalPCCP_LDFLAGS = -L/home/cerezo/dev/MY_PROJECTS/GIT/molecular-tools/AnalyticalBders -lbders @LIBS@ 
 
 internal_duschinsky_new_SOURCES = ../modules/alerts.f90\
                              ../modules/line_preprocess.f90\
@@ -68,6 +69,8 @@ internal_duschinsky_new_SOURCES = ../modules/alerts.f90\
                              ../modules/matrix.f90\
                              ../modules/matrix_print.f90\
                              ../modules/structure_types.f90\
+                             ../modules/metrics.f90             \
+                             ../modules/atomic_geom.f90\
                              ../modules/molecular_structure.f90\
                              ../modules/manage_fcc.f90                    \
                              ../modules/manage_gamess.f90                 \
@@ -83,12 +86,10 @@ internal_duschinsky_new_SOURCES = ../modules/alerts.f90\
                              ../modules/generic_io.f90\
                              ../modules/generic_io_molec.f90\
                              ../modules/ff_build.f90\
-                             ../modules/atomic_geom.f90\
                              ../modules/symmetry.f90\
                              ../modules/internal.f90\
                              ../modules/vibrational_analysis.f90\
                              internal_duschinsky.f90
-internal_duschinsky_new_LDFLAGS = -L/home/cerezo/dev/MY_PROJECTS/GIT/molecular-tools/AnalyticalBders -lbders @LIBS@ 
 
 zmat2internalset_SOURCES = ../modules/alerts.f90\
                              ../modules/line_preprocess.f90\
@@ -97,6 +98,8 @@ zmat2internalset_SOURCES = ../modules/alerts.f90\
                              ../modules/matrix.f90\
                              ../modules/matrix_print.f90\
                              ../modules/structure_types.f90\
+                             ../modules/metrics.f90             \
+                             ../modules/atomic_geom.f90\
                              ../modules/molecular_structure.f90\
                              ../modules/manage_fcc.f90                    \
                              ../modules/manage_gamess.f90                 \
@@ -112,10 +115,8 @@ zmat2internalset_SOURCES = ../modules/alerts.f90\
                              ../modules/generic_io.f90\
                              ../modules/generic_io_molec.f90\
                              ../modules/ff_build.f90\
-                             ../modules/atomic_geom.f90\
                              ../modules/symmetry.f90\
                              ../modules/internal.f90\
-                             zmat2internalset.f90
-zmat2internalset_LDFLAGS = -L/home/cerezo/dev/MY_PROJECTS/GIT/molecular-tools/AnalyticalBders -lbders @LIBS@ 
+                             zmat2internalset.f90 
 
 CLEANFILES =*.mod 

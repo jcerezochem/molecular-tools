@@ -5,6 +5,9 @@
 *.aux
 *.mod
 
+# Untraked folder with extra material
+EXTRA
+
 # ac/am things
 config.status
 config.log
@@ -57,6 +60,12 @@ src/internal_duschisky/vertical2adiabatic
 src/normal_modes/internal_numder_analysis
 src/normal_modes/vibrations_cart
 src/file_management/numderX
+src/internal_duschisky/verticalPCCP
+src/internal_duschisky/zmat2internalset
+src/normal_modes/gen_Lder_numx
+src/normal_modes/numder_L
+src/normal_modes/numder_fc
+*_new
 
 # output from test calcs
 *output.?

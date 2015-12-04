@@ -1,5 +1,7 @@
 AUTOMAKE_OPTIONS = subdir-objects
 
+LDFLAGS = -L$(top_builddir)/libs/AnalyticalBders @LIBS@ 
+
 bin_PROGRAMS = nm_internal_new numder_fc numder_L prj_nm_internal_new nm_cartesian_new gen_Lder_numx
 
 # freq2fc   vibrations_cart

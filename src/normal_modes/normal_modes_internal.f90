@@ -70,6 +70,9 @@ program normal_modes_animation
     !Job info
     character(len=20) :: calc, method, basis
     character(len=150):: title
+
+    real(8) :: val1,val2,val3,val4,val5,val6
+    integer :: imax,jmax,kmax, kk, jj1,jj2,jj3, kk1,kk2,kk3, kkmax, jjmax
     !====================== 
 
     !====================== 
@@ -109,6 +112,7 @@ program normal_modes_animation
     !INTERNAL CODE THINGS
     real(8),dimension(1:NDIM,1:NDIM) :: B, G
     real(8),dimension(1:NDIM,1:NDIM,1:NDIM) :: Bder
+    real(8),dimension(1:24,1:30,1:30) :: Bder1, Bder2, Bder3
     real(8),dimension(1:NDIM,1:NDIM) :: X,Xinv
     !Save definitio of the modes in character
     character(len=100),dimension(NDIM) :: ModeDef
@@ -348,14 +352,12 @@ program normal_modes_animation
         !--------------------------------------
         ! 2. Normal Mode SCAN
         !--------------------------------------
-        call internal_Wilson(molecule,Nvib,S,B,ModeDef)
+        call internal_Wilson_new(molecule,Nvib,S,B,ModeDef)
         if (nmfile == "none") then
             !SOLVE GF METHOD TO GET NM AND FREQ
             call internal_Gmetric(Nat,Nvib,molecule%atom(:)%mass,B,G)
             if (vertical) then
-! call calc_Bder(molecule,Nvib,Bder,analytic_Bder)
-! call AnaBder(molecule,Nvib,Bder)
-                call NumBder(molecule,Nvib,Bder)
+                call calc_Bder(molecule,Nvib,Bder,analytic_Bder)
                 call HessianCart2int(Nat,Nvib,Hess,molecule%atom(:)%mass,B,G,Grad=Grad,Bder=Bder)
                 if (verbose>2) then
                     do i=1,Nvib

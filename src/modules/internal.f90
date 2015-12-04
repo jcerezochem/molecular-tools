@@ -359,7 +359,7 @@ module internal_module
 
     end subroutine dernumBstre
 
-    function Bbend(X1,Y1,Z1,X3,Y3,Z3,X2,Y2,Z2) result(Bi)
+    function Bbend(X1,Y1,Z1,X2,Y2,Z2,X3,Y3,Z3) result(Bi)
     
         !==============================================================
         ! This code is part of MOLECULAR_TOOLS 
@@ -676,6 +676,176 @@ module internal_module
         return
 
     end subroutine dernumBdihe
+
+    subroutine internal_Wilson_new(molec,Ns,S,B, &
+!                                           Optional:
+                                            ICDef)
+    
+        !==============================================================
+        ! This code is part of MOLECULAR_TOOLS 
+        !==============================================================
+        ! Description
+        !  Computes Wilson B matrix. Also get computed the values of the
+        !  internal coordiantes (ICs) and, optionally, gets a written
+        !  description of the ICs
+        !
+        !   Ref: Decius, Cross and Wilson (Section 4.2) --
+        !    The same nomenclature is used (index refer to the same
+        !    atoms, even if reversed)
+        !--------------------------------------------------------------
+
+        use structure_types
+        use line_preprocess
+        use alerts
+        use constants
+        use atomic_geom
+        use matrix
+        use verbosity
+    
+        implicit none
+    
+        integer,parameter :: NDIM = 600
+        real(8),parameter :: ZEROp = 1.d-10 !practically zero
+    
+        !====================== 
+        !ARGUMENTS
+        type(str_resmol),intent(in)        :: molec    ! Input molecule (but only use geom...) - 
+                                                       !    maybe ic structure used in fcclasses2 might be useful, setting
+                                                       !    the values of the IC out of this SR
+        integer,intent(in)                 :: Ns       ! Total number of internal coordiantes to use
+        real(8),dimension(NDIM,NDIM),intent(out) :: B  ! B Wilson matrix
+        real(8),dimension(NDIM),intent(out)      :: S       ! Vector of internal coordinates
+        character(len=100),dimension(NDIM),intent(out),optional :: ICDef !Definition of ICs
+        !====================== 
+    
+        !======================
+        !LOCAL 
+        !System info
+        integer,dimension(1:NDIM,1:4) :: bond_s, angle_s, dihed_s
+        integer :: nbonds, ndihed, nangles
+        integer :: Nat
+        !AUXILIAR MATRICES
+        real(8),dimension(1:12) :: Baux
+        !Intenal parameters ant unitary vectors
+        real(8) :: ang1, r21
+        !Counters
+        integer :: i,j,k
+        integer :: i_1, i_2, i_3, i_4
+        !=============
+    
+    
+        !Set bonded
+        nbonds  = molec%geom%nbonds
+        nangles = molec%geom%nangles
+        ndihed  = molec%geom%ndihed
+        bond_s(1:nbonds,1:2)  =  molec%geom%bond(1:nbonds,1:2)
+        angle_s(1:nangles,1:3) =  molec%geom%angle(1:nangles,1:3)
+        dihed_s(1:ndihed,1:4)  =  molec%geom%dihed(1:ndihed,1:4)
+    
+        !Initialize matrices
+        Nat = molec%natoms
+        B(1:Ns,1:3*Nat) = 0.d0
+    
+        !k-index runs over internal coordinates
+        k=0
+        if (verbose>0) &
+        write(6,'(/,A,I3)') "BONDS", nbonds 
+        do i=1,nbonds
+            k=k+1
+
+            i_1 = bond_s(i,1)
+            i_2 = bond_s(i,2)
+            r21 = calc_atm_dist(molec%atom(i_1),molec%atom(i_2))
+            S(k) = r21
+            if (verbose>0) &
+            write(6,'(I5,X,A,2(I3,A),2F15.8)') k, trim(adjustl(molec%atom(i_1)%name))//"(",i_1,") -- "//&
+                                                  trim(adjustl(molec%atom(i_2)%name))//"(",i_2,")", &
+                                               r21*BOHRtoAMS, r21
+            if (present(ICDef)) &
+            write(ICDef(k),'(A,2(I3,A))') trim(adjustl(molec%atom(i_1)%name))//"(",i_1,") -- "//&
+                                          trim(adjustl(molec%atom(i_2)%name))//"(",i_2,")"
+
+            ! Compute with external functions
+            Baux(1:6) = Bstre(molec%atom(i_1)%x,molec%atom(i_1)%y,molec%atom(i_1)%z,&
+                              molec%atom(i_2)%x,molec%atom(i_2)%y,molec%atom(i_2)%z)
+            B(k,3*i_1-2:3*i_1) = Baux(1:3)
+            B(k,3*i_2-2:3*i_2) = Baux(4:6)
+        enddo
+    
+        if (verbose>0) &
+        write(6,'(/,A,I3)') "ANGLES", nangles
+        do i=1,nangles
+            k=k+1
+    
+            i_1 = angle_s(i,1)
+            i_3 = angle_s(i,2)
+            i_2 = angle_s(i,3)
+            ang1 = calc_atm_angle(molec%atom(i_1),molec%atom(i_3),molec%atom(i_2))
+            S(k) = ang1
+            if (verbose>0) &
+            write(6,'(I5,X,A,3(I3,A),F15.8)') k, trim(adjustl(molec%atom(i_1)%name))//"(",i_1,") -- "//&
+                                                 trim(adjustl(molec%atom(i_3)%name))//"(",i_3,") -- "//&
+                                                 trim(adjustl(molec%atom(i_2)%name))//"(",i_2,")", &
+                                              ang1*360.d0/2.d0/pi
+            if (present(ICDef)) &
+            write(ICDef(k),'(A,3(I3,A))') trim(adjustl(molec%atom(i_1)%name))//"(",i_1,") -- "//&
+                                          trim(adjustl(molec%atom(i_3)%name))//"(",i_3,") -- "//&
+                                          trim(adjustl(molec%atom(i_2)%name))//"(",i_2,")"
+    
+            ! Compute with external functions
+            Baux(1:9) = Bbend(molec%atom(i_1)%x,molec%atom(i_1)%y,molec%atom(i_1)%z,&
+                              molec%atom(i_2)%x,molec%atom(i_2)%y,molec%atom(i_2)%z,&
+                              molec%atom(i_3)%x,molec%atom(i_3)%y,molec%atom(i_3)%z)
+            B(k,3*i_1-2:3*i_1) = Baux(1:3)
+            B(k,3*i_2-2:3*i_2) = Baux(4:6)
+            B(k,3*i_3-2:3*i_3) = Baux(7:9)
+        enddo
+    
+        if (verbose>0) &
+        write(6,'(/,A,I3)') "DIHEDRALS", ndihed
+        do i=1,ndihed
+            k=k+1
+    
+            i_1 = dihed_s(i,1)
+            i_2 = dihed_s(i,2)
+            i_3 = dihed_s(i,3)
+            i_4 = dihed_s(i,4)
+            ang1 = calc_atm_dihed_new(molec%atom(i_1),molec%atom(i_2),molec%atom(i_3),molec%atom(i_4))
+            S(k) = ang1
+            if (verbose>0) &
+            write(6,'(I5,X,A,4(I3,A),F15.8)') k, trim(adjustl(molec%atom(i_1)%name))//"(",i_1,") -- "//&
+                                                 trim(adjustl(molec%atom(i_2)%name))//"(",i_2,") -- "//&
+                                                 trim(adjustl(molec%atom(i_3)%name))//"(",i_3,") -- "//&
+                                                 trim(adjustl(molec%atom(i_4)%name))//"(",i_4,")", &
+                                              ang1*360.d0/2.d0/pi
+            if (present(ICDef)) &
+            write(ICDef(k),'(A,4(I3,A))') trim(adjustl(molec%atom(i_1)%name))//"(",i_1,") -- "//&
+                                          trim(adjustl(molec%atom(i_2)%name))//"(",i_2,") -- "//&
+                                          trim(adjustl(molec%atom(i_3)%name))//"(",i_3,") -- "//&
+                                          trim(adjustl(molec%atom(i_4)%name))//"(",i_4,")"
+    
+            ! Compute with external functions
+            Baux(1:12)= Bdihe(molec%atom(i_1)%x,molec%atom(i_1)%y,molec%atom(i_1)%z,&
+                              molec%atom(i_2)%x,molec%atom(i_2)%y,molec%atom(i_2)%z,&
+                              molec%atom(i_3)%x,molec%atom(i_3)%y,molec%atom(i_3)%z,&
+                              molec%atom(i_4)%x,molec%atom(i_4)%y,molec%atom(i_4)%z)
+            B(k,3*i_1-2:3*i_1) = Baux(1:3)
+            B(k,3*i_2-2:3*i_2) = Baux(4:6)
+            B(k,3*i_3-2:3*i_3) = Baux(7:9)
+            B(k,3*i_4-2:3*i_4) = Baux(10:12)
+    
+        enddo
+    
+        if (verbose>0) &
+            print*, ""
+        if (verbose>1) &
+            call MAT0(6,B,Ns,3*Nat,"B MATRIX")
+
+        return
+    
+    end subroutine internal_Wilson_new
+
+
 
     subroutine internal_Wilson(molec,Ns,S,B, &
 !                                           Optional:
@@ -1513,8 +1683,6 @@ module internal_module
             do j=1,Ns
             do k=1,3*Nat
                Bder(j,k,ii) = ( Bplus(j,k) - Bmin(j,k) ) / (2.d0*delta)
-               if (verbose_current>1) &
-                 print*, j,k,ii, Bder(j,k,ii), Bplus(j,k), Bmin(j,k)
             enddo
             enddo
     
@@ -1532,8 +1700,6 @@ module internal_module
             do j=1,Ns
             do k=1,3*Nat
                Bder(j,k,ii) = ( Bplus(j,k) - Bmin(j,k) ) / (2.d0*delta)
-               if (verbose_current>1) &
-                 print*, j,k,ii, Bder(j,k,ii), Bplus(j,k), Bmin(j,k)
             enddo
             enddo
     
@@ -1550,8 +1716,6 @@ module internal_module
             do j=1,Ns
             do k=1,3*Nat
                Bder(j,k,ii) = ( Bplus(j,k) - Bmin(j,k) ) / (2.d0*delta)
-               if (verbose_current>1) &
-                 print*, j,k,ii, Bder(j,k,ii), Bplus(j,k), Bmin(j,k)
             enddo
             enddo
     
@@ -1604,7 +1768,16 @@ module internal_module
         else
             do_analytical=.false.
         endif
-    
+
+#ifndef WITH_LIBBDERS
+        if (do_analytical) then
+            call alert_msg("warning","Analytical derivatives of Bder not available "//&
+                           "when not compiled --with-libbders. Using numerical code")
+            do_analytical=.false.
+        endif
+#endif    
+
+
         ! This SR works in AU
         call set_geom_units(molec,"Bohr")
 
@@ -1613,7 +1786,12 @@ module internal_module
     
         if (verbose_current>0) then
             print*, ""
-            print*, "COMPUTING DERIVATIVES FOR B (new)..."
+            print*, "COMPUTING DERIVATIVES FOR B"
+            if (do_analytical) then
+                print*, "with analytical derivatives"
+            else   
+                print*, "with numerical derivatives"
+            endif
             print*, ""
         endif
     
@@ -1627,10 +1805,14 @@ module internal_module
             i1 = molec%geom%bond(is,1)
             i2 = molec%geom%bond(is,2)
             if (do_analytical) then
-print*, "Computing analytical ders"
-                call DERSTRE(BderStre,                                      &
+#ifdef WITH_LIBBDERS
+                call derBstre(BderStre,                                         &
                              molec%atom(i1)%x,molec%atom(i1)%y,molec%atom(i1)%z,&
                              molec%atom(i2)%x,molec%atom(i2)%y,molec%atom(i2)%z)
+#endif
+!                 call DERSTRE(BderStre,                                      &
+!                              molec%atom(i1)%x,molec%atom(i1)%y,molec%atom(i1)%z,&
+!                              molec%atom(i2)%x,molec%atom(i2)%y,molec%atom(i2)%z)
             else
                 call dernumBstre(BderStre,                                      &
                              molec%atom(i1)%x,molec%atom(i1)%y,molec%atom(i1)%z,&
@@ -1650,27 +1832,33 @@ print*, "Computing analytical ders"
                 else
                     kk = 3*i2-6 
                 endif
-! print'(A,I2,A,I2,A,I2,A,I2,A)', "Mapping element ", irow,",",icol, " into ", jj+irow,",",kk+icol
                 Bder(i,jj+irow,kk+icol) = BderStre(irow,icol)
             enddo
             enddo
-write(title,'(A,I0)') "BderStre - ",i 
-call MAT0(6,BderStre,6,6,title)
+
+            if (verbose>2) then
+                write(title,'(A,I0)') "BderStre - ",i 
+                call MAT0(6,BderStre,6,6,title)
+            endif  
         enddo 
 
         ! BENDING
         do is=1,molec%geom%nangles
             i=i+1
             i1 = molec%geom%angle(is,1)
-            i2 = molec%geom%angle(is,2)
-            i3 = molec%geom%angle(is,3)
-! print*, "Atoms", i1,i2,i3
+            i3 = molec%geom%angle(is,2)
+            i2 = molec%geom%angle(is,3)
             if (do_analytical) then
-print*, "Computing analytical ders"
-                call DERBEND(BderBend,                                          &
+#ifdef WITH_LIBBDERS
+                call derBbend(BderBend,                                         &
                              molec%atom(i1)%x,molec%atom(i1)%y,molec%atom(i1)%z,&
-                             molec%atom(i3)%x,molec%atom(i3)%y,molec%atom(i3)%z,&
-                             molec%atom(i2)%x,molec%atom(i2)%y,molec%atom(i2)%z)
+                             molec%atom(i2)%x,molec%atom(i2)%y,molec%atom(i2)%z,&
+                             molec%atom(i3)%x,molec%atom(i3)%y,molec%atom(i3)%z)
+#endif
+!                 call DERBEND(BderBend,                                          &
+!                              molec%atom(i1)%x,molec%atom(i1)%y,molec%atom(i1)%z,&
+!                              molec%atom(i2)%x,molec%atom(i2)%y,molec%atom(i2)%z,&
+!                              molec%atom(i3)%x,molec%atom(i3)%y,molec%atom(i3)%z)
             else
                 call dernumBbend(BderBend,                                      &
                              molec%atom(i1)%x,molec%atom(i1)%y,molec%atom(i1)%z,&
@@ -1695,13 +1883,15 @@ print*, "Computing analytical ders"
                 else
                     kk = 3*i3-9
                 endif
-! print'(A,I2,A,I2,A,I2,A,I2,A)', "Mapping element ", irow,",",icol, " into ", jj+irow,",",kk+icol
                 Bder(i,jj+irow,kk+icol) = BderBend(irow,icol)
             enddo
             enddo
-write(title,'(A,I0)') "BderBend - ",i 
-call MAT0(6,BderBend,9,9,title)
-        enddo  
+
+            if (verbose>2) then
+                write(title,'(A,I0)') "BderBend - ",i 
+                call MAT0(6,BderBend,9,9,title)
+            endif  
+        enddo 
 
         ! DIHEDRAL
         do is=1,molec%geom%ndihed
@@ -1710,14 +1900,19 @@ call MAT0(6,BderBend,9,9,title)
             i2 = molec%geom%dihed(is,2)
             i3 = molec%geom%dihed(is,3)
             i4 = molec%geom%dihed(is,4)
-! print*, "Atoms", i1,i2,i3,i4
             if (do_analytical) then
-print*, "Computing analytical ders"
-                call DERTORS(BderDihe,                                          &
+#ifdef WITH_LIBBDERS
+                call derBdihe(BderDihe,                                         &
                              molec%atom(i1)%x,molec%atom(i1)%y,molec%atom(i1)%z,&
                              molec%atom(i2)%x,molec%atom(i2)%y,molec%atom(i2)%z,&
                              molec%atom(i3)%x,molec%atom(i3)%y,molec%atom(i3)%z,&
                              molec%atom(i4)%x,molec%atom(i4)%y,molec%atom(i4)%z)
+#endif
+!                 call DERTORS(BderDihe,                                          &
+!                              molec%atom(i1)%x,molec%atom(i1)%y,molec%atom(i1)%z,&
+!                              molec%atom(i2)%x,molec%atom(i2)%y,molec%atom(i2)%z,&
+!                              molec%atom(i3)%x,molec%atom(i3)%y,molec%atom(i3)%z,&
+!                              molec%atom(i4)%x,molec%atom(i4)%y,molec%atom(i4)%z)
             else
                 call dernumBdihe(BderDihe,                                      &
                              molec%atom(i1)%x,molec%atom(i1)%y,molec%atom(i1)%z,&
@@ -1747,148 +1942,19 @@ print*, "Computing analytical ders"
                 else
                     kk = 3*i4-12
                 endif
-! print'(A,I2,A,I2,A,I2,A,I2,A)', "Mapping element ", irow,",",icol, " into ", jj+irow,",",kk+icol
                 Bder(i,jj+irow,kk+icol) = BderDihe(irow,icol)
             enddo
             enddo
-write(title,'(A,I0)') "BderDihe - ",i 
-call MAT0(6,BderDihe,12,12,adjustl(title))
-        enddo  
 
-print*, "Total", i
-stop
+            if (verbose>2) then
+                write(title,'(A,I0)') "BderDihe - ",i 
+                call MAT0(6,BderDihe,12,12,adjustl(title))
+            endif  
+        enddo  
 
         return
     
     end subroutine calc_BDer
-
-
-    subroutine AnaBDer(molec,Ns,Bder)
-    
-        use structure_types
-        use verbosity
-    
-        integer,parameter :: NDIM = 600
-        real(8),parameter :: delta = 1.889726133d-3 !for numerical ders, in bohr(=10^-3 \AA, as Num freq in G09)
-    
-        !====================== 
-        !ARGUMENTS
-        type(str_resmol),intent(inout)       :: molec
-        integer,intent(in)                   :: Ns
-        real(8),dimension(:,:,:),intent(out) :: Bder    ! (Ns x 3Nat x 3Nat) the last index is the second der
-        !======================
-        ! Parts of Bder
-        real(8),dimension(6,6)   :: BderStre
-        real(8),dimension(9,9)   :: BderBend
-        real(8),dimension(12,12) :: BderDihe
-
-        !======================  
-        !LOCAL
-        integer :: Nat
-        real(8),dimension(NDIM) :: S
-!         type(str_resmol) :: molecB
-        real(8),dimension(NDIM,NDIM) :: Bplus, Bmin
-        integer :: verbose_current
-        !Counters
-        integer :: i,j,k, ii,jj,kk, jx,kx, is, i1,i2,i3,i4
-        !======================  
-
-        external DERSTRE
-    
-        ! This SR works in AU
-        call set_geom_units(molec,"Bohr")
-
-        !shortcuts
-        Nat = molec%natoms
-    
-        if (verbose_current>0) then
-            print*, ""
-            print*, "COMPUTING ANALYTICAL DERIVATIVES FOR B..."
-            print*, ""
-        endif
-    
-        Bder(1:Ns,1:3*Nat,1:3*Nat) = 0.d0
-
-        i=0
-        ! STRETCHING
-        do is=1,molec%geom%nbonds
-            i=i+1
-            i1 = molec%geom%bond(is,1)
-            i2 = molec%geom%bond(is,2)
-! print*, " "
-! print*, "IC=", is
-! print*, "Atoms", i1,i2
-! jj=3*i1-3
-! kk=3*i2-3
-! print*, "Cartesians", jj+1,jj+2,jj+3,kk+1,kk+2,kk+3 
-            call DERSTRE(BderStre,                                          &
-                         molec%atom(i1)%x,molec%atom(i1)%y,molec%atom(i1)%z,&
-                         molec%atom(i2)%x,molec%atom(i2)%y,molec%atom(i2)%z)
-            !Retrieve actual Bder elements
-            jj = 3*i1-3                    
-            kk = 3*i1-3
-            do jx=1,3
-            do kx=1,3
-print'(A,I2,A,I2,A,I2,A,I2,A)', "Mapping element ", jx,",",kx, " into ", jj+jx,",",kk+kx
-                Bder(i,jj+jx,kk+kx) = BderStre(jx,kx)
-            enddo
-            enddo
-            jj = 3*i1-3                      
-            kk = 3*i2-3
-            do jx=1,3
-            do kx=1,3
-print'(A,I2,A,I2,A,I2,A,I2,A)', "Mapping element ", jx,",",kx+3, " into ", jj+jx,",",kk+kx
-                Bder(i,jj+jx,kk+kx) = BderStre(jx,kx+3)
-            enddo
-            enddo 
-            jj = 3*i2-3                      
-            kk = 3*i1-3
-            do jx=1,3
-            do kx=1,3
-print'(A,I2,A,I2,A,I2,A,I2,A)', "Mapping element ", jx+3,",",kx, " into ", jj+jx,",",kk+kx
-                Bder(i,jj+jx,kk+kx) = BderStre(jx+3,kx)
-            enddo
-            enddo 
-            jj = 3*i2-3                      
-            kk = 3*i2-3
-            do jx=1,3
-            do kx=1,3
-print'(A,I2,A,I2,A,I2,A,I2,A)', "Mapping element ", jx+3,",",kx+3, " into ", jj+jx,",",kk+kx
-                Bder(i,jj+jx,kk+kx) = BderStre(jx+3,kx+3)
-            enddo
-            enddo
-
-call MAT0(6,BderStre,6,6,"BderStre")
-
-        enddo  
-stop
-
-        ! BENDING
-!         do is=1,molec%geom%nbonds
-!             i=i+1
-!             i1 = molec%geom%angle(is,1)
-!             i2 = molec%geom%angle(is,2)
-!             i3 = molec%geom%angle(is,3)
-!             call DERBEND(BderBend,                                          &
-!                          molec%atom(i1)%x,molec%atom(i1)%y,molec%atom(i1)%z,&
-!                          molec%atom(i2)%x,molec%atom(i2)%y,molec%atom(i2)%z,&
-!                          molec%atom(i3)%x,molec%atom(i3)%y,molec%atom(i3)%z)
-!             !Retrieve actual Bder elements
-!             jj = 3*i1-3                      
-!             kk = 3*i2-3
-!             do jx=1,3
-!             do kx=1,3
-!                 Bder(i,jj+jx,kk+kx) = BderStre(jx,kx)
-!             enddo
-!             enddo
-!         enddo  
-
-
-        return
-    
-    end subroutine AnaBDer
-
-
 
 
     !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%5
