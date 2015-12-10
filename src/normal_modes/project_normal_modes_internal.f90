@@ -178,7 +178,7 @@ program projection_normal_modes_int
     close(I_INP)
     ! Run vibrations_Cart to get the number of Nvib (to detect linear molecules)
     call vibrations_Cart(Nat,molecule%atom(:)%X,molecule%atom(:)%Y,molecule%atom(:)%Z,molecule%atom(:)%Mass,A,&
-                         Nvib,LL,Freq,error)
+                         Nvib,LL,Freq,error_flag=error)
     k=0
     do i=1,3*Nat
     do j=1,i

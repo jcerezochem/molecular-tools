@@ -1,4 +1,4 @@
-program vertical2adiabatic
+program check_derivatives
 
 
     !*****************
@@ -54,9 +54,9 @@ program vertical2adiabatic
 
     !====================== 
     !System variables
-    type(str_resmol) :: state1,state2
+    type(str_resmol) :: molecule
     integer,dimension(1:NDIM) :: isym
-    integer :: Nat, Nvib, Ns
+    integer :: Nat, Nvib, Ns, Ni, Nj, Nk
     !====================== 
 
     !====================== 
@@ -88,6 +88,7 @@ program vertical2adiabatic
     !Read fchk auxiliars
     real(8),dimension(:),allocatable :: Hlt
     integer :: error
+    real(8) :: scl
     !====================== 
 
     !====================== 
@@ -134,6 +135,7 @@ program vertical2adiabatic
                          symm_file="none",     & 
                          derfile="base", derfile_base, &
                          tmpfile
+    character(len=10) :: dertype="Q"
     !status
     integer :: IOstatus
     !===================
@@ -152,90 +154,69 @@ program vertical2adiabatic
 !     call generic_input_parser(inpfile, "-f" ,"c",&
 !                               filetype,"-ft","c",&
 !                               )
-    call parse_input(inpfile,ft,hessfile,fth,gradfile_v,ftgv,hessfile_v,fthv,&
-                     intfile,rmzfile,def_internal,use_symmetry,derfile,do_correct_vert)
-    call set_word_upper_case(def_internal)
+    call parse_input(inpfile,ft,derfile,dertype)
+    call set_word_upper_case(dertype)
 
-    ! READ DATA (each element from a different file is possible)
+
+    ! 1. READ DATA
     ! ---------------------------------
     !Guess filetypes
     if (ft == "guess") &
     call split_line_back(inpfile,".",null,ft)
-    if (fth == "guess") &
-    call split_line_back(hessfile,".",null,fth)
-    if (ftgv == "guess") &
-    call split_line_back(gradfile_v,".",null,ftgv)
-    if (fthv == "guess") &
-    call split_line_back(hessfile_v,".",null,fthv)
-
+        
     ! STRUCTURE FILE
     open(I_INP,file=inpfile,status='old',iostat=IOstatus)
     if (IOstatus /= 0) call alert_msg( "fatal","Unable to open "//trim(adjustl(inpfile)) )
-    call generic_strmol_reader(I_INP,ft,state1)
-    close(I_INP)
-    ! Shortcuts
-    Nat = state1%natoms
+    call generic_strmol_reader(I_INP,ft,molecule,error)
+    if (error /= 0) call alert_msg("fatal","Error reading geometry (State1)")
+    Nat = molecule%natoms
+    Nvib = 3*Nat-6
 
-    ! HESSIAN FILE (State1)
-    open(I_INP,file=hessfile,status='old',iostat=IOstatus)
-    if (IOstatus /= 0) call alert_msg( "fatal","Unable to open "//trim(adjustl(hessfile)) )
-    allocate(Hlt(1:3*Nat*(3*Nat+1)/2))
-    call generic_Hessian_reader(I_INP,fth,Nat,Hlt,error) 
-    close(I_INP)
-    ! Run vibrations_Cart to get the number of Nvib (to detect linear molecules)
-    call vibrations_Cart(Nat,state1%atom(:)%X,state1%atom(:)%Y,state1%atom(:)%Z,state1%atom(:)%Mass,Hlt,&
-                         Nvib,L1,Freq,error_flag=error)
-    deallocate(Hlt)
-    ! Get Lcart = M^1/2 Lmwc 
-    call Lmwc_to_Lcart(Nat,Nvib,state1%atom(:)%Mass,L1,L1,error)
-    if (verbose>2) &
-        call MAT0(6,L1,3*Nat,Nvib,"Lcart matrix")
 
-    ! HESSIAN FILE (State2)
-    open(I_INP,file=hessfile_v,status='old',iostat=IOstatus)
-    if (IOstatus /= 0) call alert_msg( "fatal","Unable to open "//trim(adjustl(hessfile_v)) )
-    allocate(Hlt(1:3*Nat*(3*Nat+1)/2))
-    call generic_Hessian_reader(I_INP,fthv,Nat,Hlt,error) 
-    close(I_INP)
-    k=0
-    do i=1,3*Nat
-    do j=1,i
-        k=k+1
-        Hess(i,j) = Hlt(k)
-        Hess(j,i) = Hlt(k)
-    enddo 
-    enddo
-    deallocate(Hlt)
+    if (dertype == "Q") then
+        Ni = 3*Nat
+        Nj = Nvib
+        Nk = Nvib
+        scl = 1.d2
+    elseif (dertype == "X") then
+        Ni = Nvib
+        Nj = 3*Nat
+        Nk = 3*Nat
+        scl = 1.d0
+    elseif (dertype == "QINT") then
+        Ni = Nvib
+        Nj = Nvib
+        Nk = Nvib
+        scl = 1.d0
+    elseif (dertype == "S") then
+        Ni = Nvib
+        Nj = Nvib
+        Nk = Nvib
+        scl = 1.d0
+    else
 
-    ! GRADIENT FILE
-    open(I_INP,file=gradfile_v,status='old',iostat=IOstatus)
-    if (IOstatus /= 0) call alert_msg( "fatal","Unable to open "//trim(adjustl(gradfile_v)) )
-    call generic_gradient_reader(I_INP,ftgv,Nat,Grad,error)
-    close(I_INP)
+        call alert_msg("fatal","Unkown derivative type")
+    endif
 
-    !Compute H_Q = L1^t Hess L1  +  gx LLL
-    Hess(1:Nvib,1:Nvib) = matrix_basisrot(Nvib,3*Nat,L1,Hess,counter=.true.)
-
-    ! Apply matrix derivative if the option is enabled
-    if (do_correct_vert) then
-        ! Fill Lder tensor
-        derfile_base=derfile
-        do j=1,Nvib
-            write(derfile,'(A,I0,A)') trim(adjustl(derfile_base)), j, ".dat"
-            open(I_DER,file=derfile,status='old',iostat=IOstatus)
-            if (IOstatus /= 0) call alert_msg( "fatal","Unable to open "//trim(adjustl(derfile)) )
-            do i=1,3*Nat
-                read(I_DER,*) Lder(i,j,1:Nvib)
-            enddo
-            close(I_DER)
+    ! Fill Lder tensor
+    derfile_base=derfile
+    do j=1,Nj
+        write(derfile,'(A,I0,A)') trim(adjustl(derfile_base)), j, ".dat"
+        print*, "Reading ", trim(adjustl(derfile))
+        open(I_DER,file=derfile,status='old',iostat=IOstatus)
+        if (IOstatus /= 0) call alert_msg( "fatal","Unable to open "//trim(adjustl(derfile)) )
+        do i=1,Ni
+            read(I_DER,*) Lder(i,j,1:Nk)
         enddo
+        close(I_DER)
+    enddo
 
-        if (verbose>2) then
-            do i=1,3*Nat
-                write(tmpfile,'(A,I0,A)') "Lder *10^6, Cart=",i
-                call MAT0(6,Lder(i,:,:)*1.e6,Nvib,Nvib,trim(tmpfile))
-            enddo
-        endif
+    if (verbose>0) then
+        do i=1,Ni
+            write(tmpfile,'(A,I0,A)') "Lder *scl, Cart=",i
+            call MAT0(6,Lder(i,:,:)*scl,Nj,Nk,trim(tmpfile))
+        enddo
+    endif
 
 !         do j=1,3*Nat
 !             write(derfile,'(A,I0,A)') trim(adjustl(derfile_base)), j, ".dat"
@@ -254,30 +235,6 @@ program vertical2adiabatic
 !             enddo
 !         endif
     
-        do i=1,Nvib
-        do j=1,Nvib
-            Aux(i,j) = 0.d0
-            do l=1,3*Nat
-                Aux(i,j) = Aux(i,j) + Grad(l) * Lder(l,j,i) 
-            enddo
-            Hess(i,j) = Hess(i,j) + Aux(i,j)
-        enddo
-        enddo
-    endif
-
-
-    call diagonalize_full(Hess(1:Nvib,1:Nvib),Nvib,L2(1:Nvib,1:Nvib),Freq(1:Nvib),"lapack")
-    !Check FC
-    if (verbose>1) &
-        call print_vector(6,Freq*1.d6,Nvib,"FORCE CONSTANTS x 10^6 (A.U.)")
-    !Transform to FC to Freq
-    do i=1,Nvib
-          Freq(i) = sign(dsqrt(abs(Freq(i))*HARTtoJ/BOHRtoM**2/AUtoKG)/2.d0/pi/clight/1.d2,&
-                         Freq(i))
-    enddo
-    if (verbose>0) &
-        call print_vector(6,Freq,Nvib,"Frequencies (cm-1)")
-
     call summary_alerts
 
     call cpu_time(tf)
@@ -290,16 +247,13 @@ program vertical2adiabatic
     contains
     !=============================================
 
-    subroutine parse_input(inpfile,ft,hessfile,fth,gradfile_v,ftgv,hessfile_v,fthv,intfile,&
-                           rmzfile,def_internal,use_symmetry,derfile,do_correct_vert)
+    subroutine parse_input(inpfile,ft,derfile,dertype)
     !==================================================
     ! My input parser (gromacs style)
     !==================================================
         implicit none
 
-        character(len=*),intent(inout) :: inpfile,ft,hessfile,fth,gradfile_v,ftgv,hessfile_v,fthv,&
-                                          intfile,rmzfile,def_internal,derfile
-        logical,intent(inout)          :: use_symmetry,do_correct_vert
+        character(len=*),intent(inout) :: inpfile, ft, derfile, dertype
         ! Local
         logical :: argument_retrieved,  &
                    need_help = .false.
@@ -321,60 +275,13 @@ program vertical2adiabatic
                     call getarg(i+1, ft)
                     argument_retrieved=.true.
 
-                case ("-fhess") 
-                    call getarg(i+1, hessfile)
-                    argument_retrieved=.true.
-                case ("-fth") 
-                    call getarg(i+1, fth)
-                    argument_retrieved=.true.
-
                 case ("-fder") 
                     call getarg(i+1, derfile)
                     argument_retrieved=.true.
 
-                case ("-fhessv") 
-                    call getarg(i+1, hessfile_v)
+                case ("-type") 
+                    call getarg(i+1, dertype)
                     argument_retrieved=.true.
-                case ("-fthv") 
-                    call getarg(i+1, fthv)
-                    argument_retrieved=.true.
-
-                case ("-fgradv") 
-                    call getarg(i+1, gradfile_v)
-                    argument_retrieved=.true.
-                case ("-ftgv") 
-                    call getarg(i+1, ftgv)
-                    argument_retrieved=.true.
-
-                case ("-intfile") 
-                    call getarg(i+1, intfile)
-                    argument_retrieved=.true.
-
-                case ("-rmzfile") 
-                    call getarg(i+1, rmzfile)
-                    argument_retrieved=.true.
-                ! Kept for backward compatibility (but replaced by -rmzfile)
-                case ("-rmz") 
-                    call getarg(i+1, rmzfile)
-                    argument_retrieved=.true.
-
-                case ("-intmode")
-                    call getarg(i+1, def_internal)
-                    argument_retrieved=.true.
-                ! Kept for backward compatibility (but replaced by -intmode)
-                case ("-intset")
-                    call getarg(i+1, def_internal)
-                    argument_retrieved=.true.
-
-                case ("-sym")
-                    use_symmetry=.true.
-                case ("-nosym")
-                    use_symmetry=.false.
-
-                case ("-correct")
-                    do_correct_vert=.true.
-                case ("-nocorrect")
-                    do_correct_vert=.false.
         
                 case ("-h")
                     need_help=.true.
@@ -394,37 +301,17 @@ program vertical2adiabatic
             end select
         enddo 
 
-       ! Manage defaults
-       ! If not declared, hessfile and gradfile are the same as inpfile
-       if (adjustl(hessfile) == "same") then
-           hessfile=inpfile
-           if (adjustl(fth) == "guess")  fth=ft
-       endif
-       if (adjustl(gradfile_v) == "same") then
-           gradfile_v=hessfile_v
-           if (adjustl(ftgv) == "guess")  ftgv=fthv
-       endif
 
 
        !Print options (to stderr)
         write(6,'(/,A)') '--------------------------------------------------'
-        write(6,'(/,A)') '        V E R T I C A L  --PCCP-- '    
-        write(6,'(/,A)') '  Displace structure from vertical to adiabatic geoms  '
-        write(6,'(/,A)') '           '        
+        write(6,'(/,A)') '        Check Numerical Drivatives'    
+        write(6,'(/,A)') '           '
         write(6,'(/,A)') '--------------------------------------------------'
-        write(6,*) '-f              ', trim(adjustl(inpfile))
-        write(6,*) '-ft             ', trim(adjustl(ft))
-        write(6,*) '-fhess          ', trim(adjustl(hessfile))
-        write(6,*) '-fth            ', trim(adjustl(fth))
-        write(6,*) '-fhessv         ', trim(adjustl(hessfile_v))
-        write(6,*) '-fthv           ', trim(adjustl(fthv))
-        write(6,*) '-fgradv         ', trim(adjustl(gradfile_v))
-        write(6,*) '-ftgv           ', trim(adjustl(ftgv))
+        write(0,*) '-f              ', trim(adjustl(inpfile))
+        write(0,*) '-ft             ', trim(adjustl(ft))
         write(6,*) '-fder           ', trim(adjustl(derfile))
-!         write(6,*) '-intmode        ', trim(adjustl(def_internal))
-!         write(6,*) '-intfile        ', trim(adjustl(intfile))
-!         write(6,*) '-rmzfile        ', trim(adjustl(rmzfile))
-        write(6,*) '-[no]correct   ', do_correct_vert
+        write(6,*) '-type           ', trim(adjustl(dertype))
         write(6,*) '-h             ',  need_help
         write(6,*) '--------------------------------------------------'
         if (need_help) call alert_msg("fatal", 'There is no manual (for the moment)' )
@@ -433,5 +320,5 @@ program vertical2adiabatic
     end subroutine parse_input
        
 
-end program vertical2adiabatic
+end program check_derivatives
 

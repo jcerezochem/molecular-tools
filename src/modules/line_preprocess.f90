@@ -445,8 +445,24 @@ module line_preprocess
         integer :: i, j, jj
         integer :: N, range_last, range_width
         logical :: is_range
+        character(len=len(selection)+10) :: selection_local
 
-        call string2vector_char(selection,selection_split,N," ")
+        ! Tranform "," into space 
+        selection_local = ""
+        j=0
+        do i=1,len_trim(selection)
+            j=j+1
+            if (selection(i:i) == ",") then
+                selection_local(j:j) = " "
+            else if (selection(i:i) == "-") then
+                selection_local(j:j+3) = " to "
+                j=j+3
+            else
+                selection_local(j:j) = selection(i:i)
+            endif
+        enddo
+
+        call string2vector_char(selection_local,selection_split,N," ")
 
         is_range = .false.
         j = 0

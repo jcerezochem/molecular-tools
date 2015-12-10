@@ -21,7 +21,7 @@ module vibrational_analysis
 
     contains
 
-    subroutine vibrations_Cart(Nat,X,Y,Z,Mass,Hlt,Nvib,L,Freq,error_flag)
+    subroutine vibrations_Cart(Nat,X,Y,Z,Mass,Hlt,Nvib,L,Freq,error_flag,Din,Dout)
 
         !==============================================================
         ! This code is part of MOLECULAR_TOOLS
@@ -38,9 +38,13 @@ module vibrational_analysis
         ! Nvib    (out) int /scalar   Number of vibrational degrees of freedom
         ! L       (out) real/matrix   Normal modes (vibrations only) in Cartesian coordinates (Dimless)
         ! Freq    (out) real/vector   Frequencies (cm-1)
+        ! Optional kwargs:
         ! error_flag (out) flag  0 : success
         !                        1 : Wrong number of Trans+Rot (<5)
         !                        2 : Wrong number of independent vectors
+        ! Dout    (out) real/matrix   Rotation matrix to Eckart frame (get as output)
+        ! Din     (out) real/matrix   Rotation matrix to Eckart frame (provide as input)
+        !
         !          
         !Notes
         ! Uses built-in matrix manipulation functions in fortran (dot_product,matmul,transpose)
@@ -63,6 +67,9 @@ module vibrational_analysis
         real(kind=8),dimension(:,:),intent(out) :: L
         real(kind=8),dimension(:),intent(out)   :: Freq
         integer,intent(out),optional :: error_flag
+        ! Rotation to Ekart frame
+        real(kind=8),dimension(:,:),intent(out),optional  :: Dout
+        real(kind=8),dimension(:,:),intent(in),optional   :: Din
 
         !Local
         ! Counters
@@ -77,140 +84,152 @@ module vibrational_analysis
         real(kind=8),dimension(3*Nat,3*Nat)       :: H
         real(kind=8),dimension(Nat)               :: Mass_local
 
+
         !Working in AU: transform mass to AU
         Mass_local(1:Nat) = Mass(1:Nat) * AMUtoAU
 
-        !Get COM 
-        RCOM(1:3) = 0.d0
-        MassTot   = 0.d0
-        do i=1,Nat
-            RCOM(1) = RCOM(1) + X(i)*Mass_local(i)
-            RCOM(2) = RCOM(2) + Y(i)*Mass_local(i)
-            RCOM(3) = RCOM(3) + Z(i)*Mass_local(i)
-            MassTot = MassTot + Mass_local(i)
-        enddo
-        RCOM(1:3) = RCOM(1:3)/MassTot
-
-        !Get moment of intertia
-        MI=0.d0
-        do i=1,Nat
-            R=(/X(i)-RCOM(1),Y(i)-RCOM(2),Z(i)-RCOM(3)/)
-            !diag
-            MI(1,1)=MI(1,1)+Mass_local(i)*(R(2)**2+R(3)**2)
-            MI(2,2)=MI(2,2)+Mass_local(i)*(R(1)**2+R(3)**2)
-            MI(3,3)=MI(3,3)+Mass_local(i)*(R(1)**2+R(2)**2)
-            !off-diag
-            MI(2,1)=MI(2,1)-Mass_local(i)*(R(2)*R(1))
-            MI(3,1)=MI(3,1)-Mass_local(i)*(R(3)*R(1))
-            MI(3,2)=MI(3,2)-Mass_local(i)*(R(3)*R(2))
-       enddo
-       do i=1,3
-          do j=1,i-1
-              MI(j,i) = MI(i,j)
-          enddo
-        enddo
-
-        !Diagonalize to get the rotation to the principal axes
-        call diagonalize_full(MI(1:3,1:3),3,Xrot(1:3,1:3),Freq(1:3),"lapack")
-        !Note we need to transpose to follow G09 white paper
-        Xrot=transpose(Xrot)
-
-        !Get the orthogonal transformation to the internal frame
-        ! we follow G09 white paper
-        ! Note that there is a typo:
-        !  * Rotational coordinates should have m^1/2 factor multiplied, not divided
-        ! Furthermore, there additional issues are  
-        !  * Confusing  matrix indices. Note that X should be transposed first to use the
-        !    order they use
-        D(1:3*Nat,1:3*Nat+6) = 0.d0
-        !Traslation
-        do i=1,3*Nat,3
-            j=(i-1)/3+1
-            !D(1)
-            D(i  ,1) = dsqrt(Mass_local(j)) 
-            !D(2)
-            D(i+1,2) = dsqrt(Mass_local(j)) 
-            !D(3)
-            D(i+2,3) = dsqrt(Mass_local(j)) 
-        enddo
-        !Normalize
-        D(1:3*Nat,1) = D(1:3*Nat,1)/sqrt(dot_product(D(1:3*Nat,1),D(1:3*Nat,1)))
-        D(1:3*Nat,2) = D(1:3*Nat,2)/sqrt(dot_product(D(1:3*Nat,2),D(1:3*Nat,2)))
-        D(1:3*Nat,3) = D(1:3*Nat,3)/sqrt(dot_product(D(1:3*Nat,3),D(1:3*Nat,3)))
-
-        !Rotation
-        do i=1,3*Nat,3
-            j=(i-1)/3+1
-            !Get Equil. coordinates in the principal axis frame 
-            R=(/X(j)-RCOM(1),Y(j)-RCOM(2),Z(j)-RCOM(3)/)
-            R(1:3) = matmul(Xrot(1:3,1:3),R(1:3))
-            !D(4)
-            D(i  ,4) = (R(2)*Xrot(3,1) - R(3)*Xrot(2,1))*dsqrt(Mass_local(j)) 
-            D(i+1,4) = (R(2)*Xrot(3,2) - R(3)*Xrot(2,2))*dsqrt(Mass_local(j)) 
-            D(i+2,4) = (R(2)*Xrot(3,3) - R(3)*Xrot(2,3))*dsqrt(Mass_local(j)) 
-            !D(5)
-            D(i  ,5) = (R(3)*Xrot(1,1) - R(1)*Xrot(3,1))*dsqrt(Mass_local(j)) 
-            D(i+1,5) = (R(3)*Xrot(1,2) - R(1)*Xrot(3,2))*dsqrt(Mass_local(j)) 
-            D(i+2,5) = (R(3)*Xrot(1,3) - R(1)*Xrot(3,3))*dsqrt(Mass_local(j)) 
-            !D(5)
-            D(i  ,6) = (R(1)*Xrot(2,1) - R(2)*Xrot(1,1))*dsqrt(Mass_local(j)) 
-            D(i+1,6) = (R(1)*Xrot(2,2) - R(2)*Xrot(1,2))*dsqrt(Mass_local(j)) 
-            D(i+2,6) = (R(1)*Xrot(2,3) - R(2)*Xrot(1,3))*dsqrt(Mass_local(j)) 
-        enddo
-        !Normalize (and determine if there is one equal to zero: linear molecules)
-        ii = 3
-        do i=4,6 
-            ii = ii + 1
-            pes=dot_product(D(1:3*Nat,ii),D(1:3*Nat,ii))
-            if (abs(pes) < ZERO) then
-                print*, "NOTE: linear molecule detected"
-                !Shift comlumns
-                do j=ii,5
-                    D(1:3*Nat,j) = D(1:3*Nat,j+1)
-                enddo
-                ii = ii - 1
-            else
-                D(1:3*Nat,ii) = D(1:3*Nat,ii)/sqrt(pes)
-            endif
-        enddo
-        Nrt = ii
-        if (Nrt < 5) then
-            error_local = 1
-            if (present(error_flag)) error_flag = error_local
-            return
-        endif
-
-        !Get remaining vectors (vibration) by G-S orthogonalization
-        ! Adding a complete canonical basis in R^N. The additional 6 (5)
-        ! vectors are set to zero by the G-S procedure
-        do i=Nrt+1,3*Nat+Nrt
-            ii = ii + 1
-            !Initial guess: canonical vector (0,0,...0,1,0,...,0,0)
-            D(i-Nrt,ii) = 1.d0
-            !Grand-Schmdit orthogonalization step. (we use H(:,1) as work vector)
-            H(1:3*Nat,1) = D(1:3*Nat,ii)
-            do j=1,ii-1
-                H(1:3*Nat,1) = H(1:3*Nat,1) - dot_product(D(1:3*Nat,ii),D(1:3*Nat,j))*D(1:3*Nat,j)
+        ! Compute rotation matrix to the Eckart frame
+        if (.not.present(Din)) then
+            
+            !Get COM 
+            RCOM(1:3) = 0.d0
+            MassTot   = 0.d0
+            do i=1,Nat
+                RCOM(1) = RCOM(1) + X(i)*Mass_local(i)
+                RCOM(2) = RCOM(2) + Y(i)*Mass_local(i)
+                RCOM(3) = RCOM(3) + Z(i)*Mass_local(i)
+                MassTot = MassTot + Mass_local(i)
             enddo
-            D(1:3*Nat,ii) = H(1:3*Nat,1)
-            !Check if the new vector was linearly independent, if so, normalize it
-            pes = dot_product(D(1:3*Nat,ii),D(1:3*Nat,ii))
-            if (abs(pes) < ZERO) then
-                !If not linear independent, shift columns
-                ii = ii - 1
-            else 
-                D(1:3*Nat,ii) = D(1:3*Nat,ii)/sqrt(pes)
+            RCOM(1:3) = RCOM(1:3)/MassTot
+            
+            !Get moment of intertia
+            MI=0.d0
+            do i=1,Nat
+                R=(/X(i)-RCOM(1),Y(i)-RCOM(2),Z(i)-RCOM(3)/)
+                !diag
+                MI(1,1)=MI(1,1)+Mass_local(i)*(R(2)**2+R(3)**2)
+                MI(2,2)=MI(2,2)+Mass_local(i)*(R(1)**2+R(3)**2)
+                MI(3,3)=MI(3,3)+Mass_local(i)*(R(1)**2+R(2)**2)
+                !off-diag
+                MI(2,1)=MI(2,1)-Mass_local(i)*(R(2)*R(1))
+                MI(3,1)=MI(3,1)-Mass_local(i)*(R(3)*R(1))
+                MI(3,2)=MI(3,2)-Mass_local(i)*(R(3)*R(2))
+            enddo
+            do i=1,3
+              do j=1,i-1
+                  MI(j,i) = MI(i,j)
+              enddo
+            enddo
+            
+            !Diagonalize to get the rotation to the principal axes
+            call diagonalize_full(MI(1:3,1:3),3,Xrot(1:3,1:3),Freq(1:3),"lapack")
+            !Note we need to transpose to follow G09 white paper
+            Xrot=transpose(Xrot)
+            
+            !Get the orthogonal transformation to the internal frame
+            ! we follow G09 white paper
+            ! Note that there is a typo:
+            !  * Rotational coordinates should have m^1/2 factor multiplied, not divided
+            ! Furthermore, there additional issues are  
+            !  * Confusing  matrix indices. Note that X should be transposed first to use the
+            !    order they use
+            D(1:3*Nat,1:3*Nat+6) = 0.d0
+            !Traslation
+            do i=1,3*Nat,3
+                j=(i-1)/3+1
+                !D(1)
+                D(i  ,1) = dsqrt(Mass_local(j)) 
+                !D(2)
+                D(i+1,2) = dsqrt(Mass_local(j)) 
+                !D(3)
+                D(i+2,3) = dsqrt(Mass_local(j)) 
+            enddo
+            !Normalize
+            D(1:3*Nat,1) = D(1:3*Nat,1)/sqrt(dot_product(D(1:3*Nat,1),D(1:3*Nat,1)))
+            D(1:3*Nat,2) = D(1:3*Nat,2)/sqrt(dot_product(D(1:3*Nat,2),D(1:3*Nat,2)))
+            D(1:3*Nat,3) = D(1:3*Nat,3)/sqrt(dot_product(D(1:3*Nat,3),D(1:3*Nat,3)))
+            
+            !Rotation
+            do i=1,3*Nat,3
+                j=(i-1)/3+1
+                !Get Equil. coordinates in the principal axis frame 
+                R=(/X(j)-RCOM(1),Y(j)-RCOM(2),Z(j)-RCOM(3)/)
+                R(1:3) = matmul(Xrot(1:3,1:3),R(1:3))
+                !D(4)
+                D(i  ,4) = (R(2)*Xrot(3,1) - R(3)*Xrot(2,1))*dsqrt(Mass_local(j)) 
+                D(i+1,4) = (R(2)*Xrot(3,2) - R(3)*Xrot(2,2))*dsqrt(Mass_local(j)) 
+                D(i+2,4) = (R(2)*Xrot(3,3) - R(3)*Xrot(2,3))*dsqrt(Mass_local(j)) 
+                !D(5)
+                D(i  ,5) = (R(3)*Xrot(1,1) - R(1)*Xrot(3,1))*dsqrt(Mass_local(j)) 
+                D(i+1,5) = (R(3)*Xrot(1,2) - R(1)*Xrot(3,2))*dsqrt(Mass_local(j)) 
+                D(i+2,5) = (R(3)*Xrot(1,3) - R(1)*Xrot(3,3))*dsqrt(Mass_local(j)) 
+                !D(5)
+                D(i  ,6) = (R(1)*Xrot(2,1) - R(2)*Xrot(1,1))*dsqrt(Mass_local(j)) 
+                D(i+1,6) = (R(1)*Xrot(2,2) - R(2)*Xrot(1,2))*dsqrt(Mass_local(j)) 
+                D(i+2,6) = (R(1)*Xrot(2,3) - R(2)*Xrot(1,3))*dsqrt(Mass_local(j)) 
+            enddo
+            !Normalize (and determine if there is one equal to zero: linear molecules)
+            ii = 3
+            do i=4,6 
+                ii = ii + 1
+                pes=dot_product(D(1:3*Nat,ii),D(1:3*Nat,ii))
+                if (abs(pes) < ZERO) then
+                    print*, "NOTE: linear molecule detected"
+                    !Shift comlumns
+                    do j=ii,5
+                        D(1:3*Nat,j) = D(1:3*Nat,j+1)
+                    enddo
+                    ii = ii - 1
+                else
+                    D(1:3*Nat,ii) = D(1:3*Nat,ii)/sqrt(pes)
+                endif
+            enddo
+            Nrt = ii
+            if (Nrt < 5) then
+                error_local = 1
+                if (present(error_flag)) error_flag = error_local
+                return
             endif
-        enddo
-        !Compute the number of vibrational degrees of freedom
-        Nvib = ii-Nrt
-        !Check if the G-S discarded the right number of vectors
-        if ( 3*Nat+Nrt - ii /= Nrt ) then
-            error_local = 2
-            if (present(error_flag)) error_flag = error_local
-            return
-        endif
+            
+            !Get remaining vectors (vibration) by G-S orthogonalization
+            ! Adding a complete canonical basis in R^N. The additional 6 (5)
+            ! vectors are set to zero by the G-S procedure
+            do i=Nrt+1,3*Nat+Nrt
+                ii = ii + 1
+                !Initial guess: canonical vector (0,0,...0,1,0,...,0,0)
+                D(i-Nrt,ii) = 1.d0
+                !Grand-Schmdit orthogonalization step. (we use H(:,1) as work vector)
+                H(1:3*Nat,1) = D(1:3*Nat,ii)
+                do j=1,ii-1
+                    H(1:3*Nat,1) = H(1:3*Nat,1) - dot_product(D(1:3*Nat,ii),D(1:3*Nat,j))*D(1:3*Nat,j)
+                enddo
+                D(1:3*Nat,ii) = H(1:3*Nat,1)
+                !Check if the new vector was linearly independent, if so, normalize it
+                pes = dot_product(D(1:3*Nat,ii),D(1:3*Nat,ii))
+                if (abs(pes) < ZERO) then
+                    !If not linear independent, shift columns
+                    ii = ii - 1
+                else 
+                    D(1:3*Nat,ii) = D(1:3*Nat,ii)/sqrt(pes)
+                endif
+            enddo
+            !Compute the number of vibrational degrees of freedom
+            Nvib = ii-Nrt
+            !Check if the G-S discarded the right number of vectors
+            if ( 3*Nat+Nrt - ii /= Nrt ) then
+                error_local = 2
+                if (present(error_flag)) error_flag = error_local
+                return
+            endif
 
+        else
+            Nrt = 6
+            D(1:3*Nat,1:3*Nat+6) = Din(1:3*Nat,1:3*Nat+6)
+        endif
+        ! At this point, also get it if requested
+        if (present(Dout)) then
+            Dout(1:3*Nat,1:3*Nat+6) = D(1:3*Nat,1:3*Nat+6)
+        endif
 
         !Massweight the Hessian
         k=0
@@ -629,8 +648,10 @@ module vibrational_analysis
         write(unt,*) ""
 
 
+        if ( verbose==0 ) return
+
         !============================================
-        ! Now repeat for the iniverse transition
+        ! Now repeat for the iniverse transition (if verbose>0)
         !============================================
         Ginv(1:Nvib,1:Nvib) = inverse_realgen(Nvib,G)
         ! Kinv = -Ginv * K

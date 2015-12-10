@@ -80,7 +80,7 @@ program vertical2adiabatic
     integer,dimension(NDIM) :: S_sym, bond_sym,angle_sym,dihed_sym
     !Shifts
     real(8),dimension(NDIM) :: Delta
-    real(8) :: Delta_p
+    real(8) :: Delta_p, Er_int, Er_crt
     !====================== 
 
     !====================== 
@@ -156,7 +156,7 @@ program vertical2adiabatic
 !     call generic_input_parser(inpfile, "-f" ,"c",&
 !                               filetype,"-ft","c",&
 !                               )
-    call parse_input(inpfile,ft,hessfile,fth,gradfile,ftg,intfile,rmzfile,def_internal,use_symmetry)
+    call parse_input(inpfile,ft,hessfile,fth,gradfile,ftg,intfile,rmzfile,def_internal,use_symmetry,vertical)
     call set_word_upper_case(def_internal)
 
     ! READ DATA (each element from a different file is possible)
@@ -244,11 +244,12 @@ program vertical2adiabatic
             Vec(i) = Vec(i) - Aux(i,k) * Grad(k)
         enddo 
     enddo
-    print*, "DELTA R"
+    print*, "DELTA R (x,y,z), Angstrong"
     do i=1,Nat 
         j=3*i-2
-        print'(I3,3X, 3G10.3)', i, Vec(j)*BOHRtoANGS, Vec(j+1)*BOHRtoANGS, Vec(j+2)*BOHRtoANGS
+        print'(I3,3X, 3F10.3)', i, Vec(j)*BOHRtoANGS, Vec(j+1)*BOHRtoANGS, Vec(j+2)*BOHRtoANGS
     enddo
+    print*, ""
 
     state2=state1
     do i=1,Nat 
@@ -261,6 +262,28 @@ program vertical2adiabatic
     call write_xyz(70,state2)
     close(70)
 
+    !===================================
+    ! Reorganization energy
+    !===================================
+    ! Cartesian-coordinates space
+    ! Er = -gx * DeltaX - 1/2 DeltaX^t * Hx * DeltaX
+    ! At this point: 
+    ! * Grad: in Cartesian coords
+    ! * Vec: DeltaX 
+    ! * Hess: Hessian in Cartesian coords
+    !
+    ! Fisrt, compute DeltaS^t * Hs * DeltaS
+    Theta=0.d0
+    do j=1,3*Nat
+    do k=1,3*Nat
+        Theta = Theta + Vec(j)*Vec(k)*Hess(j,k)
+    enddo
+    enddo
+    Er_crt = -Theta*0.5d0
+    do i=1,3*Nat
+        Er_crt = Er_crt - Grad(i)*Vec(i)
+    enddo
+
 
     ! INTERNAL COORDINATES
 
@@ -269,18 +292,16 @@ program vertical2adiabatic
     call internal_Gmetric(Nat,Nvib,state1%atom(:)%mass,B1,G1)
     if (vertical) then
         call NumBder(state1,Nvib,Bder)
-        call HessianCart2int(Nat,Nvib,Hess,state1%atom(:)%mass,B,G1,Grad=Grad,Bder=Bder)
+        call HessianCart2int(Nat,Nvib,Hess,state1%atom(:)%mass,B1,G1,Grad=Grad,Bder=Bder)
     else
-        call HessianCart2int(Nat,Nvib,Hess,state1%atom(:)%mass,B,G1)
+        call HessianCart2int(Nat,Nvib,Hess,state1%atom(:)%mass,B1,G1)
     endif
     call gf_method(Nvib,G1,Hess,L1,Freq,X1,X1inv)
-
-
 
     !Compute new state_file for 2
     ! T2(g09) = mu^1/2 m B^t G2^-1 L2
     ! Compute G1^-1 (it is X1inv * X1inv
-    Aux(1:Nvib,1:Nvib) = matmul(X1inv(1:Nvib,1:Nvib),X1inv(1:Nvib,1:Nvib))
+    Aux(1:Nvib,1:Nvib) = matrix_product(Nvib,Nvib,Nvib,X1inv,X1inv)
     ! Compute B1^t G1^-1
     do i=1,3*Nat
     do j=1,Nvib
@@ -324,17 +345,6 @@ program vertical2adiabatic
     enddo
     enddo
     enddo
-    !Checking normalization
-    print*, ""
-    print*, "Checking normalization of Tcart (G09)"
-    do j=1,Nvib
-    theta=0.d0
-    do i=1,3*Nat
-        theta=theta+Aux2(i,j)**2
-    enddo
-    print'(F15.8)', theta
-    enddo
-    print*, ""
     !Print state
     open(O_STAT,file="state_file_1")
     do i=1,Nat
@@ -361,26 +371,13 @@ program vertical2adiabatic
 
 
     ! GET MINIMUM IN INTERNAL COORDINATES
-    print*, ""
-    print*, "Diagonal FC (internal)"
-    print*, ""
-    do i=1,Nvib
-        print'(1ES16.8)', Hess(i,i)
-    enddo
+    if (verbose>1) then
+        Vec(1:Nvib) = (/(Hess(i,i), i=1,Nvib)/)
+        call print_vector(6,Vec,Nvib,"Diagonal FC (internal)")
+        call print_vector(6,Grad,Nvib,"Gradient (internal)")
+    endif
     Aux(1:Nvib,1:Nvib) = inverse_realgen(Nvib,Hess)
     ! Matrix x vector 
-    print*, "" 
-    print*, "GRAD (internal)"
-    print*, ""
-    print'(5ES16.8)', Grad(1:Nvib)
-    print*, ""
-    print*, ""
-    print*, "Diagonal FC (internal)"
-    print*, ""
-    do i=1,Nvib
-        print'(1ES16.8)', Hess(i,i)
-    enddo
-    print*, ""
     do i=1,Nvib
         Vec(i)=0.d0
         do k=1,Nvib
@@ -417,6 +414,37 @@ program vertical2adiabatic
     print*, ""
 
 
+    !===================================
+    ! Reorganization energy
+    !===================================
+    ! Internal-coordinates space
+    ! Er = -gs * DeltaS - 1/2 DeltaS^t * Hs * DeltaS
+    ! At this point: 
+    ! * Grad: in internal coords
+    ! * Vec: DeltaS 
+    ! * Hess: Hessian in internal coords
+    !
+    ! Fisrt, compute DeltaS^t * Hs * DeltaS
+    Theta=0.d0
+    do j=1,Nvib
+    do k=1,Nvib
+        Theta = Theta + Vec(j)*Vec(k)*Hess(j,k)
+    enddo
+    enddo
+    Er_int = -Theta*0.5d0
+    do i=1,Nvib
+        Er_int = Er_int - Grad(i)*Vec(i)
+    enddo
+
+    ! PRINT
+    print*, "CARTESIAN COORDINATES"
+    print'(X,A,F12.6)',   "Reorganization energy (AU) = ", Er_crt
+    print'(X,A,F12.6,/)', "Reorganization energy (eV) = ", Er_crt*HtoeV
+    print*, "INTERNAL COORDINATES"
+    print'(X,A,F12.6)',   "Reorganization energy (AU) = ", Er_int
+    print'(X,A,F12.6,/)', "Reorganization energy (eV) = ", Er_int*HtoeV
+
+
     call cpu_time(tf)
     write(6,'(A,F12.3)') "CPU (s) for internal vib analysis: ", tf-ti
 
@@ -427,7 +455,7 @@ program vertical2adiabatic
     contains
     !=============================================
 
-    subroutine parse_input(inpfile,ft,hessfile,fth,gradfile,ftg,intfile,rmzfile,def_internal,use_symmetry)
+    subroutine parse_input(inpfile,ft,hessfile,fth,gradfile,ftg,intfile,rmzfile,def_internal,use_symmetry,vertical)
     !==================================================
     ! My input parser (gromacs style)
     !==================================================
@@ -435,7 +463,7 @@ program vertical2adiabatic
 
         character(len=*),intent(inout) :: inpfile,ft,hessfile,fth,gradfile,ftg,&
                                           intfile,rmzfile,def_internal
-        logical,intent(inout)          :: use_symmetry
+        logical,intent(inout)          :: use_symmetry, vertical
         ! Local
         logical :: argument_retrieved,  &
                    need_help = .false.
@@ -470,6 +498,11 @@ program vertical2adiabatic
                 case ("-ftg") 
                     call getarg(i+1, ftg)
                     argument_retrieved=.true.
+
+                case ("-vert")
+                    vertical=.true.
+                case ("-novert")
+                    vertical=.false.
 
                 case ("-intfile") 
                     call getarg(i+1, intfile)
@@ -541,6 +574,7 @@ program vertical2adiabatic
         write(6,*) '-intmode        ', trim(adjustl(def_internal))
         write(6,*) '-intfile        ', trim(adjustl(intfile))
         write(6,*) '-rmzfile        ', trim(adjustl(rmzfile))
+        write(6,*) '-[no]vert      ',  vertical
         write(6,*) '-h             ',  need_help
         write(6,*) '--------------------------------------------------'
         if (need_help) call alert_msg("fatal", 'There is no manual (for the moment)' )

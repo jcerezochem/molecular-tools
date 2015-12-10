@@ -28,15 +28,39 @@ program numder_fc
 !   Generic (structure_types independent)
 !============================================
     use alerts
+    use structure_types
     use line_preprocess
     use constants
     use generic_io
+    use generic_io_molec
     use vibrational_analysis
     use verbosity
+    use molecular_structure
+    use ff_build
+    use symmetry
+    use internal_module
 
     implicit none
 
     integer,parameter :: NDIM=600
+
+    !====================== 
+    !Options 
+    logical :: use_symmetry=.false.,   &
+               include_hbonds=.false., &
+               vertical=.false.,       &
+               analytic_Bder=.false.
+    !======================
+
+    !====================== 
+    !System variables
+    type(str_resmol) :: molecule, molec_aux
+    integer,dimension(1:NDIM) :: isym
+    integer :: Nat, Nvib, Ns
+    character(len=5) :: PG
+    !Job info
+    character(len=20) :: calc, method, basis
+    character(len=150):: title
 
     !====================== 
     ! PES topology and normal mode things
@@ -44,11 +68,25 @@ program numder_fc
     real(8),dimension(1:NDIM,1:NDIM) :: Lref
     real(8),dimension(1:NDIM,1:NDIM) :: LderQj, Drot
     real(8),dimension(1:NDIM*NDIM)   :: Hlt
-    real(8),dimension(NDIM) :: Freq, X, Y, Z, Mass
+    real(8),dimension(1:NDIM,1:NDIM) :: Hess
+    real(8),dimension(NDIM) :: Freq, Grad
     character(len=2),dimension(NDIM) :: AtName
     integer :: error
-    integer :: Nat, Nvib
     logical :: do_Lt=.false.
+    !====================== 
+
+    !====================== 
+    !INTERNAL CODE THINGS
+    real(8),dimension(1:NDIM,1:NDIM) :: B, G
+    real(8),dimension(1:NDIM,1:NDIM,1:NDIM) :: Bder
+    real(8),dimension(1:NDIM,1:NDIM) :: X,Xinv
+    !Save definitio of the modes in character
+    character(len=100),dimension(NDIM) :: ModeDef
+    !VECTORS
+    real(8),dimension(NDIM) :: S
+    integer,dimension(NDIM) :: S_sym
+    ! Switches
+    character(len=5) :: def_internal="ZMAT"
     !====================== 
 
     real(8),dimension(5) :: R
@@ -59,16 +97,30 @@ program numder_fc
     character(len=3)   :: density="SCF"
 
     integer :: Na, Nb
-    integer :: i,j,k, istep, iread, IOstatus, ii
+    integer :: i,j,k, istep, iread, IOstatus
 
+    !================
     !================
     !I/O stuff 
     !units
-    integer :: I_INP=10, & 
+    integer :: I_INP=10,  &
+               I_SYM=12,  &
+               I_RMF=16,  & 
                O_DER=20
+
     !files
-    character(len=200):: inpfile ="input.log", &
+    character(len=10) :: ft ="guess",  ftg="guess",  fth="guess", ftn="guess"
+    character(len=200):: inpfile  ="state1.fchk", &
+                         gradfile ="same", &
+                         hessfile ="same", &
+                         nmfile   ="none", &
+                         intfile  ="none", &
+                         rmzfile  ="none", &
+                         symm_file="none", &
                          reffile ="reference.log"
+
+
+
 
 ! (End of variables declaration) 
 !==================================================================================
@@ -86,49 +138,103 @@ program numder_fc
         stop
     endif
 
-    ! We first perform a vibrational analysis on the refrence
-    ! to get the reference Ekart frame to be used in the other cases
-    open(I_INP,file=reffile,status="old")
-    call generic_structure_reader(I_INP,'log-inpori',Nat,X,Y,Z,Mass,AtName,error)
-    call generic_Hessian_reader(I_INP,'log',Nat,Hlt,error)
+    ! MANAGE INTERNAL COORDS
+    ! ---------------------------------
+    ! Initially read structure to get the internal set
+    open(I_INP,file=inpfile,status="old") 
+    call generic_strmol_reader(I_INP,'log',molecule)
+    Nat =molecule%natoms
+    Nvib=3*Nat-6
     close(I_INP)
-    call vibrations_Cart(Nat,X,Y,Z,Mass,Hlt,Nvib,Lref(:,:),Freq,error_flag=error,&
-                         Dout=Drot(1:3*Nat,1:3*Nat+6))
+    ! Get connectivity 
+    call guess_connect(molecule)
 
+    ! Manage symmetry
+    if (.not.use_symmetry) then
+        molecule%PG="C1"
+    else if (trim(adjustl(symm_file)) /= "NONE") then
+        call alert_msg("note","Using custom symmetry file: "//trim(adjustl(symm_file)) )
+        open(I_SYM,file=symm_file)
+        do i=1,molecule%natoms
+            read(I_SYM,*) j, isym(j)
+        enddo
+        close(I_SYM)
+        !Set PG to CUStom
+        molecule%PG="CUS"
+    else
+        molecule%PG="XX"
+        call symm_atoms(molecule,isym)
+    endif
+
+    !Generate bonded info
+    call gen_bonded(molecule)
+
+    ! Define internal set
+    call define_internal_set(molecule,def_internal,intfile,rmzfile,use_symmetry,isym, S_sym,Ns)
+    if (Ns > Nvib) then
+        print*, "Ns > Nvib", Ns, Nvib
+        call alert_msg("fatal","Non-redundan coordinate set needs mapping (still on dev)")
+        ! Need mapping from whole set to Zmat
+    elseif (Ns > Nvib) then
+        call alert_msg("fatal","Reduced coordinates cases still not implemented")
+        ! Need to freeze unused coords to its input values
+    endif
+
+    ! Analyze numders
     open(I_INP,file=inpfile,status="old")
 
-    istep=1
-    iread=0
+    istep=0
+    verbose=0
     do while ( IOstatus == 0 )
-        read(I_INP,'(X,A)',IOSTAT=IOstatus) line
-        if ( INDEX(line,"Disp =") /= 0 ) then
-            if (iread/=0) cycle
-            call split_line(line,'=',dummy_char,line)
-            call generic_structure_reader(I_INP,'log-inpori',Nat,X,Y,Z,Mass,AtName,error)
-            read(line,*) R(istep)
-            call generic_Hessian_reader(I_INP,'log',Nat,Hlt,error)
-            print*, "Reading step...", istep, R(istep)
-            call vibrations_Cart(Nat,X,Y,Z,Mass,Hlt,Nvib,LL(istep,:,:),Freq,error_flag=error)!,&
-!                                  Din=Drot)
-            istep=istep+1
-            iread=1
-        else if ( INDEX(line,"Normal termination") /= 0 ) then
-            iread=0
-        endif
+        istep=istep+1
+        call summary_parser(I_INP,3,line,IOstatus)
+        if (IOstatus /= 0) exit
+        call split_line(line,'=',dummy_char,line)
+        read(line,*) R(istep)
+        call rewind_summary(I_INP) 
+        call generic_strmol_reader(I_INP,'log',molecule)
+        call gen_bonded(molecule)
+        call define_internal_set(molecule,def_internal,intfile,rmzfile,use_symmetry,isym, S_sym,Ns)
+        call rewind_summary(I_INP)
+        call generic_Hessian_reader(I_INP,'log',Nat,Hlt,error)
+        call rewind_summary(I_INP)
+        k=0
+        do i=1,3*Nat
+        do j=1,i
+            k=k+1
+            Hess(i,j) = Hlt(k)
+            Hess(j,i) = Hlt(k)
+        enddo 
+        enddo
+        call generic_gradient_reader(I_INP,'log',Nat,Grad,error)
+        print*, "Reading step...", istep, R(istep)
+
+!         call vibrations_Cart(Nat,X,Y,Z,Mass,Hlt,Nvib,LL(istep,:,:),Freq,error_flag=error)
+        call internal_Wilson_new(molecule,Nvib,S,B,ModeDef)
+        !SOLVE GF METHOD TO GET NM AND FREQ
+        call internal_Gmetric(Nat,Nvib,molecule%atom(:)%mass,B,G)
+        call calc_Bder(molecule,Nvib,Bder,.true.)
+        call HessianCart2int(Nat,Nvib,Hess,molecule%atom(:)%mass,B,G,Grad=Grad,Bder=Bder)
+        call gf_method(Nvib,G,Hess,LL(istep,:,:),Freq,X,Xinv)
+!         call analyze_internal(Nvib,LL(istep,:,:),Freq,ModeDef)
+        LL(istep,1:Nvib,1:Nvib) = inverse_realgen(Nvib,LL(istep,:,:))
+        call analyze_internal(Nvib,LL(istep,:,:),Freq,ModeDef)
     enddo
-    if (istep-1/=5) call alert_msg("fatal","logfile has not the the required number of steps."//&
-                                           " Was it generated by nm_internal or nm_cartesian?") 
+    close(I_INP)
+    if (istep-1/=5) call alert_msg("fatal","logfile has not the the required number of steps. "//&
+                                           "Was it generated by nm_internal or nm_cartesian?") 
     print*, ""
 
+!     call analyze_internal(Nvib,LL(1,:,:),Freq,ModeDef)
 
     !Assume always the sign at equil. Correct using an element for the whole row
     do istep=1,5
         do k=1,Nvib
-            do i=1,3*Nat
+            do i=1,Nvib
                 !use an element significantly large
                 corrected=.false.
-                if (abs(LL(istep,i,k)) > 0.2d0) then
-                    if ( LL(istep,i,k) == sign(LL(istep,i,k),Lref(i,k)) ) then
+                if (abs(LL(istep,i,k)) > 0.001d0) then
+                    if ( LL(istep,i,k) == sign(LL(istep,i,k),LL(3,i,k)) ) then
                         factor=1.d0
                     else
                         factor=-1.d0
@@ -138,14 +244,8 @@ program numder_fc
                 endif
             enddo
             if (.not.corrected) call alert_msg("fatal","Could not correct the signs")
-            LL(istep,1:3*Nat,k) = LL(istep,1:3*Nat,k) * factor
-print*, "checking signs", factor
-do ii=1,3*Nat
-    print'(2F12.4)', LL(istep,ii,k), Lref(ii,k)
-enddo
+            LL(istep,1:Nvib,k) = LL(istep,1:Nvib,k) * factor
         enddo
-        ! Work in Cartesian coords
-        call Lmwc_to_Lcart(Nat,Nvib,Mass,LL(istep,:,:),LL(istep,:,:),error)
     enddo
 
 
@@ -153,12 +253,12 @@ enddo
     ! Lder(Na,Nb,Nb)
     if (do_Lt) then
         Na = Nvib
-        Nb = 3*Nat
+        Nb = Nvib
         do istep=1,5
             LL(istep,:,:) = transpose(LL(istep,:,:))
         enddo
     else 
-        Na = 3*Nat
+        Na = Nvib
         Nb = Nvib
     endif
 

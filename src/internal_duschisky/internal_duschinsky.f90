@@ -10,6 +10,13 @@ program internal_duschinski
     ! Description:
     ! -----------
     ! Program to analyse vibrations in term of internal coordinates.
+    !
+    ! NOTES
+    ! For vertical, the analysis of the nm displacement can be done:
+    !  * in the S-space (internal coordinates). Activated with -vert
+    !  * in the Q-space (final state nm). Activated with -vert2
+    ! The same convention is used to compute Er
+    ! For AH, we always work in the S-space
     !==============================================================
 
 
@@ -58,7 +65,9 @@ program internal_duschinski
                modred=.false.       ,&
                tswitch=.false.      ,&
                symaddapt=.false.    ,&
-               vertical=.false.
+               vertical=.false.     ,&
+               vertical_method2=.false. ,&
+               only_state2=.true.
     character(len=4) :: def_internal='zmat'
     !======================
 
@@ -90,11 +99,11 @@ program internal_duschinski
     !Save definitio of the modes in character
     character(len=100),dimension(NDIM) :: ModeDef
     !VECTORS
-    real(8),dimension(NDIM) :: Freq1, Freq2, S1, S2, Vec1, Vec2
+    real(8),dimension(NDIM) :: Freq1, Freq2, S1, S2, Vec1, Vec2, Q0, FC
     integer,dimension(NDIM) :: S_sym, bond_sym,angle_sym,dihed_sym
     !Shifts
     real(8),dimension(NDIM) :: Delta
-    real(8) :: Delta_p
+    real(8) :: Delta_p, Er
     !====================== 
 
     !====================== 
@@ -168,7 +177,7 @@ program internal_duschinski
                      inpfile2,ft2,hessfile2,fth2,gradfile2,ftg2,&
                      intfile,rmzfile,def_internal,use_symmetry, &
 !                    tswitch,symaddapt, &
-                     vertical)
+                     vertical,vertical_method2,only_state2)
     call set_word_upper_case(def_internal)
 
     ! 1. INTERNAL VIBRATIONAL ANALYSIS ON STATE1 AND STATE2
@@ -211,7 +220,7 @@ program internal_duschinski
     close(I_INP)
     ! Run vibrations_Cart to get the number of Nvib (to detect linear molecules)
     call vibrations_Cart(Nat,state1%atom(:)%X,state1%atom(:)%Y,state1%atom(:)%Z,state1%atom(:)%Mass,A,&
-                         Nvib,L1,Freq1,error)
+                         Nvib,L1,Freq1,error_flag=error)
     k=0
     do i=1,3*Nat
     do j=1,i
@@ -266,7 +275,7 @@ program internal_duschinski
     !SOLVE GF METHOD TO GET NM AND FREQ
     call internal_Wilson(state1,Nvib,S1,B,ModeDef)
     call internal_Gmetric(Nat,Nvib,state1%atom(:)%mass,B,G1)
-    if (vertical) then
+    if (vertical.and..not.only_state2) then
         call NumBder(state1,Nvib,Bder)
         call HessianCart2int(Nat,Nvib,Hess,state1%atom(:)%mass,B,G1,Grad=Grad,Bder=Bder)
     else
@@ -357,7 +366,7 @@ program internal_duschinski
     close(I_INP)
     ! Run vibrations_Cart to get the number of Nvib (to detect linear molecules)
     call vibrations_Cart(Nat,state2%atom(:)%X,state2%atom(:)%Y,state2%atom(:)%Z,state2%atom(:)%Mass,A,&
-                         Nvib,L2,Freq2,error)
+                         Nvib,L2,Freq2,error_flag=error)
     if (Nvib /= 3*Nat-6) call alert_msg("warning","Linear molecule (at state2). Things can go very bad.")
     k=0
     do i=1,3*Nat
@@ -584,37 +593,108 @@ program internal_duschinski
     !J = L1^-1 L2 (stored in G1).
     G1(1:Nvib,1:Nvib) = matrix_product(Nvib,Nvib,Nvib,L1,L2)
 
-    if (verbose>0) then
-        print*, ""
-        print*, "=========================="
-        print*, " SHIFTS (internal coord)"
-        print*, "=========================="
+    if (vertical.and..not.vertical_method2) then
+        ! GET MINIMUM IN INTERNAL COORDINATES
+        ! At this point
+        !  * Hess has the Hessian  of State2 in internal coords (output from HessianCart2int)
+        !  * Grad has the gradient of State2 in internal coords (output from HessianCart2int)
+        ! Inverse of the Hessian
+        Aux(1:Nvib,1:Nvib) = inverse_realgen(Nvib,Hess)
+        ! DeltaS0 = -Hs^1 * gs
+        do i=1,Nvib
+            Delta(i)=0.d0
+            do k=1,Nvib
+                Delta(i) = Delta(i)-Aux(i,k) * Grad(k)
+            enddo 
+        enddo
+        if (verbose>2) then
+            k=0
+            print*, "DELTA BONDS"
+            do i=1,state1%geom%nbonds
+                k = k+1
+                print'(A,3X,2(F8.3,3X),G10.3)', trim(adjustl(ModeDef(k))), Delta(k), Delta(k)*BOHRtoANGS
+            enddo
+            print*, "DELTA ANGLES"
+            do i=1,state1%geom%nangles
+                k = k+1
+                print'(A,3X,2(F8.3,3X),G10.3)', trim(adjustl(ModeDef(k))), Delta(k), Delta(k)*180.d0/PI
+            enddo
+            print*, "DELTA DIHEDRALS"
+            do i=1,state1%geom%ndihed
+                k = k+1
+                print'(A,3X,2(F8.3,3X),G10.3)', trim(adjustl(ModeDef(k))), Delta(k), Delta(k)*180.d0/PI
+            enddo
+        endif
+        ! Get coordinates
+        do i=1,Nvib
+            S2(i) = S1(i) + Delta(i)
+        enddo
     endif
-    if (verbose>0) &
-     print*, "Bonds"
-    do i=1,state1%geom%nbonds
-        Delta(i) = S2(i)-S1(i)
+
+
+    if (.not.vertical_method2) then
+        if (verbose>0) then
+            print*, ""
+            print*, "=========================="
+            print*, " SHIFTS (internal coord)"
+            print*, "=========================="
+        endif
         if (verbose>0) &
-         print'(I5,3(F8.2,2X))', i, S2(i),S1(i), Delta(i)
-    enddo
-    if (verbose>0) &
-     print*, "Angles"
-    do j=i,i+state1%geom%nangles-1
-        Delta(j) = S2(j)-S1(j)
+         print*, "Bonds"
+        do i=1,state1%geom%nbonds
+            Delta(i) = S2(i)-S1(i)
+            if (verbose>0) &
+             print'(I5,3(F8.2,2X))', i, S2(i),S1(i), Delta(i)
+        enddo
         if (verbose>0) &
-         print'(I5,3(F8.2,2X))', j, S2(j)*180.d0/PI,S1(j)*180.d0/PI,Delta(j)*180.d0/PI
-    enddo
-    if (verbose>0) &
-     print*, "Dihedrals"
-    do k=j,j+state1%geom%ndihed-1
-        Delta(k) = S2(k)-S1(k)
-        Delta_p = S2(k)-S1(k)+2.d0*PI
-        if (dabs(Delta_p) < dabs(Delta(k))) Delta(k)=Delta_p
-        Delta_p = S2(k)-S1(k)-2.d0*PI
-        if (dabs(Delta_p) < dabs(Delta(k))) Delta(k)=Delta_p
+         print*, "Angles"
+        do j=i,i+state1%geom%nangles-1
+            Delta(j) = S2(j)-S1(j)
+            if (verbose>0) &
+             print'(I5,3(F8.2,2X))', j, S2(j)*180.d0/PI,S1(j)*180.d0/PI,Delta(j)*180.d0/PI
+        enddo
         if (verbose>0) &
-         print'(I5,3(F8.2,2X))', k, S2(k)*180.d0/PI,S1(k)*180.d0/PI,Delta(k)*180.d0/PI
-    enddo
+         print*, "Dihedrals"
+        do k=j,j+state1%geom%ndihed-1
+            Delta(k) = S2(k)-S1(k)
+            Delta_p = S2(k)-S1(k)+2.d0*PI
+            if (dabs(Delta_p) < dabs(Delta(k))) Delta(k)=Delta_p
+            Delta_p = S2(k)-S1(k)-2.d0*PI
+            if (dabs(Delta_p) < dabs(Delta(k))) Delta(k)=Delta_p
+            if (verbose>0) &
+             print'(I5,3(F8.2,2X))', k, S2(k)*180.d0/PI,S1(k)*180.d0/PI,Delta(k)*180.d0/PI
+        enddo
+
+    else ! vertical with method2 
+        ! K = -J * Lambda_f^-1 * L2^t * gs
+        ! Convert Freq into FC. Store in FC for future use
+        do i=1,Nvib
+            FC(i) = sign((Freq2(i)*2.d0*pi*clight*1.d2)**2/HARTtoJ*BOHRtoM**2*AUtoKG,Freq2(i))
+            if (FC(i)<0) then
+                print*, i, FC(i)
+                FC(i) = -FC(i)
+                call alert_msg("warning","A negative FC is turned positive")
+            endif
+        enddo
+        ! Lambda_f^-1 * L2^t
+        do i=1,Nvib
+            Aux(i,1:Nvib) = L2(1:Nvib,i) / FC(i)
+        enddo
+        ! -[Lambda_f^-1 * L2^t] * gs
+        do i=1,Nvib
+            Q0(i)=0.d0
+            do k=1,Nvib
+                Q0(i) = Q0(i) - Aux(i,k) * Grad(k)
+            enddo
+        enddo
+        ! J * [-Lambda_f^-1 * L2^t * gs]
+        do i=1,Nvib
+            Vec1(i)=0.d0
+            do k=1,Nvib
+                Vec1(i) = Vec1(i) + G1(i,k) * Q0(k)
+            enddo
+        enddo
+    endif
 
 !     print*, ""
 !     print*, "=========================="
@@ -629,6 +709,7 @@ program internal_duschinski
 !     enddo
 
     if (symaddapt) then
+        if (vertical.or.vertical_method2) call alert_msg("fatal","Symmetry conflicts with vertical")
         print*, ""
         print*, "Using symmetry addapted coordinates"
         print*, "                     Coord                          Displacement"
@@ -647,6 +728,7 @@ program internal_duschinski
         print*, "  ---------------------------------------------------------------"
 
     elseif (Ns /= Nvib) then
+        if (vertical.or.vertical_method2) call alert_msg("fatal","Reduced/Augmented spaces conflict with vertical")
         do i=1,Ns
             Vec1(i) = 0.d0
             do k=1,Ns
@@ -657,27 +739,72 @@ program internal_duschinski
     endif
 
 
-    ! K = L1^-1 DeltaS (this is State 1 respect to state 2) . L1 already stores the inverse!
-    do i=1,Nvib
-        Vec1(i) = 0.d0
-        do k=1,Nvib
-            Vec1(i) = Vec1(i) + L1(i,k)*Delta(k)
+    if (.not.vertical_method2) then
+        ! K = L1^-1 DeltaS (this is State 1 respect to state 2) . L1 already stores the inverse!
+        do i=1,Nvib
+            Vec1(i) = 0.d0
+            do k=1,Nvib
+                Vec1(i) = Vec1(i) + L1(i,k)*Delta(k)
+            enddo
         enddo
-    enddo
-    !Orthogonal: K=L1'^t DeltaS'
-    do i=1,Nvib
-        Vec2(i) = 0.d0
-        do k=1,Nvib
-            Vec2(i) = Vec1(i) + Aux2(k,i)*Delta(k)
+        !Orthogonal: K=L1'^t DeltaS'
+        do i=1,Nvib
+            Vec2(i) = 0.d0
+            do k=1,Nvib
+                Vec2(i) = Vec1(i) + Aux2(k,i)*Delta(k)
+            enddo
         enddo
-    enddo
+    endif
     if (verbose>1) &
      call MAT0(6,G1,Nvib,Nvib,"DUSCHINSKI MATRIX")
 
-
     !Analyze Duschinsky matrix
     call analyze_duschinsky(6,Nvib,G1,Vec1,Freq1,Freq2)
-    
+
+
+    !===================================
+    ! Reorganization energy
+    !===================================
+    if (vertical_method2) then
+        ! Normal-mode space
+        ! Er = -L2^t gs * Q0 - 1/2 * Q0^t * Lambda_f * Q0
+        ! At this point: 
+        ! * Grad: in internal coords
+        ! * Q0: DeltaQ in final state nm
+        ! * FC: diagonal force constants for final state
+        Er = 0.d0
+        do i=1,Nvib
+            ! Compute gQ(i) = L2^t * gs
+            Theta = 0.d0
+            do j=1,Nvib
+                Theta =  Theta + L2(j,i)*Grad(j)
+            enddo
+            Er = Er - Theta * Q0(i) - 0.5d0 * FC(i) * Q0(i)**2
+        enddo
+    else
+        ! Internal-coordinates space
+        ! Er = -gs * DeltaS - 1/2 DeltaS^t * Hs * DeltaS
+        ! At this point: 
+        ! * Grad: in internal coords
+        ! * Delta: DeltaS 
+        ! * Hess: Hessian in internal coords
+        !
+        ! Fisrt, compute DeltaS^t * Hs * DeltaS
+        Theta=0.d0
+        do j=1,Nvib
+        do k=1,Nvib
+            Theta = Theta + Delta(j)*Delta(k)*Hess(j,k)
+        enddo
+        enddo
+        Er = -Theta*0.5d0
+        do i=1,Nvib
+            Er = Er - Grad(i)*Delta(i)
+        enddo
+    endif
+    print'(X,A,F12.6)',   "Reorganization energy (AU) = ", Er
+    print'(X,A,F12.6,/)', "Reorganization energy (eV) = ", Er*HtoeV
+
+
     !============================================
     ! PRINT DUSCHINSKI AND DISPLACEMENT TO FILES
     !============================================
@@ -699,6 +826,8 @@ program internal_duschinski
     close(O_DIS)
     close(O_DIS2)
 
+    call summary_alerts
+
     call cpu_time(tf)
     write(6,'(A,F12.3)') "CPU (s) for internal vib analysis: ", tf-ti
 
@@ -712,7 +841,7 @@ program internal_duschinski
                            inpfile2,ft2,hessfile2,fth2,gradfile2,ftg2,&
                            intfile,rmzfile,def_internal,use_symmetry, &
 !                          tswitch,symaddapt, & symfile
-                           vertical)
+                           vertical,vertical_method2,only_state2)
     !==================================================
     ! My input parser (gromacs style)
     !==================================================
@@ -721,7 +850,7 @@ program internal_duschinski
         character(len=*),intent(inout) :: inpfile,ft,hessfile,fth,gradfile,ftg,&
                                           inpfile2,ft2,hessfile2,fth2,gradfile2,ftg2,&
                                           intfile,rmzfile,def_internal !, symfile
-        logical,intent(inout)          :: use_symmetry, vertical
+        logical,intent(inout)          :: use_symmetry, vertical, vertical_method2, only_state2
 !         logical,intent(inout) :: tswitch, symaddapt
 
         ! Local
@@ -805,10 +934,20 @@ program internal_duschinski
                 case ("-nosym")
                     use_symmetry=.false.
 
+                case ("-vert2")
+                    vertical=.true.
+                    vertical_method2=.true.
                 case ("-vert")
                     vertical=.true.
+                    vertical_method2=.false.
                 case ("-novert")
                     vertical=.false.
+                    vertical_method2=.false.
+
+                case ("-onlys2")
+                    only_state2=.true.
+                case ("-noonlys2")
+                    only_state2=.false.
         
                 case ("-h")
                     need_help=.true.
@@ -870,6 +1009,8 @@ program internal_duschinski
         write(6,*) '-rmzfile        ', trim(adjustl(rmzfile))
         write(6,*) '-[no]sym       ',  use_symmetry
         write(6,*) '-[no]vert      ',  vertical
+        write(6,*) '-vert2         ',  vertical_method2
+        write(6,*) '-[no]onlys2    ',  only_state2
         write(6,*) '-h             ',  need_help
         write(6,*) '--------------------------------------------------'
         if (need_help) call alert_msg("fatal", 'There is no manual (for the moment)' )

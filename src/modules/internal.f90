@@ -1297,12 +1297,17 @@ module internal_module
             enddo
         endif ! gradient correction
     
-        ! Hint = Aux (Hcart-Bder*gq) Aux^T
-        Hess(1:3*Ns,1:3*Nat) = matrix_product(Ns,3*Nat,3*Nat,Aux,Hess)
-        Hess(1:3*Ns,1:3*Ns)  = matrix_product(Ns,3*Nat,3*Nat,Hess,Aux,tB=.true.)
+        ! Hint = Aux (Hcart-Bder*gq) Aux^T (this is "matrix_basisrot")
+        Hess(1:Ns,1:3*Nat) = matrix_product(Ns,3*Nat,3*Nat,Aux,Hess)
+        Hess(1:Ns,1:Ns)    = matrix_product(Ns,3*Nat,3*Nat,Hess,Aux,tB=.true.)
     
-        if (verbose>1) &
-            call MAT0(6,Hess,Ns,Ns,"F MATRIX")
+        if (verbose>1) then
+            Vec(1:Ns) = (/(Hess(i,i), i=1,Ns)/)
+            call print_vector(6,Vec,Ns,"F MATRIX (diagonal)")
+        endif
+        if (verbose>2) &
+         call MAT0(6,Hess,Ns,Ns,"F MATRIX")
+
 
         return
 
@@ -1563,6 +1568,8 @@ module internal_module
         if (verbose>2) & 
             call MAT0(6,Aux3,Nvib,Nvib,"L L^-1")
 
+        ! Only give analysis by rows if verbosity level >= 1
+        if (verbose<=2) return
     
         print*, ""
         print*, "L^-1 MATRIX (LARGER ELEMENTS) -by rows"
@@ -1756,7 +1763,6 @@ module internal_module
         real(8),dimension(NDIM) :: S
         real(8),dimension(NDIM,NDIM) :: Bplus, Bmin
         real(8) :: X1,Y1,Z1,X2,Y2,Z2
-        integer :: verbose_current
         !Counters
         integer :: i,j,k, ii,jj,kk, irow,icol, is, i1,i2,i3,i4
         !swith mode
@@ -1784,7 +1790,7 @@ module internal_module
         !shortcuts
         Nat = molec%natoms
     
-        if (verbose_current>0) then
+        if (verbose>0) then
             print*, ""
             print*, "COMPUTING DERIVATIVES FOR B"
             if (do_analytical) then

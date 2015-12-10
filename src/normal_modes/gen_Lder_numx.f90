@@ -7,7 +7,8 @@ program normal_modes_cartesian
     !
     ! Description:
     ! -----------
-    ! Program to visualize vibrations obtained in internal coordinates.
+    ! Generate gaussian jobs to perform derivatives in terms
+    ! with respect to Cartesian coordinates. Applied to freqs
     !
     !============================================================================    
 

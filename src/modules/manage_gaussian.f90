@@ -102,19 +102,25 @@ module gaussian_manage
         ! I/O
         integer :: IOstatus
         character(len=240) :: line, msg
+        integer :: error_local
 
         !Locate summary
-        error_flag = 0
+        error_local = 0
         i=0
         do
             i=i+1
             read(unt,'(X,A)',IOSTAT=IOstatus) line
-            if ( IOstatus < 0 ) then
-                error_flag = i+10
-                line=""
-                write(line,'(A,I0)') "Error reading g09 file. Last line read: ", i
-                call alert_msg("fatal",line)
+            if ( IOstatus == -1 ) then
+                error_local = IOstatus
+                if (present(error_flag)) error_flag=error_local
+                write(line,'(A,I0)') "End of file while reading g09 file."
+                call alert_msg("note",line)
                 return
+            elseif ( IOstatus < 0 ) then
+                error_local = i+10
+                if (present(error_flag)) error_flag=error_local
+                write(line,'(A,I0)') "Error reading g09 file. Last line read: ", i
+                call alert_msg("warning",line)
             endif
             if ( INDEX(line,"GINC") /= 0 ) exit
         enddo
@@ -122,14 +128,14 @@ module gaussian_manage
         !Read sections
         i=0 ! Restart counter from begining of summary section
         do isection=1,7
-            error_flag = 0
+            error_local = 0
             section    = ""
             do
                 i=i+1
                 !Check if there is space for a line. Otherwise, make 
                 ! space and continue
                 if (len(section)-len_trim(section) <= len_trim(line)) then
-                    error_flag = error_flag - len_trim(line)
+                    error_local = error_local - len_trim(line)
                     write(msg,'(A,I0)') "String cannot hold section ",isection
                     if (isect == isection) then
                         call alert_msg("fatal",trim(msg))
@@ -148,7 +154,7 @@ module gaussian_manage
                 !Read in new line
                 read(unt,'(X,A)',IOSTAT=IOstatus) line
                 if ( IOstatus < 0 ) then
-                    error_flag = i+10
+                    error_local = i+10
                     write(msg,'(A,I0)') "Error reading summary line: ",i
                     call alert_msg("fatal",msg)
                     return
@@ -158,12 +164,14 @@ module gaussian_manage
                 return
             endif
             if (line == "@") then
-                error_flag = 1
+                error_local = 1
                 write(section,'(I0)') isection
                 call alert_msg("fatal","End of summary while reading section "//trim(adjustl(section)))
                 return
             endif
         enddo
+
+        if (present(error_flag)) error_flag=error_local
 
         return
 
@@ -1271,7 +1279,7 @@ module gaussian_manage
         integer :: error_local
         character(len=500) :: info_section
         character :: null, sep
-        character(len=20),dimension(3) :: char_array
+        character(len=20),dimension(4) :: char_array
         ! Counters
         integer :: i
 
@@ -1295,44 +1303,59 @@ module gaussian_manage
              read(unt,*) null ! skip first line
              read(unt,'(A)') info_section
              call string2vector_char(info_section,char_array,n_elem," ")
-             calc   = char_array(1)
-             method = char_array(2)
-             basis  = char_array(3)
+             if ( n_elem == 3) then
+                 calc   = char_array(1)
+                 method = char_array(2)
+                 basis  = char_array(3)
+             elseif (n_elem == 4) then
+                 calc   = char_array(1)
+                 method = trim(adjustl(char_array(2)))//" "//adjustl(char_array(3))
+                 basis  = char_array(4)
+             endif
 
             case default 
              call alert_msg("fatal","API error: Unkonwn filetype in this context (read_gauss_job):"//ft)
         end select
 
         !Refine method info
-        ! It can be a dash separated list: TD-B3LYP-FC...
-        call string2vector_char(method,char_array,n_elem,"-")
-
-        if (n_elem > 1) then
-            method = ""
-            sep=""
-            do i=1,n_elem
-                !Remove the FC card (frozen core) and separate TD
-                if (adjustl(char_array(i))=="FC") then
-                    char_array(i) = ""
-                    sep=""
-                endif
-
-                !Re-Construct method
-                method = trim(adjustl(method))//sep//&
-                         trim(adjustl(char_array(i)))
-
-                !Set the next separator properly
-                if (adjustl(char_array(i))=="TD" .or.&
-                    adjustl(char_array(i))=="RTD".or.&
-                    adjustl(char_array(i))=="UTD") then
-                    !space-separate TD instruction (could also be a comma)
-                    sep=" "
-                else
-                    !separate by dash (e.g. CAM-B3LYP)
-                    sep="-"
-                endif            
-            enddo
+        ! Locate and remove -FC flag
+        call string2vector_char(method,char_array,n_elem," ")
+        if (n_elem == 2) then
+            !Remove the FC card (frozen core) and separate TD
+            if (index(char_array(1),"-FC") /= 0) then
+                call split_line_back(char_array(1),"-",char_array(1),null)
+            elseif (index(char_array(2),"-FC") /= 0) then
+                call split_line_back(char_array(2),"-",char_array(2),null)
+            endif
+            method = trim(adjustl(char_array(2)))//" "//adjustl(char_array(1))
         endif
+
+! THIS PART OF THE CODE SEEMS NOT TO BE USEFUL ANYMORE. MAYBY G09 CHANGED OUTPUT FORMAT
+!         call string2vector_char(method,char_array,n_elem,"-")
+!         if (n_elem > 1) then
+!             method = ""
+!             sep=" "
+!             do i=1,n_elem
+!                 !Remove the FC card (frozen core) and separate TD
+!                 if (index(char_array(i),"-FC") /= 0) then
+!                     call split_line_back(char_array(i),"-",char_array(i),null)
+!                 endif
+!                 !Re-Construct method
+!                 method = trim(adjustl(method))//sep//&
+!                          trim(adjustl(char_array(i)))
+! 
+!                 !Set the next separator properly (deprecated feature)
+!                 if (adjustl(char_array(i))=="TD" .or.&
+!                     adjustl(char_array(i))=="RTD".or.&
+!                     adjustl(char_array(i))=="UTD") then
+!                     !space-separate TD instruction (could also be a comma)
+!                     sep=" "
+!                 else
+!                     !separate by dash (e.g. CAM-B3LYP)
+!                     sep="-"
+!                 endif            
+!             enddo
+!         endif
 
 
         return

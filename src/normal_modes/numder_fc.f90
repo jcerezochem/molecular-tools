@@ -29,6 +29,7 @@ program numder_fc
 !============================================
     use alerts
     use line_preprocess
+    use gaussian_manage
     use constants
 
     implicit none
@@ -72,17 +73,16 @@ program numder_fc
     iread=0
     do while ( IOstatus == 0 )
         read(I_INP,'(X,A)',IOSTAT=IOstatus) line
-        if ( INDEX(line,"Disp =") /= 0 ) then
-            if (iread/=0) cycle
-            call split_line(line,'=',dummy_char,line)
-            read(line,*) R(i)
-        else if ( INDEX(line,marker) /= 0 ) then
+        if (IOstatus /= 0) exit
+        if ( INDEX(line,marker) /= 0 ) then
             call split_line(line,'=',dummy_char,line)
             read(line,*) E(i)
+            ! The go to summary and read the title
+            call summary_parser(I_INP,3,line)
+            call split_line(line,'=',dummy_char,line)
+            read(line,*) R(i)
             i=i+1
             iread=1
-        else if ( INDEX(line,"Normal termination") /= 0 ) then
-            iread=0
         endif
     enddo
     if (i-1/=5) call alert_msg("fatal","logfile has not the the required number of steps."//&
@@ -117,7 +117,7 @@ program numder_fc
     dder = (derB-derA)/delta
     freq = sign(dsqrt(abs(dder)*HARTtoJ/BOHRtoM**2/AUtoKG)/2.d0/pi/clight/1.d2,&
                          dder)
-    print'(X,G11.4,3X,3G16.7,3X,F10.3)', abs(delta)/2.d0, derA, derB, dder, freq
+    print'(X,G11.4,3X,2G16.7,F16.7,3X,F10.3)', abs(delta)/2.d0, derA, derB, dder, freq
 
     !Computation taking computing the first ders at points half-way(2-3) and halfway (3-4)
     delta = R(2)-R(1)
@@ -126,7 +126,7 @@ program numder_fc
     dder = (derB-derA)/delta
     freq = sign(dsqrt(abs(dder)*HARTtoJ/BOHRtoM**2/AUtoKG)/2.d0/pi/clight/1.d2,&
                          dder)
-    print'(X,G11.4,3X,3G16.7,3X,F10.3)', abs(delta)/2.d0, derA, derB, dder, freq
+    print'(X,G11.4,3X,2G16.7,F16.7,3X,F10.3)', abs(delta)/2.d0, derA, derB, dder, freq
 
     print*, ""
 

@@ -971,6 +971,8 @@ module zmat_manage
         type(str_resmol),intent(inout) :: molec
         type(str_resmol),intent(in)    :: molec2
         real(8),intent(inout)          :: dist
+
+        integer                        :: info
     
 !         type(str_resmol)    :: molec_aux
         real(8),dimension(3,3) :: T
@@ -984,116 +986,118 @@ module zmat_manage
         if (verbose>0) &
          print*, "Using brute force RMSD fit subroutine"
 
+        ! Set initially to failure
+        info=1
+
         Nat = molec%natoms
         rcheck=1.d10
         do iTT=1,7
-        !Check all 8 possible solutions for T0 (see Sando, 2001) 
-        do iT=1,8
-    
-            Vec2=1.d0
-            if (iT==2) then
-                Vec2(1) = -1.d0
-            else if (iT==3) then
-                Vec2(2) = -1.d0
-            else if (iT==4) then
-                Vec2(3) = -1.d0
-            else if (iT==5) then
-                Vec2(1) = -1.d0
-                Vec2(2) = -1.d0
-            else if (iT==6) then
-                Vec2(1) = -1.d0
-                Vec2(3) = -1.d0
-            else if (iT==7) then
-                Vec2(2) = -1.d0
-                Vec2(3) = -1.d0
-            else if (iT==8) then
-                Vec2(1) = -1.d0
-                Vec2(2) = -1.d0
-                Vec2(3) = -1.d0
-            endif
-        
-            !T is diagonal 
-            T=0
-            if (iTT ==1 ) then
-            T(1,1) = Vec2(1)
-            T(2,2) = Vec2(2)
-            T(3,3) = Vec2(3)
-            elseif (iTT ==2 ) then
-            T(1,2) = Vec2(1)
-            T(2,1) = Vec2(2)
-            T(3,3) = Vec2(3)
-            elseif (iTT ==3 ) then
-            T(2,1) = Vec2(1)
-            T(2,1) = Vec2(2)
-            T(3,3) = Vec2(3)
-            elseif (iTT ==4 ) then
-            T(1,3) = Vec2(1)
-            T(2,2) = Vec2(2)
-            T(3,1) = Vec2(3)
-            elseif (iTT ==5 ) then
-            T(3,1) = Vec2(1)
-            T(2,2) = Vec2(2)
-            T(1,3) = Vec2(3)
-            elseif (iTT ==6 ) then
-            T(1,1) = Vec2(1)
-            T(2,3) = Vec2(2)
-            T(3,2) = Vec2(3)
-            elseif (iTT ==6 ) then
-            T(1,1) = Vec2(1)
-            T(3,2) = Vec2(2)
-            T(2,3) = Vec2(3)
-            endif
+            !Check all 8 possible solutions for T0 (see Sando, 2001) 
+            do iT=1,8
             
-    !     print*, "T",iT, iTT
-    !     do i=1,3
-    !         print'(100(F8.3,2X))', T(i,1:3)
-    !     enddo
-    
-        det =       T(1,1)*T(2,2)*T(3,3)
-        det = det + T(2,1)*T(3,2)*T(1,3)
-        det = det + T(1,2)*T(2,3)*T(3,1)
-        det = det - T(3,1)*T(2,2)*T(1,3)
-        det = det - T(2,1)*T(1,2)*T(3,3)
-        det = det - T(3,2)*T(2,3)*T(1,1)
-    
-    !     print*, det
-    
-        if (det<0.d0) cycle
-    
-        !Rotate and check sum of distances
-!         molec_aux=molec
-        rsum=0.d0
-        do i=1,Nat
-            xaux = molec%atom(i)%x
-            yaux = molec%atom(i)%y
-            zaux = molec%atom(i)%z
-            xrot = T(1,1)*xaux + T(1,2)*yaux + T(1,3)*zaux - molec2%atom(i)%x
-            yrot = T(2,1)*xaux + T(2,2)*yaux + T(2,3)*zaux - molec2%atom(i)%y
-            zrot = T(3,1)*xaux + T(3,2)*yaux + T(3,3)*zaux - molec2%atom(i)%z
-            rsum=rsum + dsqrt( xrot**2+ yrot**2+ zrot**2)
-        enddo
-    !     print*, "Sum of distance ", rsum
-    
-        if (rsum < rcheck) then
-            T0=T
-            rcheck=rsum
-        endif
-    
-        if (rsum < dist) exit
-    
-        enddo !
-    
-        !If exited due to criterion met, exit here
-        if (rsum < dist) exit
+                Vec2=1.d0
+                if (iT==2) then
+                    Vec2(1) = -1.d0
+                else if (iT==3) then
+                    Vec2(2) = -1.d0
+                else if (iT==4) then
+                    Vec2(3) = -1.d0
+                else if (iT==5) then
+                    Vec2(1) = -1.d0
+                    Vec2(2) = -1.d0
+                else if (iT==6) then
+                    Vec2(1) = -1.d0
+                    Vec2(3) = -1.d0
+                else if (iT==7) then
+                    Vec2(2) = -1.d0
+                    Vec2(3) = -1.d0
+                else if (iT==8) then
+                    Vec2(1) = -1.d0
+                    Vec2(2) = -1.d0
+                    Vec2(3) = -1.d0
+                endif
+            
+                !T is diagonal 
+                T=0
+                if (iTT ==1 ) then
+                T(1,1) = Vec2(1)
+                T(2,2) = Vec2(2)
+                T(3,3) = Vec2(3)
+                elseif (iTT ==2 ) then
+                T(1,2) = Vec2(1)
+                T(2,1) = Vec2(2)
+                T(3,3) = Vec2(3)
+                elseif (iTT ==3 ) then
+                T(2,1) = Vec2(1)
+                T(2,1) = Vec2(2)
+                T(3,3) = Vec2(3)
+                elseif (iTT ==4 ) then
+                T(1,3) = Vec2(1)
+                T(2,2) = Vec2(2)
+                T(3,1) = Vec2(3)
+                elseif (iTT ==5 ) then
+                T(3,1) = Vec2(1)
+                T(2,2) = Vec2(2)
+                T(1,3) = Vec2(3)
+                elseif (iTT ==6 ) then
+                T(1,1) = Vec2(1)
+                T(2,3) = Vec2(2)
+                T(3,2) = Vec2(3)
+                elseif (iTT ==7 ) then
+                T(1,1) = Vec2(1)
+                T(3,2) = Vec2(2)
+                T(2,3) = Vec2(3)
+                endif
+                
+                ! Compute Determinant
+                det =       T(1,1)*T(2,2)*T(3,3)
+                det = det + T(2,1)*T(3,2)*T(1,3)
+                det = det + T(1,2)*T(2,3)*T(3,1)
+                det = det - T(3,1)*T(2,2)*T(1,3)
+                det = det - T(2,1)*T(1,2)*T(3,3)
+                det = det - T(3,2)*T(2,3)*T(1,1)
+!                 print*, det
+            
+                if (det<0.d0) cycle
+                
+                !Rotate and check sum of distances
+                rsum=0.d0
+                do i=1,Nat
+                    xaux = molec%atom(i)%x
+                    yaux = molec%atom(i)%y
+                    zaux = molec%atom(i)%z
+                    xrot = T(1,1)*xaux + T(1,2)*yaux + T(1,3)*zaux - molec2%atom(i)%x
+                    yrot = T(2,1)*xaux + T(2,2)*yaux + T(2,3)*zaux - molec2%atom(i)%y
+                    zrot = T(3,1)*xaux + T(3,2)*yaux + T(3,3)*zaux - molec2%atom(i)%z
+                    rsum=rsum + dsqrt( xrot**2+ yrot**2+ zrot**2)
+                enddo
+    !             print*, "Sum of distance ", rsum
+                
+                if (rsum < rcheck) then
+                    T0=T
+                    rcheck=rsum
+                endif
+                
+                if (rsum < dist) exit
+            
+            enddo !
+            
+            !If exited due to criterion met, exit here
+            if (rsum < dist) then
+                info=0
+                exit
+            endif
     
         enddo ! Possible T values
-    
+
         !Update the distance criterion
-        if (verbose>1) then
-            print*, "Distance criterion was: ", dist
-            print*, "Updated to: ", rcheck
+        if (verbose>1.and.info/=0) then
+            print*, "Criterion not met"
+            print*, "  Distance criterion was: ", dist
+            print*, "  Updated to: ", rcheck
         endif
         dist=rcheck
+        if (info/=0) return
      
         if (verbose>1) &
          call MAT0(6,T0,3,3,"T0")

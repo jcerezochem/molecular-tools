@@ -337,6 +337,9 @@ module molecular_structure
         ! Compute the lenght
         av_len = CovRad(iat1,1) + CovRad(iat2,1)
 
+        ! Take O-O bond into account
+        if (iat1 == 8 .and. iat2 == 8) av_len=av_len+0.8
+
         if (present(inc_hbond)) include_hbond=inc_hbond
         if (include_hbond) then
             ! Only between H and N/O

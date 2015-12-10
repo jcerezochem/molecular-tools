@@ -244,7 +244,7 @@ program normal_modes_animation
 
     !Only read Grad/Hess or nm if we want to scan norma modes
     if (scan_type == "NM") then
-        ! Vibrational analysis: either read from file or from diagonalization of Hessian
+        ! Vibrational analysis: either read from file (fcc) or from diagonalization of Hessian
         if (adjustl(nmfile) /= "none") then
             open(I_INP,file=nmfile,status='old',iostat=IOstatus)
             if (IOstatus /= 0) call alert_msg( "fatal","Unable to open "//trim(adjustl(nmfile)))
@@ -266,7 +266,7 @@ program normal_modes_animation
             close(I_INP)
             ! Run vibrations_Cart to get the number of Nvib (to detect linear molecules)
             call vibrations_Cart(Nat,molecule%atom(:)%X,molecule%atom(:)%Y,molecule%atom(:)%Z,&
-                                 molecule%atom(:)%Mass,Hlt,Nvib,LL,Freq,error)
+                                 molecule%atom(:)%Mass,Hlt,Nvib,LL,Freq,error_flag=error)
             k=0
             do i=1,3*Nat
             do j=1,i
@@ -285,6 +285,9 @@ program normal_modes_animation
                 close(I_INP)
             endif
         endif
+    else
+        !We need to provide a value for Nvib. Lets assume non-liear molecules
+        Nvib = 3*Nat-6
     endif
 
     ! MANAGE INTERNAL COORDS
@@ -315,9 +318,9 @@ program normal_modes_animation
     ! Define internal set
     call define_internal_set(molecule,def_internal,intfile,rmzfile,use_symmetry,isym, S_sym,Ns)
     if (Ns > Nvib) then
-        call alert_msg("fatal","Non-redundan coordinate set needs mapping (still on dev)")
+        call alert_msg("fatal","Ns>Nvib: Non-redundan coordinate set needs mapping (still on dev)")
         ! Need mapping from whole set to Zmat
-    elseif (Ns > Nvib) then
+    elseif (Ns < Nvib) then
         call alert_msg("fatal","Reduced coordinates cases still not implemented")
         ! Need to freeze unused coords to its input values
     endif
@@ -369,6 +372,8 @@ program normal_modes_animation
                 call HessianCart2int(Nat,Nvib,Hess,molecule%atom(:)%mass,B,G)
             endif
             call gf_method(Nvib,G,Hess,LL,Freq,X,Xinv)
+            if (verbose>1) &
+             call analyze_internal(Nvib,LL,Freq,ModeDef)
         else
             ! Transform LcartNrm read from file to Ls
             call Lcart_to_Ls(Nat,Nvib,B,LL,LL,error)
@@ -408,7 +413,7 @@ program normal_modes_animation
              print'(X,A,I0,A)', "Generating Mode ", j, "..."
         else 
             if (verbose>0) &
-             print'(X,A,I0,A)', "Generating Scan for IC ", j, " ("//trim(adjustl(ModeDef(j)))//"..."
+             print'(X,A,I0,A)', "Generating Scan for IC ", j, ": "//trim(adjustl(ModeDef(j)))//"..."
         endif
 
         ! Set initial values for the scanned coordinate
@@ -440,6 +445,7 @@ program normal_modes_animation
         !call rmsd_fit_frame(state,ref): efficient but not always works. If so, it uses rmsd_fit_frame_brute(state,ref)
         call rmsd_fit_frame(molecule,molec_aux,info)
         if (info /= 0) then
+            print'(X,A,I0)', "RMSD fit failed at Step: ", k
             call rmsd_fit_frame_brute(molecule,molec_aux,dist)
         endif
         !Transform to AA and export coords and put back into BOHR
@@ -470,6 +476,7 @@ program normal_modes_animation
             !call rmsd_fit_frame(state,ref): efficient but not always works. If so, it uses rmsd_fit_frame_brute(state,ref)
             call rmsd_fit_frame(molecule,molec_aux,info)
             if (info /= 0) then
+                print'(X,A,I0)', "RMSD fit failed at Step: ", k
                 call rmsd_fit_frame_brute(molecule,molec_aux,dist)
             endif
             ! PRINT
@@ -508,6 +515,7 @@ program normal_modes_animation
             !call rmsd_fit_frame(state,ref): efficient but not always works. If so, it uses rmsd_fit_frame_brute(state,ref)
             call rmsd_fit_frame(molecule,molec_aux,info)
             if (info /= 0) then
+                print'(X,A,I0)', "RMSD fit failed at Step: ", k
                 call rmsd_fit_frame_brute(molecule,molec_aux,dist)
             endif
             ! PRINT
@@ -546,6 +554,7 @@ program normal_modes_animation
             !call rmsd_fit_frame(state,ref): efficient but not always works. If so, it uses rmsd_fit_frame_brute(state,ref)
             call rmsd_fit_frame(molecule,molec_aux,info)
             if (info /= 0) then
+                print'(X,A,I0)', "RMSD fit failed at Step: ", k
                 call rmsd_fit_frame_brute(molecule,molec_aux,dist)
             endif
             ! PRINT
@@ -817,6 +826,7 @@ program normal_modes_animation
                     verbose=2
                 case ("-vv")
                     verbose=3
+                    silent_notes=.false.
 
                 case default
                     call alert_msg("fatal","Unkown command line argument: "//adjustl(arg))
@@ -898,7 +908,7 @@ program normal_modes_animation
 
         if (scan_type=="IN") then
             write(dummy_char,"(I0,X,A)") icoord
-            title   = "Animation of internal coordinate "//trim(adjustl(dummy_char))//"("//trim(adjustl(label))//")"
+            title   = "Animation of IC "//trim(adjustl(dummy_char))//"("//trim(adjustl(label))//")"
             g09file = "Coord"//trim(adjustl(dummy_char))//"_int.com"
             g96file = "Coord"//trim(adjustl(dummy_char))//"_int.g96"
             qfile   = "Coord"//trim(adjustl(dummy_char))//"_int_steps.dat"
