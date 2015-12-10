@@ -64,7 +64,7 @@ program vertical2adiabatic
     !B and G matrices
     real(8),dimension(NDIM,NDIM) :: B1,B2, B, G1,G2
     !Other arrays
-    real(8),dimension(1:NDIM) :: Grad
+    real(8),dimension(1:NDIM) :: Grad, FC, Q0
     real(8),dimension(1:NDIM,1:NDIM) :: Hess, X1,X1inv,X2,X2inv, L1,L2, Asel1, Asel2, Asel
     real(8),dimension(1:NDIM,1:NDIM,1:NDIM) :: Bder
     !Duschisky
@@ -80,7 +80,7 @@ program vertical2adiabatic
     integer,dimension(NDIM) :: S_sym, bond_sym,angle_sym,dihed_sym
     !Shifts
     real(8),dimension(NDIM) :: Delta
-    real(8) :: Delta_p, Er_int, Er_crt
+    real(8) :: Delta_p, Er_int, Er_crt, Er_qcrt
     !====================== 
 
     !====================== 
@@ -284,6 +284,51 @@ program vertical2adiabatic
         Er_crt = Er_crt - Grad(i)*Vec(i)
     enddo
 
+    ! In Qcart-space
+    ! First convert L to Lcart
+    call Lmwc_to_Lcart(Nat,Nvib,state1%atom(:)%mass,L1,L1,error)
+    ! Minimization
+    ! Q0 = -Lambda^-1 * L^t gx
+    ! 
+    ! Convert Freq into FC. Store in FC for future use
+    do i=1,Nvib
+        FC(i) = sign((Freq(i)*2.d0*pi*clight*1.d2)**2/HARTtoJ*BOHRtoM**2*AUtoKG,Freq(i))
+        if (FC(i)<0) then
+            print*, i, FC(i)
+!             FC(i) = -FC(i)
+            call alert_msg("warning","A negative FC found")
+        endif
+    enddo
+    ! Lambda^-1 * L1^t
+    do i=1,Nvib
+        Aux(i,1:3*Nat) = L1(1:3*Nat,i) / FC(i)
+    enddo
+    ! -[Lambda^-1 * L1^t] * gx
+    do i=1,Nvib
+        Q0(i)=0.d0
+        do k=1,3*Nat
+            Q0(i) = Q0(i) - Aux(i,k) * Grad(k)
+        enddo
+    enddo
+    !===================================
+    ! Reorganization energy
+    !===================================
+    ! Normal-mode space
+    ! Er = -L1^t gx * Q0 - 1/2 * Q0^t * Lambda * Q0
+    ! At this point: 
+    ! * Grad: in Cartesian coords
+    ! * Q0: DeltaQ 
+    ! * FC: diagonal force constants
+    Er_qcrt = 0.d0
+    do i=1,Nvib
+        ! Compute gQ(i) = L1^t * gx
+        Theta = 0.d0
+        do j=1,3*Nat
+            Theta =  Theta + L1(j,i)*Grad(j)
+        enddo
+        Er_qcrt = Er_qcrt - Theta * Q0(i) - 0.5d0 * FC(i) * Q0(i)**2
+    enddo
+
 
     ! INTERNAL COORDINATES
 
@@ -440,10 +485,15 @@ program vertical2adiabatic
     print*, "CARTESIAN COORDINATES"
     print'(X,A,F12.6)',   "Reorganization energy (AU) = ", Er_crt
     print'(X,A,F12.6,/)', "Reorganization energy (eV) = ", Er_crt*HtoeV
+    print*, "NORMAL-MODE COORDINATES (derived in Cartesian)"
+    print'(X,A,F12.6)',   "Reorganization energy (AU) = ", Er_qcrt
+    print'(X,A,F12.6,/)', "Reorganization energy (eV) = ", Er_qcrt*HtoeV
     print*, "INTERNAL COORDINATES"
     print'(X,A,F12.6)',   "Reorganization energy (AU) = ", Er_int
     print'(X,A,F12.6,/)', "Reorganization energy (eV) = ", Er_int*HtoeV
 
+
+    call summary_alerts
 
     call cpu_time(tf)
     write(6,'(A,F12.3)') "CPU (s) for internal vib analysis: ", tf-ti

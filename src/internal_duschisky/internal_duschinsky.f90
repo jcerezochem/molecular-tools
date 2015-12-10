@@ -672,8 +672,8 @@ program internal_duschinski
             FC(i) = sign((Freq2(i)*2.d0*pi*clight*1.d2)**2/HARTtoJ*BOHRtoM**2*AUtoKG,Freq2(i))
             if (FC(i)<0) then
                 print*, i, FC(i)
-                FC(i) = -FC(i)
-                call alert_msg("warning","A negative FC is turned positive")
+!                 FC(i) = -FC(i)
+                call alert_msg("warning","A negative FC found")
             endif
         enddo
         ! Lambda_f^-1 * L2^t
