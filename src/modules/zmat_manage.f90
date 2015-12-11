@@ -210,7 +210,7 @@ module zmat_manage
                         k=molec%atom(i)%connect(j)
                         if (k == isym(i)) then
                             if (verbose>0) &
-                             print'(X,A,/)', "Fisrt bond will be", i, "--", isym(i)
+                             print'(X,A,I0,A,I0,/)', "Fisrt bond will be ", i, "--", isym(i)
                             i_1 = i 
                             ! And we know that the first bond have not symmetric
                             bond_sym(2) = 2

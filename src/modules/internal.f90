@@ -1543,7 +1543,7 @@ module internal_module
             endif
     
             print*, ""
-            print'(A,I4,6X,A,F8.3,4X,A,A,F8.3)', "Mode ", i, " Freq(cm^-1) = ", Freq(i), "Symm ", ModeSymm
+            print'(A,I4,6X,A,F8.3,4X,A)', "Mode ", i, " Freq(cm^-1) = ", Freq(i), ModeSymm
             print*, "      S        Coef.     Contrib.(%)  ContribCorr(%)          Description"
             print*, " ======================================================================="
             Theta = 0.d0
@@ -1604,7 +1604,7 @@ module internal_module
             endif
 
             print*, ""
-            print'(A,I4,6X,A,F8.3,4X,A,A,F8.3)', "Mode ", i, " Freq(cm^-1) = ", Freq(i), "Symm ", ModeSymm
+            print'(A,I4,6X,A,F8.3,4X,A)', "Mode ", i, " Freq(cm^-1) = ", Freq(i), ModeSymm
             print*, "      S        Coef.     Contrib.(%)          Description"
             print*, " ======================================================================="
             Theta = 0.d0

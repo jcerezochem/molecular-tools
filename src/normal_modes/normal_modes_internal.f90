@@ -298,7 +298,7 @@ program normal_modes_animation
     ! Manage symmetry
     if (.not.use_symmetry) then
         molecule%PG="C1"
-    else if (trim(adjustl(symm_file)) /= "NONE") then
+    else if (trim(adjustl(symm_file)) /= "none") then
         call alert_msg("note","Using custom symmetry file: "//trim(adjustl(symm_file)) )
         open(I_SYM,file=symm_file)
         do i=1,molecule%natoms
@@ -372,8 +372,13 @@ program normal_modes_animation
                 call HessianCart2int(Nat,Nvib,Hess,molecule%atom(:)%mass,B,G)
             endif
             call gf_method(Nvib,G,Hess,LL,Freq,X,Xinv)
-            if (verbose>1) &
-             call analyze_internal(Nvib,LL,Freq,ModeDef)
+            if (verbose>1) then
+                if (use_symmetry) then
+                    call analyze_internal(Nvib,LL,Freq,ModeDef)
+                else
+                    call analyze_internal(Nvib,LL,Freq,ModeDef,S_sym)
+                endif
+            endif
         else
             ! Transform LcartNrm read from file to Ls
             call Lcart_to_Ls(Nat,Nvib,B,LL,LL,error)

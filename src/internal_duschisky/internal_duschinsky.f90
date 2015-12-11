@@ -245,7 +245,7 @@ program internal_duschinski
     ! Manage symmetry
     if (.not.use_symmetry) then
         state1%PG="C1"
-    else if (trim(adjustl(symm_file)) /= "NONE") then
+    else if (trim(adjustl(symm_file)) /= "none") then
         msg = "Using custom symmetry file: "//trim(adjustl(symm_file)) 
         call alert_msg("note",msg)
         open(I_SYM,file=symm_file)
@@ -393,7 +393,7 @@ program internal_duschinski
     ! Manage symmetry
     if (.not.use_symmetry) then
         state2%PG="C1"
-    else if (trim(adjustl(symm_file)) /= "NONE") then
+    else if (trim(adjustl(symm_file)) /= "none") then
         msg = "Using custom symmetry file: "//trim(adjustl(symm_file)) 
         call alert_msg("note",msg)
         open(I_SYM,file=symm_file)

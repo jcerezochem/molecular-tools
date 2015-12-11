@@ -80,7 +80,7 @@ program vertical2adiabatic
     integer,dimension(NDIM) :: S_sym, bond_sym,angle_sym,dihed_sym
     !Shifts
     real(8),dimension(NDIM) :: Delta
-    real(8) :: Delta_p, Er_int, Er_crt, Er_qcrt
+    real(8) :: Delta_p, Er_int, Er_crt, Er_qcrt, Er_qint
     !====================== 
 
     !====================== 
@@ -458,7 +458,6 @@ program vertical2adiabatic
     close(70)
     print*, ""
 
-
     !===================================
     ! Reorganization energy
     !===================================
@@ -481,6 +480,52 @@ program vertical2adiabatic
         Er_int = Er_int - Grad(i)*Vec(i)
     enddo
 
+    ! In Qint-space
+    ! Minimization
+    ! Q0 = -Lambda^-1 * L^t gs
+    ! 
+    ! Convert Freq into FC. Store in FC for future use
+    do i=1,Nvib
+        FC(i) = sign((Freq(i)*2.d0*pi*clight*1.d2)**2/HARTtoJ*BOHRtoM**2*AUtoKG,Freq(i))
+        if (FC(i)<0) then
+            print*, i, FC(i)
+!             FC(i) = -FC(i)
+            call alert_msg("warning","A negative FC found")
+        endif
+    enddo
+    ! Lambda^-1 * L1^t
+    do i=1,Nvib
+        Aux(i,1:Nvib) = L1(1:Nvib,i) / FC(i)
+    enddo
+    ! -[Lambda^-1 * L1^t] * gs
+    do i=1,Nvib
+        Q0(i)=0.d0
+        do k=1,Nvib
+            Q0(i) = Q0(i) - Aux(i,k) * Grad(k)
+        enddo
+    enddo
+    !===================================
+    ! Reorganization energy
+    !===================================
+    ! Normal-mode space
+    ! Er = -L1^t gs * Q0 - 1/2 * Q0^t * Lambda * Q0
+    ! At this point: 
+    ! * Grad: in internal coords
+    ! * Q0: DeltaQint 
+    ! * FC: diagonal force constants
+    Er_qint = 0.d0
+    do i=1,Nvib
+        ! Compute gQ(i) = L1^t * gs
+        Theta = 0.d0
+        do j=1,Nvib
+            Theta =  Theta + L1(j,i)*Grad(j)
+        enddo
+        Er_qint = Er_qint - Theta * Q0(i) - 0.5d0 * FC(i) * Q0(i)**2
+    enddo
+
+
+
+
     ! PRINT
     print*, "CARTESIAN COORDINATES"
     print'(X,A,F12.6)',   "Reorganization energy (AU) = ", Er_crt
@@ -491,6 +536,9 @@ program vertical2adiabatic
     print*, "INTERNAL COORDINATES"
     print'(X,A,F12.6)',   "Reorganization energy (AU) = ", Er_int
     print'(X,A,F12.6,/)', "Reorganization energy (eV) = ", Er_int*HtoeV
+    print*, "NORMAL-MODE COORDINATES (derived in internal)"
+    print'(X,A,F12.6)',   "Reorganization energy (AU) = ", Er_qint
+    print'(X,A,F12.6,/)', "Reorganization energy (eV) = ", Er_qint*HtoeV
 
 
     call summary_alerts
