@@ -67,7 +67,8 @@ program internal_duschinski
                symaddapt=.false.    ,&
                vertical=.false.     ,&
                vertical_method2=.false. ,&
-               only_state2=.true.
+               only_state2=.true.   ,&  
+               gradcorrect=.true.
     character(len=4) :: def_internal='zmat'
     !======================
 
@@ -177,7 +178,7 @@ program internal_duschinski
                      inpfile2,ft2,hessfile2,fth2,gradfile2,ftg2,&
                      intfile,rmzfile,def_internal,use_symmetry, &
 !                    tswitch,symaddapt, &
-                     vertical,vertical_method2,only_state2)
+                     vertical,vertical_method2,only_state2,gradcorrect)
     call set_word_upper_case(def_internal)
 
     ! 1. INTERNAL VIBRATIONAL ANALYSIS ON STATE1 AND STATE2
@@ -275,7 +276,7 @@ program internal_duschinski
     !SOLVE GF METHOD TO GET NM AND FREQ
     call internal_Wilson(state1,Nvib,S1,B,ModeDef)
     call internal_Gmetric(Nat,Nvib,state1%atom(:)%mass,B,G1)
-    if (vertical.and..not.only_state2) then
+    if (vertical.and..not.only_state2.and.gradcorrect) then
         call NumBder(state1,Nvib,Bder)
         call HessianCart2int(Nat,Nvib,Hess,state1%atom(:)%mass,B,G1,Grad=Grad,Bder=Bder)
     else
@@ -430,7 +431,7 @@ program internal_duschinski
     !SOLVE GF METHOD TO GET NM AND FREQ
     call internal_Wilson(state2,Nvib,S2,B,ModeDef)
     call internal_Gmetric(Nat,Nvib,state2%atom(:)%mass,B,G2)
-    if (vertical) then
+    if (vertical.and.gradcorrect) then
         call NumBder(state2,Nvib,Bder)
         call HessianCart2int(Nat,Nvib,Hess,state2%atom(:)%mass,B,G2,Grad=Grad,Bder=Bder)
     else
@@ -841,7 +842,7 @@ program internal_duschinski
                            inpfile2,ft2,hessfile2,fth2,gradfile2,ftg2,&
                            intfile,rmzfile,def_internal,use_symmetry, &
 !                          tswitch,symaddapt, & symfile
-                           vertical,vertical_method2,only_state2)
+                           vertical,vertical_method2,only_state2,gradcorrect)
     !==================================================
     ! My input parser (gromacs style)
     !==================================================
@@ -850,7 +851,8 @@ program internal_duschinski
         character(len=*),intent(inout) :: inpfile,ft,hessfile,fth,gradfile,ftg,&
                                           inpfile2,ft2,hessfile2,fth2,gradfile2,ftg2,&
                                           intfile,rmzfile,def_internal !, symfile
-        logical,intent(inout)          :: use_symmetry, vertical, vertical_method2, only_state2
+        logical,intent(inout)          :: use_symmetry, vertical, vertical_method2, &
+                                          only_state2, gradcorrect
 !         logical,intent(inout) :: tswitch, symaddapt
 
         ! Local
@@ -951,6 +953,13 @@ program internal_duschinski
         
                 case ("-h")
                     need_help=.true.
+
+                !HIDDEN
+
+                case ("-correct")
+                    gradcorrect=.true.
+                case ("-nocorrect")
+                    gradcorrect=.false.
 
                 ! Control verbosity
                 case ("-quiet")

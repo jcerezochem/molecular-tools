@@ -249,6 +249,9 @@ module internal_module
     end subroutine define_internal_set
 
 
+!=========================================================
+! Wilson B matrix elements and their derivatives
+!=========================================================
 
     function Bstre(X1,Y1,Z1,X2,Y2,Z2) result(Bi)
     
@@ -461,7 +464,6 @@ module internal_module
         derB(1,1:9) = (Bbend(X1+delta,Y1,Z1,X2,Y2,Z2,X3,Y3,Z3) -  &
                        Bbend(X1-delta,Y1,Z1,X2,Y2,Z2,X3,Y3,Z3) )/ & 
                       (2.d0*delta)
-! print*, "1,7", derB(1,7)
         ! Y1
         derB(2,1:9) = (Bbend(X1,Y1+delta,Z1,X2,Y2,Z2,X3,Y3,Z3) -  &
                        Bbend(X1,Y1-delta,Z1,X2,Y2,Z2,X3,Y3,Z3) )/ & 
@@ -486,9 +488,6 @@ module internal_module
         derB(7,1:9) = (Bbend(X1,Y1,Z1,X2,Y2,Z2,X3+delta,Y3,Z3) -  &
                        Bbend(X1,Y1,Z1,X2,Y2,Z2,X3-delta,Y3,Z3) )/ & 
                       (2.d0*delta)
-! print*, X3+delta
-! print*, X3-delta
-! print*, "7,1", derB(7,1)
         ! Y3
         derB(8,1:9) = (Bbend(X1,Y1,Z1,X2,Y2,Z2,X3,Y3+delta,Z3) -  &
                        Bbend(X1,Y1,Z1,X2,Y2,Z2,X3,Y3-delta,Z3) )/ & 
@@ -676,6 +675,173 @@ module internal_module
         return
 
     end subroutine dernumBdihe
+
+
+    function Bimpr(X1,Y1,Z1,X2,Y2,Z2,X3,Y3,Z3,X4,Y4,Z4) result(Bi)
+    
+        !==============================================================
+        ! This code is part of MOLECULAR_TOOLS 
+        !==============================================================
+        ! Description
+        !  IMPROPER (bond 1-4 with plane 2-4-3:
+        !           (2)
+        !           /
+        !  (1) - (4) 
+        !           \
+        !           (3)
+        !
+        !   Ref: Decius, Cross and Wilson (Section 4.2) --
+        !    The same nomenclature is used (index refer to the same
+        !    atoms, even if reversed)
+        !--------------------------------------------------------------
+
+        use line_preprocess
+        use alerts
+        use constants
+        use metrics
+        use matrix
+        use verbosity
+    
+        implicit none
+    
+        integer,parameter :: NDIM = 600
+        real(8),parameter :: ZEROp = 1.d-10 !practically zero
+
+        ! ARGUMENTS
+        real(8),intent(in)   :: X1,Y1,Z1, &
+                                X2,Y2,Z2, &
+                                X3,Y3,Z3, &
+                                X4,Y4,Z4
+        real(8),dimension(12):: Bi
+        
+    
+        !======================
+        !LOCAL 
+        !AUXILIAR MATRICES
+        !Intenal parameters ant unitary vectors
+        real(8) :: theta, phi1, r41, r42, r43
+        real(8) :: e41x, e41y, e41z,&
+                   e42x, e42y, e42z,&
+                   e43x, e43y, e43z
+        real(8) :: e42Pe43x,e42Pe43y,e42Pe43z,&
+                   e43Pe41x,e43Pe41y,e43Pe41z,&
+                   e41Pe42x,e41Pe42y,e41Pe42z
+        !Counters
+        integer :: i,j,k
+        !=============
+   
+
+            theta = calc_improper(X1,Y1,Z1,X2,Y2,Z2,X3,Y3,Z3,X4,Y4,Z4)
+    
+            !Four cart displacements different from zero (some index intercheged with Decius..)
+            phi1 = calc_angle(X2,Y2,Z2,X4,Y4,Z4,X3,Y3,Z3)
+
+            r41  = calc_dist(X1,Y1,Z1,X4,Y4,Z4)
+            e41x = (X1-X4)/r41
+            e41y = (Y1-Y4)/r41
+            e41z = (Z1-Z4)/r41
+            r42  = calc_dist(X2,Y2,Z2,X4,Y4,Z4)
+            e42x = (X2-X4)/r42
+            e42y = (Y2-Y4)/r42
+            e42z = (Z2-Z4)/r42
+            r43  = calc_dist(X3,Y3,Z3,X4,Y4,Z4)
+            e43x = (X3-X4)/r43
+            e43y = (Y3-Y4)/r43
+            e43z = (Z3-Z4)/r43
+            e42Pe43x=e42y*e43z-e42z*e43y
+            e42Pe43y=e42z*e43x-e42x*e43z
+            e42Pe43z=e42x*e43y-e42y*e43x
+            e43Pe41x=e43y*e41z-e43z*e41y
+            e43Pe41y=e43z*e41x-e43x*e41z
+            e43Pe41z=e43x*e41y-e43y*e41x
+            e41Pe42x=e41y*e42z-e41z*e42y
+            e41Pe42y=e41z*e42x-e41x*e42z
+            e41Pe42z=e41x*e42y-e41y*e42x    
+
+            !s1
+            Bi(1)  = (e42Pe43x/dcos(theta)/dsin(phi1) - dtan(theta)*e41x)/r41
+            Bi(2)  = (e42Pe43y/dcos(theta)/dsin(phi1) - dtan(theta)*e41y)/r41
+            Bi(3)  = (e42Pe43z/dcos(theta)/dsin(phi1) - dtan(theta)*e41z)/r41
+            !s2   
+            Bi(4)  = (e43Pe41x/dcos(theta)/dsin(phi1) - dtan(theta)/dsin(phi1)**2*(e42x-dcos(phi1)*e43x))/r42
+            Bi(5)  = (e43Pe41y/dcos(theta)/dsin(phi1) - dtan(theta)/dsin(phi1)**2*(e42y-dcos(phi1)*e43y))/r42
+            Bi(6)  = (e43Pe41z/dcos(theta)/dsin(phi1) - dtan(theta)/dsin(phi1)**2*(e42z-dcos(phi1)*e43z))/r42
+            !s3   
+            Bi(7)  = (e41Pe42x/dcos(theta)/dsin(phi1) - dtan(theta)/dsin(phi1)**2*(e43x-dcos(phi1)*e42x))/r43
+            Bi(8)  = (e41Pe42y/dcos(theta)/dsin(phi1) - dtan(theta)/dsin(phi1)**2*(e43y-dcos(phi1)*e42y))/r43
+            Bi(9)  = (e41Pe42z/dcos(theta)/dsin(phi1) - dtan(theta)/dsin(phi1)**2*(e43z-dcos(phi1)*e42z))/r43
+            !s4
+            Bi(10) =  -Bi(1) - Bi(4) - Bi(7)
+            Bi(11) =  -Bi(2) - Bi(5) - Bi(8)
+            Bi(12) =  -Bi(3) - Bi(6) - Bi(9)
+
+        return
+    
+    end function Bimpr
+
+    subroutine dernumBimpr(derB,X1,Y1,Z1,X2,Y2,Z2,X3,Y3,Z3,X4,Y4,Z4)
+
+        ! ARGUMENTS
+        real(8),dimension(12,12),intent(out) :: derB
+        real(8),intent(in)                 :: X1,Y1,Z1,X2,Y2,Z2,X3,Y3,Z3,X4,Y4,Z4
+
+        !Local
+        real(8),parameter :: delta=1.889726133d-3 !for numerical ders, in bohr(=10^-3 \AA, as Num freq in G09)
+
+
+        ! X1
+        derB(1, 1:12)= (Bimpr(X1+delta,Y1,Z1,X2,Y2,Z2,X3,Y3,Z3,X4,Y4,Z4) -  &
+                        Bimpr(X1-delta,Y1,Z1,X2,Y2,Z2,X3,Y3,Z3,X4,Y4,Z4) )/ & 
+                       (2.d0*delta)
+        ! Y1
+        derB(2, 1:12)= (Bimpr(X1,Y1+delta,Z1,X2,Y2,Z2,X3,Y3,Z3,X4,Y4,Z4) -  &
+                        Bimpr(X1,Y1-delta,Z1,X2,Y2,Z2,X3,Y3,Z3,X4,Y4,Z4) )/ & 
+                       (2.d0*delta)
+        ! Z1
+        derB(3, 1:12)= (Bimpr(X1,Y1,Z1+delta,X2,Y2,Z2,X3,Y3,Z3,X4,Y4,Z4) -  &
+                        Bimpr(X1,Y1,Z1-delta,X2,Y2,Z2,X3,Y3,Z3,X4,Y4,Z4) )/ & 
+                       (2.d0*delta)
+        ! X2
+        derB(4, 1:12)= (Bimpr(X1,Y1,Z1,X2+delta,Y2,Z2,X3,Y3,Z3,X4,Y4,Z4) -  &
+                        Bimpr(X1,Y1,Z1,X2-delta,Y2,Z2,X3,Y3,Z3,X4,Y4,Z4) )/ & 
+                       (2.d0*delta)
+        ! Y2
+        derB(5, 1:12)= (Bimpr(X1,Y1,Z1,X2,Y2+delta,Z2,X3,Y3,Z3,X4,Y4,Z4) -  &
+                        Bimpr(X1,Y1,Z1,X2,Y2-delta,Z2,X3,Y3,Z3,X4,Y4,Z4) )/ & 
+                       (2.d0*delta)
+        ! Z2
+        derB(6, 1:12)= (Bimpr(X1,Y1,Z1,X2,Y2,Z2+delta,X3,Y3,Z3,X4,Y4,Z4) -  &
+                        Bimpr(X1,Y1,Z1,X2,Y2,Z2-delta,X3,Y3,Z3,X4,Y4,Z4) )/ & 
+                       (2.d0*delta)
+        ! X3
+        derB(7, 1:12)= (Bimpr(X1,Y1,Z1,X2,Y2,Z2,X3+delta,Y3,Z3,X4,Y4,Z4) -  &
+                        Bimpr(X1,Y1,Z1,X2,Y2,Z2,X3-delta,Y3,Z3,X4,Y4,Z4) )/ & 
+                       (2.d0*delta)
+        ! Y3
+        derB(8, 1:12)= (Bimpr(X1,Y1,Z1,X2,Y2,Z2,X3,Y3+delta,Z3,X4,Y4,Z4) -  &
+                        Bimpr(X1,Y1,Z1,X2,Y2,Z2,X3,Y3-delta,Z3,X4,Y4,Z4) )/ & 
+                       (2.d0*delta)
+        ! Z3
+        derB(9, 1:12)= (Bimpr(X1,Y1,Z1,X2,Y2,Z2,X3,Y3,Z3+delta,X4,Y4,Z4) -  &
+                        Bimpr(X1,Y1,Z1,X2,Y2,Z2,X3,Y3,Z3-delta,X4,Y4,Z4) )/ & 
+                       (2.d0*delta)
+        ! X4
+        derB(10,1:12)= (Bimpr(X1,Y1,Z1,X2,Y2,Z2,X3,Y3,Z3,X4+delta,Y4,Z4) -  &
+                        Bimpr(X1,Y1,Z1,X2,Y2,Z2,X3,Y3,Z3,X4-delta,Y4,Z4) )/ & 
+                       (2.d0*delta)
+        ! Y4
+        derB(11,1:12)= (Bimpr(X1,Y1,Z1,X2,Y2,Z2,X3,Y3,Z3,X4,Y4+delta,Z4) -  &
+                        Bimpr(X1,Y1,Z1,X2,Y2,Z2,X3,Y3,Z3,X4,Y4-delta,Z4) )/ & 
+                       (2.d0*delta)
+        ! Z4
+        derB(12,1:12)= (Bimpr(X1,Y1,Z1,X2,Y2,Z2,X3,Y3,Z3,X4,Y4,Z4+delta) -  &
+                        Bimpr(X1,Y1,Z1,X2,Y2,Z2,X3,Y3,Z3,X4,Y4,Z4-delta) )/ & 
+                       (2.d0*delta)
+
+        return
+
+    end subroutine dernumBimpr
+
 
     subroutine internal_Wilson_new(molec,Ns,S,B, &
 !                                           Optional:

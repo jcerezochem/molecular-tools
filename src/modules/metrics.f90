@@ -425,6 +425,81 @@ module metrics
 
     end function calc_dihed_new
 
+    function calc_dihed_proper(X1,Y1,Z1, &
+                            X2,Y2,Z2, &
+                            X3,Y3,Z3, &
+                            X4,Y4,Z4) result(dh)
+
+        !----------------------------------------------------------------
+        ! Computed as angle between planes 1-2-3 and 2-3-4, through the
+        ! normal vectors cross(2-1,2-3) and cross(3-2,3-4)
+        !----------------------------------------------------------------
+
+        use constants
+
+        implicit none
+
+        real(8),intent(in) :: X1,Y1,Z1,&
+                              X2,Y2,Z2,&
+                              X3,Y3,Z3,&
+                              X4,Y4,Z4
+        real(8) :: dh
+
+        !Local parameters
+        real(8),parameter :: ZERO = 1.d-10
+        !Local variables
+        real(8) :: n1x,n1y,n1z, &
+                   n2x,n2y,n2z, &
+                   vx,vy,vz, &
+                   wx,wy,wz, r, dotprod
+
+        ! Define vectors from center of angle defining plane 1
+        vx = X1-X2
+        vy = Y1-Y2
+        vz = Z1-Z2
+        r=dsqrt(vx**1+vy**2+vz**2)
+        vx = vx/r
+        vy = vy/r
+        vz = vz/r
+        wx = X3-X2
+        wy = Y3-Y2
+        wz = Z3-Z2
+        r=dsqrt(wx**1+wy**2+wz**2)
+        wx = wx/r
+        wy = wy/r
+        wz = wz/r
+        ! Get normal vector to plane 1
+        n1x = vy*wz - vz*wy
+        n1y = vz*wx - vx*wz
+        n1z = vx*wy - vy*wx
+        
+        ! Define vectors from center of angle defining plane 2
+        vx = X2-X3
+        vy = Y2-Y3
+        vz = Z2-Z3
+        r=dsqrt(vx**1+vy**2+vz**2)
+        vx = vx/r
+        vy = vy/r
+        vz = vz/r
+        wx = X4-X3
+        wy = Y4-Y3
+        wz = Z4-Z3
+        r=dsqrt(wx**1+wy**2+wz**2)
+        wx = wx/r
+        wy = wy/r
+        wz = wz/r
+        ! Get normal vector to plane 2
+        n2x = vy*wz - vz*wy
+        n2y = vz*wx - vx*wz
+        n2z = vx*wy - vy*wx
+
+        !Compute angle between normal vectors
+        dotprod = n1x*n2x + n1y*n2y + n1z*n2z
+        dh = dacos(dotprod)
+
+        return        
+
+    end function calc_dihed_proper
 
     subroutine rotation_3D(vx,vy,vz,tx,ty,tz,Theta,RR) 
     
