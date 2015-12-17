@@ -48,7 +48,8 @@ program vertical2adiabatic
                tswitch=.false.      ,&
                symaddapt=.false.    ,&
                vertical=.true.      ,&
-               do_correct_vert=.false.
+               do_correct_num=.false., &
+               do_correct_aprx=.false.
     character(len=4) :: def_internal='zmat'
     !======================
 
@@ -66,8 +67,8 @@ program vertical2adiabatic
     real(8),dimension(NDIM,NDIM) :: B1,B2, B, G1,G2
     !Other arrays
     real(8),dimension(1:NDIM) :: Grad
-    real(8),dimension(1:NDIM,1:NDIM) :: Hess, X1,X1inv,X2,X2inv, L1,L2, Asel1, Asel2, Asel
-    real(8),dimension(1:NDIM,1:NDIM,1:NDIM) :: Lder
+    real(8),dimension(1:NDIM,1:NDIM) :: Hess, X1,X1inv,X2,X2inv, L1,L2, Asel1, Asel2, Asel, L1int
+    real(8),dimension(1:NDIM,1:NDIM,1:NDIM) :: Bder
     !Duschisky
     real(8),dimension(NDIM,NDIM) :: G
     !T0 - switching effects
@@ -153,7 +154,7 @@ program vertical2adiabatic
 !                               filetype,"-ft","c",&
 !                               )
     call parse_input(inpfile,ft,hessfile,fth,gradfile_v,ftgv,hessfile_v,fthv,&
-                     intfile,rmzfile,def_internal,use_symmetry,derfile,do_correct_vert)
+                     intfile,rmzfile,def_internal,use_symmetry,derfile,do_correct_num,do_correct_aprx)
     call set_word_upper_case(def_internal)
 
     ! READ DATA (each element from a different file is possible)
@@ -185,11 +186,56 @@ program vertical2adiabatic
     ! Run vibrations_Cart to get the number of Nvib (to detect linear molecules)
     call vibrations_Cart(Nat,state1%atom(:)%X,state1%atom(:)%Y,state1%atom(:)%Z,state1%atom(:)%Mass,Hlt,&
                          Nvib,L1,Freq,error_flag=error)
-    deallocate(Hlt)
     ! Get Lcart = M^1/2 Lmwc 
     call Lmwc_to_Lcart(Nat,Nvib,state1%atom(:)%Mass,L1,L1,error)
     if (verbose>2) &
         call MAT0(6,L1,3*Nat,Nvib,"Lcart matrix")
+    !***************************************************************
+    ! Compute normal modes in internal coordinates
+
+    ! Reconstruct full hessian
+    k=0
+    do i=1,3*Nat
+    do j=1,i
+        k=k+1
+        Hess(i,j) = Hlt(k)
+        Hess(j,i) = Hlt(k)
+    enddo 
+    enddo
+
+    !Generate bonded info
+    !From now on, we'll use atomic units
+    call guess_connect(state1)
+    call gen_bonded(state1)
+
+    ! Define internal set
+    call define_internal_set(state1,def_internal,intfile,rmzfile,use_symmetry,isym, S_sym,Ns)
+
+    !From now on, we'll use atomic units
+    call set_geom_units(state1,"Bohr")
+
+    ! INTERNAL COORDINATES
+
+    !SOLVE GF METHOD TO GET NM AND FREQ
+    call internal_Wilson(state1,Nvib,S1,B,ModeDef)
+    call internal_Gmetric(Nat,Nvib,state1%atom(:)%mass,B,G1)
+    if (vertical) then
+        call NumBder(state1,Nvib,Bder)
+        call HessianCart2int(Nat,Nvib,Hess,state1%atom(:)%mass,B,G1,Grad=Grad,Bder=Bder)
+    else
+        call HessianCart2int(Nat,Nvib,Hess,state1%atom(:)%mass,B,G1)
+    endif
+    call gf_method(Nvib,G1,Hess,L1int,Freq,X1,X1inv)
+    if (verbose>1) then
+        ! Analyze normal modes
+        if (use_symmetry) then
+            call analyze_internal(Nvib,L1int,Freq,ModeDef,S_sym)
+        else
+            call analyze_internal(Nvib,L1int,Freq,ModeDef)
+        endif
+    endif
+    !***************************************************************
+    deallocate(Hlt)
 
     ! HESSIAN FILE (State2)
     open(I_INP,file=hessfile_v,status='old',iostat=IOstatus)
@@ -213,11 +259,58 @@ program vertical2adiabatic
     call generic_gradient_reader(I_INP,ftgv,Nat,Grad,error)
     close(I_INP)
 
-    !Compute H_Q = L1^t Hess L1  +  gx LLL
-    Hess(1:Nvib,1:Nvib) = matrix_basisrot(Nvib,3*Nat,L1,Hess,counter=.true.)
-
+    !*****************************************************    
     ! Apply matrix derivative if the option is enabled
-    if (do_correct_vert) then
+    !*****************************************************
+    if (do_correct_aprx) then
+        Aux(1:3*Nat,1:3*Nat) = Hess(1:3*Nat,1:3*Nat)
+        ! Compute gQ
+        ! Need to use the expresion in internal coordinates
+        ! otherwise, the sign may change
+        ! Convert Gradient to normal mode coordinates
+! print*, "grad - Qcart"
+!         do i=1,Nvib
+!             Vec(i) = 0.d0
+!             do k=1,3*Nat
+!                 Vec(i) = Vec(i) + L1(k,i) * Grad(k)
+!             enddo
+! print'(G12.4)', Vec(i)
+!         enddo
+        call HessianCart2int(Nat,Nvib,Aux,state1%atom(:)%mass,B,G1,Grad=Grad,Bder=Bder)
+! print*, "grad - Qint"
+        do i=1,Nvib
+            Vec(i) = 0.d0
+            do k=1,Nvib !3*Nat
+                Vec(i) = Vec(i) + L1int(k,i) * Grad(k)
+            enddo
+! print'(G12.4)', Vec(i)
+        enddo
+
+        ! Compute LLL^Q = Lint^-1 Lder
+        ! And directly: gQ * LLL^Q
+        L1int(1:Nvib,1:Nvib) = inverse_realgen(Nvib,L1int)
+        do j=1,3*Nat 
+        do k=1,3*Nat
+            Aux(j,k) = 0.d0
+            do i=1,Nvib
+                Theta = 0.d0
+                do l=1,Nvib
+                    Theta = Theta + L1int(i,l) * Bder(l,j,k)
+                enddo
+                Aux(j,k) = Aux(j,k) + Vec(i) * Theta
+            enddo        
+        enddo
+        enddo
+
+        ! Compute (Hess - gQ LLL^Q)
+        Hess(1:3*Nat,1:3*Nat) = Hess(1:3*Nat,1:3*Nat) - Aux(1:3*Nat,1:3*Nat)
+
+        !Compute H_Q = L1^t (Hess - gQ LLL^Q) L1
+        Hess(1:Nvib,1:Nvib) = matrix_basisrot(Nvib,3*Nat,L1,Hess,counter=.true.)
+
+    elseif (do_correct_num) then
+        !Compute H_Q = L1^t Hess L1  +  gx LLL^x
+        Hess(1:Nvib,1:Nvib) = matrix_basisrot(Nvib,3*Nat,L1,Hess,counter=.true.)
         ! Fill Lder tensor
         derfile_base=derfile
         do j=1,Nvib
@@ -225,7 +318,8 @@ program vertical2adiabatic
             open(I_DER,file=derfile,status='old',iostat=IOstatus)
             if (IOstatus /= 0) call alert_msg( "fatal","Unable to open "//trim(adjustl(derfile)) )
             do i=1,3*Nat
-                read(I_DER,*) Lder(i,j,1:Nvib)
+                ! Use the symbol Bder, but it is Lder!
+                read(I_DER,*) Bder(i,j,1:Nvib)
             enddo
             close(I_DER)
         enddo
@@ -233,38 +327,25 @@ program vertical2adiabatic
         if (verbose>2) then
             do i=1,3*Nat
                 write(tmpfile,'(A,I0,A)') "Lder *10^6, Cart=",i
-                call MAT0(6,Lder(i,:,:)*1.e6,Nvib,Nvib,trim(tmpfile))
+                call MAT0(6,Bder(i,:,:)*1.e6,Nvib,Nvib,trim(tmpfile))
             enddo
         endif
 
-!         do j=1,3*Nat
-!             write(derfile,'(A,I0,A)') trim(adjustl(derfile_base)), j, ".dat"
-!             open(I_DER,file=derfile,status='old',iostat=IOstatus)
-!             if (IOstatus /= 0) call alert_msg( "fatal","Unable to open "//trim(adjustl(derfile)) )
-!             do i=1,Nvib
-!                 read(I_DER,*) Lder(i,j,1:Nvib)
-!             enddo
-!             close(I_DER)
-!         enddo
-! 
-!         if (verbose>2) then
-!             do i=1,Nvib
-!                 write(tmpfile,'(A,I0,A)') "Lder, Q=",i
-!                 call MAT0(6,Lder(i,:,:),3*Nat,3*Nat,trim(tmpfile))
-!             enddo
-!         endif
-    
         do i=1,Nvib
         do j=1,Nvib
             Aux(i,j) = 0.d0
             do l=1,3*Nat
-                Aux(i,j) = Aux(i,j) + Grad(l) * Lder(l,j,i) 
+                Aux(i,j) = Aux(i,j) + Grad(l) * Bder(l,j,i) 
             enddo
             Hess(i,j) = Hess(i,j) + Aux(i,j)
         enddo
         enddo
-    endif
 
+    else
+        !Compute H_Q = L1^t Hess L1 
+        Hess(1:Nvib,1:Nvib) = matrix_basisrot(Nvib,3*Nat,L1,Hess,counter=.true.)
+
+    endif
 
     call diagonalize_full(Hess(1:Nvib,1:Nvib),Nvib,L2(1:Nvib,1:Nvib),Freq(1:Nvib),"lapack")
     !Check FC
@@ -291,7 +372,7 @@ program vertical2adiabatic
     !=============================================
 
     subroutine parse_input(inpfile,ft,hessfile,fth,gradfile_v,ftgv,hessfile_v,fthv,intfile,&
-                           rmzfile,def_internal,use_symmetry,derfile,do_correct_vert)
+                           rmzfile,def_internal,use_symmetry,derfile,do_correct_num,do_correct_aprx)
     !==================================================
     ! My input parser (gromacs style)
     !==================================================
@@ -299,7 +380,7 @@ program vertical2adiabatic
 
         character(len=*),intent(inout) :: inpfile,ft,hessfile,fth,gradfile_v,ftgv,hessfile_v,fthv,&
                                           intfile,rmzfile,def_internal,derfile
-        logical,intent(inout)          :: use_symmetry,do_correct_vert
+        logical,intent(inout)          :: use_symmetry,do_correct_num,do_correct_aprx
         ! Local
         logical :: argument_retrieved,  &
                    need_help = .false.
@@ -372,10 +453,15 @@ program vertical2adiabatic
                     use_symmetry=.false.
 
                 case ("-correct")
-                    do_correct_vert=.true.
+                    do_correct_num=.true.
                 case ("-nocorrect")
-                    do_correct_vert=.false.
+                    do_correct_num=.false.
         
+                case ("-correct-int")
+                    do_correct_aprx=.true.
+                case ("-nocorrect-int")
+                    do_correct_aprx=.false.
+
                 case ("-h")
                     need_help=.true.
 
@@ -412,20 +498,21 @@ program vertical2adiabatic
         write(6,'(/,A)') '  Displace structure from vertical to adiabatic geoms  '
         write(6,'(/,A)') '           '        
         write(6,'(/,A)') '--------------------------------------------------'
-        write(6,*) '-f              ', trim(adjustl(inpfile))
-        write(6,*) '-ft             ', trim(adjustl(ft))
-        write(6,*) '-fhess          ', trim(adjustl(hessfile))
-        write(6,*) '-fth            ', trim(adjustl(fth))
-        write(6,*) '-fhessv         ', trim(adjustl(hessfile_v))
-        write(6,*) '-fthv           ', trim(adjustl(fthv))
-        write(6,*) '-fgradv         ', trim(adjustl(gradfile_v))
-        write(6,*) '-ftgv           ', trim(adjustl(ftgv))
-        write(6,*) '-fder           ', trim(adjustl(derfile))
+        write(6,*) '-f                ', trim(adjustl(inpfile))
+        write(6,*) '-ft               ', trim(adjustl(ft))
+        write(6,*) '-fhess            ', trim(adjustl(hessfile))
+        write(6,*) '-fth              ', trim(adjustl(fth))
+        write(6,*) '-fhessv           ', trim(adjustl(hessfile_v))
+        write(6,*) '-fthv             ', trim(adjustl(fthv))
+        write(6,*) '-fgradv           ', trim(adjustl(gradfile_v))
+        write(6,*) '-ftgv             ', trim(adjustl(ftgv))
+        write(6,*) '-fder             ', trim(adjustl(derfile))
 !         write(6,*) '-intmode        ', trim(adjustl(def_internal))
 !         write(6,*) '-intfile        ', trim(adjustl(intfile))
 !         write(6,*) '-rmzfile        ', trim(adjustl(rmzfile))
-        write(6,*) '-[no]correct   ', do_correct_vert
-        write(6,*) '-h             ',  need_help
+        write(6,*) '-[no]correct     ', do_correct_num
+        write(6,*) '-[no]correct-int ', do_correct_aprx
+        write(6,*) '-h               ',  need_help
         write(6,*) '--------------------------------------------------'
         if (need_help) call alert_msg("fatal", 'There is no manual (for the moment)' )
 
