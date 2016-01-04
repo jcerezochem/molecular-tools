@@ -23,7 +23,8 @@ module zmat_manage
         nbonds  = 0
         nangles = 0
         ndihed  = 0
-    
+        nimprop = 0    
+
         do
             read(I_RED,'(A,A)',iostat=ios) int_type, line
             if (ios /=0) exit
@@ -57,7 +58,8 @@ module zmat_manage
         molec%geom%nbonds  = nbonds
         molec%geom%nangles = nangles
         molec%geom%ndihed  = ndihed
-    
+        molec%geom%nimprop = nimprop    
+
         return
     
     end subroutine modredundant

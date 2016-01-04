@@ -99,70 +99,8 @@ module internal_module
         ! Compute the number of internal coords
         Ns = molec%geom%nbonds  + &
              molec%geom%nangles + &
-             molec%geom%ndihed
-
-
-        ! POST-PROCESSING OPERATIONS
-        ! ---------------------------
-!         ! Manage redundant by mapping cherry-picking the non-redundant
-!         ! among the whole set (this should go somewhere else)
-!         if (Ns>Nvib) then
-!             !otherwise all parameters from molec%geom are used
-!             nbonds = molecule%geom%nbonds
-!             nangles= molecule%geom%nangles
-!             ndihed = molecule%geom%ndihed
-!             print*, "Bonds Map"
-!             do j=2,Nat
-!             do i=1,nbonds
-!                 if (bond_s(j,1)==molecule%geom%bond(i,1).and.&
-!                     bond_s(j,2)==molecule%geom%bond(i,2)) then
-!                     print*, "Zmat<->Map Redundant:", j-1,i
-!                     Zmap(j-1) = i
-!                 endif
-!                 if (bond_s(j,2)==molecule%geom%bond(i,1).and.&
-!                     bond_s(j,1)==molecule%geom%bond(i,2)) then
-!                     print*, "Zmat<->Map Redundant:", j-1,i
-!                     Zmap(j-1) = i
-!                 endif
-!             enddo
-!             enddo
-!             print*, "Angles Map"
-!             do j=3,Nat
-!             do i=1,nangles
-!                 if (angle_s(j,1)==molecule%geom%angle(i,1).and.&
-!                     angle_s(j,2)==molecule%geom%angle(i,2).and.&
-!                     angle_s(j,3)==molecule%geom%angle(i,3)) then
-!                     print*, "Zmat<->Map Redundant:", j-3+Nat,i+nbonds
-!                     Zmap(j-3+Nat) = i+nbonds
-!                 endif
-!                 if (angle_s(j,3)==molecule%geom%angle(i,1).and.&
-!                     angle_s(j,2)==molecule%geom%angle(i,2).and.&
-!                     angle_s(j,1)==molecule%geom%angle(i,3)) then
-!                     print*, "Zmat<->Map Redundant:", j-3+Nat,i+nbonds
-!                     Zmap(j-3+Nat) = i+nbonds
-!                 endif
-!             enddo
-!             enddo
-!             print*, "Dihedral Map"
-!             do j=4,Nat
-!             do i=1,ndihed
-!                 if (dihed_s(j,1)==molecule%geom%dihed(i,1).and.&
-!                     dihed_s(j,2)==molecule%geom%dihed(i,2).and.&
-!                     dihed_s(j,3)==molecule%geom%dihed(i,3).and.&
-!                     dihed_s(j,4)==molecule%geom%dihed(i,4)) then
-!                     print*, "Zmat<->Map Redundant:", j-6+2*Nat,i+nbonds+nangles
-!                     Zmap(j-6+2*Nat) = i+nbonds+nangles
-!                 endif
-!                 if (dihed_s(j,4)==molecule%geom%dihed(i,1).and.&
-!                     dihed_s(j,3)==molecule%geom%dihed(i,2).and.&
-!                     dihed_s(j,2)==molecule%geom%dihed(i,3).and.&
-!                     dihed_s(j,1)==molecule%geom%dihed(i,4)) then
-!                     print*, "Zmat<->Map Redundant:", j-6+2*Nat,i+nbonds+nangles
-!                     Zmap(j-6+2*Nat) = i+nbonds+nangles
-!                 endif
-!             enddo
-!             enddo
-!         endif 
+             molec%geom%ndihed  + &
+             molec%geom%nimprop
 
 
         ! Remove some Zmat elements if required
@@ -247,6 +185,73 @@ module internal_module
         return
 
     end subroutine define_internal_set
+
+
+!     subroutine redundant2zmat()
+! 
+! 
+!         ! Manage redundant by cherry-picking the non-redundant
+!         ! among the whole set.
+! 
+! 
+!         nbonds = molecule%geom%nbonds
+!         nangles= molecule%geom%nangles
+!         ndihed = molecule%geom%ndihed
+!         print*, "Bonds Map"
+!         do j=2,Nat
+!         do i=1,nbonds
+!             if (bond_s(j,1)==molecule%geom%bond(i,1).and.&
+!                 bond_s(j,2)==molecule%geom%bond(i,2)) then
+!                 print*, "Zmat<->Map Redundant:", j-1,i
+!                 Zmap(j-1) = i
+!             endif
+!             if (bond_s(j,2)==molecule%geom%bond(i,1).and.&
+!                 bond_s(j,1)==molecule%geom%bond(i,2)) then
+!                 print*, "Zmat<->Map Redundant:", j-1,i
+!                 Zmap(j-1) = i
+!             endif
+!         enddo
+!         enddo
+!         print*, "Angles Map"
+!         do j=3,Nat
+!         do i=1,nangles
+!             if (angle_s(j,1)==molecule%geom%angle(i,1).and.&
+!                 angle_s(j,2)==molecule%geom%angle(i,2).and.&
+!                 angle_s(j,3)==molecule%geom%angle(i,3)) then
+!                 print*, "Zmat<->Map Redundant:", j-3+Nat,i+nbonds
+!                 Zmap(j-3+Nat) = i+nbonds
+!             endif
+!             if (angle_s(j,3)==molecule%geom%angle(i,1).and.&
+!                 angle_s(j,2)==molecule%geom%angle(i,2).and.&
+!                 angle_s(j,1)==molecule%geom%angle(i,3)) then
+!                 print*, "Zmat<->Map Redundant:", j-3+Nat,i+nbonds
+!                 Zmap(j-3+Nat) = i+nbonds
+!             endif
+!         enddo
+!         enddo
+!         print*, "Dihedral Map"
+!         do j=4,Nat
+!         do i=1,ndihed
+!             if (dihed_s(j,1)==molecule%geom%dihed(i,1).and.&
+!                 dihed_s(j,2)==molecule%geom%dihed(i,2).and.&
+!                 dihed_s(j,3)==molecule%geom%dihed(i,3).and.&
+!                 dihed_s(j,4)==molecule%geom%dihed(i,4)) then
+!                 print*, "Zmat<->Map Redundant:", j-6+2*Nat,i+nbonds+nangles
+!                 Zmap(j-6+2*Nat) = i+nbonds+nangles
+!             endif
+!             if (dihed_s(j,4)==molecule%geom%dihed(i,1).and.&
+!                 dihed_s(j,3)==molecule%geom%dihed(i,2).and.&
+!                 dihed_s(j,2)==molecule%geom%dihed(i,3).and.&
+!                 dihed_s(j,1)==molecule%geom%dihed(i,4)) then
+!                 print*, "Zmat<->Map Redundant:", j-6+2*Nat,i+nbonds+nangles
+!                 Zmap(j-6+2*Nat) = i+nbonds+nangles
+!             endif
+!         enddo
+!         enddo
+! 
+!         return
+! 
+!     end subroutine redundant2zmat
 
 
 !=========================================================
@@ -887,8 +892,8 @@ module internal_module
         !======================
         !LOCAL 
         !System info
-        integer,dimension(1:NDIM,1:4) :: bond_s, angle_s, dihed_s
-        integer :: nbonds, ndihed, nangles
+        integer,dimension(1:NDIM,1:4) :: bond_s, angle_s, dihed_s, improp_s
+        integer :: nbonds, ndihed, nangles, nimprop
         integer :: Nat
         !AUXILIAR MATRICES
         real(8),dimension(1:12) :: Baux
@@ -904,10 +909,12 @@ module internal_module
         nbonds  = molec%geom%nbonds
         nangles = molec%geom%nangles
         ndihed  = molec%geom%ndihed
+        nimprop = molec%geom%nimprop
         bond_s(1:nbonds,1:2)  =  molec%geom%bond(1:nbonds,1:2)
         angle_s(1:nangles,1:3) =  molec%geom%angle(1:nangles,1:3)
         dihed_s(1:ndihed,1:4)  =  molec%geom%dihed(1:ndihed,1:4)
-    
+        improp_s(1:nimprop,1:4)  =  molec%geom%improp(1:nimprop,1:4)    
+
         !Initialize matrices
         Nat = molec%natoms
         B(1:Ns,1:3*Nat) = 0.d0
@@ -1002,6 +1009,41 @@ module internal_module
     
         enddo
     
+        if (verbose>0) &
+        write(6,'(/,A,I3)') "IMPROPERS", nimprop
+        do i=1,nimprop
+            k=k+1
+    
+            i_1 = improp_s(i,1)
+            i_2 = improp_s(i,2)
+            i_3 = improp_s(i,3)
+            i_4 = improp_s(i,4)
+            ang1 = calc_atm_improper(molec%atom(i_1),molec%atom(i_2),molec%atom(i_3),molec%atom(i_4))
+            S(k) = ang1
+            if (verbose>0) &
+            write(6,'(I5,X,A,4(I3,A),F15.8)') k, trim(adjustl(molec%atom(i_1)%name))//"(",i_1,") -- "//&
+                                                 trim(adjustl(molec%atom(i_2)%name))//"(",i_2,") -- "//&
+                                                 trim(adjustl(molec%atom(i_3)%name))//"(",i_3,") -- "//&
+                                                 trim(adjustl(molec%atom(i_4)%name))//"(",i_4,")", &
+                                              ang1*360.d0/2.d0/pi
+            if (present(ICDef)) &
+            write(ICDef(k),'(A,4(I3,A))') trim(adjustl(molec%atom(i_1)%name))//"(",i_1,") -- "//&
+                                          trim(adjustl(molec%atom(i_2)%name))//"(",i_2,") -- "//&
+                                          trim(adjustl(molec%atom(i_3)%name))//"(",i_3,") -- "//&
+                                          trim(adjustl(molec%atom(i_4)%name))//"(",i_4,")"
+    
+            ! Compute with external functions
+            Baux(1:12)= Bdihe(molec%atom(i_1)%x,molec%atom(i_1)%y,molec%atom(i_1)%z,&
+                              molec%atom(i_2)%x,molec%atom(i_2)%y,molec%atom(i_2)%z,&
+                              molec%atom(i_3)%x,molec%atom(i_3)%y,molec%atom(i_3)%z,&
+                              molec%atom(i_4)%x,molec%atom(i_4)%y,molec%atom(i_4)%z)
+            B(k,3*i_1-2:3*i_1) = Baux(1:3)
+            B(k,3*i_2-2:3*i_2) = Baux(4:6)
+            B(k,3*i_3-2:3*i_3) = Baux(7:9)
+            B(k,3*i_4-2:3*i_4) = Baux(10:12)
+    
+        enddo
+
         if (verbose>0) &
             print*, ""
         if (verbose>1) &

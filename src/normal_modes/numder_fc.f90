@@ -35,12 +35,14 @@ program numder_fc
     implicit none
 
 
-    real(8),dimension(5) :: R,E, aux_vec
+    real(8),dimension(100) :: R
+    real(8),dimension(100) :: E
     real(8) :: derA, derB, dder, freq, delta, der
 
     character(len=200) :: line, dummy_char
     character(len=13)  :: marker
     character(len=3)   :: density="SCF"
+    logical            :: td_calc=.false.
 
     integer :: i,j, iread, IOstatus
 
@@ -55,22 +57,19 @@ program numder_fc
 !==================================================================================
 
     ! 0. GET COMMAND LINE ARGUMENTS
-    call parse_input(inpfile,density)
-    call set_word_upper_case(density)
+    call parse_input(inpfile,td_calc)
 
-    if (adjustl(density) == "SCF") then
+    if (.not.td_calc) then
         marker="SCF Done:  E("
-    elseif (adjustl(density) == "TD") then
-        marker="E(TD-HF/TD-KS"
     else
-        print*, "Unkown density: "//density
-        stop
+        marker="E(TD-HF/TD-KS"
     endif
 
     open(I_INP,file=inpfile,status="old")
 
     i=1
     iread=0
+    IOstatus=0
     do while ( IOstatus == 0 )
         read(I_INP,'(X,A)',IOSTAT=IOstatus) line
         if (IOstatus /= 0) exit
@@ -81,6 +80,7 @@ program numder_fc
             call summary_parser(I_INP,3,line)
             call split_line(line,'=',dummy_char,line)
             read(line,*) R(i)
+            print*, R(i), E(i)
             i=i+1
             iread=1
         endif
@@ -101,10 +101,6 @@ program numder_fc
 !         E(i) = aux_vec(j)
 !         j=j-1
 !     enddo
-    
-    do i=1,5
-        print*, R(i), E(i)
-    enddo   
 
     print*, ""
     print*, " Disp(a.u.)      der+(a.u.)      der-(a.u.)       FC(a.u.)       Freq(cm-1)"
@@ -136,11 +132,11 @@ program numder_fc
     !Taking large delta (in the middle: point 3)
     delta = R(5)-R(1)
     derA = (E(5)-E(1))/delta
-    print'(X,G11.4,3X,G16.7,3X,F10.3)', abs(delta)/2.d0, derA
+    print'(X,G11.4,3X,E16.7,3X,F10.3)', abs(delta)/2.d0, derA
     !Taking small delta (in the middle: point 3)
     delta = R(4)-R(2)
     derA = (E(4)-E(2))/delta
-    print'(X,G11.4,3X,G16.7,3X,F10.3)', abs(delta)/2.d0, derA
+    print'(X,G11.4,3X,E16.7,3X,F10.3)', abs(delta)/2.d0, derA
 
     print*, ""
 
@@ -151,13 +147,14 @@ program numder_fc
     contains
     !=============================================
 
-    subroutine parse_input(inpfile,density)
+    subroutine parse_input(inpfile,td_calc)
     !==================================================
     ! My input parser (gromacs style)
     !==================================================
         implicit none
 
-        character(len=*),intent(inout) :: inpfile, density
+        character(len=*),intent(inout) :: inpfile
+        logical,intent(inout)          :: td_calc
         ! Local
         logical :: argument_retrieved,  &
                    need_help = .false.
@@ -176,9 +173,8 @@ program numder_fc
                     call getarg(i+1, inpfile)
                     argument_retrieved=.true.
 
-                case ("-dens") 
-                    call getarg(i+1, density)
-                    argument_retrieved=.true.
+                case ("-td") 
+                    td_calc=.true.
         
                 case ("-h")
                     need_help=.true.
@@ -191,13 +187,13 @@ program numder_fc
         enddo 
 
        !Print options (to stderr)
-        write(6,'(/,A)') '--------------------------------------------------'
-        write(6,'(/,A)') '          NUM DERIVATIVES FROM G09log FILE '          
-        write(6,'(/,A)') '--------------------------------------------------'
-        write(6,*) '-f              ', trim(adjustl(inpfile))
-        write(6,*) '-dens           ', trim(adjustl(density))
-        write(6,*) '-h             ',  need_help
-        write(6,*) '--------------------------------------------------'
+        write(0,'(/,A)') '--------------------------------------------------'
+        write(0,'(/,A)') '          NUM DERIVATIVES FROM G09log FILE '          
+        write(0,'(/,A)') '--------------------------------------------------'
+        write(0,*) '-f              ', trim(adjustl(inpfile))
+        write(0,*) '-td            ',  td_calc
+        write(0,*) '-h             ',  need_help
+        write(0,*) '--------------------------------------------------'
         if (need_help) call alert_msg("fatal", 'There is no manual (for the moment)' )
 
         return

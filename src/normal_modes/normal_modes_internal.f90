@@ -321,6 +321,8 @@ program normal_modes_animation
         call alert_msg("fatal","Ns>Nvib: Non-redundan coordinate set needs mapping (still on dev)")
         ! Need mapping from whole set to Zmat
     elseif (Ns < Nvib) then
+        print*, "Ns", Ns
+        print*, "Nvib", Nvib
         call alert_msg("fatal","Reduced coordinates cases still not implemented")
         ! Need to freeze unused coords to its input values
     endif

@@ -1018,6 +1018,7 @@ program internal_duschinski
         write(6,*) '-rmzfile        ', trim(adjustl(rmzfile))
         write(6,*) '-[no]sym       ',  use_symmetry
         write(6,*) '-[no]vert      ',  vertical
+        write(6,*) '-[no]correct   ',  gradcorrect
         write(6,*) '-vert2         ',  vertical_method2
         write(6,*) '-[no]onlys2    ',  only_state2
         write(6,*) '-h             ',  need_help

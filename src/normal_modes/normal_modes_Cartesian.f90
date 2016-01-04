@@ -61,6 +61,7 @@ program normal_modes_cartesian
     !====================== 
     !System variables
     type(str_resmol) :: molecule, molec_aux
+    real(8),dimension(NDIM) :: X0, Y0, Z0
     integer,dimension(1:NDIM) :: isym
     integer :: Nat, Nvib, Ns
     character(len=5) :: PG
@@ -119,11 +120,12 @@ program normal_modes_cartesian
 
     !files
     character(len=10) :: ft ="guess",  ftg="guess",  fth="guess", ftn="guess"
-    character(len=200):: inpfile  ="state1.fchk", &
+    character(len=200):: inpfile  ="molecule.fchk", &
                          gradfile ="same", &
                          hessfile ="same", &
-                         nmfile   ="none",   &
-                         symm_file="none"
+                         nmfile   ="none", &
+                         symm_file="none", &
+                         cnull = "none"
     !Structure files to be created
     character(len=100) :: g09file,qfile, tmpfile, g96file, grofile,numfile
     !status
@@ -241,7 +243,7 @@ program normal_modes_cartesian
             call generic_gradient_reader(I_INP,ftg,Nat,Grad,error)
             close(I_INP)
         endif
-        
+
         ! VIBRATIONAL ANALYSIS
         ! Using either the full 3Natx3Nat space of internal frame (default)
         if (full_diagonalize) then
@@ -307,6 +309,9 @@ program normal_modes_cartesian
     !  Normal mode displacements
     !==========================================================0
     ! Initialization
+    X0(1:Nat) = molecule%atom(1:Nat)%x
+    Y0(1:Nat) = molecule%atom(1:Nat)%y
+    Z0(1:Nat) = molecule%atom(1:Nat)%z
     Nsteps = 101
     if ( mod(Nsteps,2) == 0 ) Nsteps = Nsteps + 1 ! ensure odd number of steps (so we have same left and right)
     ! Qstep is dimless
@@ -333,6 +338,9 @@ program normal_modes_cartesian
         !===========================
         !Start from equilibrium. 
         !===========================
+        molecule%atom(1:Nat)%x = X0(1:Nat)
+        molecule%atom(1:Nat)%y = Y0(1:Nat)
+        molecule%atom(1:Nat)%z = Z0(1:Nat)
         if (verbose>1) &
          print'(/,A,I0)', "STEP:", k
         ! Update
@@ -354,8 +362,12 @@ program normal_modes_cartesian
             qcoord = qcoord + Qstep/Factor(j)
             write(molecule%title,'(A,I0,A,2(X,F12.6))') &
              trim(adjustl((title)))//" Step ",k," Disp = ", qcoord, qcoord*Factor(j)
-            ! Displace in AA
-            call displace_Xcoord(LL(1:3*Nat,j),molecule%natoms,Qstep/Factor(j)*BOHRtoANGS,&
+            ! Displace in AA (displace always from reference to avoid error propagation)
+            i=istep
+            molecule%atom(1:Nat)%x = X0(1:Nat)
+            molecule%atom(1:Nat)%y = Y0(1:Nat)
+            molecule%atom(1:Nat)%z = Z0(1:Nat)
+            call displace_Xcoord(LL(1:3*Nat,j),molecule%natoms,Qstep/Factor(j)*BOHRtoANGS*i,&
                                  molecule%atom(:)%x,molecule%atom(:)%y,molecule%atom(:)%z)
             ! PRINT
             ! Write GRO from the beginign and G96/G09 only when reach max amplitude
@@ -378,8 +390,12 @@ program normal_modes_cartesian
             qcoord = qcoord - Qstep/Factor(j)
             write(molecule%title,'(A,I0,A,2(X,F12.6))') &
              trim(adjustl((title)))//" Step ",k," Disp = ", qcoord, qcoord*Factor(j)
-            ! Displace in AA
-            call displace_Xcoord(LL(1:3*Nat,j),molecule%natoms,-Qstep/Factor(j)*BOHRtoANGS,&
+            ! Displace in AA (displace always from reference to avoid error propagation)
+            i=(nsteps-1)/2-istep
+            molecule%atom(1:Nat)%x = X0(1:Nat)
+            molecule%atom(1:Nat)%y = Y0(1:Nat)
+            molecule%atom(1:Nat)%z = Z0(1:Nat)
+            call displace_Xcoord(LL(1:3*Nat,j),molecule%natoms,-Qstep/Factor(j)*BOHRtoANGS*i,&
                                  molecule%atom(:)%x,molecule%atom(:)%y,molecule%atom(:)%z)
             ! PRINT
             ! Write G96/GRO every step and G09 scan every 10 steps
@@ -406,8 +422,12 @@ program normal_modes_cartesian
             qcoord = qcoord + Qstep/Factor(j)
             write(molecule%title,'(A,I0,A,2(X,F12.6))') &
              trim(adjustl((title)))//" Step ",k," Disp = ", qcoord, qcoord*Factor(j)
-            ! Displace in AA
-            call displace_Xcoord(LL(1:3*Nat,j),molecule%natoms,Qstep/Factor(j)*BOHRtoANGS,&
+            ! Displace in AA (displace always from reference to avoid error propagation)
+            i=-(nsteps-1)/2+istep
+            molecule%atom(1:Nat)%x = X0(1:Nat)
+            molecule%atom(1:Nat)%y = Y0(1:Nat)
+            molecule%atom(1:Nat)%z = Z0(1:Nat)
+            call displace_Xcoord(LL(1:3*Nat,j),molecule%natoms,Qstep/Factor(j)*BOHRtoANGS*i,&
                                  molecule%atom(:)%x,molecule%atom(:)%y,molecule%atom(:)%z)
             ! PRINT
             ! Write only GRO 
