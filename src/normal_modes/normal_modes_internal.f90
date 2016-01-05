@@ -319,15 +319,16 @@ program normal_modes_animation
     call gen_bonded(molecule)
 
     ! Define internal set
-!     if (def_internal/="ZMAT") then
-!         ! Get Zmat first
-!         def_internal_aux="ZMAT"
-!         call define_internal_set(molecule,def_internal_aux,intfile,rmzfile,use_symmetry,isym,S_sym,Ns)
-!         ! Get only the geom, and reuse molecule
-!         zmatgeom=molecule%geom
-!         ! And reset bonded parameters
-!         call gen_bonded(molecule)
-!     endif
+    if (def_internal/="ZMAT") then 
+        print*, "Preliminat Zmat analysis"
+        ! Get Zmat first
+        def_internal_aux="ZMAT"
+        call define_internal_set(molecule,def_internal_aux,intfile,rmzfile,use_symmetry,isym,S_sym,Ns)
+        ! Get only the geom, and reuse molecule
+        zmatgeom=molecule%geom
+        ! And reset bonded parameters
+        call gen_bonded(molecule)
+    endif
     call define_internal_set(molecule,def_internal,intfile,rmzfile,use_symmetry,isym,S_sym,Ns)
     if (Ns > Nvib) then
         call red2zmat_mapping(molecule,zmatgeom,Zmap)
@@ -390,8 +391,8 @@ program normal_modes_animation
                     enddo
                 endif
                 ! For the moment, the "movies" are not available
-                Nsel=0
-                call alert_msg("warning","Ns>Nvib: Non-redundan coordinate set needs mapping (still on dev)")
+!                 Nsel=0
+!                 call alert_msg("warning","Ns>Nvib: Non-redundant coordinate set needs mapping (still on dev)")
             endif
 
             if (vertical) then
@@ -422,6 +423,12 @@ program normal_modes_animation
         Factor(1:Nvib) = dsqrt(dabs(Freq(1:Nvib))*1.d2*clight*2.d0*PI/plankbar)
         ! but we need it from au not SI
         Factor(1:Nvib)=Factor(1:Nvib)*BOHRtoM*dsqrt(AUtoKG)
+    endif
+
+    ! If redundant set, transform from orthogonal non-redundant
+    if (Nvib < Ns) then
+        print'(/,X,A,/)', "Transform from non-redundant orthogonal to original redundant set"
+        LL(1:Ns,1:Nvib) = matrix_product(Ns,Nvib,Nvib,Asel,LL)
     endif
 
 
@@ -488,10 +495,7 @@ program normal_modes_animation
         ! Update
         write(molecule%title,'(A,I0,A,2(X,F12.6))') &
          trim(adjustl((title)))//" Step ",k," Disp = ", qcoord, qcoord*Factor(j)
-        if (Ns /= Nvib .and. scan_type == "NM") then
-            S(1:Nvib) = map_Zmatrix(Nvib,S,Zmap)
-        endif
-        call zmat2cart(molecule,S)
+!         call zmat2cart(molecule,S)
         !call rmsd_fit_frame(state,ref): efficient but not always works. If so, it uses rmsd_fit_frame_brute(state,ref)
         call rmsd_fit_frame(molecule,molec_aux,info)
         if (info /= 0) then
@@ -520,7 +524,7 @@ program normal_modes_animation
             ! Displace (displace always from reference to avoid error propagation)
             i=istep
             S=Sref
-            call displace_Scoord(LL(:,j),molecule%geom%nbonds,molecule%geom%nangles,molecule%geom%ndihed,Qstep/Factor(j)*i,S)
+            call displace_Scoord(LL(:,j),nbonds,nangles,ndihed,Qstep/Factor(j)*i,S)
             ! Get Cart coordinates
             if (Ns /= Nvib .and. scan_type == "NM") then
                 S(1:Nvib) = map_Zmatrix(Nvib,S,Zmap)
@@ -560,7 +564,7 @@ program normal_modes_animation
             ! Displace (displace always from reference to avoid error propagation)
             i=(nsteps-1)/2-istep
             S=Sref
-            call displace_Scoord(LL(:,j),molecule%geom%nbonds,molecule%geom%nangles,molecule%geom%ndihed,Qstep/Factor(j)*i,S)
+            call displace_Scoord(LL(:,j),nbonds,nangles,ndihed,Qstep/Factor(j)*i,S)
             ! Get Cart coordinates
             if (Ns /= Nvib .and. scan_type == "NM") then
                 S(1:Nvib) = map_Zmatrix(Nvib,S,Zmap)
@@ -604,7 +608,7 @@ program normal_modes_animation
             ! Displace (displace always from reference to avoid error propagation)
             i=-(nsteps-1)/2+istep
             S=Sref
-            call displace_Scoord(LL(:,j),molecule%geom%nbonds,molecule%geom%nangles,molecule%geom%ndihed,Qstep/Factor(j)*i,S)
+            call displace_Scoord(LL(:,j),nbonds,nangles,ndihed,Qstep/Factor(j)*i,S)
             ! Get Cart coordinates
             if (Ns /= Nvib .and. scan_type == "NM") then
                 S(1:Nvib) = map_Zmatrix(Nvib,S,Zmap)

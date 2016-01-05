@@ -206,15 +206,16 @@ module internal_module
         integer,dimension(1:NDIM,1:4) :: bond_s, angle_s, dihed_s
         integer :: i,j
 
+        print*, "Mapping zmat on redundant set"
+
         Nat    = molecule%natoms
         nbonds = molecule%geom%nbonds
         nangles= molecule%geom%nangles
         ndihed = molecule%geom%ndihed
-        print*, "Bonds Map"
         do j=1,Nat-1  ! Zmat loop 
         do i=1,nbonds ! Redundant loop
             if (zmatgeom%bond(j,1)==molecule%geom%bond(i,1).and.&
-                zmatgeom%bond(j,1)==molecule%geom%bond(i,2)) then
+                zmatgeom%bond(j,2)==molecule%geom%bond(i,2)) then
                 Zmap(j) = i
             endif
             if (zmatgeom%bond(j,2)==molecule%geom%bond(i,1).and.&
@@ -223,7 +224,6 @@ module internal_module
             endif
         enddo
         enddo
-        print*, "Angles Map"
         do j=1,Nat-2   ! Zmat loop 
         do i=1,nangles ! Redundant loop
             if (zmatgeom%angle(j,1)==molecule%geom%angle(i,1).and.&
@@ -238,7 +238,6 @@ module internal_module
             endif
         enddo
         enddo
-        print*, "Dihedral Map"
         do j=1,Nat-3  ! Zmat loop 
         do i=1,ndihed ! Redundant loop
             if (zmatgeom%dihed(j,1)==molecule%geom%dihed(i,1).and.&
@@ -270,7 +269,7 @@ module internal_module
         real(8),dimension(:),intent(in) :: S
         integer,dimension(:),intent(in) :: Zmap
         ! Output:                       
-        integer,dimension(Nvib)         :: Sz
+        real(8),dimension(Nvib)         :: Sz
 
         ! Local
         integer :: i
