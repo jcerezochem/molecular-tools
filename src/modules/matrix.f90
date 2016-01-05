@@ -657,7 +657,7 @@ module matrix
         enddo
         enddo
         enddo
-! c     ompute t1*s^(-1/2)
+! c     compute t1*s^(-1/2)
         do ii=1,Nr
         do jj=1,Nc
         BB(ii,jj)=0.d0
@@ -761,7 +761,7 @@ module matrix
         ! NORMAL (counter=.false.)
         ! P = X A X^t, where X(M,N) and A(N,N)
         ! INVERSE (counter=.true.)
-        ! P = X^t A X, where X(M,N) and A(N,N)
+        ! P = X^t A X, where X(N,M) and A(N,N)
         !=============================================
 
         integer,intent(in)                   :: M,N
@@ -790,10 +790,10 @@ module matrix
         ! NORMAL (counter=.false.)
         ! P = X A X^t, where X(M,N) and T(N,N)
         ! INVERSE (counter=.true.)
-        ! P = X^t A X, where X(M,N) and T(N,N)
+        ! P = X^t A X, where X(N,M) and T(N,N)
         !
-        ! A is diagonal, with the subroutine uses 
-        ! the vector a=diag(A)
+        ! A is diagonal, and the subroutine uses 
+        ! the vector a=diag(A) as input
         !=============================================
 
         integer,intent(in)                   :: M,N

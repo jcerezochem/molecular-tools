@@ -134,13 +134,17 @@ module matrix_print
       end subroutine MAT0
 
 
-      subroutine MAT1(unt,AA,B,NC,NR,name)
+      subroutine MAT1(unt,AA,B,NR,NC,name)
 
         !==================================
         ! Description
         ! -----------
         ! Prints eigenvectors in matrix AA
         ! along with eigenvalues in B
+        !
+        ! NOTE: in the arguments we have
+        !       NR, NC (as opposed to then
+        !       original subroutine)
         !==================================
 
         integer,intent(in) :: unt

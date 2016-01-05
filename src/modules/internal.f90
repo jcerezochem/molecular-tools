@@ -91,7 +91,7 @@ module internal_module
 
         else if (adjustl(def_internal) == "ALL") then!otherwise all parameters are used
             if (verbose>0) &
-             print*, "Using all internal coordinates", molec%geom%nangles
+             print*, "Using all internal coordinates", molec%geom%nbonds+molec%geom%nangles+molec%geom%ndihed
         else
             call alert_msg("fatal","Unkownn option for internal definition. Valid options are 'zmat', 'sel', 'all'")
         endif 
@@ -187,71 +187,101 @@ module internal_module
     end subroutine define_internal_set
 
 
-!     subroutine redundant2zmat()
-! 
-! 
-!         ! Manage redundant by cherry-picking the non-redundant
-!         ! among the whole set.
-! 
-! 
-!         nbonds = molecule%geom%nbonds
-!         nangles= molecule%geom%nangles
-!         ndihed = molecule%geom%ndihed
-!         print*, "Bonds Map"
-!         do j=2,Nat
-!         do i=1,nbonds
-!             if (bond_s(j,1)==molecule%geom%bond(i,1).and.&
-!                 bond_s(j,2)==molecule%geom%bond(i,2)) then
-!                 print*, "Zmat<->Map Redundant:", j-1,i
-!                 Zmap(j-1) = i
-!             endif
-!             if (bond_s(j,2)==molecule%geom%bond(i,1).and.&
-!                 bond_s(j,1)==molecule%geom%bond(i,2)) then
-!                 print*, "Zmat<->Map Redundant:", j-1,i
-!                 Zmap(j-1) = i
-!             endif
-!         enddo
-!         enddo
-!         print*, "Angles Map"
-!         do j=3,Nat
-!         do i=1,nangles
-!             if (angle_s(j,1)==molecule%geom%angle(i,1).and.&
-!                 angle_s(j,2)==molecule%geom%angle(i,2).and.&
-!                 angle_s(j,3)==molecule%geom%angle(i,3)) then
-!                 print*, "Zmat<->Map Redundant:", j-3+Nat,i+nbonds
-!                 Zmap(j-3+Nat) = i+nbonds
-!             endif
-!             if (angle_s(j,3)==molecule%geom%angle(i,1).and.&
-!                 angle_s(j,2)==molecule%geom%angle(i,2).and.&
-!                 angle_s(j,1)==molecule%geom%angle(i,3)) then
-!                 print*, "Zmat<->Map Redundant:", j-3+Nat,i+nbonds
-!                 Zmap(j-3+Nat) = i+nbonds
-!             endif
-!         enddo
-!         enddo
-!         print*, "Dihedral Map"
-!         do j=4,Nat
-!         do i=1,ndihed
-!             if (dihed_s(j,1)==molecule%geom%dihed(i,1).and.&
-!                 dihed_s(j,2)==molecule%geom%dihed(i,2).and.&
-!                 dihed_s(j,3)==molecule%geom%dihed(i,3).and.&
-!                 dihed_s(j,4)==molecule%geom%dihed(i,4)) then
-!                 print*, "Zmat<->Map Redundant:", j-6+2*Nat,i+nbonds+nangles
-!                 Zmap(j-6+2*Nat) = i+nbonds+nangles
-!             endif
-!             if (dihed_s(j,4)==molecule%geom%dihed(i,1).and.&
-!                 dihed_s(j,3)==molecule%geom%dihed(i,2).and.&
-!                 dihed_s(j,2)==molecule%geom%dihed(i,3).and.&
-!                 dihed_s(j,1)==molecule%geom%dihed(i,4)) then
-!                 print*, "Zmat<->Map Redundant:", j-6+2*Nat,i+nbonds+nangles
-!                 Zmap(j-6+2*Nat) = i+nbonds+nangles
-!             endif
-!         enddo
-!         enddo
-! 
-!         return
-! 
-!     end subroutine redundant2zmat
+    subroutine red2zmat_mapping(molecule,zmatgeom,Zmap)
+
+
+        ! Manage redundant by cherry-picking the non-redundant
+        ! among the whole set.
+
+        use structure_types
+
+        integer,parameter :: NDIM = 600
+
+        type(str_resmol),intent(in)         :: molecule
+        type(str_bonded),intent(in)         :: zmatgeom
+        integer,dimension(NDIM),intent(out) :: Zmap
+
+        ! Local
+        integer :: nbonds,nangles,ndihed, Nat
+        integer,dimension(1:NDIM,1:4) :: bond_s, angle_s, dihed_s
+        integer :: i,j
+
+        Nat    = molecule%natoms
+        nbonds = molecule%geom%nbonds
+        nangles= molecule%geom%nangles
+        ndihed = molecule%geom%ndihed
+        print*, "Bonds Map"
+        do j=1,Nat-1  ! Zmat loop 
+        do i=1,nbonds ! Redundant loop
+            if (zmatgeom%bond(j,1)==molecule%geom%bond(i,1).and.&
+                zmatgeom%bond(j,1)==molecule%geom%bond(i,2)) then
+                Zmap(j) = i
+            endif
+            if (zmatgeom%bond(j,2)==molecule%geom%bond(i,1).and.&
+                zmatgeom%bond(j,1)==molecule%geom%bond(i,2)) then
+                Zmap(j) = i
+            endif
+        enddo
+        enddo
+        print*, "Angles Map"
+        do j=1,Nat-2   ! Zmat loop 
+        do i=1,nangles ! Redundant loop
+            if (zmatgeom%angle(j,1)==molecule%geom%angle(i,1).and.&
+                zmatgeom%angle(j,2)==molecule%geom%angle(i,2).and.&
+                zmatgeom%angle(j,3)==molecule%geom%angle(i,3)) then
+                Zmap(j+Nat-1) = i+nbonds
+            endif
+            if (zmatgeom%angle(j,3)==molecule%geom%angle(i,1).and.&
+                zmatgeom%angle(j,2)==molecule%geom%angle(i,2).and.&
+                zmatgeom%angle(j,1)==molecule%geom%angle(i,3)) then
+                Zmap(j+Nat-1) = i+nbonds
+            endif
+        enddo
+        enddo
+        print*, "Dihedral Map"
+        do j=1,Nat-3  ! Zmat loop 
+        do i=1,ndihed ! Redundant loop
+            if (zmatgeom%dihed(j,1)==molecule%geom%dihed(i,1).and.&
+                zmatgeom%dihed(j,2)==molecule%geom%dihed(i,2).and.&
+                zmatgeom%dihed(j,3)==molecule%geom%dihed(i,3).and.&
+                zmatgeom%dihed(j,4)==molecule%geom%dihed(i,4)) then
+                Zmap(j+2*Nat-3) = i+nbonds+nangles
+            endif
+            if (zmatgeom%dihed(j,4)==molecule%geom%dihed(i,1).and.&
+                zmatgeom%dihed(j,3)==molecule%geom%dihed(i,2).and.&
+                zmatgeom%dihed(j,2)==molecule%geom%dihed(i,3).and.&
+                zmatgeom%dihed(j,1)==molecule%geom%dihed(i,4)) then
+                Zmap(j+2*Nat-3) = i+nbonds+nangles
+            endif
+        enddo
+        enddo
+
+        return
+
+    end subroutine red2zmat_mapping
+
+    function map_Zmatrix(Nvib,S,Zmap) result(Sz)
+
+        ! Get S(Zmatrix) from S(redudant) using the Zmap associations
+
+        integer,parameter :: NDIM = 600
+
+        integer,intent(in)              :: Nvib
+        real(8),dimension(:),intent(in) :: S
+        integer,dimension(:),intent(in) :: Zmap
+        ! Output:                       
+        integer,dimension(Nvib)         :: Sz
+
+        ! Local
+        integer :: i
+
+        do i=1,Nvib
+            Sz(i) = S(Zmap(i))
+        enddo
+
+        return
+
+    end function map_Zmatrix
 
 
 !=========================================================
@@ -1409,6 +1439,77 @@ module internal_module
         return
 
     end subroutine internal_Gmetric
+
+
+
+    subroutine redundant2nonredundant(Nred,Nvib,G,Asel)
+    
+        !IF WE USE ALL BONDED PARAMETERS,WE HAVE REDUNDANCY. WE SELECT A NON-REDUNDANT                                                                  
+        !COMBINATION FROM THE NON-ZERO EIGENVALUES OF G (Reimers 2001, JCP)   
+
+
+        use matrix
+        use matrix_print
+
+        implicit none
+
+        integer,parameter :: NDIM = 600
+        real(8),parameter :: ZEROp=1.d-10
+
+        integer,intent(in) :: Nred, Nvib
+        real(8),dimension(NDIM,NDIM),intent(in) :: G
+        real(8),dimension(NDIM,NDIM),intent(out):: Asel
+
+        ! Local
+        real(8),dimension(NDIM,NDIM) :: Aux
+        real(8),dimension(NDIM)      :: Vec, Vec2
+        integer :: i, k,kk,kkk
+
+        !Get a non-redundant set from the non-zero eigenvalues of G
+        call diagonalize_full(G(1:Nred,1:Nred),Nred,Aux(1:Nred,1:Nred),Vec(1:Nred),"lapack")
+
+        if (verbose>2) &
+         call MAT0(6,Aux,Nred,Nred,"A MATRIX (before reordering)")
+        if (verbose>1) &
+         call print_vector(6,Vec,Nred,"A MATRIX Eigenvalues (before reordering)")
+ 
+        ! The non-redundant set is formed by eigenvectors with non-zero eigenvalue
+        kk=0 
+        kkk=0
+        do k=1,Nred
+            if (dabs(Vec(k)) > ZEROp) then
+                kk=kk+1
+                !The eigenvectors are stored in columns (since D = P^-1 A P)
+                Asel(1:Nred,kk) = Aux(1:Nred,k)
+                Vec2(kk)        = Vec(k)
+                ! .. for symmetric A matrices, either rows or columns can be selected as eigenvectors anyway
+            else
+                !Redudant eigenvectors
+                kkk=kkk+1
+                Asel(1:Nred,Nvib+kkk) = Aux(1:Nred,k)
+                Vec2(Nvib+kkk)        = Vec(k)
+            endif
+        enddo
+
+        if (Nred /= Nvib+kkk) then
+            call sort_vec(Vec,Nred)
+            call print_vector(6,Vec,Nred,"A MATRIX Eigenvalues")
+            print*, "Zero eigenvalues: ", kkk 
+            print*, "Expected: ", Nred-Nvib
+            call alert_msg("fatal","Redundant to non-redundant trasformation failed")
+        endif
+
+        if (verbose>2) &
+         call MAT0(6,Asel,Nred,Nred,"A MATRIX")
+        if (verbose>1) then
+            call print_vector(6,Vec2(Nvib+1:Nred)*1.d15,Nred-Nvib,"A MATRIX Zero-Eigenvalues (x10^15)")
+            call print_vector(6,Vec2(1:Nvib)*1.d5,Nvib,"A MATRIX NonZero-Eigenvalues (x10^5)")
+        endif
+
+        return
+
+    end subroutine redundant2nonredundant
+
 
 
     subroutine HessianCart2int(Nat,Ns,Hess,Mass,B,G, &
