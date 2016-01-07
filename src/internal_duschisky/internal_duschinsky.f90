@@ -499,6 +499,8 @@ program internal_duschinski
     !Print state
     open(O_STAT,file="state_file_2")
     call set_geom_units(state2,"Angs")
+    ! Note that the geometry is the input one (not displaced for vertical)
+    ! But it is ok for FCclasses (it is not using it AFIK) What about HT??
     do i=1,Nat
         write(O_STAT,*) state2%atom(i)%x
         write(O_STAT,*) state2%atom(i)%y
@@ -798,7 +800,7 @@ program internal_duschinski
     !===================================
     ! Reorganization energy
     !===================================
-    print'(/,X,A)', "REORGANIZAION ENERGY"
+    print'(/,X,A)', "REORGANIZATION ENERGY"
     if (verticalQspace) then
         print*, "Vertical model / Qspace"
         ! Normal-mode space
