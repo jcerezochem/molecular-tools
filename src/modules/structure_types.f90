@@ -42,7 +42,7 @@ module structure_types
         integer,dimension(1:MAX_DERIVED_CNX,3) :: angle
         integer,dimension(1:MAX_DERIVED_CNX,4) :: dihed
         integer,dimension(1:MAX_DERIVED_CNX,4) :: improp
-        integer :: npairs, nangles, ndihed, nbonds, nimprop
+        integer :: npairs=0, nangles=0, ndihed=0, nbonds=0, nimprop=0
     end type str_bonded
 
 !--------------------------

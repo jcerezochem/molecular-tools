@@ -2,7 +2,7 @@ AUTOMAKE_OPTIONS = subdir-objects
 
 LDFLAGS = -L$(top_builddir)/libs/AnalyticalBders @LIBS@ 
 
-bin_PROGRAMS = vertical2adiabatic_new verticalPCCP internal_duschinsky_new zmat2internalset
+bin_PROGRAMS = vertical2adiabatic_new verticalPCCP internal_duschinsky_new generate_internals
 
 vertical2adiabatic_new_SOURCES = ../modules/version.f90\
                              ../modules/alerts.f90\
@@ -93,7 +93,7 @@ internal_duschinsky_new_SOURCES = ../modules/version.f90\
                              ../modules/vibrational_analysis.f90\
                              internal_duschinsky.f90
 
-zmat2internalset_SOURCES = ../modules/alerts.f90\
+generate_internals_SOURCES = ../modules/alerts.f90\
                              ../modules/line_preprocess.f90\
                              ../modules/constants.f90\
                              ../modules/verbosity.f90\
@@ -119,6 +119,6 @@ zmat2internalset_SOURCES = ../modules/alerts.f90\
                              ../modules/ff_build.f90\
                              ../modules/symmetry.f90\
                              ../modules/internal.f90\
-                             zmat2internalset.f90 
+                             generate_internals.f90 
 
 CLEANFILES =*.mod 

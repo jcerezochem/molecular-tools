@@ -61,13 +61,13 @@ src/normal_modes/internal_numder_analysis
 src/normal_modes/vibrations_cart
 src/file_management/numderX
 src/internal_duschisky/verticalPCCP
-src/internal_duschisky/zmat2internalset
 src/normal_modes/gen_Lder_numx
 src/normal_modes/numder_L
 src/normal_modes/numder_fc
 *_new
 src/normal_modes/numder_Lint
 src/normal_modes/check_derivatives
+src/internal_duschisky/generate_internals
 
 # output from test calcs
 *output.?
@@ -81,4 +81,7 @@ tmp
 
 # fcclasses_tools (and _dev) is not tracked
 src/fcclasses_tools*
+
+# Auxiliar sources
+src/modules/version.f90
 

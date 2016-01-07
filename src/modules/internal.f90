@@ -73,7 +73,7 @@ module internal_module
         if (adjustl(def_internal) == "SEL") then
             if (verbose>0) &
              print*, "Reading internal coordianates from: "//trim(adjustl(intfile))
-            open(I_FILE,file=intfile,iostat=IOstatus) 
+            open(I_FILE,file=intfile,iostat=IOstatus,status='old') 
             if (IOstatus /= 0) call alert_msg("fatal","Cannot open file: "//trim(adjustl(intfile)))
             ! Get internal coords (using modredundant sr)
             call modredundant(I_FILE,molec)
@@ -1937,115 +1937,114 @@ module internal_module
     end subroutine analyze_internal
     
 
-
-    subroutine NumBDer(molec,Ns,Bder)
-    
-        use structure_types
-        use verbosity
-    
-        integer,parameter :: NDIM = 600
-        real(8),parameter :: delta = 1.889726133d-3 !for numerical ders, in bohr(=10^-3 \AA, as Num freq in G09)
-    
-        !====================== 
-        !ARGUMENTS
-        type(str_resmol),intent(inout)       :: molec
-        integer,intent(in)                   :: Ns
-        real(8),dimension(:,:,:),intent(out) :: Bder    ! (Ns x 3Nat x 3Nat) the last index is the second der
-        !======================
-
-        !======================  
-        !LOCAL
-        integer :: Nat
-        real(8),dimension(NDIM) :: S
-!         type(str_resmol) :: molecB
-        real(8) :: X0, Y0, Z0
-        real(8),dimension(NDIM,NDIM) :: Bplus, Bmin
-        integer :: verbose_current
-        !Counters
-        integer :: i,j,k, ii
-        !======================  
-
-        !Get current verbose level
-        verbose_current = verbose
-        !And set to quiet
-        verbose = 0
- 
-        ! This SR works in AU
-        call set_geom_units(molec,"Bohr")
-    
-        !shortcuts
-        Nat = molec%natoms
-    
-        if (verbose_current>0) then
-            print*, ""
-            print*, "COMPUTING NUMERICAL DERIVATIVES FOR B..."
-            print*, ""
-        endif
-    
-        do i=1,Nat
-    
-             X0=molec%atom(i)%x
-             Y0=molec%atom(i)%y
-             Z0=molec%atom(i)%z
-
-            !Displace X
-            ii = 3*i-2
-            molec%atom(i)%x = X0 + delta
-            !Call B matrix at this geometry   
-            call internal_Wilson(molec,Ns,S,Bplus)
-            molec%atom(i)%x = X0 - delta
-            !Call B matrix at this geometry   
-            call internal_Wilson(molec,Ns,S,Bmin)
-            ! Restore value
-            molec%atom(i)%x = X0
-    
-            do j=1,Ns
-            do k=1,3*Nat
-               Bder(j,k,ii) = ( Bplus(j,k) - Bmin(j,k) ) / (2.d0*delta)
-            enddo
-            enddo
-    
-            !Displace Y
-            ii = 3*i-1
-            molec%atom(i)%y = Y0 + delta
-            !Call B matrix at this geometry   
-            call internal_Wilson(molec,Ns,S,Bplus)
-            molec%atom(i)%y = Y0 - delta
-            !Call B matrix at this geometry   
-            call internal_Wilson(molec,Ns,S,Bmin)
-            ! Restore value
-            molec%atom(i)%y = Y0
-    
-            do j=1,Ns
-            do k=1,3*Nat
-               Bder(j,k,ii) = ( Bplus(j,k) - Bmin(j,k) ) / (2.d0*delta)
-            enddo
-            enddo
-    
-            !Displace Z
-            ii = 3*i
-            molec%atom(i)%z = Z0 + delta
-            !Call B matrix at this geometry   
-            call internal_Wilson(molec,Ns,S,Bplus)
-            molec%atom(i)%z = Z0 - delta
-            !Call B matrix at this geometry   
-            call internal_Wilson(molec,Ns,S,Bmin)
-            molec%atom(i)%z = Z0
-    
-            do j=1,Ns
-            do k=1,3*Nat
-               Bder(j,k,ii) = ( Bplus(j,k) - Bmin(j,k) ) / (2.d0*delta)
-            enddo
-            enddo
-    
-        enddo
-    
-        !Restore verbose level
-        verbose =  verbose_current
-
-        return
-    
-    end subroutine NumBDer
+!     subroutine NumBDer(molec,Ns,Bder)
+!     
+!         use structure_types
+!         use verbosity
+!     
+!         integer,parameter :: NDIM = 600
+!         real(8),parameter :: delta = 1.889726133d-3 !for numerical ders, in bohr(=10^-3 \AA, as Num freq in G09)
+!     
+!         !====================== 
+!         !ARGUMENTS
+!         type(str_resmol),intent(inout)       :: molec
+!         integer,intent(in)                   :: Ns
+!         real(8),dimension(:,:,:),intent(out) :: Bder    ! (Ns x 3Nat x 3Nat) the last index is the second der
+!         !======================
+! 
+!         !======================  
+!         !LOCAL
+!         integer :: Nat
+!         real(8),dimension(NDIM) :: S
+! !         type(str_resmol) :: molecB
+!         real(8) :: X0, Y0, Z0
+!         real(8),dimension(NDIM,NDIM) :: Bplus, Bmin
+!         integer :: verbose_current
+!         !Counters
+!         integer :: i,j,k, ii
+!         !======================  
+! 
+!         !Get current verbose level
+!         verbose_current = verbose
+!         !And set to quiet
+!         verbose = 0
+!  
+!         ! This SR works in AU
+!         call set_geom_units(molec,"Bohr")
+!     
+!         !shortcuts
+!         Nat = molec%natoms
+!     
+!         if (verbose_current>0) then
+!             print*, ""
+!             print*, "COMPUTING NUMERICAL DERIVATIVES FOR B..."
+!             print*, ""
+!         endif
+!     
+!         do i=1,Nat
+!     
+!              X0=molec%atom(i)%x
+!              Y0=molec%atom(i)%y
+!              Z0=molec%atom(i)%z
+! 
+!             !Displace X
+!             ii = 3*i-2
+!             molec%atom(i)%x = X0 + delta
+!             !Call B matrix at this geometry   
+!             call internal_Wilson(molec,Ns,S,Bplus)
+!             molec%atom(i)%x = X0 - delta
+!             !Call B matrix at this geometry   
+!             call internal_Wilson(molec,Ns,S,Bmin)
+!             ! Restore value
+!             molec%atom(i)%x = X0
+!     
+!             do j=1,Ns
+!             do k=1,3*Nat
+!                Bder(j,k,ii) = ( Bplus(j,k) - Bmin(j,k) ) / (2.d0*delta)
+!             enddo
+!             enddo
+!     
+!             !Displace Y
+!             ii = 3*i-1
+!             molec%atom(i)%y = Y0 + delta
+!             !Call B matrix at this geometry   
+!             call internal_Wilson(molec,Ns,S,Bplus)
+!             molec%atom(i)%y = Y0 - delta
+!             !Call B matrix at this geometry   
+!             call internal_Wilson(molec,Ns,S,Bmin)
+!             ! Restore value
+!             molec%atom(i)%y = Y0
+!     
+!             do j=1,Ns
+!             do k=1,3*Nat
+!                Bder(j,k,ii) = ( Bplus(j,k) - Bmin(j,k) ) / (2.d0*delta)
+!             enddo
+!             enddo
+!     
+!             !Displace Z
+!             ii = 3*i
+!             molec%atom(i)%z = Z0 + delta
+!             !Call B matrix at this geometry   
+!             call internal_Wilson(molec,Ns,S,Bplus)
+!             molec%atom(i)%z = Z0 - delta
+!             !Call B matrix at this geometry   
+!             call internal_Wilson(molec,Ns,S,Bmin)
+!             molec%atom(i)%z = Z0
+!     
+!             do j=1,Ns
+!             do k=1,3*Nat
+!                Bder(j,k,ii) = ( Bplus(j,k) - Bmin(j,k) ) / (2.d0*delta)
+!             enddo
+!             enddo
+!     
+!         enddo
+!     
+!         !Restore verbose level
+!         verbose =  verbose_current
+! 
+!         return
+!     
+!     end subroutine NumBDer
 
 
     subroutine calc_BDer(molec,Ns,Bder,analytical)
@@ -2066,7 +2065,7 @@ module internal_module
         ! Parts of Bder
         real(8),dimension(6,6)   :: BderStre
         real(8),dimension(9,9)   :: BderBend
-        real(8),dimension(12,12) :: BderDihe
+        real(8),dimension(12,12) :: BderDihe, BderImpr
         character(len=50)        :: title
 
         !======================  
@@ -2267,6 +2266,62 @@ module internal_module
             if (verbose>2) then
                 write(title,'(A,I0)') "BderDihe - ",i 
                 call MAT0(6,BderDihe,12,12,adjustl(title))
+            endif  
+        enddo  
+
+        ! IMPROPERS
+        do is=1,molec%geom%nimprop
+            i=i+1
+            i1 = molec%geom%improp(is,1)
+            i2 = molec%geom%improp(is,2)
+            i3 = molec%geom%improp(is,3)
+            i4 = molec%geom%improp(is,4)
+            ! No analytical derivatives (for the moment)
+            if (do_analytical) & !then
+                call alert_msg("note","No alasytical ders for impropers. Using numerical")
+! #ifdef WITH_LIBBDERS
+!                 call derBimpr(BderImpr,                                         &
+!                              molec%atom(i1)%x,molec%atom(i1)%y,molec%atom(i1)%z,&
+!                              molec%atom(i2)%x,molec%atom(i2)%y,molec%atom(i2)%z,&
+!                              molec%atom(i3)%x,molec%atom(i3)%y,molec%atom(i3)%z,&
+!                              molec%atom(i4)%x,molec%atom(i4)%y,molec%atom(i4)%z)
+! #endif
+!             else
+                call dernumBimpr(BderImpr,                                      &
+                             molec%atom(i1)%x,molec%atom(i1)%y,molec%atom(i1)%z,&
+                             molec%atom(i2)%x,molec%atom(i2)%y,molec%atom(i2)%z,&
+                             molec%atom(i3)%x,molec%atom(i3)%y,molec%atom(i3)%z,&
+                             molec%atom(i4)%x,molec%atom(i4)%y,molec%atom(i4)%z)
+!             endif
+            !Retrieve actual Bder elements
+            do irow=1,12
+            do icol=1,12
+                ! Select block
+                if (irow<=3) then
+                    jj = 3*i1-3  
+                elseif (irow<=6) then
+                    jj = 3*i2-6 
+                elseif (irow<=9) then
+                    jj = 3*i3-9 
+                else
+                    jj = 3*i4-12
+                endif
+                if (icol<=3) then
+                    kk = 3*i1-3  
+                elseif (icol<=6) then
+                    kk = 3*i2-6 
+                elseif (icol<=9) then
+                    kk = 3*i3-9 
+                else
+                    kk = 3*i4-12
+                endif
+                Bder(i,jj+irow,kk+icol) = BderImpr(irow,icol)
+            enddo
+            enddo
+
+            if (verbose>2) then
+                write(title,'(A,I0)') "BderImpr - ",i 
+                call MAT0(6,BderImpr,12,12,adjustl(title))
             endif  
         enddo  
 

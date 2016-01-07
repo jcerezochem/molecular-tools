@@ -320,10 +320,10 @@ program normal_modes_animation
 
     ! Define internal set
     if (def_internal/="ZMAT") then 
-        print*, "Preliminat Zmat analysis"
+        print*, "Preliminary Zmat analysis"
         ! Get Zmat first
         def_internal_aux="ZMAT"
-        call define_internal_set(molecule,def_internal_aux,intfile,rmzfile,use_symmetry,isym,S_sym,Ns)
+        call define_internal_set(molecule,def_internal_aux,"none","none",use_symmetry,isym,S_sym,Ns)
         ! Get only the geom, and reuse molecule
         zmatgeom=molecule%geom
         ! And reset bonded parameters

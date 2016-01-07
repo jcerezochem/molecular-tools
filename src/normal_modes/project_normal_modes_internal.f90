@@ -241,7 +241,7 @@ program projection_normal_modes_int
     call internal_Wilson(molecule,Nvib,S1,B,ModeDef)
     call internal_Gmetric(Nat,Nvib,molecule%atom(:)%mass,B,G)
     if (vertical) then
-        call NumBder(molecule,Nvib,Bder)
+        call calc_Bder(molecule,Nvib,Bder)
         call HessianCart2int(Nat,Nvib,Hess,molecule%atom(:)%mass,B,G,Grad=Grad,Bder=Bder)
     else
         call HessianCart2int(Nat,Nvib,Hess,molecule%atom(:)%mass,B,G)

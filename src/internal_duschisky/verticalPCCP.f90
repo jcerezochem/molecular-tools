@@ -220,7 +220,7 @@ program vertical2adiabatic
     call internal_Wilson(state1,Nvib,S1,B,ModeDef)
     call internal_Gmetric(Nat,Nvib,state1%atom(:)%mass,B,G1)
     if (vertical) then
-        call NumBder(state1,Nvib,Bder)
+        call calc_Bder(state1,Nvib,Bder)
         call HessianCart2int(Nat,Nvib,Hess,state1%atom(:)%mass,B,G1,Grad=Grad,Bder=Bder)
     else
         call HessianCart2int(Nat,Nvib,Hess,state1%atom(:)%mass,B,G1)

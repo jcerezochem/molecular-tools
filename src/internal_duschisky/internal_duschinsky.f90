@@ -69,7 +69,8 @@ program internal_duschinski
                verticalQspace=.false. ,&
                gradcorrectS1=.false.  ,&  
                gradcorrectS2=.true.   ,&
-               same_red2nonred_rotation=.true.
+               same_red2nonred_rotation=.true., &
+               analytic_Bder=.false.
     character(len=4) :: def_internal='zmat'
     !======================
 
@@ -179,7 +180,7 @@ program internal_duschinski
                      inpfile2,ft2,hessfile2,fth2,gradfile2,ftg2,&
                      intfile,rmzfile,def_internal,use_symmetry, &
 !                    tswitch,
-                     symaddapt,same_red2nonred_rotation,&
+                     symaddapt,same_red2nonred_rotation,analytic_Bder,&
                      vertical,verticalQspace,gradcorrectS1,gradcorrectS2)
     call set_word_upper_case(def_internal)
 
@@ -276,10 +277,11 @@ program internal_duschinski
     ! INTERNAL COORDINATES
 
     !SOLVE GF METHOD TO GET NM AND FREQ
-    call internal_Wilson(state1,Ns,S1,B,ModeDef)
+    call internal_Wilson_new(state1,Ns,S1,B,ModeDef)
     call internal_Gmetric(Nat,Ns,state1%atom(:)%mass,B,G1)
     if (gradcorrectS1) then
-        call NumBder(state1,Ns,Bder)
+!         call NumBder(state1,Ns,Bder)
+        call calc_BDer(state1,Ns,Bder,analytic_Bder)
     endif
 
     ! SET REDUNDANT/SYMETRIZED/CUSTOM INTERNAL SETS
@@ -444,10 +446,11 @@ program internal_duschinski
     ! INTERNAL COORDINATES
 
     !SOLVE GF METHOD TO GET NM AND FREQ
-    call internal_Wilson(state2,Ns,S2,B,ModeDef)
+    call internal_Wilson_new(state2,Ns,S2,B,ModeDef)
     call internal_Gmetric(Nat,Ns,state2%atom(:)%mass,B,G2)
     if (gradcorrectS2) then
-        call NumBder(state2,Ns,Bder)
+!         call NumBder(state2,Ns,Bder)
+        call calc_BDer(state1,Ns,Bder,analytic_Bder)
     endif
     ! Handle redundant/symtrized sets
 !     if (symaddapt) then (implement in an analogous way as compared with the transformation from red to non-red
@@ -676,6 +679,14 @@ program internal_duschinski
             Delta_p = S2(k)-S1(k)-2.d0*PI
             if (dabs(Delta_p) < dabs(Delta(k))) Delta(k)=Delta_p
         enddo
+        ! Impropers
+        do i=k,k+state1%geom%nimprop-1
+            Delta(i) = S2(i)-S1(i)
+            Delta_p = S2(i)-S1(i)+2.d0*PI
+            if (dabs(Delta_p) < dabs(Delta(i))) Delta(i)=Delta_p
+            Delta_p = S2(i)-S1(i)-2.d0*PI
+            if (dabs(Delta_p) < dabs(Delta(i))) Delta(i)=Delta_p
+        enddo
 
         ! Store Deltas into the auxiliar vector Vec1
         Vec1(1:Ns) = Delta(1:Ns)
@@ -695,20 +706,29 @@ program internal_duschinski
 
     if (verbose>0) then
         print*, "List of ICs and Deltas"
-        print*, "Bonds (Angs)"
-        print*, "  IC   Description      State2    State1     Delta"
+        if (state1%geom%nbonds /= 0) &
+         print'(X,A,/,X,A)', "Bonds (Angs)",&
+                             "  IC   Description      State2    State1     Delta"
         do i=1,state1%geom%nbonds
             print'(I5,X,A,X,3(F8.3,2X))', i,trim(ModeDef(i)),S2(i)*BOHRtoANGS,S1(i)*BOHRtoANGS,Vec1(i)*BOHRtoANGS
         enddo
-        print*, "Angles (deg)"
-        print*, "  IC   Description                State2    State1     Delta"
+        if (state1%geom%nangles /= 0) &
+         print'(X,A,/,X,A)', "Angles (deg)",&
+                             "  IC   Description                State2    State1     Delta"
         do j=i,i+state1%geom%nangles-1
             print'(I5,X,A,X,3(F8.2,2X))', j, trim(ModeDef(j)), S2(j)*180.d0/PI,S1(j)*180.d0/PI,Vec1(j)*180.d0/PI
         enddo
-        print*, "Dihedrals (deg)"
-        print*, "  IC   Description                          State2    State1     Delta"
+        if (state1%geom%ndihed /= 0) &
+         print'(X,A,/,X,A)', "Dihedrals (deg)",&
+                             "  IC   Description                          State2    State1     Delta"
         do k=j,j+state1%geom%ndihed-1
             print'(I5,X,A,X,3(F8.2,2X))', k, trim(ModeDef(k)), S2(k)*180.d0/PI,S1(k)*180.d0/PI,Vec1(k)*180.d0/PI
+        enddo
+        if (state1%geom%nimprop /= 0) &
+         print'(X,A,/,X,A)', "Impropers (deg)",&
+                             "  IC   Description                          State2    State1     Delta"
+        do i=k,k+state1%geom%nimprop-1
+            print'(I5,X,A,X,3(F8.2,2X))', i, trim(ModeDef(i)), S2(i)*180.d0/PI,S1(i)*180.d0/PI,Vec1(i)*180.d0/PI
         enddo
     endif
 
@@ -874,7 +894,7 @@ program internal_duschinski
                            inpfile2,ft2,hessfile2,fth2,gradfile2,ftg2,&
                            intfile,rmzfile,def_internal,use_symmetry, &
 !                          tswitch,
-                           symaddapt,same_red2nonred_rotation,&
+                           symaddapt,same_red2nonred_rotation,analytic_Bder,&
                            vertical,verticalQspace,gradcorrectS1,gradcorrectS2)
     !==================================================
     ! My input parser (gromacs style)
@@ -886,7 +906,7 @@ program internal_duschinski
                                           intfile,rmzfile,def_internal !, symfile
         logical,intent(inout)          :: use_symmetry, vertical, verticalQspace, &
                                           gradcorrectS1, gradcorrectS2, symaddapt, &
-                                          same_red2nonred_rotation
+                                          same_red2nonred_rotation,analytic_Bder
 !         logical,intent(inout) :: tswitch
 
         ! Local
@@ -1001,6 +1021,11 @@ program internal_duschinski
                     gradcorrectS1=.false.
 
                 !HIDDEN
+
+                case ("-anaBder")
+                    analytic_Bder=.true.
+                case ("-noanaBder")
+                    analytic_Bder=.false.
 
                 ! Control verbosity
                 case ("-quiet")
