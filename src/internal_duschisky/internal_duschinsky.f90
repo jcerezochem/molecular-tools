@@ -61,14 +61,15 @@ program internal_duschinski
 
     !====================== 
     !Options 
-    logical :: use_symmetry=.false. ,&
-               modred=.false.       ,&
-               tswitch=.false.      ,&
-               symaddapt=.false.    ,&
-               vertical=.false.     ,&
-               vertical_method2=.false. ,&
-               only_state2=.true.   ,&  
-               gradcorrect=.true.
+    logical :: use_symmetry=.false.   ,&
+               modred=.false.         ,&
+               tswitch=.false.        ,&
+               symaddapt=.false.      ,&
+               vertical=.false.       ,&
+               verticalQspace=.false. ,&
+               gradcorrectS1=.false.  ,&  
+               gradcorrectS2=.true.   ,&
+               same_red2nonred_rotation=.true.
     character(len=4) :: def_internal='zmat'
     !======================
 
@@ -177,8 +178,9 @@ program internal_duschinski
     call parse_input(inpfile,ft,hessfile,fth,gradfile,ftg,&
                      inpfile2,ft2,hessfile2,fth2,gradfile2,ftg2,&
                      intfile,rmzfile,def_internal,use_symmetry, &
-!                    tswitch,symaddapt, &
-                     vertical,vertical_method2,only_state2,gradcorrect)
+!                    tswitch,
+                     symaddapt,same_red2nonred_rotation,&
+                     vertical,verticalQspace,gradcorrectS1,gradcorrectS2)
     call set_word_upper_case(def_internal)
 
     ! 1. INTERNAL VIBRATIONAL ANALYSIS ON STATE1 AND STATE2
@@ -274,21 +276,46 @@ program internal_duschinski
     ! INTERNAL COORDINATES
 
     !SOLVE GF METHOD TO GET NM AND FREQ
-    call internal_Wilson(state1,Nvib,S1,B,ModeDef)
-    call internal_Gmetric(Nat,Nvib,state1%atom(:)%mass,B,G1)
-    if (vertical.and..not.only_state2.and.gradcorrect) then
-        call NumBder(state1,Nvib,Bder)
+    call internal_Wilson(state1,Ns,S1,B,ModeDef)
+    call internal_Gmetric(Nat,Ns,state1%atom(:)%mass,B,G1)
+    if (gradcorrectS1) then
+        call NumBder(state1,Ns,Bder)
+    endif
+
+    ! SET REDUNDANT/SYMETRIZED/CUSTOM INTERNAL SETS
+!     if (symaddapt) then (implement in an analogous way as compared with the transformation from red to non-red
+    if (Ns > Nvib) then ! Redundant
+        call redundant2nonredundant(Ns,Nvib,G1,Asel1)
+        ! Rotate Bmatrix
+        B(1:Nvib,1:3*Nat) = matrix_product(Nvib,3*Nat,Ns,Asel1,B,tA=.true.)
+        ! Rotate Gmatrix
+        G1(1:Nvib,1:Nvib) = matrix_basisrot(Nvib,Ns,Asel1(1:Ns,1:Nvib),G1,counter=.true.)
+        ! Rotate Bders
+        if (gradcorrectS1) then
+            do j=1,3*Nat
+                Bder(1:Nvib,j,1:3*Nat) =  matrix_product(Nvib,3*Nat,Ns,Asel1,Bder(1:Ns,j,1:3*Nat),tA=.true.)
+            enddo
+        endif
+    endif
+
+
+    if (gradcorrectS1) then
         call HessianCart2int(Nat,Nvib,Hess,state1%atom(:)%mass,B,G1,Grad=Grad,Bder=Bder)
     else
         call HessianCart2int(Nat,Nvib,Hess,state1%atom(:)%mass,B,G1)
     endif
     call gf_method(Nvib,G1,Hess,L1,Freq1,X,X1inv)
     if (verbose>0) then
-        ! Analyze normal modes
-        if (use_symmetry) then
-            call analyze_internal(Nvib,L1,Freq1,ModeDef,S_sym)
+        ! Analyze normal modes in terms of the redundant set
+        if (Nvib<Ns) then
+            Aux(1:Ns,1:Nvib) = matrix_product(Ns,Nvib,Nvib,Asel1,L1)
         else
-            call analyze_internal(Nvib,L1,Freq1,ModeDef)
+            Aux(1:Ns,1:Nvib) = L1(1:Ns,1:Nvib)
+        endif
+        if (use_symmetry) then
+            call analyze_internal(Nvib,Ns,Aux,Freq1,ModeDef,S_sym)
+        else
+            call analyze_internal(Nvib,Ns,Aux,Freq1,ModeDef)
         endif
     endif
 
@@ -296,18 +323,6 @@ program internal_duschinski
     ! T1(g09) = mu^1/2 m B^t G1^-1 L1
     call Ls_to_Lcart(Nat,Nvib,state1%atom(:)%mass,B,G1,L1,Aux,error)
     call Lcart_to_LcartNrm(Nat,Nvib,Aux,Aux2,error)
-    !Checking normalization
-    if (verbose>0) then
-        print'(/,X,A)', "Checking normalization of Tcart (G09)"
-        do j=1,Nvib
-            theta=0.d0
-            do i=1,3*Nat
-                theta=theta+Aux2(i,j)**2
-            enddo
-            print'(F15.8)', theta
-        enddo
-        print*, ""
-    endif
     !Print state
     open(O_STAT,file="state_file_1")
     call set_geom_units(state1,"Angs")
@@ -429,39 +444,55 @@ program internal_duschinski
     ! INTERNAL COORDINATES
 
     !SOLVE GF METHOD TO GET NM AND FREQ
-    call internal_Wilson(state2,Nvib,S2,B,ModeDef)
-    call internal_Gmetric(Nat,Nvib,state2%atom(:)%mass,B,G2)
-    if (vertical.and.gradcorrect) then
-        call NumBder(state2,Nvib,Bder)
+    call internal_Wilson(state2,Ns,S2,B,ModeDef)
+    call internal_Gmetric(Nat,Ns,state2%atom(:)%mass,B,G2)
+    if (gradcorrectS2) then
+        call NumBder(state2,Ns,Bder)
+    endif
+    ! Handle redundant/symtrized sets
+!     if (symaddapt) then (implement in an analogous way as compared with the transformation from red to non-red
+    if (Ns > Nvib) then
+        if (same_red2nonred_rotation) then
+            ! Using Asel1 (from state1)
+            Asel2(1:Ns,1:Nvib) = Asel1(1:Ns,1:Nvib)
+        else
+            call redundant2nonredundant(Ns,Nvib,G2,Asel2)
+        endif
+        ! Rotate Bmatrix
+        B(1:Nvib,1:3*Nat) = matrix_product(Nvib,3*Nat,Ns,Asel1,B,tA=.true.)
+        ! Rotate Gmatrix
+        G2(1:Nvib,1:Nvib) = matrix_basisrot(Nvib,Ns,Asel1(1:Ns,1:Nvib),G2,counter=.true.)
+        ! Rotate Bders
+        if (gradcorrectS2) then
+            do j=1,3*Nat
+                Bder(1:Nvib,j,1:3*Nat) =  matrix_product(Nvib,3*Nat,Ns,Asel1,Bder(1:Ns,j,1:3*Nat),tA=.true.)
+            enddo
+        endif
+    endif
+
+    if (gradcorrectS2) then
         call HessianCart2int(Nat,Nvib,Hess,state2%atom(:)%mass,B,G2,Grad=Grad,Bder=Bder)
     else
         call HessianCart2int(Nat,Nvib,Hess,state2%atom(:)%mass,B,G2)
     endif
     call gf_method(Nvib,G2,Hess,L2,Freq2,X,X2inv)
     if (verbose>0) then
-        ! Analyze normal modes
-        if (use_symmetry) then
-            call analyze_internal(Nvib,L2,Freq2,ModeDef,S_sym)
+        ! Analyze normal modes in terms of the redundant set
+        if (Nvib<Ns) then
+            Aux(1:Ns,1:Nvib) = matrix_product(Ns,Nvib,Nvib,Asel2,L2)
         else
-            call analyze_internal(Nvib,L2,Freq2,ModeDef)
+            Aux(1:Ns,1:Nvib) = L2(1:Ns,1:Nvib)
+        endif
+        if (use_symmetry) then
+            call analyze_internal(Nvib,Ns,Aux,Freq2,ModeDef,S_sym)
+        else
+            call analyze_internal(Nvib,Ns,Aux,Freq2,ModeDef)
         endif
     endif
 
     ! Compute new state_file
     call Ls_to_Lcart(Nat,Nvib,state2%atom(:)%mass,B,G2,L2,Aux,error)
     call Lcart_to_LcartNrm(Nat,Nvib,Aux,Aux2,error)
-    !Checking normalization
-    if (verbose>0) then
-        print'(/,X,A)', "Checking normalization of Tcart (G09)"
-        do j=1,Nvib
-            theta=0.d0
-            do i=1,3*Nat
-                theta=theta+Aux2(i,j)**2
-            enddo
-            print'(F15.8)', theta
-        enddo
-        print*, ""
-    endif
     !Print state
     open(O_STAT,file="state_file_2")
     call set_geom_units(state2,"Angs")
@@ -553,8 +584,9 @@ program internal_duschinski
     ! COMPUTE DUSCHINSKY MATRIX AND DISPLACEMENT VECTOR 
     ! ===========================================
     !--------------------------
-    ! Orthogonal Duschinski
+    ! J-matrix (Duschinski)
     !--------------------------
+    ! Orthogonal Duschinski (from orthogonalized ICs. Not used in this version)
     ! Get orthogonal modes:  L' = G^-1/2 L
     Aux(1:Nvib,1:Nvib)  = matrix_product(Nvib,Nvib,Nvib,X1inv,L1)
     Aux2(1:Nvib,1:Nvib) = matrix_product(Nvib,Nvib,Nvib,X2inv,L2)
@@ -563,38 +595,38 @@ program internal_duschinski
     !Store L1' in Aux2 to later be used to get the displacement
     Aux2(1:Nvib,1:Nvib)=Aux(1:Nvib,1:Nvib)
 
-
-   !-- IF REDUNDANT
-    if (Ns > Nvib) then
-        if (verbose>0) &
-         print'(/,X,A,/)', "Working with redundant coordianates. Computing A matrices"
-        !----------------------------------------------------
-        ! Stop here for now
-        print*, " *** UNDER DEVELOPMENT *** "
-        call alert_msg("fatal","Internal analysis with redundant coordianates is not yet ready")
-        !----------------------------------------------------
-        !Prepare A matrix = A2^T * A1
-        Aux2(1:Ns,1:Ns) = matrix_product(Ns,Ns,Ns,Asel2,Asel1,tA=.true.)
-        !Compute inverse as A1^T * A2, eventually store in Asel1
-        Asel1(1:Ns,1:Ns) = matrix_product(Ns,Ns,Ns,Asel1,Asel2,tA=.true.)
-        if (verbose>0) then
-            Aux(1:Ns,1:Ns) = matrix_product(Ns,Ns,Ns,Asel1,Aux2)
-            call MAT0(6,Aux,Ns,Ns,"Asel test")
-        endif
-    endif
-   !-- ENDOF IF REDUNDANT
-
-    !--------------------------
-    ! Non-Orthogonal Duschinski
-    !--------------------------
+    ! Non-Orthogonal Duschinski (the one we use)
     if (verbose>0) &
      print*, "Calculating Duschisky..."
     !Inverse of L1 (and store in L1)
     L1(1:Nvib,1:Nvib) = inverse_realgen(Nvib,L1(1:Nvib,1:Nvib))
-    !J = L1^-1 L2 (stored in G1).
-    G1(1:Nvib,1:Nvib) = matrix_product(Nvib,Nvib,Nvib,L1,L2)
+    ! Account for different rotations to non-redundant set 
+    ! but preserve the inverse L1 matrix in L1
+    if (Nvib<Ns .and. .not.same_red2nonred_rotation) then
+        ! We need to include the fact that Asel1 /= Asel2, i.e.,
+        ! rotate to the same redundant space L(red) = Asel * L(non-red)
+        ! J = L1^-1 A1^t A2 L2
+        ! so store in Aux the following part: [L1^-1 A1^t A2]
+        Asel1(1:Nvib,1:Nvib) = matrix_product(Nvib,Nvib,Ns,Asel1,Asel2,tA=.true.)
+        Aux(1:Nvib,1:Nvib) = matrix_product(Nvib,Nvib,Nvib,L1,Asel1)
+    else
+        Aux(1:Nvib,1:Nvib) = L1(1:Nvib,1:Nvib)
+    endif
+    !J = L1^-1 [A1^t A2] L2 (stored in G1).
+    G1(1:Nvib,1:Nvib) = matrix_product(Nvib,Nvib,Nvib,Aux,L2)
 
-    if (vertical.and..not.vertical_method2) then
+
+    !--------------------------
+    ! ICs displacement
+    !--------------------------
+    if (verbose>0) then
+        print*, ""
+        print*, "=========================="
+        print*, " SHIFTS (internal coord)"
+        print*, "=========================="
+    endif
+    if (vertical) then
+        print*, "Vertical model"
         ! GET MINIMUM IN INTERNAL COORDINATES
         ! At this point
         !  * Hess has the Hessian  of State2 in internal coords (output from HessianCart2int)
@@ -608,72 +640,90 @@ program internal_duschinski
                 Delta(i) = Delta(i)-Aux(i,k) * Grad(k)
             enddo 
         enddo
-        if (verbose>2) then
-            k=0
-            print*, "DELTA BONDS"
-            do i=1,state1%geom%nbonds
-                k = k+1
-                print'(A,3X,2(F8.3,3X),G10.3)', trim(adjustl(ModeDef(k))), Delta(k), Delta(k)*BOHRtoANGS
+        if (Nvib<Ns) then
+            !Transform Delta' into Delta (for control purposes only)
+            ! Delta = A Delta'
+            do i=1,Ns
+                Vec1(i) = 0.d0
+                do k=1,Nvib
+                    Vec1(i) = Vec1(i) + Asel1(i,k)*Delta(k)
+                enddo
             enddo
-            print*, "DELTA ANGLES"
-            do i=1,state1%geom%nangles
-                k = k+1
-                print'(A,3X,2(F8.3,3X),G10.3)', trim(adjustl(ModeDef(k))), Delta(k), Delta(k)*180.d0/PI
-            enddo
-            print*, "DELTA DIHEDRALS"
-            do i=1,state1%geom%ndihed
-                k = k+1
-                print'(A,3X,2(F8.3,3X),G10.3)', trim(adjustl(ModeDef(k))), Delta(k), Delta(k)*180.d0/PI
-            enddo
+        else
+            Vec1(1:Nvib)=Delta(1:Nvib)
         endif
+
         ! Get coordinates
-        do i=1,Nvib
-            S2(i) = S1(i) + Delta(i)
+        do i=1,Ns
+            S2(i) = S1(i) + Vec1(i)
         enddo
-    endif
 
-
-    if (.not.vertical_method2) then
-        if (verbose>0) then
-            print*, ""
-            print*, "=========================="
-            print*, " SHIFTS (internal coord)"
-            print*, "=========================="
-        endif
-        if (verbose>0) &
-         print*, "Bonds"
+    else ! Adiabatic case
+        print*, "Adiabatic model"
+        ! Bonds
         do i=1,state1%geom%nbonds
             Delta(i) = S2(i)-S1(i)
-            if (verbose>0) &
-             print'(I5,3(F8.2,2X))', i, S2(i),S1(i), Delta(i)
         enddo
-        if (verbose>0) &
-         print*, "Angles"
+        ! Angles
         do j=i,i+state1%geom%nangles-1
             Delta(j) = S2(j)-S1(j)
-            if (verbose>0) &
-             print'(I5,3(F8.2,2X))', j, S2(j)*180.d0/PI,S1(j)*180.d0/PI,Delta(j)*180.d0/PI
         enddo
-        if (verbose>0) &
-         print*, "Dihedrals"
+        ! Dihedrals
         do k=j,j+state1%geom%ndihed-1
             Delta(k) = S2(k)-S1(k)
             Delta_p = S2(k)-S1(k)+2.d0*PI
             if (dabs(Delta_p) < dabs(Delta(k))) Delta(k)=Delta_p
             Delta_p = S2(k)-S1(k)-2.d0*PI
             if (dabs(Delta_p) < dabs(Delta(k))) Delta(k)=Delta_p
-            if (verbose>0) &
-             print'(I5,3(F8.2,2X))', k, S2(k)*180.d0/PI,S1(k)*180.d0/PI,Delta(k)*180.d0/PI
         enddo
 
-    else ! vertical with method2 
+        ! Store Deltas into the auxiliar vector Vec1
+        Vec1(1:Ns) = Delta(1:Ns)
+        if (Nvib<Ns) then
+            ! Need to transform Deltas into the non-redundant coordinates set
+            ! Delta' = A^t Delta
+            do i=1,Nvib
+                Vec2(i) = 0.d0
+                do k=1,Ns
+                    Vec2(i) = Vec2(i) + Asel1(k,i)*Delta(k)
+                enddo
+            enddo
+            Delta(1:Nvib) = Vec2(1:Nvib)
+        endif
+
+    endif
+
+    if (verbose>0) then
+        print*, "List of ICs and Deltas"
+        print*, "Bonds (Angs)"
+        print*, "  IC   Description      State2    State1     Delta"
+        do i=1,state1%geom%nbonds
+            print'(I5,X,A,X,3(F8.3,2X))', i,trim(ModeDef(i)),S2(i)*BOHRtoANGS,S1(i)*BOHRtoANGS,Vec1(i)*BOHRtoANGS
+        enddo
+        print*, "Angles (deg)"
+        print*, "  IC   Description                State2    State1     Delta"
+        do j=i,i+state1%geom%nangles-1
+            print'(I5,X,A,X,3(F8.2,2X))', j, trim(ModeDef(j)), S2(j)*180.d0/PI,S1(j)*180.d0/PI,Vec1(j)*180.d0/PI
+        enddo
+        print*, "Dihedrals (deg)"
+        print*, "  IC   Description                          State2    State1     Delta"
+        do k=j,j+state1%geom%ndihed-1
+            print'(I5,X,A,X,3(F8.2,2X))', k, trim(ModeDef(k)), S2(k)*180.d0/PI,S1(k)*180.d0/PI,Vec1(k)*180.d0/PI
+        enddo
+    endif
+
+    !--------------------------
+    ! K-vector (NM-shifts)
+    !--------------------------
+    if (verticalQspace) then 
+        ! Apply vertical model in the Qspace (get S2 equilibrium --Delta-- within the normal mode coordinate space)
+        ! 
         ! K = -J * Lambda_f^-1 * L2^t * gs
         ! Convert Freq into FC. Store in FC for future use
         do i=1,Nvib
             FC(i) = sign((Freq2(i)*2.d0*pi*clight*1.d2)**2/HARTtoJ*BOHRtoM**2*AUtoKG,Freq2(i))
             if (FC(i)<0) then
                 print*, i, FC(i)
-!                 FC(i) = -FC(i)
                 call alert_msg("warning","A negative FC found")
             endif
         enddo
@@ -695,69 +745,31 @@ program internal_duschinski
                 Vec1(i) = Vec1(i) + G1(i,k) * Q0(k)
             enddo
         enddo
-    endif
 
-!     print*, ""
-!     print*, "=========================="
-!     print*, " SHIFTS (orthogonal internal coord)"
-!     print*, "=========================="
-!     print*, "Setting orthogonal internal coordinates..."
-!     do i=1,Nvib
-!         Vec1(i) = 0.d0
-!         do j=1,Nvib
-!             Vec1(i) = Vec1(i) + X1inv(
-!         enddo
-!     enddo
-
-    if (symaddapt) then
-        if (vertical.or.vertical_method2) call alert_msg("fatal","Symmetry conflicts with vertical")
-        print*, ""
-        print*, "Using symmetry addapted coordinates"
-        print*, "                     Coord                          Displacement"
-        print*, "  ---------------------------------------------------------------"
-        do i=1,Nvib
-            if (S_sym(i) <= i) cycle
-            j=S_sym(i)
-            Vec1(1) = Delta(i)+Delta(j)
-            Vec1(2) = Delta(i)-Delta(j)
-            Delta(i) = Vec1(1)
-            Delta(j) = Vec1(2)
-        enddo
-        do i=1,Nvib
-            print'(X,A45,3X,F12.5)', trim(adjustl(ModeDef(i))), Delta(i)
-        enddo
-        print*, "  ---------------------------------------------------------------"
-
-    elseif (Ns /= Nvib) then
-        if (vertical.or.vertical_method2) call alert_msg("fatal","Reduced/Augmented spaces conflict with vertical")
-        do i=1,Ns
-            Vec1(i) = 0.d0
-            do k=1,Ns
-                Vec1(i) = Vec1(i) + Asel1(i,k)*Delta(k)
-            enddo
-        enddo
-        Delta(1:Nvib) = Vec1(1:Nvib)
-    endif
-
-
-    if (.not.vertical_method2) then
-        ! K = L1^-1 DeltaS (this is State 1 respect to state 2) . L1 already stores the inverse!
+    else
+        ! K = L1^-1 DeltaS (this is State 1 respect to state 2) . 
+        ! Notes
+        !   * L1 already stores the inverse
+        !   * Delta in non-redundant IC set
         do i=1,Nvib
             Vec1(i) = 0.d0
             do k=1,Nvib
                 Vec1(i) = Vec1(i) + L1(i,k)*Delta(k)
             enddo
         enddo
-        !Orthogonal: K=L1'^t DeltaS'
-        do i=1,Nvib
-            Vec2(i) = 0.d0
-            do k=1,Nvib
-                Vec2(i) = Vec1(i) + Aux2(k,i)*Delta(k)
-            enddo
-        enddo
+!         !Orthogonal: K=L1'^t DeltaS'
+!         do i=1,Nvib
+!             Vec2(i) = 0.d0
+!             do k=1,Nvib
+!                 Vec2(i) = Vec1(i) + Aux2(k,i)*Delta(k)
+!             enddo
+!         enddo
     endif
-    if (verbose>1) &
+
+    if (verbose>2) then
      call MAT0(6,G1,Nvib,Nvib,"DUSCHINSKI MATRIX")
+     call print_vector(6,Vec1,Nvib,"NORMAL MODE SHIFT")
+    endif
 
     !Analyze Duschinsky matrix
     call analyze_duschinsky(6,Nvib,G1,Vec1,Freq1,Freq2)
@@ -766,7 +778,9 @@ program internal_duschinski
     !===================================
     ! Reorganization energy
     !===================================
-    if (vertical_method2) then
+    print'(/,X,A)', "REORGANIZAION ENERGY"
+    if (verticalQspace) then
+        print*, "Vertical model / Qspace"
         ! Normal-mode space
         ! Er = -L2^t gs * Q0 - 1/2 * Q0^t * Lambda_f * Q0
         ! At this point: 
@@ -782,10 +796,11 @@ program internal_duschinski
             enddo
             Er = Er - Theta * Q0(i) - 0.5d0 * FC(i) * Q0(i)**2
         enddo
-    else
+    elseif (vertical) then
+        print*, "Vertical model / IC space"
         ! Internal-coordinates space
         ! Er = -gs * DeltaS - 1/2 DeltaS^t * Hs * DeltaS
-        ! At this point: 
+        ! At this point (all data in the non-redundant IC space)
         ! * Grad: in internal coords
         ! * Delta: DeltaS 
         ! * Hess: Hessian in internal coords
@@ -801,6 +816,22 @@ program internal_duschinski
         do i=1,Nvib
             Er = Er - Grad(i)*Delta(i)
         enddo
+    else ! Adiabatic
+        print*, "Adiabatic model / IC space"
+        ! Er = 1/2 DeltaS^t * Hs * DeltaS
+        ! At this point (all data in the non-redundant IC space)
+        ! * Grad: in internal coords
+        ! * Delta: DeltaS 
+        ! * Hess: Hessian in internal coords
+        !
+        ! Fisrt, compute DeltaS^t * Hs * DeltaS
+        Theta=0.d0
+        do j=1,Nvib
+        do k=1,Nvib
+            Theta = Theta + Delta(j)*Delta(k)*Hess(j,k)
+        enddo
+        enddo
+        Er = Theta*0.5d0
     endif
     print'(X,A,F12.6)',   "Reorganization energy (AU) = ", Er
     print'(X,A,F12.6,/)', "Reorganization energy (eV) = ", Er*HtoeV
@@ -809,23 +840,24 @@ program internal_duschinski
     !============================================
     ! PRINT DUSCHINSKI AND DISPLACEMENT TO FILES
     !============================================
-    !Prints Duschisky matrix and displacements to files
+    print*, "Printing Duschinski matrix to 'duschinsky.dat'"
     open(O_DUS, file="duschinsky.dat")
-    open(O_DUS2,file="duschinsky_orth.dat")
+!     open(O_DUS2,file="duschinsky_orth.dat")
+    print'(X,A,/)', "Printing Shift vector to 'displacement.dat'"
     open(O_DIS, file="displacement.dat")
-    open(O_DIS2,file="displacement_orth.dat")
+!     open(O_DIS2,file="displacement_orth.dat")
     do i=1,Nvib
     do j=1,Nvib
         write(O_DUS,*)  G1(i,j)
-        write(O_DUS2,*) G2(i,j)
+!         write(O_DUS2,*) G2(i,j)
     enddo 
         write(O_DIS,*)  Vec1(i)
-        write(O_DIS2,*) Vec2(i)
+!         write(O_DIS2,*) Vec2(i)
     enddo
     close(O_DUS)
-    close(O_DUS2)
+!     close(O_DUS2)
     close(O_DIS)
-    close(O_DIS2)
+!     close(O_DIS2)
 
     call summary_alerts
 
@@ -841,8 +873,9 @@ program internal_duschinski
     subroutine parse_input(inpfile,ft,hessfile,fth,gradfile,ftg,&
                            inpfile2,ft2,hessfile2,fth2,gradfile2,ftg2,&
                            intfile,rmzfile,def_internal,use_symmetry, &
-!                          tswitch,symaddapt, & symfile
-                           vertical,vertical_method2,only_state2,gradcorrect)
+!                          tswitch,
+                           symaddapt,same_red2nonred_rotation,&
+                           vertical,verticalQspace,gradcorrectS1,gradcorrectS2)
     !==================================================
     ! My input parser (gromacs style)
     !==================================================
@@ -851,9 +884,10 @@ program internal_duschinski
         character(len=*),intent(inout) :: inpfile,ft,hessfile,fth,gradfile,ftg,&
                                           inpfile2,ft2,hessfile2,fth2,gradfile2,ftg2,&
                                           intfile,rmzfile,def_internal !, symfile
-        logical,intent(inout)          :: use_symmetry, vertical, vertical_method2, &
-                                          only_state2, gradcorrect
-!         logical,intent(inout) :: tswitch, symaddapt
+        logical,intent(inout)          :: use_symmetry, vertical, verticalQspace, &
+                                          gradcorrectS1, gradcorrectS2, symaddapt, &
+                                          same_red2nonred_rotation
+!         logical,intent(inout) :: tswitch
 
         ! Local
         logical :: argument_retrieved,  &
@@ -936,30 +970,37 @@ program internal_duschinski
                 case ("-nosym")
                     use_symmetry=.false.
 
-                case ("-vert2")
+                case ("-symaddapt")
+                    symaddapt=.true.
+
+                case("-samerot")
+                    same_red2nonred_rotation=.true.
+                case("-nosamerot")
+                    same_red2nonred_rotation=.false.
+
+                case ("-vertQ")
                     vertical=.true.
-                    vertical_method2=.true.
+                    verticalQspace=.true.
                 case ("-vert")
                     vertical=.true.
-                    vertical_method2=.false.
+                    verticalQspace=.false.
                 case ("-novert")
                     vertical=.false.
-                    vertical_method2=.false.
-
-                case ("-onlys2")
-                    only_state2=.true.
-                case ("-noonlys2")
-                    only_state2=.false.
+                    verticalQspace=.false.
         
                 case ("-h")
                     need_help=.true.
 
-                !HIDDEN
-
                 case ("-correct")
-                    gradcorrect=.true.
+                    gradcorrectS2=.true.
                 case ("-nocorrect")
-                    gradcorrect=.false.
+                    gradcorrectS2=.false.
+                case ("-corrS1")
+                    gradcorrectS1=.true.
+                case ("-nocorrS1")
+                    gradcorrectS1=.false.
+
+                !HIDDEN
 
                 ! Control verbosity
                 case ("-quiet")
@@ -996,33 +1037,44 @@ program internal_duschinski
        endif
 
        !Print options (to stderr)
-        write(6,'(/,A)') '--------------------------------------------------'
+        write(6,'(/,A)') '========================================================'
         write(6,'(/,A)') '        I N T E R N A L   A N A L Y S I S '    
         write(6,'(/,A)') '      Perform vibrational analysis based on  '
-        write(6,'(/,A)') '            internal coordinates (D-V9.1)'        
-        write(6,'(/,A)') '--------------------------------------------------'
-        write(6,*) '-f              ', trim(adjustl(inpfile))
-        write(6,*) '-ft             ', trim(adjustl(ft))
-        write(6,*) '-fhess          ', trim(adjustl(hessfile))
-        write(6,*) '-fth            ', trim(adjustl(fth))
-        write(6,*) '-fgrad          ', trim(adjustl(gradfile))
-        write(6,*) '-ftg            ', trim(adjustl(ftg))
-        write(6,*) '-f2             ', trim(adjustl(inpfile2))
-        write(6,*) '-ft2            ', trim(adjustl(ft2))
-        write(6,*) '-fhess2         ', trim(adjustl(hessfile2))
-        write(6,*) '-fth2           ', trim(adjustl(fth2))
-        write(6,*) '-fgrad2         ', trim(adjustl(gradfile2))
-        write(6,*) '-ftg2           ', trim(adjustl(ftg2))
-        write(6,*) '-intmode        ', trim(adjustl(def_internal))
-        write(6,*) '-intfile        ', trim(adjustl(intfile))
-        write(6,*) '-rmzfile        ', trim(adjustl(rmzfile))
-        write(6,*) '-[no]sym       ',  use_symmetry
-        write(6,*) '-[no]vert      ',  vertical
-        write(6,*) '-[no]correct   ',  gradcorrect
-        write(6,*) '-vert2         ',  vertical_method2
-        write(6,*) '-[no]onlys2    ',  only_state2
-        write(6,*) '-h             ',  need_help
-        write(6,*) '--------------------------------------------------'
+        write(6,'(A)')   '               internal coordinates '        
+        call print_version()
+        write(6,'(/,A)') '========================================================'
+        write(6,'(/,A)') '-------------------------------------------------------------------'
+        write(6,'(A)')   ' Flag         Description                   Value'
+        write(6,'(A)')   '-------------------------------------------------------------------'
+        write(6,*) '-f           Input file (State1)           ', trim(adjustl(inpfile))
+        write(6,*) '-ft          \_ FileType                   ', trim(adjustl(ft))
+        write(6,*) '-fhess       Hessian(S1) file              ', trim(adjustl(hessfile))
+        write(6,*) '-fth         \_ FileType                   ', trim(adjustl(fth))
+        write(6,*) '-fgrad       Gradient(S1) file             ', trim(adjustl(gradfile))
+        write(6,*) '-ftg         \_ FileType                   ', trim(adjustl(ftg))
+        write(6,*) '-f2          Input file (State2)           ', trim(adjustl(inpfile2))
+        write(6,*) '-ft2         \_ FileType                   ', trim(adjustl(ft2))
+        write(6,*) '-fhess2      Hessian(S2) file              ', trim(adjustl(hessfile2))
+        write(6,*) '-fth2        \_ FileType                   ', trim(adjustl(fth2))
+        write(6,*) '-fgrad2      Gradient(S2) file             ', trim(adjustl(gradfile2))
+        write(6,*) '-ftg2        \_ FileType                   ', trim(adjustl(ftg2))
+        write(6,*) '               '                       
+        write(6,*) ' ** Options Internal Coordinates **           '
+        write(6,*) '-intmode     Internal set:[zmat|sel|all]   ', trim(adjustl(def_internal))
+        write(6,*) '-intfile     File with ICs (for "sel")     ', trim(adjustl(intfile))
+        write(6,*) '-rmzfile     File deleting ICs from Zmat   ', trim(adjustl(rmzfile))
+        write(6,*) '-[no]sym     Use symmetry to form Zmat    ',  use_symmetry
+        write(6,*) '-[no]samerot Use S1 red->non-red rotation ',  same_red2nonred_rotation
+        write(6,*) '             for S2'
+        write(6,*) '               '
+        write(6,*) ' ** Options Vertical Model **'
+        write(6,*) '-[no]vert    Vertical model               ',  vertical
+        write(6,*) '-[no]correct Use correction (gradient)    ',  gradcorrectS2
+        write(6,*) '-[no]vertQ   Vertical in normal-mode space',  verticalQspace
+        write(6,*) '-[no]corrS1  Apply correction also on S1  ',  gradcorrectS1
+        write(6,*) '               '
+        write(6,*) '-h           Display this help            ',  need_help
+        write(6,'(/,A)') '-------------------------------------------------------------------'
         if (need_help) call alert_msg("fatal", 'There is no manual (for the moment)' )
 
         return

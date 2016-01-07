@@ -1754,7 +1754,7 @@ module internal_module
     end subroutine gf_method
 
 
-    subroutine analyze_internal(Nvib,L,Freq,ICDef,Ssym)
+    subroutine analyze_internal(Nvib,Ns,L,Freq,ICDef,Ssym)
 
         !==============================================================
         ! This code is part of MOLECULAR_TOOLS 
@@ -1779,7 +1779,7 @@ module internal_module
         !====================== 
         !ARGUMENTS
         !Input
-        integer,intent(in)                            :: Nvib
+        integer,intent(in)                            :: Nvib, Ns
         real(8),dimension(NDIM,NDIM),intent(in)       :: L       !Normal modes
         real(8),dimension(NDIM),intent(in)            :: Freq    !Frequencies
         character(len=100),dimension(NDIM),intent(in) :: ICDef   !Definition of ICs
@@ -1807,10 +1807,10 @@ module internal_module
         print*, "L MATRIX (LARGER ELEMENTS) - by columns"
         do i=1,Nvib
             !Copy the row, normalize and reorder 
-            Aux3(1,1:Nvib) = abs(L(1:Nvib,i))
+            Aux3(1,1:Ns) = abs(L(1:Ns,i))
             Theta  = 0.d0
             Theta2 = 0.d0
-            do ii=1,Nvib
+            do ii=1,Ns
                 !Displacement-weighted elements
                 if (ii <= Nat-1) then
                     Aux(1,ii) = Aux3(1,ii)
@@ -1821,18 +1821,22 @@ module internal_module
                 endif 
                 !Standard contribution calc
                 Theta = Theta + Aux3(1,ii)!**2
-                !Displacement-weighted calc
-                Theta2 = Theta2 + Aux(1,ii)
+                !Displacement-weighted calc (only valid for Zmat)
+                if (Nvib==Ns) &
+                 Theta2 = Theta2 + Aux(1,ii)
             enddo
-            Aux3(1,1:Nvib) = Aux3(1,1:Nvib)/Theta
-            Aux(1,1:Nvib)  = Aux(1,1:Nvib)/Theta2
-    !         Aux3(1,1:Nvib) = Aux3(1,1:Nvib)/dsqrt(Theta)
-            call sort_vec_max(Aux3(1,1:Nvib),ipiv(1:Nvib),Nvib)
-            call sort_vec_max(Aux(1,1:Nvib),ipiv2(1:Nvib),Nvib)
-    
+            Aux3(1,1:Ns) = Aux3(1,1:Ns)/Theta
+            call sort_vec_max(Aux3(1,1:Ns),ipiv(1:Ns),Ns)
+            if (Nvib==Ns) then
+                Aux(1,1:Ns)  = Aux(1,1:Ns)/Theta2
+                call sort_vec_max(Aux(1,1:Ns),ipiv2(1:Ns),Ns)
+            else
+                Aux(1,1:Ns) = 0.d0
+            endif
+            !
             if (present(Ssym)) then
                 !Determine symmetry
-                do j=1,Nvib
+                do j=1,Ns
                     jj=ipiv(j)
                     if (Ssym(jj) == jj) cycle
                     ii = Ssym(jj)
@@ -1856,7 +1860,7 @@ module internal_module
             print*, " ======================================================================="
             Theta = 0.d0
             kk=0
-            do j=1,Nvib
+            do j=1,Ns
                 if (Theta > 0.9d0) exit
                 jj = ipiv(j)
                 Theta = Theta + Aux3(1,j)!**2
@@ -1866,19 +1870,19 @@ module internal_module
             print*, " ========================================================================"
             write(6,'(A,I3)') "     Total Number of internal to describe >90% of the mode: ", kk
         enddo
-    
-    
-        !The former trasformation related S in terms of Q's. To obtain the inverse relation:
-        !Inverse of L 
-        Aux(1:Nvib,1:Nvib)=inverse_realgen(Nvib,L)
-        ! Check inversion
-        Aux3(1:Nvib,1:Nvib) = matrix_product(Nvib,Nvib,Nvib,Aux,L)
-        if (verbose>2) & 
-            call MAT0(6,Aux3,Nvib,Nvib,"L L^-1")
 
         ! Only give analysis by rows if verbosity level >= 1
         if (verbose<=2) return
     
+        if (Nvib /= Ns) then
+            call alert_msg("warning","Analysis by rows not implemented for redundant sets")
+            return
+        endif
+
+        !The former trasformation related S in terms of Q's. To obtain the inverse relation:
+        !Inverse of L (needs Asel for redundant sets (TBD))
+        Aux(1:Ns,1:Nvib)=inverse_realgen(Nvib,L)
+
         print*, ""
         print*, "L^-1 MATRIX (LARGER ELEMENTS) -by rows"
         do i=1,Nvib

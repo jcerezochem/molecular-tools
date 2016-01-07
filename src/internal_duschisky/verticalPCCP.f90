@@ -229,9 +229,9 @@ program vertical2adiabatic
     if (verbose>1) then
         ! Analyze normal modes
         if (use_symmetry) then
-            call analyze_internal(Nvib,L1int,Freq,ModeDef,S_sym)
+            call analyze_internal(Nvib,Ns,L1int,Freq,ModeDef,S_sym)
         else
-            call analyze_internal(Nvib,L1int,Freq,ModeDef)
+            call analyze_internal(Nvib,Ns,L1int,Freq,ModeDef)
         endif
     endif
     !***************************************************************

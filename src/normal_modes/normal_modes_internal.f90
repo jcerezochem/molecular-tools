@@ -390,9 +390,6 @@ program normal_modes_animation
                         Bder(1:Nvib,j,1:3*Nat) =  matrix_product(Nvib,3*Nat,Ns,Asel,Bder(1:Ns,j,1:3*Nat),tA=.true.)
                     enddo
                 endif
-                ! For the moment, the "movies" are not available
-!                 Nsel=0
-!                 call alert_msg("warning","Ns>Nvib: Non-redundant coordinate set needs mapping (still on dev)")
             endif
 
             if (vertical) then
@@ -409,9 +406,9 @@ program normal_modes_animation
             call gf_method(Nvib,G,Hess,LL,Freq,X,Xinv)
             if (verbose>1) then
                 if (use_symmetry) then
-                    call analyze_internal(Nvib,LL,Freq,ModeDef)
+                    call analyze_internal(Nvib,Ns,LL,Freq,ModeDef)
                 else
-                    call analyze_internal(Nvib,LL,Freq,ModeDef,S_sym)
+                    call analyze_internal(Nvib,Ns,LL,Freq,ModeDef,S_sym)
                 endif
             endif
         else

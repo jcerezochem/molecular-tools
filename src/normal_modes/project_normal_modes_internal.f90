@@ -250,9 +250,9 @@ program projection_normal_modes_int
     if (verbose>0) then
         ! Analyze normal modes
         if (use_symmetry) then
-            call analyze_internal(Nvib,LL,Freq,ModeDef,S_sym)
+            call analyze_internal(Nvib,Ns,LL,Freq,ModeDef,S_sym)
         else
-            call analyze_internal(Nvib,LL,Freq,ModeDef)
+            call analyze_internal(Nvib,Ns,LL,Freq,ModeDef)
         endif
     endif
     !Define the Factor to convert shift into addimensional displacements
