@@ -66,7 +66,8 @@ program internal_duschinski
                tswitch=.false.        ,&
                symaddapt=.false.      ,&
                vertical=.false.       ,&
-               verticalQspace=.false. ,&
+               verticalQspace2=.false. ,&
+               verticalQspace1=.false. ,&
                gradcorrectS1=.false.  ,&  
                gradcorrectS2=.true.   ,&
                same_red2nonred_rotation=.true., &
@@ -94,7 +95,7 @@ program internal_duschinski
     real(8),dimension(1:NDIM,1:NDIM) :: Hess, X, X1inv,X2inv, L1,L2, Asel1,Asel2
     real(8),dimension(1:NDIM,1:NDIM,1:NDIM) :: Bder
     !Duschisky
-    real(8),dimension(NDIM,NDIM) :: G1, G2
+    real(8),dimension(NDIM,NDIM) :: G1, G2, Jdus
     !T0 - switching effects
     real(8),dimension(3,3) :: T
     !AUXILIAR MATRICES
@@ -181,7 +182,8 @@ program internal_duschinski
                      intfile,rmzfile,def_internal,use_symmetry, &
 !                    tswitch,
                      symaddapt,same_red2nonred_rotation,analytic_Bder,&
-                     vertical,verticalQspace,gradcorrectS1,gradcorrectS2)
+                     vertical,verticalQspace2,verticalQspace1,&
+                     gradcorrectS1,gradcorrectS2)
     call set_word_upper_case(def_internal)
 
     ! 1. INTERNAL VIBRATIONAL ANALYSIS ON STATE1 AND STATE2
@@ -320,6 +322,7 @@ program internal_duschinski
             call analyze_internal(Nvib,Ns,Aux,Freq1,ModeDef)
         endif
     endif
+Hess(1:Nvib,1:Nvib) = Hess(1:Nvib,1:Nvib)
 
     ! Compute new state_file
     ! T1(g09) = mu^1/2 m B^t G1^-1 L1
@@ -617,8 +620,8 @@ program internal_duschinski
     else
         Aux(1:Nvib,1:Nvib) = L1(1:Nvib,1:Nvib)
     endif
-    !J = L1^-1 [A1^t A2] L2 (stored in G1).
-    G1(1:Nvib,1:Nvib) = matrix_product(Nvib,Nvib,Nvib,Aux,L2)
+    !J = L1^-1 [A1^t A2] L2 (stored in J).
+    Jdus(1:Nvib,1:Nvib) = matrix_product(Nvib,Nvib,Nvib,Aux,L2)
 
 
     !--------------------------
@@ -737,7 +740,7 @@ program internal_duschinski
     !--------------------------
     ! K-vector (NM-shifts)
     !--------------------------
-    if (verticalQspace) then 
+    if (verticalQspace2) then 
         ! Apply vertical model in the Qspace (get S2 equilibrium --Delta-- within the normal mode coordinate space)
         ! 
         ! K = -J * Lambda_f^-1 * L2^t * gs
@@ -764,7 +767,54 @@ program internal_duschinski
         do i=1,Nvib
             Vec1(i)=0.d0
             do k=1,Nvib
-                Vec1(i) = Vec1(i) + G1(i,k) * Q0(k)
+                Vec1(i) = Vec1(i) + Jdus(i,k) * Q0(k)
+            enddo
+        enddo
+
+    elseif (verticalQspace1) then 
+        ! Use the same strategy as in the Cartesian case: 1) normal modes at State1; 2) Rotate normal modes
+        ! At this point
+        !  * Hess has the Hessian  of State2 in internal coords (output from HessianCart2int)
+        !  * Grad has the gradient of State2 in internal coords (output from HessianCart2int)
+        !
+        ! Rotate to Q1-space (IC)
+        !
+        ! HESIAN
+        !  H_Q' = L^t Hs L (also H_Q' = L^-1 G Hs L)
+        ! Note:
+        !  * L1 contains the inverse => Aux2 contains the normal L1
+        Aux2(1:Nvib,1:Nvib) = inverse_realgen(Nvib,L1)
+        Hess(1:Nvib,1:Nvib) = matrix_basisrot(Nvib,Nvib,Aux2,Hess,counter=.true.)
+        !
+        ! GRADIENT
+        !  g_Q' = L^t gs
+        do i=1,Nvib
+            Vec1(i) = 0.d0
+            do k=1,Nvib
+                Vec1(i) = Vec1(i) + Aux2(k,i) * Grad(k)
+            enddo
+        enddo
+        Grad(1:Nvib) = Vec1
+
+        ! Diagonalize Hessian in Q1-space to get State2 FC and Duschinski rotation
+        call diagonalize_full(Hess(1:Nvib,1:Nvib),Nvib,Jdus(1:Nvib,1:Nvib),FC(1:Nvib),"lapack")
+        Freq2(1:Nvib) = FC2Freq(Nvib,FC)
+        call print_vector(6,Freq2,Nvib,"Frequencies (cm-1) -- from Q1-space")
+
+        ! Get shift vector (also compute Qo'')
+        ! First compute Qo''
+        ! Q0 = - FC^-1 * J^t * gQ
+        do i=1,Nvib
+            Q0(i) = 0.d0
+            do k=1,Nvib
+                Q0(i) = Q0(i) - Jdus(k,i) * Grad(k) / FC(i)
+            enddo
+        enddo
+        ! K = J^t * Q0
+        do i=1,Nvib
+            Vec1(i) = 0.d0
+            do k=1,Nvib
+                Vec1(i) = Vec1(i) - Jdus(i,k) * Q0(k)
             enddo
         enddo
 
@@ -789,20 +839,20 @@ program internal_duschinski
     endif
 
     if (verbose>2) then
-     call MAT0(6,G1,Nvib,Nvib,"DUSCHINSKI MATRIX")
-     call print_vector(6,Vec1,Nvib,"NORMAL MODE SHIFT")
+        call MAT0(6,Jdus,Nvib,Nvib,"DUSCHINSKI MATRIX")
+        call print_vector(6,Vec1,Nvib,"NORMAL MODE SHIFT")
     endif
 
     !Analyze Duschinsky matrix
-    call analyze_duschinsky(6,Nvib,G1,Vec1,Freq1,Freq2)
+    call analyze_duschinsky(6,Nvib,Jdus,Vec1,Freq1,Freq2)
 
 
     !===================================
     ! Reorganization energy
     !===================================
     print'(/,X,A)', "REORGANIZATION ENERGY"
-    if (verticalQspace) then
-        print*, "Vertical model / Qspace"
+    if (verticalQspace2) then
+        print*, "Vertical model / Q2space"
         ! Normal-mode space
         ! Er = -L2^t gs * Q0 - 1/2 * Q0^t * Lambda_f * Q0
         ! At this point: 
@@ -815,6 +865,24 @@ program internal_duschinski
             Theta = 0.d0
             do j=1,Nvib
                 Theta =  Theta + L2(j,i)*Grad(j)
+            enddo
+            Er = Er - Theta * Q0(i) - 0.5d0 * FC(i) * Q0(i)**2
+        enddo
+    elseif (verticalQspace1) then
+        print*, "Vertical model / Q1space"
+        ! Normal-mode space
+        ! Er = -L2^t gs * Q0 - 1/2 * Q0^t * Lambda_f * Q0
+        ! At this point: 
+        ! * Grad: in Q1-space
+        ! * Q0: DeltaQ in final state nm
+        ! * FC: diagonal force constants for final state
+        Er = 0.d0
+        do i=1,Nvib
+            ! Get gradient in state2 Qspace
+            ! gQ2 = J^t * gQ1
+            Theta=0.d0
+            do k=1,Nvib
+                Theta = Theta + Jdus(k,i) * Grad(k)
             enddo
             Er = Er - Theta * Q0(i) - 0.5d0 * FC(i) * Q0(i)**2
         enddo
@@ -870,7 +938,7 @@ program internal_duschinski
 !     open(O_DIS2,file="displacement_orth.dat")
     do i=1,Nvib
     do j=1,Nvib
-        write(O_DUS,*)  G1(i,j)
+        write(O_DUS,*)  Jdus(i,j)
 !         write(O_DUS2,*) G2(i,j)
     enddo 
         write(O_DIS,*)  Vec1(i)
@@ -897,7 +965,8 @@ program internal_duschinski
                            intfile,rmzfile,def_internal,use_symmetry, &
 !                          tswitch,
                            symaddapt,same_red2nonred_rotation,analytic_Bder,&
-                           vertical,verticalQspace,gradcorrectS1,gradcorrectS2)
+                           vertical,verticalQspace2,verticalQspace1,&
+                           gradcorrectS1,gradcorrectS2)
     !==================================================
     ! My input parser (gromacs style)
     !==================================================
@@ -906,7 +975,8 @@ program internal_duschinski
         character(len=*),intent(inout) :: inpfile,ft,hessfile,fth,gradfile,ftg,&
                                           inpfile2,ft2,hessfile2,fth2,gradfile2,ftg2,&
                                           intfile,rmzfile,def_internal !, symfile
-        logical,intent(inout)          :: use_symmetry, vertical, verticalQspace, &
+        logical,intent(inout)          :: use_symmetry, vertical, verticalQspace2, &
+                                          verticalQspace1, &
                                           gradcorrectS1, gradcorrectS2, symaddapt, &
                                           same_red2nonred_rotation,analytic_Bder
 !         logical,intent(inout) :: tswitch
@@ -1000,15 +1070,20 @@ program internal_duschinski
                 case("-nosamerot")
                     same_red2nonred_rotation=.false.
 
-                case ("-vertQ")
+                case ("-vertQ1")
                     vertical=.true.
-                    verticalQspace=.true.
+                    verticalQspace2=.false.
+                    verticalQspace1=.true.
+                case ("-vertQ2")
+                    vertical=.true.
+                    verticalQspace2=.true.
+                    verticalQspace1=.false.
                 case ("-vert")
                     vertical=.true.
-                    verticalQspace=.false.
+                    verticalQspace2=.false.
                 case ("-novert")
                     vertical=.false.
-                    verticalQspace=.false.
+                    verticalQspace2=.false.
         
                 case ("-h")
                     need_help=.true.
@@ -1097,7 +1172,8 @@ program internal_duschinski
         write(6,*) ' ** Options Vertical Model **'
         write(6,*) '-[no]vert    Vertical model               ',  vertical
         write(6,*) '-[no]correct Use correction (gradient)    ',  gradcorrectS2
-        write(6,*) '-[no]vertQ   Vertical in normal-mode space',  verticalQspace
+        write(6,*) '-[no]vertQ2  Vertical in normal-mode space',  verticalQspace2
+        write(6,*) '-[no]vertQ1  Vertical in normal-mode space',  verticalQspace1
         write(6,*) '-[no]corrS1  Apply correction also on S1  ',  gradcorrectS1
         write(6,*) '               '
         write(6,*) '-h           Display this help            ',  need_help

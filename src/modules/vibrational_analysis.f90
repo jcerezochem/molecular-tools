@@ -123,6 +123,7 @@ module vibrational_analysis
             
             !Diagonalize to get the rotation to the principal axes
             call diagonalize_full(MI(1:3,1:3),3,Xrot(1:3,1:3),Freq(1:3),"lapack")
+            ! MI = Xrot^t * Freq * Xrot
             !Note we need to transpose to follow G09 white paper
             Xrot=transpose(Xrot)
             
@@ -578,6 +579,52 @@ module vibrational_analysis
         return
 
     end subroutine mu_from_Lcart
+
+    function FC2Freq(Nvib,FC) result(Freq)
+
+        integer,intent(in) :: Nvib
+        real(8),dimension(:),intent(in) :: FC
+        real(8),dimension(Nvib) :: Freq
+
+        !Local
+        integer :: i
+
+        !Transform FC to Freq
+        do i=1,Nvib
+            Freq(i) = sign(dsqrt(abs(FC(i))*HARTtoJ/BOHRtoM**2/AUtoKG)/2.d0/pi/clight/1.d2,&
+                                 FC(i))
+!             if (FC(i)<0) then
+!                 print*, i, FC(i)
+!                 call alert_msg("warning","A negative FC found")
+!             endif
+        enddo
+
+        return
+
+    end function FC2Freq
+
+
+    function Freq2FC(Nvib,Freq) result(FC)
+
+        integer,intent(in) :: Nvib
+        real(8),dimension(:),intent(in) :: Freq
+        real(8),dimension(Nvib) :: FC
+
+        !Local
+        integer :: i
+
+        !Transform FC to Freq
+        do i=1,Nvib
+            FC(i) = sign((Freq(i)*2.d0*pi*clight*1.d2)**2/HARTtoJ*BOHRtoM**2*AUtoKG,Freq(i))
+!             if (FC(i)<0) then
+!                 print*, i, FC(i)
+!                 call alert_msg("warning","A negative FC found")
+!             endif
+        enddo
+
+        return
+
+    end function Freq2FC
 
 
     subroutine analyze_duschinsky(unt,Nvib,G,K,Freq1,Freq2)

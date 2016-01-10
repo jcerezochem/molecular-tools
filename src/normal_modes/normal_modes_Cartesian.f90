@@ -395,7 +395,7 @@ program normal_modes_cartesian
             molecule%atom(1:Nat)%x = X0(1:Nat)
             molecule%atom(1:Nat)%y = Y0(1:Nat)
             molecule%atom(1:Nat)%z = Z0(1:Nat)
-            call displace_Xcoord(LL(1:3*Nat,j),molecule%natoms,-Qstep/Factor(j)*BOHRtoANGS*i,&
+            call displace_Xcoord(LL(1:3*Nat,j),molecule%natoms,Qstep/Factor(j)*BOHRtoANGS*i,&
                                  molecule%atom(:)%x,molecule%atom(:)%y,molecule%atom(:)%z)
             ! PRINT
             ! Write G96/GRO every step and G09 scan every 10 steps

@@ -66,6 +66,7 @@ program vertical2adiabatic
     !Other arrays
     real(8),dimension(1:NDIM) :: Grad, FC, Q0
     real(8),dimension(1:NDIM,1:NDIM) :: Hess, X1,X1inv,X2,X2inv, L1,L2, Asel1, Asel2, Asel
+    real(8),dimension(3,3) :: IM, Xr
     real(8),dimension(1:NDIM,1:NDIM,1:NDIM) :: Bder
     !Duschisky
     real(8),dimension(NDIM,NDIM) :: G
@@ -84,10 +85,9 @@ program vertical2adiabatic
     !====================== 
 
     !====================== 
-    !Read fchk auxiliars
-    real(8),dimension(:),allocatable :: A
-    integer,dimension(:),allocatable :: IA
-    character(len=1) :: dtype
+    !Hessian
+    real(8),dimension(:),allocatable :: Hlt
+
     integer :: error, N
     !====================== 
 
@@ -180,21 +180,21 @@ program vertical2adiabatic
     ! HESSIAN FILE
     open(I_INP,file=hessfile,status='old',iostat=IOstatus)
     if (IOstatus /= 0) call alert_msg( "fatal","Unable to open "//trim(adjustl(hessfile)) )
-    allocate(A(1:3*Nat*(3*Nat+1)/2))
-    call generic_Hessian_reader(I_INP,fth,Nat,A,error) 
+    allocate(Hlt(1:3*Nat*(3*Nat+1)/2))
+    call generic_Hessian_reader(I_INP,fth,Nat,Hlt,error) 
     close(I_INP)
     ! Run vibrations_Cart to get the number of Nvib (to detect linear molecules)
-    call vibrations_Cart(Nat,state1%atom(:)%X,state1%atom(:)%Y,state1%atom(:)%Z,state1%atom(:)%Mass,A,&
+    call vibrations_Cart(Nat,state1%atom(:)%X,state1%atom(:)%Y,state1%atom(:)%Z,state1%atom(:)%Mass,Hlt,&
                          Nvib,L1,Freq,error)
     k=0
     do i=1,3*Nat
     do j=1,i
         k=k+1
-        Hess(i,j) = A(k)
-        Hess(j,i) = A(k)
+        Hess(i,j) = Hlt(k)
+        Hess(j,i) = Hlt(k)
     enddo 
     enddo
-    deallocate(A)
+!     deallocate(Hlt)
 
     ! GRADIENT FILE
     open(I_INP,file=gradfile,status='old',iostat=IOstatus)
@@ -235,7 +235,7 @@ program vertical2adiabatic
     call set_geom_units(state1,"bohr")
 
 
-    ! GET MINIMUM IN CARTESIAN COORDINATES: x0 = F^-1 grad
+    ! GET MINIMUM IN CARTESIAN COORDINATES: x0 = - F^-1 grad
     Aux(1:3*Nat,1:3*Nat) = inverse_realsym(3*Nat,Hess)
     ! Matrix x vector 
     do i=1, 3*Nat
@@ -254,9 +254,9 @@ program vertical2adiabatic
     state2=state1
     do i=1,Nat 
         j=3*i-2
-        state2%atom(i)%x = (state1%atom(i)%x - Vec(j+0))*BOHRtoANGS
-        state2%atom(i)%y = (state1%atom(i)%y - Vec(j+1))*BOHRtoANGS
-        state2%atom(i)%z = (state1%atom(i)%z - Vec(j+2))*BOHRtoANGS
+        state2%atom(i)%x = (state1%atom(i)%x + Vec(j+0))*BOHRtoANGS
+        state2%atom(i)%y = (state1%atom(i)%y + Vec(j+1))*BOHRtoANGS
+        state2%atom(i)%z = (state1%atom(i)%z + Vec(j+2))*BOHRtoANGS
     enddo
     open(70,file="minim_harmonic_Cart.xyz")
     call write_xyz(70,state2)
@@ -272,7 +272,7 @@ program vertical2adiabatic
     ! * Vec: DeltaX 
     ! * Hess: Hessian in Cartesian coords
     !
-    ! Fisrt, compute DeltaS^t * Hs * DeltaS
+    ! Fisrt, compute DeltaX^t * Hs * DeltaX
     Theta=0.d0
     do j=1,3*Nat
     do k=1,3*Nat
@@ -295,7 +295,6 @@ program vertical2adiabatic
         FC(i) = sign((Freq(i)*2.d0*pi*clight*1.d2)**2/HARTtoJ*BOHRtoM**2*AUtoKG,Freq(i))
         if (FC(i)<0) then
             print*, i, FC(i)
-!             FC(i) = -FC(i)
             call alert_msg("warning","A negative FC found")
         endif
     enddo
@@ -343,76 +342,76 @@ program vertical2adiabatic
     endif
     call gf_method(Nvib,G1,Hess,L1,Freq,X1,X1inv)
 
-    !Compute new state_file for 2
-    ! T2(g09) = mu^1/2 m B^t G2^-1 L2
-    ! Compute G1^-1 (it is X1inv * X1inv
-    Aux(1:Nvib,1:Nvib) = matrix_product(Nvib,Nvib,Nvib,X1inv,X1inv)
-    ! Compute B1^t G1^-1
-    do i=1,3*Nat
-    do j=1,Nvib
-        Aux2(i,j) = 0.d0
-        do k=1,Nvib
-         Aux2(i,j)=Aux2(i,j)+B1(k,i)*Aux(k,j)
-        enddo
-    enddo
-    enddo
-    ! Compute [B1^t G2^-1] L2
-    Aux(1:3*Nat,1:Nvib) = matmul(Aux2(1:3*Nat,1:Nvib),L1(1:Nvib,1:Nvib))
-    ! Compute mu^1/2 m [B^t G2^-1 L2] (masses are in UMA in the fchk)
-!     print*, state2%atom(1)%name, state2%atom(1)%mass
-!     print*, mu(1), mu(Nvib)
-    i=0
-    do k=1,Nat
-    do kk=1,3
-    i=i+1
-    do j=1,Nvib
-        Aux2(i,j) = 1.d0/&!dsqrt(mu(j)*UMAtoAU)        / &
-                    state1%atom(k)%mass/UMAtoAU * &
-                    Aux(i,j)
-    enddo
-    enddo
-    enddo
-    !Compute reduced masses
-    do j=1,Nvib
-    mu(j)=0.d0
-    do i=1,3*Nat
-        mu(j)=mu(j)+Aux2(i,j)**2
-    enddo
-    mu(j) = 1.d0/mu(j)
-    enddo
-    !Normalize with mu
-    i=0
-    do k=1,Nat
-    do kk=1,3
-    i=i+1
-    do j=1,Nvib
-        Aux2(i,j) = Aux2(i,j)*dsqrt(mu(j))
-    enddo
-    enddo
-    enddo
-    !Print state
-    open(O_STAT,file="state_file_1")
-    do i=1,Nat
-        write(O_STAT,*) state1%atom(i)%x*BOHRtoANGS
-        write(O_STAT,*) state1%atom(i)%y*BOHRtoANGS
-        write(O_STAT,*) state1%atom(i)%z*BOHRtoANGS
-    enddo
-    do i=1,3*Nat
-    do j=1,Nvib
-        write(O_STAT,*) Aux2(i,j)
-    enddo
-    enddo
-    do j=1,Nvib
-        write(O_STAT,'(F12.5)') Freq(j)
-    enddo
-    close(O_STAT)
-
-    if (verbose>1) then
-    print*, "B1=", B1(1,1)
-    do i=1,Nvib
-        print'(100(F8.3,2X))', B1(i,1:Nvib)
-    enddo
-    endif
+!     !Compute new state_file for 2
+!     ! T2(g09) = mu^1/2 m B^t G2^-1 L2
+!     ! Compute G1^-1 (it is X1inv * X1inv
+!     Aux(1:Nvib,1:Nvib) = matrix_product(Nvib,Nvib,Nvib,X1inv,X1inv)
+!     ! Compute B1^t G1^-1
+!     do i=1,3*Nat
+!     do j=1,Nvib
+!         Aux2(i,j) = 0.d0
+!         do k=1,Nvib
+!          Aux2(i,j)=Aux2(i,j)+B1(k,i)*Aux(k,j)
+!         enddo
+!     enddo
+!     enddo
+!     ! Compute [B1^t G2^-1] L2
+!     Aux(1:3*Nat,1:Nvib) = matmul(Aux2(1:3*Nat,1:Nvib),L1(1:Nvib,1:Nvib))
+!     ! Compute mu^1/2 m [B^t G2^-1 L2] (masses are in UMA in the fchk)
+! !     print*, state2%atom(1)%name, state2%atom(1)%mass
+! !     print*, mu(1), mu(Nvib)
+!     i=0
+!     do k=1,Nat
+!     do kk=1,3
+!     i=i+1
+!     do j=1,Nvib
+!         Aux2(i,j) = 1.d0/&!dsqrt(mu(j)*UMAtoAU)        / &
+!                     state1%atom(k)%mass/UMAtoAU * &
+!                     Aux(i,j)
+!     enddo
+!     enddo
+!     enddo
+!     !Compute reduced masses
+!     do j=1,Nvib
+!     mu(j)=0.d0
+!     do i=1,3*Nat
+!         mu(j)=mu(j)+Aux2(i,j)**2
+!     enddo
+!     mu(j) = 1.d0/mu(j)
+!     enddo
+!     !Normalize with mu
+!     i=0
+!     do k=1,Nat
+!     do kk=1,3
+!     i=i+1
+!     do j=1,Nvib
+!         Aux2(i,j) = Aux2(i,j)*dsqrt(mu(j))
+!     enddo
+!     enddo
+!     enddo
+!     !Print state
+!     open(O_STAT,file="state_file_1")
+!     do i=1,Nat
+!         write(O_STAT,*) state1%atom(i)%x*BOHRtoANGS
+!         write(O_STAT,*) state1%atom(i)%y*BOHRtoANGS
+!         write(O_STAT,*) state1%atom(i)%z*BOHRtoANGS
+!     enddo
+!     do i=1,3*Nat
+!     do j=1,Nvib
+!         write(O_STAT,*) Aux2(i,j)
+!     enddo
+!     enddo
+!     do j=1,Nvib
+!         write(O_STAT,'(F12.5)') Freq(j)
+!     enddo
+!     close(O_STAT)
+! 
+!     if (verbose>1) then
+!     print*, "B1=", B1(1,1)
+!     do i=1,Nvib
+!         print'(100(F8.3,2X))', B1(i,1:Nvib)
+!     enddo
+!     endif
 
 
     ! GET MINIMUM IN INTERNAL COORDINATES
@@ -450,9 +449,7 @@ program vertical2adiabatic
     enddo
     call zmat2cart(state1,S1)
     !Transform to AA and export coords and put back into BOHR
-    state1%atom(1:Nat)%x = state1%atom(1:Nat)%x*BOHRtoANGS
-    state1%atom(1:Nat)%y = state1%atom(1:Nat)%y*BOHRtoANGS
-    state1%atom(1:Nat)%z = state1%atom(1:Nat)%z*BOHRtoANGS
+    call set_geom_units(state1,"Angs")
     open(70,file="minim_harmonic_Inter.xyz")
     call write_xyz(70,state1)
     close(70)
@@ -539,6 +536,79 @@ program vertical2adiabatic
     print*, "NORMAL-MODE COORDINATES (derived in internal)"
     print'(X,A,F12.6)',   "Reorganization energy (AU) = ", Er_qint
     print'(X,A,F12.6,/)', "Reorganization energy (eV) = ", Er_qint*HtoeV
+
+
+
+    ! Check the vibrational analysis at the state2 estimated geom
+    print'(/,A)', "-------------------------------------------------"
+    print'(X,A)', "VIBRATIONAL ANALYSIS WITH STATE2 GEOM (ESTIMATED)"
+    print'(A)',   "-------------------------------------------------"
+
+    call set_geom_units(state1,"Angs")
+    call set_geom_units(state2,"Angs")
+!     call inertia(state1,IM)
+!     call diagonalize_full(IM(1:3,1:3),3,Xr(1:3,1:3),Vec2(1:3),"lapack")
+! !     Xr(1:3,1:3) = transpose(Xr(1:3,1:3))
+!     call MAT0(6,Xr,3,3,"Xr(1)")
+!     X1=0.d0
+!     do i=1,Nat
+!         j=3*i-2
+!         X1(j:j+2,j:j+2) = Xr(1:3,1:3)
+!     enddo
+!     call inertia(state2,IM)
+!     call diagonalize_full(IM(1:3,1:3),3,Xr(1:3,1:3),Vec2(1:3),"lapack")
+! !     Xr(1:3,1:3) = transpose(Xr(1:3,1:3))
+! 
+!     call ROTATA1(state1,state2,Xr)
+!     call MAT0(6,Xr,3,3,"Xr-rotata")
+!     X2=0.d0
+!     do i=1,Nat
+!         j=3*i-2
+!         X2(j:j+2,j:j+2) = Xr(1:3,1:3)
+!     enddo
+! 
+!     !Massweight the Hessian
+!     k=0
+!     do i=1,3*Nat
+!     do j=1,i
+!         k=k+1
+!         ii = (i-1)/3+1
+!         jj = (j-1)/3+1
+!         Aux(i,j) = Hlt(k)/sqrt(state2%atom(ii)%mass*state2%atom(jj)%mass) 
+!         Aux(j,i) = Aux(i,j)
+!     enddo 
+!     enddo
+!     Aux(1:3*Nat,1:3*Nat) = Hess(1:3*Nat,1:3*Nat)
+!     Aux(1:3*Nat,1:3*Nat) = matrix_basisrot(3*Nat,3*Nat,X2,Aux,counter=.true.)
+!     Aux(1:3*Nat,1:3*Nat) = matrix_basisrot(3*Nat,3*Nat,X1,Aux,counter=.true.)
+!     !UnMassweight the Hessian
+!     k=0
+!     do i=1,3*Nat
+!     do j=1,i
+!         k=k+1
+!         ii = (i-1)/3+1
+!         jj = (j-1)/3+1
+!         Aux(i,j) = Hlt(k)/sqrt(state2%atom(ii)%mass*state2%atom(jj)%mass) 
+!         Aux(j,i) = Aux(i,j)
+!     enddo 
+!     enddo
+!     call MAT0(6,Aux,3*Nat,3*Nat,"Hess Rotated")
+!     Aux(1:3*Nat,1:3*Nat) = matrix_basisrot(3*Nat,3*Nat,X2,Aux,counter=.true.)
+
+!     ! Get lower triangular
+!     k=0
+!     do i=1,3*Nat
+!     do j=1,i
+!         k=k+1
+!         ii = (i-1)/3+1
+!         jj = (j-1)/3+1
+!         Hlt(k) = Aux(i,j)*sqrt(state2%atom(ii)%mass*state2%atom(jj)%mass) 
+!     enddo 
+!     enddo
+    call vibrations_Cart(Nat,state2%atom(:)%X,state2%atom(:)%Y,state2%atom(:)%Z,state1%atom(:)%Mass,Hlt,&
+                         Nvib,L1,Vec2,error)
+
+
 
 
     call summary_alerts
