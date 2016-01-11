@@ -1621,6 +1621,82 @@ module internal_module
 
     end subroutine HessianCart2int
 
+
+    subroutine Gradcart2int(Nat,Ns,Grad,Mass,B,G)
+
+        !==============================================================
+        ! This code is part of MOLECULAR_TOOLS 
+        !==============================================================
+        ! Description
+        ! Convert the Gradient from cartesian to internal 
+        ! useful when the Gradient is not used in HessianCart2int
+        ! (if used there, it is converted there!)
+        !------------------------------------------------------------------
+
+        use structure_types
+        use line_preprocess
+        use alerts
+        use constants
+        use atomic_geom
+        use matrix
+        use verbosity
+    
+        implicit none
+    
+        integer,parameter :: NDIM = 600
+    
+        !====================== 
+        !ARGUMENTS
+        integer,intent(in)                          :: Nat    ! Number of atoms (in)
+        integer,intent(in)                          :: Ns     ! Number of internal coordinates (in)
+        real(8),dimension(1:NDIM),intent(in)        :: Mass   ! Wilson matrices (in)
+        real(8),dimension(1:NDIM,1:NDIM),intent(in) :: G,B    ! Wilson matrices (in)
+        real(8),dimension(1:NDIM),intent(inout)     :: Grad   ! Gradient 
+        !====================== 
+    
+        !====================== 
+        !LOCAL
+        integer                             :: Nvib
+        !Internal analysis 
+        real(8),dimension(1:NDIM,1:NDIM)    :: Ginv
+        !Auxiliar arrays
+        real(8),dimension(1:NDIM,1:NDIM)    :: Aux
+        real(8),dimension(NDIM)             :: Vec
+        !Counters
+        integer :: i,j,k, ii
+        !====================== 
+
+        ! If Ns > Nvib, then we need to extract the non-zero eigen values 
+        ! from G in order to compute the generalized G inverse
+        ! (TBD) 
+        ! 
+        Nvib = Ns
+
+        !Inverse of G
+        Ginv(1:Ns,1:Ns) = inverse_realsym(Ns,G)
+    
+        !Compute G^-1Bu  (where u is the inverse mass matrix)
+        Aux(1:Ns,1:3*Nat) = matrix_product(Ns,3*Nat,Ns,Ginv,B)
+        do i=1,3*Nat
+            ii = (i-1)/3+1
+            Aux(1:Ns,i) = Aux(1:Ns,i)/Mass(ii)/UMAtoAU
+        enddo
+
+        ! Get the gradient in internal coords: gq = G^-1Bu(gx)
+        do i=1,Nvib
+            Vec(i) = 0.d0
+            do j=1,3*Nat
+                Vec(i) = Vec(i) + Aux(i,j) * Grad(j)
+            enddo
+        enddo
+        ! Update the gradient on output
+        Grad(1:3*Nat) = 0.d0
+        Grad(1:Nvib) = Vec(1:Nvib)
+
+        return
+
+    end subroutine Gradcart2int
+
     
     subroutine gf_method(Nvib,G,Hess,L,Freq,X,Xinv)
 

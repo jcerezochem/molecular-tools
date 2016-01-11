@@ -307,6 +307,8 @@ program internal_duschinski
         call HessianCart2int(Nat,Nvib,Hess,state1%atom(:)%mass,B,G1,Grad=Grad,Bder=Bder)
     else
         call HessianCart2int(Nat,Nvib,Hess,state1%atom(:)%mass,B,G1)
+        ! We need Grad in internal coordinates as well (ONLY IF HessianCart2int DOES NOT INCLUDE IT)
+        call Gradcart2int(Nat,Nvib,Grad,state1%atom(:)%mass,B,G1)
     endif
     call gf_method(Nvib,G1,Hess,L1,Freq1,X,X1inv)
     if (verbose>0) then
@@ -479,6 +481,8 @@ program internal_duschinski
         call HessianCart2int(Nat,Nvib,Hess,state2%atom(:)%mass,B,G2,Grad=Grad,Bder=Bder)
     else
         call HessianCart2int(Nat,Nvib,Hess,state2%atom(:)%mass,B,G2)
+        ! We need Grad in internal coordinates as well (ONLY IF HessianCart2int DOES NOT INCLUDE IT)
+        call Gradcart2int(Nat,Nvib,Grad,state2%atom(:)%mass,B,G2)
     endif
     call gf_method(Nvib,G2,Hess,L2,Freq2,X,X2inv)
     if (verbose>0) then
@@ -816,11 +820,16 @@ program internal_duschinski
                 Q0(i) = Q0(i) - Jdus(k,i) * Grad(k) / FC(i)
             enddo
         enddo
-        ! K = J^t * Q0
+        if (verbose>2) then
+            call print_vector(6,FC*1e5,Nvib,"FC - int")
+            call print_vector(6,Grad*1e5,Nvib,"Grad - int")
+            call print_vector(6,Q0,Nvib,"Q0 - int")
+        endif
+        ! K = J * Q0
         do i=1,Nvib
             Vec1(i) = 0.d0
             do k=1,Nvib
-                Vec1(i) = Vec1(i) - Jdus(i,k) * Q0(k)
+                Vec1(i) = Vec1(i) + Jdus(i,k) * Q0(k)
             enddo
         enddo
 
@@ -1080,6 +1089,8 @@ program internal_duschinski
                     vertical=.true.
                     verticalQspace2=.false.
                     verticalQspace1=.true.
+                    ! Apply defaults
+                    gradcorrectS2=.true.
                 case ("-vertQ2")
                     vertical=.true.
                     verticalQspace2=.true.
@@ -1150,9 +1161,9 @@ program internal_duschinski
            if (adjustl(ftg2) == "guess")  ftg2=ft2
        endif
 
-       !Print options (to stderr)
+       !Print options (to stdout)
         write(6,'(/,A)') '========================================================'
-        write(6,'(/,A)') '        I N T E R N A L   A N A L Y S I S '    
+        write(6,'(/,A)') '        I N T E R N A L   D U S C H I N S K Y '    
         write(6,'(/,A)') '      Perform vibrational analysis based on  '
         write(6,'(A)')   '               internal coordinates '        
         call print_version()
@@ -1189,7 +1200,10 @@ program internal_duschinski
         write(6,*) '-[no]vertQ1  Vertical in normal-mode space',  verticalQspace1
         write(6,*) '               '
         write(6,*) '-h           Display this help            ',  need_help
-        write(6,'(/,A)') '-------------------------------------------------------------------'
+        write(6,'(A)') '-------------------------------------------------------------------'
+        write(6,'(X,A,I0)') &
+                       'Verbose level:  ', verbose        
+        write(6,'(A)') '-------------------------------------------------------------------'
         if (need_help) call alert_msg("fatal", 'There is no manual (for the moment)' )
 
         return

@@ -263,10 +263,12 @@ program vertical2adiabatic
             endif
         endif
     
-        if (vertical) then
+        if (gradcorrectS1) then
             call HessianCart2int(Nat,Nvib,Hess,state1%atom(:)%mass,B,G1,Grad=Grad,Bder=Bder)
         else
             call HessianCart2int(Nat,Nvib,Hess,state1%atom(:)%mass,B,G1)
+            ! We need Grad in internal coordinates as well (ONLY IF HessianCart2int DOES NOT INCLUDE IT)
+            call Gradcart2int(Nat,Nvib,Grad,state1%atom(:)%mass,B,G1)
         endif
         ! Do not overwrite Freq1 (although should be identical)
         call gf_method(Nvib,G1,Hess,L1int,Vec,X1,X1inv)
@@ -311,21 +313,22 @@ program vertical2adiabatic
     !*****************************************************
     if (do_correct_int) then
         print'(X,A,/)', "Apply correction for vertical case based on internal vibrational analysis..."
-        Aux(1:3*Nat,1:3*Nat) = Hess(1:3*Nat,1:3*Nat)
         ! Compute gQ
         ! Convert Gradient to normal mode coordinates in state1 Qspace.
         ! We use the internal normal modes and not the Cartesian
         ! ones to get the sign consistent with the internal mode
         ! definition. Note that, apart from the sign, both should be
         ! equivalent in state1 Qspace
-        call HessianCart2int(Nat,Nvib,Aux,state1%atom(:)%mass,B,G1,Grad=Grad,Bder=Bder)
+        ! Use Vec1 as temporary vector to store Grad
+        Vec1(1:Nvib) = Grad(1:Nvib)
+        call Gradcart2int(Nat,Nvib,Vec1,state1%atom(:)%mass,B,G1)
         do i=1,Nvib
             Vec(i) = 0.d0
             do k=1,Nvib !3*Nat
-                Vec(i) = Vec(i) + L1int(k,i) * Grad(k)
+                Vec(i) = Vec(i) + L1int(k,i) * Vec1(k)
             enddo
         enddo
-        Grad(1:Nvib) = Vec(1:Nvib)
+        Vec1(1:Nvib) = Vec(1:Nvib)
 
         ! Compute LLL^Q = Lint^-1 Lder
         ! And directly: gQ * LLL^Q
@@ -338,7 +341,7 @@ program vertical2adiabatic
                 do l=1,Nvib
                     Theta = Theta + L1int(i,l) * Bder(l,j,k)
                 enddo
-                Aux(j,k) = Aux(j,k) + Grad(i) * Theta
+                Aux(j,k) = Aux(j,k) + Vec1(i) * Theta
             enddo        
         enddo
         enddo
@@ -346,7 +349,7 @@ program vertical2adiabatic
         ! Compute (Hess - gQ LLL^Q)
         Hess(1:3*Nat,1:3*Nat) = Hess(1:3*Nat,1:3*Nat) - Aux(1:3*Nat,1:3*Nat)
 
-        !Compute H_Q = L1^t (Hess - gQ LLL^Q) L1
+        !Compute H_Q' = L1^t (Hess - gQ LLL^Q) L1
         Hess(1:Nvib,1:Nvib) = matrix_basisrot(Nvib,3*Nat,L1,Hess,counter=.true.)
 
     elseif (do_correct_num) then
@@ -395,19 +398,19 @@ program vertical2adiabatic
         !Compute H_Q = L1^t Hess L1 
         Hess(1:Nvib,1:Nvib) = matrix_basisrot(Nvib,3*Nat,L1,Hess,counter=.true.)
 
-        ! We need gQ, in state1 normal modes
-        ! We could use either internal or Cartesian coordinates to get it.
-        ! Lets try Cartesia modes (we're using Lcart, not Lmwc)
-        ! gQ = L^t * gx
-        do i=1,Nvib 
-            Vec(i) = 0.d0
-            do k=1,3*Nat 
-                Vec(i) = Vec(i) + L1(k,i) * Grad(k)
-            enddo
-        enddo
-        Grad(1:Nvib) = Vec(1:Nvib)
     endif
 
+    ! We need gQ, in state1 normal modes. But we them consistent with
+    ! L1 in Cartesian coordinates (NOT in internal). Both have the 
+    ! same values, but the sign may change
+    ! gQ = L^t * gx
+    do i=1,Nvib 
+        Vec(i) = 0.d0
+        do k=1,3*Nat 
+            Vec(i) = Vec(i) + L1(k,i) * Grad(k)
+        enddo
+    enddo
+    Grad(1:Nvib) = Vec(1:Nvib)
 
     !-------------------
     ! Duschisky matrix
@@ -415,6 +418,8 @@ program vertical2adiabatic
     print'(/,X,A,/)', "DIAGONALIZE HESSIAN IN Q1-SPACE..."
     ! The matrix that diagonalizes the Hessian in Q1 modes is the Duschisky matrix
     call diagonalize_full(Hess(1:Nvib,1:Nvib),Nvib,G1(1:Nvib,1:Nvib),FC(1:Nvib),"lapack")
+    if (verbose>2) &
+        call MAT0(6,G1,Nvib,Nvib,"DUSCHINSKI MATRIX")
 
     !---------
     !Check FC
@@ -456,11 +461,17 @@ program vertical2adiabatic
             Q0(i) = Q0(i) - G1(k,i) * Grad(k) / FC(i)
         enddo
     enddo
-   ! K = J^t * Q0
+
+    if (verbose>2) then
+        call print_vector(6,FC*1e5,Nvib,"FC - crt")
+        call print_vector(6,Grad*1e5,Nvib,"Grad - crt")
+        call print_vector(6,Q0,Nvib,"Q0 - crt")
+    endif
+   ! K = J * Q0
     do i=1,Nvib
         Vec1(i) = 0.d0
         do k=1,Nvib
-            Vec1(i) = Vec1(i) - G1(i,k) * Q0(k)
+            Vec1(i) = Vec1(i) + G1(i,k) * Q0(k)
         enddo
     enddo
 ! This is simpler, but do not store Q0...
@@ -721,12 +732,16 @@ program vertical2adiabatic
        endif
 
 
-       !Print options (to stderr)
-        write(6,'(/,A)') '--------------------------------------------------'
-        write(6,'(/,A)') '      C A R T E S I A N  D U S C H I N S K Y        '
+       !Print options (to stdout)    
+        write(6,'(/,A)') '========================================================'
+        write(6,'(/,A)') '      C A R T E S I A N   D U S C H I N S K Y        '
         write(6,'(/,A)') '         Duschinski analysis for Vertical         '
-        write(6,'(A,/)') '          model in Cartesian coordinates          '        
-        write(6,'(/,A)') '--------------------------------------------------'
+        write(6,'(A,/)') '          model in Cartesian coordinates          '      
+        call print_version()
+        write(6,'(/,A)') '========================================================'
+        write(6,'(/,A)') '-------------------------------------------------------------------'
+        write(6,'(A)')   ' Flag              Description                Value'
+        write(6,'(A)')   '-------------------------------------------------------------------'
         write(6,*) '-f                Input file State1(S1)      ', trim(adjustl(inpfile))
         write(6,*) '-ft               \_FileType                 ', trim(adjustl(ft))
         write(6,*) '-fhess            S1 Hessian file name       ', trim(adjustl(hessfile))
@@ -757,7 +772,10 @@ program vertical2adiabatic
 !         write(6,*) '-rmzfile        ', trim(adjustl(rmzfile))
         write(6,*) ''
         write(6,*) '-h               ',  need_help
-        write(6,*) '--------------------------------------------------'
+        write(6,'(A)') '-------------------------------------------------------------------'
+        write(6,'(X,A,I0)') &
+                       'Verbose level:  ', verbose        
+        write(6,'(A)') '-------------------------------------------------------------------'
         if (.not.vertical) call alert_msg("fatal", 'Adiabatic model not yet implemented' )
         if (need_help) call alert_msg("fatal", 'There is no manual (for the moment)' )
 

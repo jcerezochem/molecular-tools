@@ -34,7 +34,8 @@ vertical2adiabatic_new_SOURCES = ../modules/version.f90\
                              ../modules/vibrational_analysis.f90\
                              vertical2adiabatic.f90
 
-cartesian_duschinsky_SOURCES = ../modules/alerts.f90\
+cartesian_duschinsky_SOURCES = ../modules/version.f90\
+                             ../modules/alerts.f90\
                              ../modules/line_preprocess.f90\
                              ../modules/constants.f90\
                              ../modules/verbosity.f90\
