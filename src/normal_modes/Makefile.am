@@ -10,7 +10,8 @@ bin_PROGRAMS = nm_internal_new numder_fc numder_L prj_nm_internal_new nm_cartesi
 # ============
 # nm_internal
 # ============
-nm_internal_new_SOURCES = ../modules/alerts.f90                 \
+nm_internal_new_SOURCES =    ../modules/version.f90             \
+                             ../modules/alerts.f90              \
                              ../modules/line_preprocess.f90     \
                              ../modules/constants.f90           \
                              ../modules/verbosity.f90           \
@@ -43,7 +44,8 @@ nm_internal_new_SOURCES = ../modules/alerts.f90                 \
 # ============
 # nm_cartesian
 # ============
-nm_cartesian_new_SOURCES =../modules/alerts.f90                 \
+nm_cartesian_new_SOURCES =   ../modules/version.f90             \
+                             ../modules/alerts.f90              \
                              ../modules/line_preprocess.f90     \
                              ../modules/constants.f90           \
                              ../modules/verbosity.f90           \

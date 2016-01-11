@@ -534,9 +534,10 @@ program internal_duschinski
     !==========================================
     ! Evaluate orthogonality
     if (verbose>0) then
-     print'(/,X,A)', "Checking simultaneous orthogonality: D = G1^1/2 G2^1/2"
-     print*,         "-------------------------------------------------------"
-     print*,         "Analysing: D = G1^1/2 G2^1/2"
+     print'(2/,X,A)', "============================================"
+     print*,          " Internal Coordinates Orthogonality Checks  "
+     print*,          "============================================"
+     print*,          "Analysing: D = G1^1/2 G2^1/2"
     endif
     Aux(1:Nvib,1:Nvib) = matrix_product(Nvib,Nvib,Nvib,X1inv,X)
     open (O_DMAT,file="D_matrix_abs.dat",status="replace")
@@ -550,7 +551,7 @@ program internal_duschinski
     enddo
     close(O_DMAT)
     if (verbose>0) &
-     print'(X,A,/)', "(D matrix has been written to files: D_matrix.dat and D_matrix_abs.dat)"
+     print'(X,A,/)', "(D matrix written to files: D_matrix.dat and D_matrix_abs.dat)"
     
     if (verbose>0) then
         ! COMPUTE DETERMINANT AND TRACE OF D_matrix
@@ -1164,8 +1165,8 @@ program internal_duschinski
        !Print options (to stdout)
         write(6,'(/,A)') '========================================================'
         write(6,'(/,A)') '        I N T E R N A L   D U S C H I N S K Y '    
-        write(6,'(/,A)') '      Perform vibrational analysis based on  '
-        write(6,'(A)')   '               internal coordinates '        
+        write(6,'(/,A)') '         Duschinski analysis for Adiabatic and    '
+        write(6,'(A,/)') '        Vertical model in Cartesian coordinates          '   
         call print_version()
         write(6,'(/,A)') '========================================================'
         write(6,'(/,A)') '-------------------------------------------------------------------'

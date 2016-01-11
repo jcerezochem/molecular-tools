@@ -644,6 +644,8 @@ program normal_modes_cartesian
 
                 case ("-vmd")
                     call_vmd=.true.
+                case ("-novmd")
+                    call_vmd=.false.
 
                 case ("-movie")
                     call getarg(i+1, arg)
@@ -700,27 +702,42 @@ program normal_modes_cartesian
 
 
        !Print options (to stderr)
-        write(0,'(/,A)') '--------------------------------------------------'
-        write(0,'(/,A)') '          CARTESIAN MODES ANIMATION '    
-        write(0,'(/,A)') '         Perform vibrational analysis'
-        write(0,'(/,A)') '--------------------------------------------------'
-        write(0,*) '-f              ', trim(adjustl(inpfile))
-        write(0,*) '-ft             ', trim(adjustl(ft))
-        write(0,*) '-fhess          ', trim(adjustl(hessfile))
-        write(0,*) '-fth            ', trim(adjustl(fth))
-        write(0,*) '-fgrad          ', trim(adjustl(gradfile))
-        write(0,*) '-ftg            ', trim(adjustl(ftg))
-        write(0,*) '-fnm            ', trim(adjustl(nmfile))
-        write(0,*) '-ftn            ', trim(adjustl(ftn))
-        write(0,*) '-nm             ', trim(adjustl(selection))
-!         write(6,*) '-[no]sym       ',  use_symmetry
-        write(0,*) '-[no]vert      ',  vertical
-        write(0,*) '-[no]fulldiag  ',  full_diagonalize
-        write(0,*) '-vmd           ',  call_vmd
-        write(0,*) '-movie (cycles)',  movie_cycles
-        write(0,*) '-disp          ',  Amplitude
-        write(0,*) '-h             ',  need_help
-        write(0,*) '--------------------------------------------------'
+        write(6,'(/,A)') '========================================================'
+        write(6,'(/,A)') '             N M    C A R T E S I A N '    
+        write(6,'(/,A)') '      Perform vibrational analysis based on  '
+        write(6,'(A)')   '             Cartesian coordinates '        
+        call print_version()
+        write(6,'(/,A)') '========================================================'
+        write(6,'(/,A)') '-------------------------------------------------------------------'
+        write(6,'(A)')   ' Flag           Description                     Value'
+        write(6,'(A)')   '-------------------------------------------------------------------'
+        write(6,*)       '-f             Input file (structure&default)  ', trim(adjustl(inpfile))
+        write(6,*)       '-ft            \_ FileType                     ', trim(adjustl(ft))
+        write(6,*)       '-fhess         Hessian file                    ', trim(adjustl(hessfile))
+        write(6,*)       '-fth           \_ FileType                     ', trim(adjustl(fth))
+        write(6,*)       '-fgrad         Hessian file                    ', trim(adjustl(gradfile))
+        write(6,*)       '-ftg           \_ FileType                     ', trim(adjustl(ftg))
+        write(6,*)       '-fnm           Gradient file                   ', trim(adjustl(nmfile))
+        write(6,*)       '-ftn           \_ FileType                     ', trim(adjustl(ftn))
+        write(6,*)       '-nm            Selection of normal modes to    ', trim(adjustl(selection))
+        write(6,*)       '               generate animations            '
+!         write(6,*      ) '-[no]sym       ',  use_symmetry
+!         write(6,*)       '-[no]vert      Correct with B derivatives for ',  vertical
+!         write(6,*)       '               non-stationary points'
+        write(6,*)       '-[no]fulldiag  Diagonalize the 3Nx3N matrix   ',  full_diagonalize
+        write(6,*)       '-[no]vmd       Launch VMD after computing the ',  call_vmd
+        write(6,*)       '               modes (needs VMD installed)'
+        write(6,'(X,A,I0)') &
+                         '-movie         Number of cycles to record on   ',  movie_cycles
+        write(6,*)       '               a movie with the animation'
+        write(6,'(X,A,F5.2)') &
+                         '-disp          Mode displacements for animate ',  Amplitude
+        write(6,*)       '               (dimensionless displacements)'
+        write(6,*)       '-h             Display this help              ',  need_help
+        write(6,'(A)') '-------------------------------------------------------------------'
+        write(6,'(X,A,I0)') &
+                       'Verbose level:  ', verbose        
+        write(6,'(A)') '-------------------------------------------------------------------'
         if (need_help) call alert_msg("fatal", 'There is no manual (for the moment)' )
 
         return
