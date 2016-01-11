@@ -1779,7 +1779,7 @@ module internal_module
         call diagonalize_full(Aux3(1:Nvib,1:Nvib),Nvib,L(1:Nvib,1:Nvib),Freq(1:Nvib),"lapack")
     
         !Check FC
-        if (verbose>0) &
+        if (verbose>1) &
             call print_vector(6,Freq*1.d6,Nvib,"FORCE CONSTANTS x 10^6 (A.U.)")
 
         !Transform to FC to Freq

@@ -48,12 +48,13 @@ program vertical2adiabatic
                tswitch=.false.      ,&
                symaddapt=.false.    ,&
                vertical=.true.
-    character(len=4) :: def_internal='zmat'
+    character(len=4) :: def_internal='zmat', def_internal_aux
     !======================
 
     !====================== 
     !System variables
     type(str_resmol) :: state1,state2
+    type(str_bonded) :: zmatgeom
     integer,dimension(1:NDIM) :: isym
     integer :: Nat, Nvib, Ns
     !====================== 
@@ -83,6 +84,8 @@ program vertical2adiabatic
     !Shifts
     real(8),dimension(NDIM) :: Delta
     real(8) :: Delta_p, Er_int, Er_crt, Er_qcrt, Er_qint
+    !Coordinate map
+    integer,dimension(NDIM) :: Zmap
     !====================== 
 
     !====================== 
@@ -230,11 +233,28 @@ program vertical2adiabatic
     call gen_bonded(state1)
 
     ! Define internal set
-    call define_internal_set(state1,def_internal,intfile,rmzfile,use_symmetry,isym, S_sym,Ns)
+    if (def_internal/="ZMAT") then 
+        print*, "Preliminary Zmat analysis"
+        ! Get Zmat first
+        def_internal_aux="ZMAT"
+        call define_internal_set(state1,def_internal_aux,"none","none",use_symmetry,isym,S_sym,Ns)
+        ! Get only the geom, and reuse molecule
+        zmatgeom=state1%geom
+        ! And reset bonded parameters
+        call gen_bonded(state1)
+    endif
+    call define_internal_set(state1,def_internal,intfile,rmzfile,use_symmetry,isym,S_sym,Ns)
+    if (Ns > Nvib) then
+        call red2zmat_mapping(state1,zmatgeom,Zmap)
+    elseif (Ns < Nvib) then
+        print*, "Ns", Ns
+        print*, "Nvib", Nvib
+        call alert_msg("fatal","Reduced coordinates cases still not implemented")
+        ! Need to freeze unused coords to its input values
+    endif
 
     !From now on, we'll use atomic units
     call set_geom_units(state1,"bohr")
-
 
 
     !==============================
@@ -302,6 +322,13 @@ program vertical2adiabatic
     Xrot1(1:3,1:3) = matrix_product(3,3,3,Xrot1,Xrot2,tA=.true.)
 
     call MAT0(6,Xrot1,3,3,"Rotation between Vertical and Adiabatic")
+
+    ! Check the vibrational analysis at the state2 estimated geom
+    print'(/,A)', "-------------------------------------------------"
+    print'(X,A)', "VIBRATIONAL ANALYSIS WITH STATE2 GEOM (ESTIMATED)"
+    print'(A)',   "-------------------------------------------------"
+    call vibrations_Cart(Nat,state2%atom(:)%X,state2%atom(:)%Y,state2%atom(:)%Z,state2%atom(:)%Mass,Hlt,&
+                         Nvib,L1,Vec2,error)
 
     !-------------------------------
     ! Reorganization energy
@@ -379,10 +406,29 @@ program vertical2adiabatic
     print'(A)',   "=============================="
     call set_geom_units(state1,"Bohr")
     !SOLVE GF METHOD TO GET NM AND FREQ
-    call internal_Wilson(state1,Nvib,S1,B1,ModeDef)
-    call internal_Gmetric(Nat,Nvib,state1%atom(:)%mass,B1,G1)
+    call internal_Wilson(state1,Ns,S1,B1,ModeDef)
+    call internal_Gmetric(Nat,Ns,state1%atom(:)%mass,B1,G1)
     if (vertical) then
-        call calc_Bder(state1,Nvib,Bder)
+        call calc_Bder(state1,Ns,Bder)
+    endif
+
+    ! SET REDUNDANT/SYMETRIZED/CUSTOM INTERNAL SETS
+!     if (symaddapt) then (implement in an analogous way as compared with the transformation from red to non-red
+    if (Ns > Nvib) then ! Redundant
+        call redundant2nonredundant(Ns,Nvib,G1,Asel1)
+        ! Rotate Bmatrix
+        B1(1:Nvib,1:3*Nat) = matrix_product(Nvib,3*Nat,Ns,Asel1,B1,tA=.true.)
+        ! Rotate Gmatrix
+        G1(1:Nvib,1:Nvib) = matrix_basisrot(Nvib,Ns,Asel1(1:Ns,1:Nvib),G1,counter=.true.)
+        ! Rotate Bders
+        if (vertical) then
+            do j=1,3*Nat
+                Bder(1:Nvib,j,1:3*Nat) =  matrix_product(Nvib,3*Nat,Ns,Asel1,Bder(1:Ns,j,1:3*Nat),tA=.true.)
+            enddo
+        endif
+    endif
+
+    if (vertical) then
         call HessianCart2int(Nat,Nvib,Hess,state1%atom(:)%mass,B1,G1,Grad=Grad,Bder=Bder)
     else
         call HessianCart2int(Nat,Nvib,Hess,state1%atom(:)%mass,B1,G1)
@@ -392,19 +438,32 @@ program vertical2adiabatic
     call gf_method(Nvib,G1,Hess,L1,Freq,X1,X1inv)
 
     ! Get minimum in internal coordinates
-    if (verbose>1) then
-        Vec(1:Nvib) = (/(Hess(i,i), i=1,Nvib)/)
-        call print_vector(6,Vec,Nvib,"Diagonal FC (internal)")
-        call print_vector(6,Grad,Nvib,"Gradient (internal)")
-    endif
+    ! At this point
+    !  * Hess has the Hessian  of State2 in internal coords (output from HessianCart2int)
+    !  * Grad has the gradient of State2 in internal coords (output from HessianCart2int)
+    ! Inverse of the Hessian
     Aux(1:Nvib,1:Nvib) = inverse_realgen(Nvib,Hess)
-    ! Matrix x vector 
+    ! DeltaS0 = -Hs^1 * gs
     do i=1,Nvib
-        Vec(i)=0.d0
+        Delta(i)=0.d0
         do k=1,Nvib
-            Vec(i) = Vec(i)-Aux(i,k) * Grad(k)
+            Delta(i) = Delta(i)-Aux(i,k) * Grad(k)
         enddo 
     enddo
+    if (Nvib<Ns) then
+        !Transform Delta' into Delta 
+        ! Delta = A Delta'
+        do i=1,Ns
+            Vec(i) = 0.d0
+            do k=1,Nvib
+                Vec(i) = Vec(i) + Asel1(i,k)*Delta(k)
+            enddo
+        enddo
+    else
+        Vec(1:Nvib)=Delta(1:Nvib)
+    endif
+
+    ! Print
     k=0
     print*, "DELTA BONDS"
     do i=1,state1%geom%nbonds
@@ -424,6 +483,13 @@ program vertical2adiabatic
     do i=1,Nvib
         S1(i) = S1(i) + Vec(i)
     enddo
+
+    ! Map to Zmat if needed
+    if (Ns /= Nvib) then
+        ! From now on, we use the zmatgeom 
+        state1%geom = zmatgeom
+        S1(1:Nvib) = map_Zmatrix(Nvib,S1,Zmap)
+    endif
     call zmat2cart(state1,S1)
     !Transform to AA and export coords and put back into BOHR
     call set_geom_units(state1,"Angs")
@@ -439,19 +505,19 @@ program vertical2adiabatic
     ! Er = -gs * DeltaS - 1/2 DeltaS^t * Hs * DeltaS
     ! At this point: 
     ! * Grad: in internal coords
-    ! * Vec: DeltaS 
+    ! * Delta: DeltaS (non-redundant)
     ! * Hess: Hessian in internal coords
     !
     ! Fisrt, compute DeltaS^t * Hs * DeltaS
     Theta=0.d0
     do j=1,Nvib
     do k=1,Nvib
-        Theta = Theta + Vec(j)*Vec(k)*Hess(j,k)
+        Theta = Theta + Delta(j)*Delta(k)*Hess(j,k)
     enddo
     enddo
     Er_int = -Theta*0.5d0
     do i=1,Nvib
-        Er_int = Er_int - Grad(i)*Vec(i)
+        Er_int = Er_int - Grad(i)*Delta(i)
     enddo
 
     ! In Qint-space
@@ -630,26 +696,29 @@ program vertical2adiabatic
 
 
        !Print options (to stderr)
-        write(6,'(/,A)') '--------------------------------------------------'
+        write(6,'(/,A)') '========================================================'
         write(6,'(/,A)') '        V E R T I C A L 2 A D I A B A T I C '    
-        write(6,'(/,A)') '  Displace structure from vertical to adiabatic geoms  '
-        write(6,'(/,A)') '           '        
-        write(6,'(/,A)') '--------------------------------------------------'
-        write(6,*) '-f              ', trim(adjustl(inpfile))
-        write(6,*) '-ft             ', trim(adjustl(ft))
-        write(6,*) '-fhess          ', trim(adjustl(hessfile))
-        write(6,*) '-fth            ', trim(adjustl(fth))
-        write(6,*) '-fgrad          ', trim(adjustl(gradfile))
-        write(6,*) '-ftg            ', trim(adjustl(ftg))
-        write(6,*) '-intmode        ', trim(adjustl(def_internal))
-        write(6,*) '-intfile        ', trim(adjustl(intfile))
-        write(6,*) '-rmzfile        ', trim(adjustl(rmzfile))
-        write(6,*) '-[no]vert      ',  vertical
-        write(6,*) '-h             ',  need_help
-        write(6,*) '--------------------------------------------------'
+        write(6,'(/,A)') '  Displace structure from vertical to adiabatic geoms  '   
+        call print_version()
+        write(6,'(/,A)') '========================================================'
+        write(6,'(/,A)') '-------------------------------------------------------------------'
+        write(6,'(A)')   ' Flag           Description                   Value'
+        write(6,'(A)')   '-------------------------------------------------------------------'
+        write(6,*)       '-f              Input (vertical) file        ', trim(adjustl(inpfile))
+        write(6,*)       '-ft             \_ FileType                  ', trim(adjustl(ft))
+        write(6,*)       '-fhess          Hessian file                 ', trim(adjustl(hessfile))
+        write(6,*)       '-fth            \_ FileType                  ', trim(adjustl(fth))
+        write(6,*)       '-fgrad          Gradient File                ', trim(adjustl(gradfile))
+        write(6,*)       '-ftg            \_ FileType                  ', trim(adjustl(ftg))
+        write(6,*)       '-intmode        Internal set:[zmat|sel|all]  ', trim(adjustl(def_internal))
+        write(6,*)       '-intfile        File with ICs (for "sel")    ', trim(adjustl(intfile))
+        write(6,*)       '-rmzfile        File deleting ICs from Zmat  ', trim(adjustl(rmzfile))
+        write(6,*)       '-[no]vert       Vertical model              ',  vertical
+        write(6,*)       '-h              Display this help           ',  need_help
+        write(6,'(A)')   '-------------------------------------------------------------------'
         write(6,'(X,A,I0)') &
                    'Verbose level:  ', verbose        
-        write(6,*) '--------------------------------------------------'
+        write(6,'(A)')   '-------------------------------------------------------------------'
         if (need_help) call alert_msg("fatal", 'There is no manual (for the moment)' )
 
         return
