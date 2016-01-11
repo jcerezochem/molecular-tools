@@ -1581,7 +1581,7 @@ module internal_module
         if (present(Grad)) then
             if (.not.present(Bder)) call alert_msg("fatal","API Error: Bder needed with Grad present")
             if (verbose>0) &
-            print*, "Using Gradient..."
+            print*, "Getting Hessian in internal using Gradient correction"
             ! Get the gradient in internal coords first: gq = G^-1Bu(gx)
             do i=1,Nvib
                 Vec(i) = 0.d0

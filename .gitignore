@@ -40,8 +40,11 @@ src/fcclasses_tools/prepare_fcinput
 src/fcclasses_tools/read_dip_fchk 
 src/fcclasses_tools/read_state_fchk  
 src/fcclasses_tools/read_state_log
-src/internal_duschisky/zmat2modredundant 
-src/internal_duschisky/internal_duschinsky
+src/calc_duschinsky/cartesian_duschinsky
+src/calc_duschinsky/zmat2modredundant 
+src/calc_duschinsky/internal_duschinsky
+src/calc_duschinsky/generate_internals
+src/calc_duschinsky/vertical2adiabatic
 src/file_management/get_gscan
 src/file_management/get_symatoms
 src/ad_hoc_utilities/*
@@ -50,24 +53,20 @@ src/wf_analysis/contribMO
 src/wf_analysis/get_NTO_coef
 src/joyce_tools/jpp
 src/joyce_tools/modify_fchk
-src/internal_duschisky/zmat2modredundant
 src/cube_tools/density_3D
 src/cube_tools/charges_potential
 src/file_management/reform_fchk
 src/file_management/rmsd_fit
 src/bonded_info/max_dist_to_center
-src/internal_duschisky/vertical2adiabatic
 src/normal_modes/internal_numder_analysis
 src/normal_modes/vibrations_cart
 src/file_management/numderX
-src/internal_duschisky/verticalPCCP
 src/normal_modes/gen_Lder_numx
 src/normal_modes/numder_L
 src/normal_modes/numder_fc
 *_new
 src/normal_modes/numder_Lint
 src/normal_modes/check_derivatives
-src/internal_duschisky/generate_internals
 
 # output from test calcs
 *output.?

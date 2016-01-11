@@ -49,7 +49,8 @@ program vertical2adiabatic
                symaddapt=.false.    ,&
                vertical=.true.      ,&
                do_correct_num=.false., &
-               do_correct_int=.false.
+               do_correct_int=.false., &
+               gradcorrectS1=.false.
     character(len=4) :: def_internal='zmat'
     !======================
 
@@ -125,9 +126,10 @@ program vertical2adiabatic
                O_STAT=25, &
                O_STR =26
     !files
-    character(len=10) :: ft ="guess", fth="guess", ftgv="guess", fthv="guess" 
+    character(len=10) :: ft ="guess", fth="guess", ftg="guess", ftgv="guess", fthv="guess" 
     character(len=200):: inpfile  ="input.fchk", &
                          hessfile ="same", &
+                         gradfile="same",&
                          hessfile_v ="vertical.fchk", &
                          gradfile_v ="same", &
                          intfile  ="none",       &
@@ -153,8 +155,9 @@ program vertical2adiabatic
 !     call generic_input_parser(inpfile, "-f" ,"c",&
 !                               filetype,"-ft","c",&
 !                               )
-    call parse_input(inpfile,ft,hessfile,fth,gradfile_v,ftgv,hessfile_v,fthv,&
-                     intfile,rmzfile,def_internal,use_symmetry,derfile,do_correct_num,do_correct_int)
+    call parse_input(inpfile,ft,gradfile,ftg,hessfile,fth,gradfile_v,ftgv,hessfile_v,fthv,&
+                     intfile,rmzfile,def_internal,use_symmetry,derfile,do_correct_num,do_correct_int,&
+                     gradcorrectS1,vertical)
     call set_word_upper_case(def_internal)
 
     ! READ DATA (each element from a different file is possible)
@@ -164,101 +167,123 @@ program vertical2adiabatic
     call split_line_back(inpfile,".",null,ft)
     if (fth == "guess") &
     call split_line_back(hessfile,".",null,fth)
+    if (ftg == "guess") &
+    call split_line_back(gradfile,".",null,ftg)
     if (ftgv == "guess") &
     call split_line_back(gradfile_v,".",null,ftgv)
     if (fthv == "guess") &
     call split_line_back(hessfile_v,".",null,fthv)
 
     ! STRUCTURE FILE
+    print'(X,A)', "READING STATE1 FILE (STRUCTURE)..."
     open(I_INP,file=inpfile,status='old',iostat=IOstatus)
     if (IOstatus /= 0) call alert_msg( "fatal","Unable to open "//trim(adjustl(inpfile)) )
     call generic_strmol_reader(I_INP,ft,state1)
     close(I_INP)
     ! Shortcuts
     Nat = state1%natoms
+    print'(X,A,/)', "Sucess!"
 
     ! HESSIAN FILE (State1)
+    print'(X,A)', "READING STATE1 FILE (HESSIAN)..."
     open(I_INP,file=hessfile,status='old',iostat=IOstatus)
     if (IOstatus /= 0) call alert_msg( "fatal","Unable to open "//trim(adjustl(hessfile)) )
     allocate(Hlt(1:3*Nat*(3*Nat+1)/2))
     call generic_Hessian_reader(I_INP,fth,Nat,Hlt,error) 
     close(I_INP)
+    print'(X,A,/)', "Sucess!"
     ! Run vibrations_Cart to get the number of Nvib (to detect linear molecules)
+    print'(X,A)', "Preliminar vibrational analysis (Cartesian coordinates)..."
     call vibrations_Cart(Nat,state1%atom(:)%X,state1%atom(:)%Y,state1%atom(:)%Z,state1%atom(:)%Mass,Hlt,&
                          Nvib,L1,Freq1,error_flag=error)
     ! Get Lcart = M^1/2 Lmwc 
     call Lmwc_to_Lcart(Nat,Nvib,state1%atom(:)%Mass,L1,L1,error)
     if (verbose>2) &
         call MAT0(6,L1,3*Nat,Nvib,"Lcart matrix")
-    !***************************************************************
-    ! Compute normal modes in internal coordinates
 
-    ! Reconstruct full hessian
-    k=0
-    do i=1,3*Nat
-    do j=1,i
-        k=k+1
-        Hess(i,j) = Hlt(k)
-        Hess(j,i) = Hlt(k)
-    enddo 
-    enddo
-
-    !Generate bonded info
-    !From now on, we'll use atomic units
-    call guess_connect(state1)
-    call gen_bonded(state1)
-
-    ! Define internal set
-    call define_internal_set(state1,def_internal,intfile,rmzfile,use_symmetry,isym, S_sym,Ns)
-
-    !From now on, we'll use atomic units
-    call set_geom_units(state1,"Bohr")
-
-    ! INTERNAL COORDINATES
-
-    !SOLVE GF METHOD TO GET NM AND FREQ
-    call internal_Wilson_new(state1,Ns,S1,B,ModeDef)
-    call internal_Gmetric(Nat,Ns,state1%atom(:)%mass,B,G1)
-    if (vertical) then
-!         call NumBder(state1,Ns,Bder)
-        call calc_BDer(state1,Ns,Bder)
-    endif
-
-    ! SET REDUNDANT/SYMETRIZED/CUSTOM INTERNAL SETS
-!     if (symaddapt) then (implement in an analogous way as compared with the transformation from red to non-red
-    if (Ns > Nvib) then ! Redundant
-        call redundant2nonredundant(Ns,Nvib,G1,Asel1)
-        ! Rotate Bmatrix
-        B(1:Nvib,1:3*Nat) = matrix_product(Nvib,3*Nat,Ns,Asel1,B,tA=.true.)
-        ! Rotate Gmatrix
-        G1(1:Nvib,1:Nvib) = matrix_basisrot(Nvib,Ns,Asel1(1:Ns,1:Nvib),G1,counter=.true.)
-        ! Rotate Bders
-        if (vertical) then
-            do j=1,3*Nat
-                Bder(1:Nvib,j,1:3*Nat) =  matrix_product(Nvib,3*Nat,Ns,Asel1,Bder(1:Ns,j,1:3*Nat),tA=.true.)
-            enddo
-        endif
-    endif
-
-    if (vertical) then
-        call HessianCart2int(Nat,Nvib,Hess,state1%atom(:)%mass,B,G1,Grad=Grad,Bder=Bder)
+    ! GRADIENT FILE (State1)
+    if (gradcorrectS1) then
+        print'(X,A)', "READING STATE1 FILE (GRADIENT)..."
+        open(I_INP,file=gradfile,status='old',iostat=IOstatus)
+        if (IOstatus /= 0) call alert_msg( "fatal","Unable to open "//trim(adjustl(gradfile)) )
+        call generic_gradient_reader(I_INP,ftg,Nat,Grad,error) 
+        close(I_INP)
+        print'(X,A,/)', "Sucess!"
     else
-        call HessianCart2int(Nat,Nvib,Hess,state1%atom(:)%mass,B,G1)
+        print'(X,A,/)', "Assuming gradient for State1 equal to zero"
+        Grad(1:3*Nat) = 0.d0
     endif
-    ! Do not overwrite Freq1 (although should be identical)
-    call gf_method(Nvib,G1,Hess,L1int,Vec,X1,X1inv)
-    if (verbose>1) then
-        ! Analyze normal modes
-        if (use_symmetry) then
-            call analyze_internal(Nvib,Ns,L1int,Vec,ModeDef,S_sym)
-        else
-            call analyze_internal(Nvib,Ns,L1int,Vec,ModeDef)
+
+    if (do_correct_int) then
+        !***************************************************************
+        ! Compute normal modes in internal coordinates (only needed in do_correct_int=.true.)
+        print'(/,X,A)', "VIBRATIONAL ANALYSIS IN INTERNAL COORDINATES..."
+    
+        ! Reconstruct full hessian
+        k=0
+        do i=1,3*Nat
+        do j=1,i
+            k=k+1
+            Hess(i,j) = Hlt(k)
+            Hess(j,i) = Hlt(k)
+        enddo 
+        enddo
+    
+        !Generate bonded info
+        !From now on, we'll use atomic units
+        call guess_connect(state1)
+        call gen_bonded(state1)
+    
+        ! Define internal set
+        call define_internal_set(state1,def_internal,intfile,rmzfile,use_symmetry,isym, S_sym,Ns)
+    
+        !From now on, we'll use atomic units
+        call set_geom_units(state1,"Bohr")
+    
+        ! INTERNAL COORDINATES
+    
+        !SOLVE GF METHOD TO GET NM AND FREQ
+        call internal_Wilson_new(state1,Ns,S1,B,ModeDef)
+        call internal_Gmetric(Nat,Ns,state1%atom(:)%mass,B,G1)
+        call calc_BDer(state1,Ns,Bder)
+    
+        ! SET REDUNDANT/SYMETRIZED/CUSTOM INTERNAL SETS
+    !     if (symaddapt) then (implement in an analogous way as compared with the transformation from red to non-red
+        if (Ns > Nvib) then ! Redundant
+            call redundant2nonredundant(Ns,Nvib,G1,Asel1)
+            ! Rotate Bmatrix
+            B(1:Nvib,1:3*Nat) = matrix_product(Nvib,3*Nat,Ns,Asel1,B,tA=.true.)
+            ! Rotate Gmatrix
+            G1(1:Nvib,1:Nvib) = matrix_basisrot(Nvib,Ns,Asel1(1:Ns,1:Nvib),G1,counter=.true.)
+            ! Rotate Bders
+            if (vertical) then
+                do j=1,3*Nat
+                    Bder(1:Nvib,j,1:3*Nat) =  matrix_product(Nvib,3*Nat,Ns,Asel1,Bder(1:Ns,j,1:3*Nat),tA=.true.)
+                enddo
+            endif
         endif
+    
+        if (vertical) then
+            call HessianCart2int(Nat,Nvib,Hess,state1%atom(:)%mass,B,G1,Grad=Grad,Bder=Bder)
+        else
+            call HessianCart2int(Nat,Nvib,Hess,state1%atom(:)%mass,B,G1)
+        endif
+        ! Do not overwrite Freq1 (although should be identical)
+        call gf_method(Nvib,G1,Hess,L1int,Vec,X1,X1inv)
+        if (verbose>1) then
+            ! Analyze normal modes
+            if (use_symmetry) then
+                call analyze_internal(Nvib,Ns,L1int,Vec,ModeDef,S_sym)
+            else
+                call analyze_internal(Nvib,Ns,L1int,Vec,ModeDef)
+            endif
+        endif
+        !***************************************************************
     endif
-    !***************************************************************
     deallocate(Hlt)
 
     ! HESSIAN FILE (State2)
+    print'(/,X,A)', "READING STATE2 FILE (HESSIAN)..."
     open(I_INP,file=hessfile_v,status='old',iostat=IOstatus)
     if (IOstatus /= 0) call alert_msg( "fatal","Unable to open "//trim(adjustl(hessfile_v)) )
     allocate(Hlt(1:3*Nat*(3*Nat+1)/2))
@@ -275,6 +300,7 @@ program vertical2adiabatic
     deallocate(Hlt)
 
     ! GRADIENT FILE
+    print'(/,X,A)', "READING STATE2 FILE (GRADIENT)..."
     open(I_INP,file=gradfile_v,status='old',iostat=IOstatus)
     if (IOstatus /= 0) call alert_msg( "fatal","Unable to open "//trim(adjustl(gradfile_v)) )
     call generic_gradient_reader(I_INP,ftgv,Nat,Grad,error)
@@ -284,6 +310,7 @@ program vertical2adiabatic
     ! Apply matrix derivative if the option is enabled
     !*****************************************************
     if (do_correct_int) then
+        print'(X,A,/)', "Apply correction for vertical case based on internal vibrational analysis..."
         Aux(1:3*Nat,1:3*Nat) = Hess(1:3*Nat,1:3*Nat)
         ! Compute gQ
         ! Convert Gradient to normal mode coordinates in state1 Qspace.
@@ -323,6 +350,7 @@ program vertical2adiabatic
         Hess(1:Nvib,1:Nvib) = matrix_basisrot(Nvib,3*Nat,L1,Hess,counter=.true.)
 
     elseif (do_correct_num) then
+        print'(X,A,/)', "Apply correction for vertical case based on numerical derivates (not-tested)..."
         ! Correct with numerical derivatives of Lcart matrix
         ! The derivatives are computed externally and fed through
         ! files. This is not working for the moment.
@@ -362,6 +390,7 @@ program vertical2adiabatic
         ! We need gQ...
 
     else
+        print'(X,A,/)', "Do not apply any correction for vertical"
         ! Do not apply any correction (original PCCP2011 implementation)
         !Compute H_Q = L1^t Hess L1 
         Hess(1:Nvib,1:Nvib) = matrix_basisrot(Nvib,3*Nat,L1,Hess,counter=.true.)
@@ -383,6 +412,7 @@ program vertical2adiabatic
     !-------------------
     ! Duschisky matrix
     !-------------------
+    print'(/,X,A,/)', "DIAGONALIZE HESSIAN IN Q1-SPACE..."
     ! The matrix that diagonalizes the Hessian in Q1 modes is the Duschisky matrix
     call diagonalize_full(Hess(1:Nvib,1:Nvib),Nvib,G1(1:Nvib,1:Nvib),FC(1:Nvib),"lapack")
 
@@ -401,7 +431,7 @@ program vertical2adiabatic
         endif
     enddo
     if (verbose>0) &
-        call print_vector(6,Vec,Nvib,"Frequencies (cm-1)")
+        call print_vector(6,Freq2,Nvib,"Frequencies (cm-1)")
 
     !--------------------------------------------------------
     ! Shift vector
@@ -419,6 +449,7 @@ program vertical2adiabatic
     !   STORED in Grad
     !--------------------------------------------------------
     ! Q0 = - FC^-1 * J^t * gQ
+    print'(X,A,/)', "COMPUTE SHIFT VECTOR..."
     do i=1,Nvib
         Q0(i) = 0.d0
         do k=1,Nvib
@@ -545,16 +576,17 @@ program vertical2adiabatic
     contains
     !=============================================
 
-    subroutine parse_input(inpfile,ft,hessfile,fth,gradfile_v,ftgv,hessfile_v,fthv,intfile,&
-                           rmzfile,def_internal,use_symmetry,derfile,do_correct_num,do_correct_int)
+    subroutine parse_input(inpfile,ft,gradfile,ftg,hessfile,fth,gradfile_v,ftgv,hessfile_v,fthv,intfile,&
+                           rmzfile,def_internal,use_symmetry,derfile,do_correct_num,do_correct_int,&
+                           gradcorrectS1,vertical)
     !==================================================
     ! My input parser (gromacs style)
     !==================================================
         implicit none
 
-        character(len=*),intent(inout) :: inpfile,ft,hessfile,fth,gradfile_v,ftgv,hessfile_v,fthv,&
+        character(len=*),intent(inout) :: inpfile,ft,gradfile,ftg,hessfile,fth,gradfile_v,ftgv,hessfile_v,fthv,&
                                           intfile,rmzfile,def_internal,derfile
-        logical,intent(inout)          :: use_symmetry,do_correct_num,do_correct_int
+        logical,intent(inout)          :: use_symmetry,do_correct_num,do_correct_int,gradcorrectS1,vertical
         ! Local
         logical :: argument_retrieved,  &
                    need_help = .false.
@@ -581,6 +613,13 @@ program vertical2adiabatic
                     argument_retrieved=.true.
                 case ("-fth") 
                     call getarg(i+1, fth)
+                    argument_retrieved=.true.
+
+                case ("-fgrad") 
+                    call getarg(i+1, gradfile)
+                    argument_retrieved=.true.
+                case ("-ftg") 
+                    call getarg(i+1, ftg)
                     argument_retrieved=.true.
 
                 case ("-fder") 
@@ -627,6 +666,11 @@ program vertical2adiabatic
                     call getarg(i+1, def_internal)
                     argument_retrieved=.true.
 
+                case("-vert")
+                    vertical=.true.
+                case("-novert")
+                    vertical=.false.
+
                 case ("-sym")
                     use_symmetry=.true.
                 case ("-nosym")
@@ -641,6 +685,7 @@ program vertical2adiabatic
                     do_correct_int=.true.
                 case ("-nocorrect-int")
                     do_correct_int=.false.
+                    gradcorrectS1=.false.
 
                 case ("-h")
                     need_help=.true.
@@ -666,6 +711,10 @@ program vertical2adiabatic
            hessfile=inpfile
            if (adjustl(fth) == "guess")  fth=ft
        endif
+       if (adjustl(gradfile) == "same") then
+           gradfile=hessfile
+           if (adjustl(ftg) == "guess")  ftg=fth
+       endif
        if (adjustl(gradfile_v) == "same") then
            gradfile_v=hessfile_v
            if (adjustl(ftgv) == "guess")  ftgv=fthv
@@ -674,7 +723,7 @@ program vertical2adiabatic
 
        !Print options (to stderr)
         write(6,'(/,A)') '--------------------------------------------------'
-        write(6,'(/,A)') '      V E R T I C A L  D U S C H I N S K Y        '
+        write(6,'(/,A)') '      C A R T E S I A N  D U S C H I N S K Y        '
         write(6,'(/,A)') '         Duschinski analysis for Vertical         '
         write(6,'(A,/)') '          model in Cartesian coordinates          '        
         write(6,'(/,A)') '--------------------------------------------------'
@@ -682,14 +731,17 @@ program vertical2adiabatic
         write(6,*) '-ft               \_FileType                 ', trim(adjustl(ft))
         write(6,*) '-fhess            S1 Hessian file name       ', trim(adjustl(hessfile))
         write(6,*) '-fth              \_FileType                 ', trim(adjustl(fth))
+        write(6,*) '-fgrad            S1 gradient file name      ', trim(adjustl(gradfile))
+        write(6,*) '-ftg              \_FileType                 ', trim(adjustl(ftg))
         write(6,*) '-fhessv           S2(vertical) Hessian file  ', trim(adjustl(hessfile_v))
         write(6,*) '                  (-f2 is a synonim)         '
         write(6,*) '-fthv             \_FileType                 ', trim(adjustl(fthv))
         write(6,*) '                  (-ft2 is a synonim)        '
         write(6,*) '-fgradv           S2(vertical) gradient file ', trim(adjustl(gradfile_v))
         write(6,*) '-ftgv             \_FileType                 ', trim(adjustl(ftgv))
+        write(6,*) '-vert             Vertical model              ', vertical
         write(6,*) ''
-        write(6,*) '** Options correction method **'
+        write(6,*) '** Options correction method (vertical) **'
         write(6,*) '-[no]correct-num  Correction with numerical   ', do_correct_num
         write(6,*) '                  derivatives of L1 (Cart)    '
         write(6,*) '-[no]correct-int  Correction with analytical  ', do_correct_int
@@ -701,10 +753,12 @@ program vertical2adiabatic
         write(6,*) '                  (-correct-int)'
         write(6,*) '-intfile          File with internal set def.', trim(adjustl(intfile))
         write(6,*) '                  (-correct-int -intmode sel)'
+        write(6,*) '-[no]corrS1       Correct S1 at vib-in       ', gradcorrectS1
 !         write(6,*) '-rmzfile        ', trim(adjustl(rmzfile))
         write(6,*) ''
         write(6,*) '-h               ',  need_help
         write(6,*) '--------------------------------------------------'
+        if (.not.vertical) call alert_msg("fatal", 'Adiabatic model not yet implemented' )
         if (need_help) call alert_msg("fatal", 'There is no manual (for the moment)' )
 
         return

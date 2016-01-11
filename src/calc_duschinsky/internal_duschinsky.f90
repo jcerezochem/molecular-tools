@@ -66,10 +66,10 @@ program internal_duschinski
                tswitch=.false.        ,&
                symaddapt=.false.      ,&
                vertical=.false.       ,&
-               verticalQspace2=.false. ,&
-               verticalQspace1=.false. ,&
+               verticalQspace2=.false.,&
+               verticalQspace1=.false.,&
                gradcorrectS1=.false.  ,&  
-               gradcorrectS2=.true.   ,&
+               gradcorrectS2=.false.  ,&
                same_red2nonred_rotation=.true., &
                analytic_Bder=.false.
     character(len=4) :: def_internal='zmat'
@@ -322,7 +322,6 @@ program internal_duschinski
             call analyze_internal(Nvib,Ns,Aux,Freq1,ModeDef)
         endif
     endif
-Hess(1:Nvib,1:Nvib) = Hess(1:Nvib,1:Nvib)
 
     ! Compute new state_file
     ! T1(g09) = mu^1/2 m B^t G1^-1 L1
@@ -465,13 +464,13 @@ Hess(1:Nvib,1:Nvib) = Hess(1:Nvib,1:Nvib)
             call redundant2nonredundant(Ns,Nvib,G2,Asel2)
         endif
         ! Rotate Bmatrix
-        B(1:Nvib,1:3*Nat) = matrix_product(Nvib,3*Nat,Ns,Asel1,B,tA=.true.)
+        B(1:Nvib,1:3*Nat) = matrix_product(Nvib,3*Nat,Ns,Asel2,B,tA=.true.)
         ! Rotate Gmatrix
-        G2(1:Nvib,1:Nvib) = matrix_basisrot(Nvib,Ns,Asel1(1:Ns,1:Nvib),G2,counter=.true.)
+        G2(1:Nvib,1:Nvib) = matrix_basisrot(Nvib,Ns,Asel2(1:Ns,1:Nvib),G2,counter=.true.)
         ! Rotate Bders
         if (gradcorrectS2) then
             do j=1,3*Nat
-                Bder(1:Nvib,j,1:3*Nat) =  matrix_product(Nvib,3*Nat,Ns,Asel1,Bder(1:Ns,j,1:3*Nat),tA=.true.)
+                Bder(1:Nvib,j,1:3*Nat) =  matrix_product(Nvib,3*Nat,Ns,Asel2,Bder(1:Ns,j,1:3*Nat),tA=.true.)
             enddo
         endif
     endif
@@ -497,6 +496,12 @@ Hess(1:Nvib,1:Nvib) = Hess(1:Nvib,1:Nvib)
     endif
 
     ! Compute new state_file
+    if (vertical) then
+        ! Deactivate state2 coords to avoid confusion
+        state2%atom(1:Nat)%x=0.d0
+        state2%atom(1:Nat)%y=0.d0
+        state2%atom(1:Nat)%z=0.d0
+    endif
     call Ls_to_Lcart(Nat,Nvib,state2%atom(:)%mass,B,G2,L2,Aux,error)
     call Lcart_to_LcartNrm(Nat,Nvib,Aux,Aux2,error)
     !Print state
@@ -615,8 +620,8 @@ Hess(1:Nvib,1:Nvib) = Hess(1:Nvib,1:Nvib)
         ! rotate to the same redundant space L(red) = Asel * L(non-red)
         ! J = L1^-1 A1^t A2 L2
         ! so store in Aux the following part: [L1^-1 A1^t A2]
-        Asel1(1:Nvib,1:Nvib) = matrix_product(Nvib,Nvib,Ns,Asel1,Asel2,tA=.true.)
-        Aux(1:Nvib,1:Nvib) = matrix_product(Nvib,Nvib,Nvib,L1,Asel1)
+        Aux(1:Nvib,1:Nvib) = matrix_product(Nvib,Nvib,Ns,Asel1,Asel2,tA=.true.)
+        Aux(1:Nvib,1:Nvib) = matrix_product(Nvib,Nvib,Nvib,L1,Aux)
     else
         Aux(1:Nvib,1:Nvib) = L1(1:Nvib,1:Nvib)
     endif
@@ -736,6 +741,7 @@ Hess(1:Nvib,1:Nvib) = Hess(1:Nvib,1:Nvib)
             print'(I5,X,A,X,3(F8.2,2X))', i, trim(ModeDef(i)), S2(i)*180.d0/PI,S1(i)*180.d0/PI,Vec1(i)*180.d0/PI
         enddo
     endif
+
 
     !--------------------------
     ! K-vector (NM-shifts)
@@ -1078,19 +1084,25 @@ Hess(1:Nvib,1:Nvib) = Hess(1:Nvib,1:Nvib)
                     vertical=.true.
                     verticalQspace2=.true.
                     verticalQspace1=.false.
+                    ! Apply defaults
+                    gradcorrectS2=.true.
                 case ("-vert")
                     vertical=.true.
                     verticalQspace2=.false.
+                    ! Apply defaults
+                    gradcorrectS2=.true.
                 case ("-novert")
                     vertical=.false.
                     verticalQspace2=.false.
+                    ! Apply defaults
+                    gradcorrectS2=.true.
         
                 case ("-h")
                     need_help=.true.
 
-                case ("-correct")
+                case ("-corrS2")
                     gradcorrectS2=.true.
-                case ("-nocorrect")
+                case ("-nocorrS2")
                     gradcorrectS2=.false.
                 case ("-corrS1")
                     gradcorrectS1=.true.
@@ -1171,10 +1183,10 @@ Hess(1:Nvib,1:Nvib) = Hess(1:Nvib,1:Nvib)
         write(6,*) '               '
         write(6,*) ' ** Options Vertical Model **'
         write(6,*) '-[no]vert    Vertical model               ',  vertical
-        write(6,*) '-[no]correct Use correction (gradient)    ',  gradcorrectS2
+        write(6,*) '-[no]corrS2  Apply correction(grad) on S2 ',  gradcorrectS2
+        write(6,*) '-[no]corrS1  Apply correction also on S1  ',  gradcorrectS1
         write(6,*) '-[no]vertQ2  Vertical in normal-mode space',  verticalQspace2
         write(6,*) '-[no]vertQ1  Vertical in normal-mode space',  verticalQspace1
-        write(6,*) '-[no]corrS1  Apply correction also on S1  ',  gradcorrectS1
         write(6,*) '               '
         write(6,*) '-h           Display this help            ',  need_help
         write(6,'(/,A)') '-------------------------------------------------------------------'

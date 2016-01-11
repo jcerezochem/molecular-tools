@@ -1,7 +1,7 @@
 SUBDIRS =                        \
           libs/AnalyticalBders   \
           src/modules            \
-          src/internal_duschisky \
+          src/calc_duschinsky    \
           src/normal_modes       
 
 #          src/file_management    \

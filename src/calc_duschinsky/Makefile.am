@@ -2,7 +2,7 @@ AUTOMAKE_OPTIONS = subdir-objects
 
 LDFLAGS = -L$(top_builddir)/libs/AnalyticalBders @LIBS@ 
 
-bin_PROGRAMS = vertical2adiabatic_new verticalPCCP internal_duschinsky_new generate_internals
+bin_PROGRAMS = vertical2adiabatic_new cartesian_duschinsky internal_duschinsky_new generate_internals
 
 vertical2adiabatic_new_SOURCES = ../modules/version.f90\
                              ../modules/alerts.f90\
@@ -34,7 +34,7 @@ vertical2adiabatic_new_SOURCES = ../modules/version.f90\
                              ../modules/vibrational_analysis.f90\
                              vertical2adiabatic.f90
 
-verticalPCCP_SOURCES = ../modules/alerts.f90\
+cartesian_duschinsky_SOURCES = ../modules/alerts.f90\
                              ../modules/line_preprocess.f90\
                              ../modules/constants.f90\
                              ../modules/verbosity.f90\
@@ -61,7 +61,7 @@ verticalPCCP_SOURCES = ../modules/alerts.f90\
                              ../modules/symmetry.f90\
                              ../modules/internal.f90\
                              ../modules/vibrational_analysis.f90\
-                             verticalPCCP.f90
+                             cartesian_duschinsky.f90
 
 internal_duschinsky_new_SOURCES = ../modules/version.f90\
                              ../modules/alerts.f90\

@@ -108,7 +108,7 @@ AC_CONFIG_FILES([Makefile
                  libs/AnalyticalBders/Makefile
                  src/modules/Makefile
                  src/normal_modes/Makefile          
-                 src/internal_duschisky/Makefile
+                 src/calc_duschinsky/Makefile
 ])        
 AC_OUTPUT    
         
