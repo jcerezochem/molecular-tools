@@ -202,7 +202,7 @@ module internal_module
         integer,dimension(NDIM),intent(out) :: Zmap
 
         ! Local
-        integer :: nbonds,nangles,ndihed, Nat
+        integer :: nbonds,nangles,ndihed, Nat, Nvib
         integer,dimension(1:NDIM,1:4) :: bond_s, angle_s, dihed_s
         integer :: i,j
 
@@ -212,6 +212,9 @@ module internal_module
         nbonds = molecule%geom%nbonds
         nangles= molecule%geom%nangles
         ndihed = molecule%geom%ndihed
+        !Initialize Zmap
+        Zmap(:) = 0
+
         do j=1,Nat-1  ! Zmat loop 
         do i=1,nbonds ! Redundant loop
             if (zmatgeom%bond(j,1)==molecule%geom%bond(i,1).and.&
@@ -259,15 +262,18 @@ module internal_module
 
     end subroutine red2zmat_mapping
 
-    function map_Zmatrix(Nvib,S,Zmap) result(Sz)
+    function map_Zmatrix(Nvib,S,Zmap,S0) result(Sz)
 
         ! Get S(Zmatrix) from S(redudant) using the Zmap associations
+        ! and S0 to get frozen values (from rmzfile cases)
+        ! S0 has the shape of the output Sz
 
         integer,parameter :: NDIM = 600
 
         integer,intent(in)              :: Nvib
         real(8),dimension(:),intent(in) :: S
         integer,dimension(:),intent(in) :: Zmap
+        real(8),dimension(:),intent(in),optional :: S0
         ! Output:                       
         real(8),dimension(Nvib)         :: Sz
 
@@ -275,7 +281,15 @@ module internal_module
         integer :: i
 
         do i=1,Nvib
-            Sz(i) = S(Zmap(i))
+            if (Zmap(i) == 0) then
+                if (present(S0)) then
+                    Sz(i) = S0(i)
+                else
+                    call alert_msg("fatal","Wrong Zmap index")
+                endif
+            else
+                Sz(i) = S(Zmap(i))
+            endif
         enddo
 
         return

@@ -118,7 +118,7 @@ program normal_modes_animation
     !Save definitio of the modes in character
     character(len=100),dimension(NDIM) :: ModeDef
     !VECTORS
-    real(8),dimension(NDIM) :: S, Sref
+    real(8),dimension(NDIM) :: S, Sref, S0
     integer,dimension(NDIM) :: S_sym
     ! Switches
     character(len=5) :: def_internal="ZMAT", def_internal_aux
@@ -157,7 +157,7 @@ program normal_modes_animation
     !Structure files to be created
     character(len=100) :: g09file,qfile, tmpfile, g96file, grofile,numfile
     !status
-    integer :: IOstatus
+    integer :: IOstatus, verbose_current
     !===================
 
     !===================
@@ -331,7 +331,7 @@ program normal_modes_animation
     call gen_bonded(molecule)
 
     ! Define internal set
-    if (def_internal=="ALL") then !.or.(def_internal=="ZMAT".and.rmzfile/="none")) then 
+    if (def_internal=="ALL".or.(def_internal=="ZMAT".and.rmzfile/="none")) then 
         !Only if def_internal="all", we can print the animation mapping the Zmat
         !but NOT for "sel"
         print*, "Preliminary Zmat analysis"
@@ -340,15 +340,23 @@ program normal_modes_animation
         call define_internal_set(molecule,def_internal_aux,intfile,"none",use_symmetry,isym,S_sym,Ns)
         ! Get only the geom, and reuse molecule
         zmatgeom=molecule%geom
+        ! Compute S values (to get initial values for frozen (rmzfile) ICs)
+        verbose_current=verbose
+!         verbose=0
+        call set_geom_units(molecule,"Bohr")
+        call internal_Wilson_new(molecule,Ns,S0,B)
+        call set_geom_units(molecule,"Angs")
+        verbose=verbose_current
         ! And reset bonded parameters
         call gen_bonded(molecule)
     endif
     call define_internal_set(molecule,def_internal,intfile,rmzfile,use_symmetry,isym,S_sym,Ns)
     if (Ns > Nvib) then
         call red2zmat_mapping(molecule,zmatgeom,Zmap)
-!     elseif (def_internal=="ZMAT".and.rmzfile/="none") then
-!         ! We also get a Zmap
-!         
+    elseif (def_internal=="ZMAT".and.rmzfile/="none") then
+        ! We also get a Zmap
+        call red2zmat_mapping(molecule,zmatgeom,Zmap)
+        Nvib=Ns
     elseif (Ns < Nvib) then
         print*, "Ns", Ns
         print*, "Nvib", Nvib
@@ -456,6 +464,8 @@ program normal_modes_animation
     !==========================================================0
     !  Normal mode displacements
     !==========================================================0
+    ! Tune Ns to activate switches
+    if (rmzfile/="none") Ns=0
     ! Take number of ICs as Shortcuts
     nbonds = molecule%geom%nbonds
     nangles= molecule%geom%nangles
@@ -469,7 +479,7 @@ program normal_modes_animation
     if (Ns /= Nvib .and. scan_type == "NM") then
         ! From now on, we use the zmatgeom 
         molecule%geom = zmatgeom
-        S(1:Nvib) = map_Zmatrix(Nvib,S,Zmap)
+        S(1:Nvib) = map_Zmatrix(Nvib,S,Zmap,S0)
     endif
     call zmat2cart(molecule,S)
     ! Save state as reference frame for RMSD fit (in AA)
@@ -548,7 +558,7 @@ program normal_modes_animation
             call displace_Scoord(LL(:,j),nbonds,nangles,ndihed,Qstep/Factor(j)*i,S)
             ! Get Cart coordinates
             if (Ns /= Nvib .and. scan_type == "NM") then
-                S(1:Nvib) = map_Zmatrix(Nvib,S,Zmap)
+                S(1:Nvib) = map_Zmatrix(Nvib,S,Zmap,S0)
             endif
             call zmat2cart(molecule,S)
             !call rmsd_fit_frame(state,ref): efficient but not always works. If so, it uses rmsd_fit_frame_brute(state,ref)
@@ -588,7 +598,7 @@ program normal_modes_animation
             call displace_Scoord(LL(:,j),nbonds,nangles,ndihed,Qstep/Factor(j)*i,S)
             ! Get Cart coordinates
             if (Ns /= Nvib .and. scan_type == "NM") then
-                S(1:Nvib) = map_Zmatrix(Nvib,S,Zmap)
+                S(1:Nvib) = map_Zmatrix(Nvib,S,Zmap,S0)
             endif
             call zmat2cart(molecule,S)
             !Transform to AA and comparae with last step (stored in state) -- comparison in AA
@@ -632,7 +642,7 @@ program normal_modes_animation
             call displace_Scoord(LL(:,j),nbonds,nangles,ndihed,Qstep/Factor(j)*i,S)
             ! Get Cart coordinates
             if (Ns /= Nvib .and. scan_type == "NM") then
-                S(1:Nvib) = map_Zmatrix(Nvib,S,Zmap)
+                S(1:Nvib) = map_Zmatrix(Nvib,S,Zmap,S0)
             endif
             call zmat2cart(molecule,S)
             !call rmsd_fit_frame(state,ref): efficient but not always works. If so, it uses rmsd_fit_frame_brute(state,ref)
