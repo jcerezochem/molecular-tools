@@ -331,13 +331,13 @@ program normal_modes_animation
     call gen_bonded(molecule)
 
     ! Define internal set
-    if (def_internal=="ALL") then 
+    if (def_internal=="ALL") then !.or.(def_internal=="ZMAT".and.rmzfile/="none")) then 
         !Only if def_internal="all", we can print the animation mapping the Zmat
         !but NOT for "sel"
         print*, "Preliminary Zmat analysis"
         ! Get Zmat first
         def_internal_aux="ZMAT"
-        call define_internal_set(molecule,def_internal_aux,"none","none",use_symmetry,isym,S_sym,Ns)
+        call define_internal_set(molecule,def_internal_aux,intfile,"none",use_symmetry,isym,S_sym,Ns)
         ! Get only the geom, and reuse molecule
         zmatgeom=molecule%geom
         ! And reset bonded parameters
@@ -346,10 +346,13 @@ program normal_modes_animation
     call define_internal_set(molecule,def_internal,intfile,rmzfile,use_symmetry,isym,S_sym,Ns)
     if (Ns > Nvib) then
         call red2zmat_mapping(molecule,zmatgeom,Zmap)
+!     elseif (def_internal=="ZMAT".and.rmzfile/="none") then
+!         ! We also get a Zmap
+!         
     elseif (Ns < Nvib) then
         print*, "Ns", Ns
         print*, "Nvib", Nvib
-        call alert_msg("fatal","Reduced coordinates cases still not implemented")
+        call alert_msg("warning","Reduced coordinates only produce animations with rmzfiles")
         ! Need to freeze unused coords to its input values
     endif
 

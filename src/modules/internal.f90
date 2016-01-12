@@ -1455,7 +1455,7 @@ module internal_module
         integer,parameter :: NDIM = 600
         real(8),parameter :: ZEROp=1.d-10
 
-        integer,intent(in) :: Nred, Nvib
+        integer,intent(inout) :: Nred, Nvib
         real(8),dimension(NDIM,NDIM),intent(in) :: G
         real(8),dimension(NDIM,NDIM),intent(out):: Asel
 
@@ -1495,7 +1495,16 @@ module internal_module
             call print_vector(6,Vec*1e5,Nred,"A MATRIX Eigenvalues (x10^5)")
             print*, "Zero eigenvalues: ", kkk 
             print*, "Expected: ", Nred-Nvib
-            call alert_msg("fatal","Redundant to non-redundant trasformation failed")
+            if (kkk > Nred-Nvib) then
+                print*, "Internal-space dimension is reduced"
+                print*, " Initial:", Nvib
+                print*, " Reduced:", Nred-kkk
+                call alert_msg("warning","Redundant to non-redundant trasformation"//&
+                                     " resulted in a reduced space")
+                Nvib=Nred-kkk
+            else 
+                call alert_msg("fatal","Redundant to non-redundant trasformation failed")
+            endif
         endif
 
         if (verbose>2) &

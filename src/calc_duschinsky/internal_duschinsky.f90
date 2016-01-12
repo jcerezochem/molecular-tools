@@ -79,7 +79,7 @@ program internal_duschinski
     !System variables
     type(str_resmol) :: state1, state2
     integer,dimension(1:NDIM) :: isym
-    integer :: Nat, Nvib, Ns
+    integer :: Nat, Nvib, Ns, NNvib
     character(len=5) :: PG
     !Bonded info
     integer,dimension(1:NDIM,1:4) :: bond_s, angle_s, dihed_s
@@ -397,8 +397,11 @@ program internal_duschinski
     close(I_INP)
     ! Run vibrations_Cart to get the number of Nvib (to detect linear molecules)
     call vibrations_Cart(Nat,state2%atom(:)%X,state2%atom(:)%Y,state2%atom(:)%Z,state2%atom(:)%Mass,A,&
-                         Nvib,L2,Freq2,error_flag=error)
-    if (Nvib /= 3*Nat-6) call alert_msg("warning","Linear molecule (at state2). Things can go very bad.")
+                         NNvib,L2,Freq2,error_flag=error)
+    if (NNvib /= 3*Nat-6) call alert_msg("warning","Linear molecule (at state2). Things can go very bad.")
+    if (NNvib > Nvib) then
+        print'(/,A,/)', "Using reduced space from State1"
+    endif
     k=0
     do i=1,3*Nat
     do j=1,i
