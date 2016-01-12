@@ -127,6 +127,7 @@ program vertical2adiabatic
                I_ADD=14,  &
                I_AD2=15,  &
                I_RMF=16,  &
+               I_CNX=17,  &
                O_DUS=20,  &
                O_DIS=21,  &
                O_DMAT=22, &
@@ -139,9 +140,10 @@ program vertical2adiabatic
     character(len=200):: inpfile  ="input.fchk", &
                          gradfile ="same", &
                          hessfile ="same", &
-                         intfile  ="none",       &
-                         rmzfile  ="none",       &
-                         symm_file="none"
+                         intfile  ="none", &
+                         rmzfile  ="none", &
+                         symm_file="none", &
+                         cnx_file="guess"
     !status
     integer :: IOstatus
     !===================
@@ -160,7 +162,8 @@ program vertical2adiabatic
 !     call generic_input_parser(inpfile, "-f" ,"c",&
 !                               filetype,"-ft","c",&
 !                               )
-    call parse_input(inpfile,ft,hessfile,fth,gradfile,ftg,intfile,rmzfile,def_internal,use_symmetry,vertical)
+    call parse_input(inpfile,ft,hessfile,fth,gradfile,ftg,cnx_file,&
+                     intfile,rmzfile,def_internal,use_symmetry,vertical)
     call set_word_upper_case(def_internal)
 
     ! READ DATA (each element from a different file is possible)
@@ -209,7 +212,14 @@ program vertical2adiabatic
     ! MANAGE INTERNAL COORDS
     ! ---------------------------------
     ! Get connectivity 
-    call guess_connect(state1)
+    if (cnx_file == "guess") then
+        call guess_connect(state1)
+    else
+        print'(/,A,/)', "Reading connectivity from file: "//trim(adjustl(cnx_file))
+        open(I_CNX,file=cnx_file,status='old')
+        call read_connect(I_CNX,state1)
+        close(I_CNX)
+    endif
 
     ! Manage symmetry
     if (.not.use_symmetry) then
@@ -591,14 +601,15 @@ program vertical2adiabatic
     contains
     !=============================================
 
-    subroutine parse_input(inpfile,ft,hessfile,fth,gradfile,ftg,intfile,rmzfile,def_internal,use_symmetry,vertical)
+    subroutine parse_input(inpfile,ft,hessfile,fth,gradfile,ftg,cnx_file,& 
+                           intfile,rmzfile,def_internal,use_symmetry,vertical)
     !==================================================
     ! My input parser (gromacs style)
     !==================================================
         implicit none
 
         character(len=*),intent(inout) :: inpfile,ft,hessfile,fth,gradfile,ftg,&
-                                          intfile,rmzfile,def_internal
+                                          intfile,rmzfile,def_internal,cnx_file
         logical,intent(inout)          :: use_symmetry, vertical
         ! Local
         logical :: argument_retrieved,  &
@@ -639,6 +650,10 @@ program vertical2adiabatic
                     vertical=.true.
                 case ("-novert")
                     vertical=.false.
+
+                case ("-cnx") 
+                    call getarg(i+1, cnx_file)
+                    argument_retrieved=.true.
 
                 case ("-intfile") 
                     call getarg(i+1, intfile)
@@ -711,6 +726,7 @@ program vertical2adiabatic
         write(6,*)       '-fgrad          Gradient File                ', trim(adjustl(gradfile))
         write(6,*)       '-ftg            \_ FileType                  ', trim(adjustl(ftg))
         write(6,*)       '-intmode        Internal set:[zmat|sel|all]  ', trim(adjustl(def_internal))
+        write(6,*)       '-cnx           Connectivity [filename|guess] ', trim(adjustl(cnx_file))
         write(6,*)       '-intfile        File with ICs (for "sel")    ', trim(adjustl(intfile))
         write(6,*)       '-rmzfile        File deleting ICs from Zmat  ', trim(adjustl(rmzfile))
         write(6,*)       '-[no]vert       Vertical model              ',  vertical

@@ -1492,7 +1492,7 @@ module internal_module
 
         if (Nred /= Nvib+kkk) then
             call sort_vec(Vec,Nred)
-            call print_vector(6,Vec,Nred,"A MATRIX Eigenvalues")
+            call print_vector(6,Vec*1e5,Nred,"A MATRIX Eigenvalues (x10^5)")
             print*, "Zero eigenvalues: ", kkk 
             print*, "Expected: ", Nred-Nvib
             call alert_msg("fatal","Redundant to non-redundant trasformation failed")

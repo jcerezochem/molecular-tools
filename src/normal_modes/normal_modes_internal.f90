@@ -135,6 +135,7 @@ program normal_modes_animation
     integer :: I_INP=10,  &
                I_SYM=12,  &
                I_RMF=16,  &
+               I_CNX=17,  &
                O_GRO=20,  &
                O_G09=21,  &
                O_G96=22,  &
@@ -151,7 +152,8 @@ program normal_modes_animation
                          nmfile   ="none", &
                          intfile  ="none", &
                          rmzfile  ="none", &
-                         symm_file="none"
+                         symm_file="none", &
+                         cnx_file="guess"
     !Structure files to be created
     character(len=100) :: g09file,qfile, tmpfile, g96file, grofile,numfile
     !status
@@ -178,8 +180,11 @@ program normal_modes_animation
                      movie_vmd, movie_cycles,                              &
                      ! Options (internal)
                      use_symmetry,def_internal,intfile,rmzfile,scan_type,  &
+                     ! connectivity file
+                     cnx_file,                                             &
                      ! (hidden)
                      analytic_Bder)
+    call set_word_upper_case(def_internal)
 
 
     ! INTERNAL VIBRATIONAL ANALYSIS
@@ -296,7 +301,14 @@ program normal_modes_animation
     ! MANAGE INTERNAL COORDS
     ! ---------------------------------
     ! Get connectivity 
-    call guess_connect(molecule)
+    if (cnx_file == "guess") then
+        call guess_connect(molecule)
+    else
+        print'(/,A,/)', "Reading connectivity from file: "//trim(adjustl(cnx_file))
+        open(I_CNX,file=cnx_file,status='old')
+        call read_connect(I_CNX,molecule)
+        close(I_CNX)
+    endif
 
     ! Manage symmetry
     if (.not.use_symmetry) then
@@ -319,7 +331,9 @@ program normal_modes_animation
     call gen_bonded(molecule)
 
     ! Define internal set
-    if (def_internal/="ZMAT") then 
+    if (def_internal=="ALL") then 
+        !Only if def_internal="all", we can print the animation mapping the Zmat
+        !but NOT for "sel"
         print*, "Preliminary Zmat analysis"
         ! Get Zmat first
         def_internal_aux="ZMAT"
@@ -428,6 +442,13 @@ program normal_modes_animation
         LL(1:Ns,1:Nvib) = matrix_product(Ns,Nvib,Nvib,Asel,LL)
     endif
 
+    if (def_internal=="SEL") then
+        if (Nsel/=0) call alert_msg("warning","Animations not possible "//&
+                                              "with -intmode sel")
+        call cpu_time(tf)
+        write(0,'(/,A,X,F12.3,/)') "CPU time (s)", tf-ti
+        stop
+    endif
 
     !==========================================================0
     !  Normal mode displacements
@@ -760,6 +781,8 @@ program normal_modes_animation
                            movie_vmd, movie_cycles,                              &
                            ! Options (internal)
                            use_symmetry,def_internal,intfile,rmzfile,scan_type, &
+                           ! connectivity file
+                           cnx_file,                                             &
                            ! (hidden)
                            analytic_Bder)
     !==================================================
@@ -768,7 +791,8 @@ program normal_modes_animation
         implicit none
 
         character(len=*),intent(inout) :: inpfile,ft,hessfile,fth,gradfile,ftg,nmfile,ftn, &
-                                          intfile,rmzfile,scan_type,def_internal,selection
+                                          intfile,rmzfile,scan_type,def_internal,selection, &
+                                          cnx_file
         real(8),intent(inout)          :: Amplitude
         logical,intent(inout)          :: call_vmd, include_hbonds,vertical, use_symmetry,movie_vmd, &
                                           analytic_Bder
@@ -815,6 +839,10 @@ program normal_modes_animation
                     argument_retrieved=.true.
                 case ("-ftn") 
                     call getarg(i+1, ftn)
+                    argument_retrieved=.true.
+
+                case ("-cnx") 
+                    call getarg(i+1, cnx_file)
                     argument_retrieved=.true.
 
                 case ("-intfile") 
@@ -945,6 +973,7 @@ program normal_modes_animation
         write(6,*)       '-fth           \_ FileType                     ', trim(adjustl(fth))
         write(6,*)       '-fgrad         Hessian file                    ', trim(adjustl(gradfile))
         write(6,*)       '-ftg           \_ FileType                     ', trim(adjustl(ftg))
+        write(6,*)       '-cnx           Connectivity [filename|guess]   ', trim(adjustl(cnx_file))
 !         write(6,*)       '-fnm           Gradient file                   ', trim(adjustl(nmfile))
 !         write(6,*)       '-ftn           \_ FileType                     ', trim(adjustl(ftn))
         write(6,*)       '-nm            Selection of normal modes to    ', trim(adjustl(nm_selection))

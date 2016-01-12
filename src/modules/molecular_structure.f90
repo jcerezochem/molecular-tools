@@ -118,6 +118,47 @@ module molecular_structure
 
    !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
+    subroutine write_connect(unt,molec)
+
+        implicit none
+        integer,intent(in)             :: unt
+        type(str_resmol),intent(inout) :: molec
+
+        !Local
+        integer :: i, nbonds
+
+        write(unt,*) molec%natoms
+        do i=1,molec%natoms
+            nbonds=molec%atom(i)%nbonds
+            write(unt,*) i, nbonds, molec%atom(i)%connect(1:nbonds)
+        enddo
+
+        return
+
+    end subroutine write_connect
+
+    subroutine read_connect(unt,molec)
+
+        implicit none
+        integer,intent(in)             :: unt
+        type(str_resmol),intent(inout) :: molec
+
+        !Local
+        integer :: i,j, N, nbonds
+
+        read(unt,*) N
+        if (N /= molec%natoms) call alert_msg("note","Number of connections "//&
+                                                     "does not match Natoms")
+        molec%atom(1:molec%natoms)%nbonds = 0
+        do i=1,N
+            read(unt,*) j, nbonds, molec%atom(j)%connect(1:nbonds)
+            molec%atom(j)%nbonds = nbonds
+        enddo
+
+        return
+
+    end subroutine read_connect
+
     subroutine guess_connect(molec,inc_hbond)
 
         use constants

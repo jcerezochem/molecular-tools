@@ -144,6 +144,7 @@ program internal_duschinski
                I_ADD=14,  &
                I_AD2=15,  &
                I_RMF=16,  &
+               I_CNX=17,  &
                O_DUS=20,  &
                O_DIS=21,  &
                O_DMAT=22, &
@@ -159,9 +160,10 @@ program internal_duschinski
                          inpfile2 ="none", &
                          gradfile2="same", &
                          hessfile2="same", &
-                         intfile  ="none",       &
-                         rmzfile  ="none",       &
-                         symm_file="none"
+                         intfile  ="none", &
+                         rmzfile  ="none", &
+                         symm_file="none", &
+                         cnx_file="guess"
     !status
     integer :: IOstatus
     !===================
@@ -179,7 +181,7 @@ program internal_duschinski
     ! 0. GET COMMAND LINE ARGUMENTS
     call parse_input(inpfile,ft,hessfile,fth,gradfile,ftg,&
                      inpfile2,ft2,hessfile2,fth2,gradfile2,ftg2,&
-                     intfile,rmzfile,def_internal,use_symmetry, &
+                     intfile,rmzfile,def_internal,use_symmetry,cnx_file, &
 !                    tswitch,
                      symaddapt,same_red2nonred_rotation,analytic_Bder,&
                      vertical,verticalQspace2,verticalQspace1,&
@@ -246,7 +248,14 @@ program internal_duschinski
     ! MANAGE INTERNAL COORDS
     ! ---------------------------------
     ! Get connectivity 
-    call guess_connect(state1)
+    if (cnx_file == "guess") then
+        call guess_connect(state1)
+    else
+        print'(/,A,/)', "Reading connectivity from file: "//trim(adjustl(cnx_file))
+        open(I_CNX,file=cnx_file,status='old')
+        call read_connect(I_CNX,state1)
+        close(I_CNX)
+    endif
 
     ! Manage symmetry
     if (.not.use_symmetry) then
@@ -410,7 +419,14 @@ program internal_duschinski
     ! MANAGE INTERNAL COORDS
     ! ---------------------------------
     ! Get connectivity 
-    call guess_connect(state2)
+    if (cnx_file == "guess") then
+        call guess_connect(state2)
+    else
+        print'(/,A,/)', "Reading connectivity from file: "//trim(adjustl(cnx_file))
+        open(I_CNX,file=cnx_file,status='old')
+        call read_connect(I_CNX,state2)
+        close(I_CNX)
+    endif
 
     ! Manage symmetry
     if (.not.use_symmetry) then
@@ -978,7 +994,7 @@ program internal_duschinski
 
     subroutine parse_input(inpfile,ft,hessfile,fth,gradfile,ftg,&
                            inpfile2,ft2,hessfile2,fth2,gradfile2,ftg2,&
-                           intfile,rmzfile,def_internal,use_symmetry, &
+                           intfile,rmzfile,def_internal,use_symmetry,cnx_file,&
 !                          tswitch,
                            symaddapt,same_red2nonred_rotation,analytic_Bder,&
                            vertical,verticalQspace2,verticalQspace1,&
@@ -990,7 +1006,7 @@ program internal_duschinski
 
         character(len=*),intent(inout) :: inpfile,ft,hessfile,fth,gradfile,ftg,&
                                           inpfile2,ft2,hessfile2,fth2,gradfile2,ftg2,&
-                                          intfile,rmzfile,def_internal !, symfile
+                                          intfile,rmzfile,def_internal, cnx_file !, symfile
         logical,intent(inout)          :: use_symmetry, vertical, verticalQspace2, &
                                           verticalQspace1, &
                                           gradcorrectS1, gradcorrectS2, symaddapt, &
@@ -1051,6 +1067,10 @@ program internal_duschinski
                     argument_retrieved=.true.
                 case ("-ftg2") 
                     call getarg(i+1, ftg2)
+                    argument_retrieved=.true.
+
+                case ("-cnx") 
+                    call getarg(i+1, cnx_file)
                     argument_retrieved=.true.
 
                 case ("-intfile") 
@@ -1186,6 +1206,7 @@ program internal_duschinski
         write(6,*) '-ftg2        \_ FileType                   ', trim(adjustl(ftg2))
         write(6,*) '               '                       
         write(6,*) ' ** Options Internal Coordinates **           '
+        write(6,*) '-cnx         Connectivity [filename|guess] ', trim(adjustl(cnx_file))
         write(6,*) '-intmode     Internal set:[zmat|sel|all]   ', trim(adjustl(def_internal))
         write(6,*) '-intfile     File with ICs (for "sel")     ', trim(adjustl(intfile))
         write(6,*) '-rmzfile     File deleting ICs from Zmat   ', trim(adjustl(rmzfile))
