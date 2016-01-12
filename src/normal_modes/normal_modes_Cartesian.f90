@@ -139,8 +139,14 @@ program normal_modes_cartesian
 
     call cpu_time(ti)
 
+    !--------------------------
+    ! Tune io
+    !--------------------------
+    ! Set unit for alert messages
+    alert_unt=6
     ! Activate notes
     silent_notes = .false.
+    !--------------------------
 
     ! 0. GET COMMAND LINE ARGUMENTS
     call parse_input(&

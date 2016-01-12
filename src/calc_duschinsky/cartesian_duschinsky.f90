@@ -151,6 +151,13 @@ program vertical2adiabatic
 
     call cpu_time(ti)
 
+    !--------------------------
+    ! Tune io
+    !--------------------------
+    ! Set unit for alert messages
+    alert_unt=6
+    !--------------------------
+
     ! 0. GET COMMAND LINE ARGUMENTS
 !     call generic_input_parser(inpfile, "-f" ,"c",&
 !                               filetype,"-ft","c",&
@@ -578,7 +585,7 @@ program vertical2adiabatic
     call summary_alerts
 
     call cpu_time(tf)
-    write(0,'(/,A,X,F12.3,/)') "CPU time (s)", tf-ti
+    write(6,'(/,A,X,F12.3,/)') "CPU time (s)", tf-ti
 
     stop
 

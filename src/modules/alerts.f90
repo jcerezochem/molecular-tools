@@ -13,8 +13,9 @@ module alerts
     !  a common block for them)
     !-----------------------------------------------------
 
-    integer, save :: n_notes=0,&
-                     n_errors=0
+    integer, save :: n_notes=0 , &
+                     n_errors=0, &
+                     alert_unt=0
     ! Silent will mute the NOTES
     logical, save :: silent_notes = .true.
 
@@ -29,27 +30,27 @@ module alerts
         select case (adjustl(attype))
             case ("note")
                 if (.not.silent_notes) &
-                write(0,'(/,A,A,/)') "NOTE: ",SENTENCE
+                write(alert_unt,'(/,A,A,/)') "NOTE: ",SENTENCE
                 n_notes = n_notes + 1
 
             !The following is deprecated (maintained for backward compatibility)
             case ("error")
-                write(0,'(/,A,A,/)') "WARNING: ",SENTENCE
+                write(alert_unt,'(/,A,A,/)') "WARNING: ",SENTENCE
                 n_errors = n_errors + 1
 
             case ("warning")
-                write(0,'(/,A,A,/)') "WARNING: ",SENTENCE
+                write(alert_unt,'(/,A,A,/)') "WARNING: ",SENTENCE
                 n_errors = n_errors + 1
 
             case ("fatal")
-                write(0,'(/,A,/)') "============================================"
-                write(0,'(A,A,/)') "FATAL ERROR: ",trim(SENTENCE)
-                write(0,'(A)')     "============================================"
-                write(0,'(A,/)') "Exiting..."
+                write(alert_unt,'(/,A,/)') "============================================"
+                write(alert_unt,'(A,A,/)') "FATAL ERROR: ",trim(SENTENCE)
+                write(alert_unt,'(A)')     "============================================"
+                write(alert_unt,'(A,/)') "Exiting..."
                 stop 1
 
             case default
-                write(0,'(/,A,A,A,/)') attype," ", SENTENCE
+                write(alert_unt,'(/,A,A,A,/)') attype," ", SENTENCE
         end select
 
         return

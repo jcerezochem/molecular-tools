@@ -167,8 +167,14 @@ program normal_modes_animation
 
     call cpu_time(ti)
 
+    !--------------------------
+    ! Tune io
+    !--------------------------
+    ! Set unit for alert messages
+    alert_unt=6
     ! Activate notes
     silent_notes = .false.
+    !--------------------------
 
     ! 0. GET COMMAND LINE ARGUMENTS
     call parse_input(&
@@ -457,7 +463,7 @@ program normal_modes_animation
         if (Nsel/=0) call alert_msg("warning","Animations not possible "//&
                                               "with -intmode sel")
         call cpu_time(tf)
-        write(0,'(/,A,X,F12.3,/)') "CPU time (s)", tf-ti
+        write(6,'(/,A,X,F12.3,/)') "CPU time (s)", tf-ti
         stop
     endif
 
@@ -669,7 +675,7 @@ program normal_modes_animation
     call summary_alerts
 
     call cpu_time(tf)
-    write(0,'(/,A,X,F12.3,/)') "CPU time (s)", tf-ti
+    write(6,'(/,A,X,F12.3,/)') "CPU time (s)", tf-ti
 
     ! CALL EXTERNAL PROGRAM TO RUN ANIMATIONS
 
