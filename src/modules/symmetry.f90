@@ -6,7 +6,7 @@ module symmetry
 
     implicit none
 
-    character(len=6),save :: sym_thr="loose" ! "tight", "normal"
+    character(len=6),save :: sym_thr="normal"  !"loose", "normal",  "tight", "vtight"
 
     contains
 
@@ -63,6 +63,8 @@ module symmetry
              THRS=1.d-2
             case("TIGHT" ) 
              THRS=1.d-3
+            case("VTIGHT") 
+             THRS=1.d-5
             case default
              call alert_msg("fatal","Thr for symmetry detection cannot be set")
         end select
@@ -76,7 +78,7 @@ module symmetry
 
         ! FIRST PLACE THE MOLECULE ON THE COM
         if (present(rotate).and..not.rotate) then
-            print'(/,X,A,/)', "Molecule not placed on the axis of intertia frame to identify symmetry"
+            print'(/,X,A,/)', "Using input geometry instead of rotating to principal axis of intertia"
         else
             !====================
             !Center of Masses
