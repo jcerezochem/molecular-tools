@@ -203,6 +203,7 @@ program vertical2adiabatic
     print'(X,A)', "Preliminar vibrational analysis (Cartesian coordinates)..."
     call vibrations_Cart(Nat,state1%atom(:)%X,state1%atom(:)%Y,state1%atom(:)%Z,state1%atom(:)%Mass,Hlt,&
                          Nvib,L1,Freq1,error_flag=error)
+    deallocate(Hlt)
     ! Get Lcart = M^1/2 Lmwc 
     call Lmwc_to_Lcart(Nat,Nvib,state1%atom(:)%Mass,L1,L1,error)
     if (verbose>2) &
@@ -223,18 +224,8 @@ program vertical2adiabatic
 
     if (do_correct_int) then
         !***************************************************************
-        ! Compute normal modes in internal coordinates (only needed in do_correct_int=.true.)
-        print'(/,X,A)', "VIBRATIONAL ANALYSIS IN INTERNAL COORDINATES..."
-    
-        ! Reconstruct full hessian
-        k=0
-        do i=1,3*Nat
-        do j=1,i
-            k=k+1
-            Hess(i,j) = Hlt(k)
-            Hess(j,i) = Hlt(k)
-        enddo 
-        enddo
+        ! The whole vibrational analysis is not needed
+        print'(/,X,A)', "COMPUTING Bder..."
     
         !Generate bonded info
         !From now on, we'll use atomic units
@@ -269,27 +260,7 @@ program vertical2adiabatic
                 enddo
             endif
         endif
-    
-        if (gradcorrectS1) then
-            call HessianCart2int(Nat,Nvib,Hess,state1%atom(:)%mass,B,G1,Grad=Grad,Bder=Bder)
-        else
-            call HessianCart2int(Nat,Nvib,Hess,state1%atom(:)%mass,B,G1)
-            ! We need Grad in internal coordinates as well (ONLY IF HessianCart2int DOES NOT INCLUDE IT)
-            call Gradcart2int(Nat,Nvib,Grad,state1%atom(:)%mass,B,G1)
-        endif
-        ! Do not overwrite Freq1 (although should be identical)
-        call gf_method(Nvib,G1,Hess,L1int,Vec,X1,X1inv)
-        if (verbose>1) then
-            ! Analyze normal modes
-            if (use_symmetry) then
-                call analyze_internal(Nvib,Ns,L1int,Vec,ModeDef,S_sym)
-            else
-                call analyze_internal(Nvib,Ns,L1int,Vec,ModeDef)
-            endif
-        endif
-        !***************************************************************
     endif
-    deallocate(Hlt)
 
     ! HESSIAN FILE (State2)
     print'(/,X,A)', "READING STATE2 FILE (HESSIAN)..."
@@ -320,36 +291,23 @@ program vertical2adiabatic
     !*****************************************************
     if (do_correct_int) then
         print'(X,A,/)', "Apply correction for vertical case based on internal vibrational analysis..."
-        ! Compute gQ
+        ! Compute gQ from gs
+        !  gQ = L1int^t gs
         ! Convert Gradient to normal mode coordinates in state1 Qspace.
         ! We use the internal normal modes and not the Cartesian
         ! ones to get the sign consistent with the internal mode
         ! definition. Note that, apart from the sign, both should be
         ! equivalent in state1 Qspace
-        ! Use Vec1 as temporary vector to store Grad
+        ! Use Vec1 as temporary vector to store Grad (so to have Cartesia Grad)
         Vec1(1:Nvib) = Grad(1:Nvib)
         call Gradcart2int(Nat,Nvib,Vec1,state1%atom(:)%mass,B,G1)
-        do i=1,Nvib
-            Vec(i) = 0.d0
-            do k=1,Nvib !3*Nat
-                Vec(i) = Vec(i) + L1int(k,i) * Vec1(k)
+        ! Compute gs^t * Lder
+        do i=1,3*Nat
+        do j=1,3*Nat
+            Aux(i,j) = 0.d0
+            do k=1,Nvib
+                Aux(i,j) = Aux(i,j) + Bder(k,i,j)*Vec1(k)
             enddo
-        enddo
-        Vec1(1:Nvib) = Vec(1:Nvib)
-
-        ! Compute LLL^Q = Lint^-1 Lder
-        ! And directly: gQ * LLL^Q
-        L1int(1:Nvib,1:Nvib) = inverse_realgen(Nvib,L1int)
-        do j=1,3*Nat 
-        do k=1,3*Nat
-            Aux(j,k) = 0.d0
-            do i=1,Nvib
-                Theta = 0.d0
-                do l=1,Nvib
-                    Theta = Theta + L1int(i,l) * Bder(l,j,k)
-                enddo
-                Aux(j,k) = Aux(j,k) + Vec1(i) * Theta
-            enddo        
         enddo
         enddo
 
@@ -699,6 +657,12 @@ program vertical2adiabatic
                 case ("-nocorrect-num")
                     do_correct_num=.false.
         
+                case ("-correct")
+                    do_correct_int=.true.
+                case ("-nocorrect")
+                    do_correct_int=.false.
+                    gradcorrectS1=.false.
+                !Keep for backward compatibility
                 case ("-correct-int")
                     do_correct_int=.true.
                 case ("-nocorrect-int")
@@ -766,7 +730,7 @@ program vertical2adiabatic
         write(6,*) '** Options correction method (vertical) **'
         write(6,*) '-[no]correct-num  Correction with numerical   ', do_correct_num
         write(6,*) '                  derivatives of L1 (Cart)    '
-        write(6,*) '-[no]correct-int  Correction with analytical  ', do_correct_int
+        write(6,*) '-[no]correct      Correction with analytical  ', do_correct_int
         write(6,*) '                  L1 ders based on internal   '
         write(6,*) '                  analysis                    '
         write(6,*) '-fder             Numerical derivative file  ', trim(adjustl(derfile))
