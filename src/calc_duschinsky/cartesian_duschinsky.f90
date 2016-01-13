@@ -299,7 +299,7 @@ program vertical2adiabatic
         ! definition. Note that, apart from the sign, both should be
         ! equivalent in state1 Qspace
         ! Use Vec1 as temporary vector to store Grad (so to have Cartesia Grad)
-        Vec1(1:Nvib) = Grad(1:Nvib)
+        Vec1(1:3*Nat) = Grad(1:3*Nat)
         call Gradcart2int(Nat,Nvib,Vec1,state1%atom(:)%mass,B,G1)
         ! Compute gs^t * Lder
         do i=1,3*Nat
