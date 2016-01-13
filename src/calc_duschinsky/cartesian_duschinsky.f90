@@ -448,7 +448,7 @@ program vertical2adiabatic
     !--------------------------------------------------------
     ! Shift vector
     !--------------------------------------------------------
-    ! K = J^t * Q0 = J^t * [-FC^-1 * J * gQ]
+    ! K = J * Q0 = J * [-FC^-1 * J * gQ]
     ! Where
     ! * J is the Duschisky matrix for the VH model
     !   STORED in G1

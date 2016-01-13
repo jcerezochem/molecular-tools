@@ -71,7 +71,8 @@ program internal_duschinski
                gradcorrectS1=.false.  ,&  
                gradcorrectS2=.false.  ,&
                same_red2nonred_rotation=.true., &
-               analytic_Bder=.false.
+               analytic_Bder=.false., &
+               check_symmetry=.true.
     character(len=4) :: def_internal='zmat'
     !======================
 
@@ -79,6 +80,8 @@ program internal_duschinski
     !System variables
     type(str_resmol) :: state1, state2
     integer,dimension(1:NDIM) :: isym
+    integer,dimension(4,1:NDIM,1:NDIM) :: Osym
+    integer :: Nsym
     integer :: Nat, Nvib, Ns, NNvib
     character(len=5) :: PG
     !Bonded info
@@ -131,7 +134,7 @@ program internal_duschinski
     !=============
     !Counters
     integer :: i,j,k,l, ii,jj,kk, iat, k90,k95,k99, nn, imin, imax,&
-               i1,i2,i3,i4
+               i1,i2,i3,i4, iop
     !=============
 
     !================
@@ -252,6 +255,7 @@ program internal_duschinski
     call generic_gradient_reader(I_INP,ftg,Nat,Grad,error)
     close(I_INP)
 
+
     ! MANAGE INTERNAL COORDS
     ! ---------------------------------
     ! Get connectivity 
@@ -320,7 +324,39 @@ program internal_duschinski
 
 
     if (gradcorrectS1) then
-        call HessianCart2int(Nat,Nvib,Hess,state1%atom(:)%mass,B,G1,Grad=Grad,Bder=Bder)
+        call HessianCart2int(Nat,Nvib,Hess,state1%atom(:)%mass,B,G1,Grad,Bder)
+        if (check_symmetry) then
+            print'(/,X,A)', "---------------------------------------"
+            print'(X,A  )', " Check effect of symmetry operations"
+            print'(X,A  )', " on the correction term gs^t\beta"
+            print'(X,A  )', "---------------------------------------"
+            state1%PG="XX"
+            call symm_atoms(state1,isym,Osym,rotate=.false.,nsym_ops=nsym)
+            ! Check the symmetry of the correction term
+            ! First compute the correction term
+            do i=1,3*Nat
+            do j=1,3*Nat
+                Aux2(i,j) = 0.d0
+                do k=1,Nvib
+                    Aux2(i,j) = Aux2(i,j) + Bder(k,i,j)*Grad(k)
+                enddo
+            enddo
+            enddo
+            ! Check all detected symmetry ops
+            do iop=1,Nsym
+                Aux(1:3*Nat,1:3*Nat) = dfloat(Osym(iop,1:3*Nat,1:3*Nat))
+                Aux(1:3*Nat,1:3*Nat) = matrix_basisrot(3*Nat,3*Nat,Aux,Aux2,counter=.true.)
+                Theta=0.d0
+                do i=1,3*Nat 
+                do j=1,3*Nat 
+                    Theta = max(Theta,abs(Aux(i,j)-Aux2(i,j)))
+                enddo
+                enddo
+                print'(X,A,I0)', "Symmetry operation :   ", iop
+                print'(X,A,F10.6,/)', " Max abs difference: ", Theta
+            enddo
+            print'(X,A,/)', "---------------------------------------"
+        endif
     else
         call HessianCart2int(Nat,Nvib,Hess,state1%atom(:)%mass,B,G1)
         ! We need Grad in internal coordinates as well (ONLY IF HessianCart2int DOES NOT INCLUDE IT)
@@ -426,6 +462,7 @@ program internal_duschinski
     if (error /= 0) call alert_msg("fatal","Error reading gradient (State2)")
     close(I_INP)
 
+
     ! MANAGE INTERNAL COORDS
     ! ---------------------------------
     ! Get connectivity 
@@ -504,7 +541,39 @@ program internal_duschinski
     endif
 
     if (gradcorrectS2) then
-        call HessianCart2int(Nat,Nvib,Hess,state2%atom(:)%mass,B,G2,Grad=Grad,Bder=Bder)
+        call HessianCart2int(Nat,Nvib,Hess,state2%atom(:)%mass,B,G2,Grad,Bder)
+        if (check_symmetry) then
+            print'(/,X,A)', "---------------------------------------"
+            print'(X,A  )', " Check effect of symmetry operations"
+            print'(X,A  )', " on the correction term gs^t\beta"
+            print'(X,A  )', "---------------------------------------"
+            state2%PG="XX"
+            call symm_atoms(state2,isym,Osym,rotate=.false.,nsym_ops=nsym)
+            ! Check the symmetry of the correction term
+            ! First compute the correction term
+            do i=1,3*Nat
+            do j=1,3*Nat
+                Aux2(i,j) = 0.d0
+                do k=1,Nvib
+                    Aux2(i,j) = Aux2(i,j) + Bder(k,i,j)*Grad(k)
+                enddo
+            enddo
+            enddo
+            ! Check all detected symmetry ops
+            do iop=1,Nsym
+                Aux(1:3*Nat,1:3*Nat) = dfloat(Osym(iop,1:3*Nat,1:3*Nat))
+                Aux(1:3*Nat,1:3*Nat) = matrix_basisrot(3*Nat,3*Nat,Aux,Aux2,counter=.true.)
+                Theta=0.d0
+                do i=1,3*Nat 
+                do j=1,3*Nat 
+                    Theta = max(Theta,abs(Aux(i,j)-Aux2(i,j)))
+                enddo
+                enddo
+                print'(X,A,I0)', "Symmetry operation :   ", iop
+                print'(X,A,F10.6,/)', " Max abs difference: ", Theta
+            enddo
+            print'(X,A,/)', "---------------------------------------"
+        endif
     else
         call HessianCart2int(Nat,Nvib,Hess,state2%atom(:)%mass,B,G2)
         ! We need Grad in internal coordinates as well (ONLY IF HessianCart2int DOES NOT INCLUDE IT)

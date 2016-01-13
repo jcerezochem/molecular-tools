@@ -58,7 +58,8 @@ program normal_modes_animation
     logical :: use_symmetry=.false.,   &
                include_hbonds=.false., &
                vertical=.false.,       &
-               analytic_Bder=.false.
+               analytic_Bder=.false.,  &
+               check_symmetry=.true.
     !======================
 
     !====================== 
@@ -66,6 +67,8 @@ program normal_modes_animation
     type(str_resmol) :: molecule, molec_aux
     type(str_bonded) :: zmatgeom
     integer,dimension(1:NDIM) :: isym
+    integer,dimension(4,1:NDIM,1:NDIM) :: Osym
+    integer :: nsym
     integer :: Nat, Nvib, Ns
     character(len=5) :: PG
     !Job info
@@ -87,7 +90,7 @@ program normal_modes_animation
 
     !=============
     !Counters
-    integer :: i,j,k,l, jj
+    integer :: i,j,k,l, jj, iop
     !=============
 
     !====================== 
@@ -127,6 +130,12 @@ program normal_modes_animation
     integer,dimension(NDIM) :: Zmap
     ! Number of ic (Shortcuts)
     integer :: nbonds, nangles, ndihed, nimprop
+    !====================== 
+
+    !====================== 
+    !Auxiliar
+    real(8),dimension(1:NDIM,1:NDIM) :: Aux, Aux2
+    real(8) :: Theta
     !====================== 
 
     !================
@@ -304,6 +313,7 @@ program normal_modes_animation
         Nvib = 3*Nat-6
     endif
 
+
     ! MANAGE INTERNAL COORDS
     ! ---------------------------------
     ! Get connectivity 
@@ -424,13 +434,47 @@ program normal_modes_animation
             endif
 
             if (vertical) then
-                call HessianCart2int(Nat,Nvib,Hess,molecule%atom(:)%mass,B,G,Grad=Grad,Bder=Bder)
+                call HessianCart2int(Nat,Nvib,Hess,molecule%atom(:)%mass,B,G,Grad,Bder)
                 if (verbose>2) then
                     do i=1,Nvib
                         write(tmpfile,'(A,I0,A)') "Bder, ic=",i
                         call MAT0(6,Bder(i,:,:),3*Nat,3*Nat,trim(tmpfile))
                     enddo
                 endif
+
+                if (check_symmetry) then
+                    print'(/,X,A)', "---------------------------------------"
+                    print'(X,A  )', " Check effect of symmetry operations"
+                    print'(X,A  )', " on the correction term gs^t\beta"
+                    print'(X,A  )', "---------------------------------------"
+                    molecule%PG="XX"
+                    call symm_atoms(molecule,isym,Osym,rotate=.false.,nsym_ops=nsym)
+                    ! Check the symmetry of the correction term
+                    ! First compute the correction term
+                    do i=1,3*Nat
+                    do j=1,3*Nat
+                        Aux2(i,j) = 0.d0
+                        do k=1,Nvib
+                            Aux2(i,j) = Aux2(i,j) + Bder(k,i,j)*Grad(k)
+                        enddo
+                    enddo
+                    enddo
+                    ! Check all detected symmetry ops
+                    do iop=1,Nsym
+                        Aux(1:3*Nat,1:3*Nat) = dfloat(Osym(iop,1:3*Nat,1:3*Nat))
+                        Aux(1:3*Nat,1:3*Nat) = matrix_basisrot(3*Nat,3*Nat,Aux,Aux2,counter=.true.)
+                        Theta=0.d0
+                        do i=1,3*Nat 
+                        do j=1,3*Nat 
+                            Theta = max(Theta,abs(Aux(i,j)-Aux2(i,j)))
+                        enddo
+                        enddo
+                        print'(X,A,I0)', "Symmetry operation :   ", iop
+                        print'(X,A,F10.6,/)', " Max abs difference: ", Theta
+                    enddo
+                    print'(X,A,/)', "---------------------------------------"
+                endif
+
             else
                 call HessianCart2int(Nat,Nvib,Hess,molecule%atom(:)%mass,B,G)
             endif
