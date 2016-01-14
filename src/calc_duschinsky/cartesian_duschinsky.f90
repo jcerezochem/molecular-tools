@@ -237,6 +237,24 @@ program cartesian_duschinsky
         ! The whole vibrational analysis is not needed, only the Bder
         print'(/,X,A)', "Preparing to compute Bder for correction terms..."
     
+        ! Manage symmetry
+        if (.not.use_symmetry) then
+            state1%PG="C1"
+        else if (trim(adjustl(symm_file)) /= "none") then
+            msg = "Using custom symmetry file: "//trim(adjustl(symm_file)) 
+            call alert_msg("note",msg)
+            open(I_SYM,file=symm_file)
+            do i=1,state1%natoms
+                read(I_SYM,*) j, isym(j)
+            enddo
+            close(I_SYM)
+            !Set PG to CUStom
+            state1%PG="CUS"
+        else
+            state1%PG="XX"
+            call symm_atoms(state1,isym)
+        endif
+
         !Generate bonded info
         !From now on, we'll use atomic units
         call guess_connect(state1)
@@ -1097,6 +1115,7 @@ program cartesian_duschinsky
         write(6,*) '-intfile     File with internal set def.   ', trim(adjustl(intfile))
         write(6,*) '             (-correct-int -intmode sel)   '
 !         write(6,*) '-rmzfile        ', trim(adjustl(rmzfile))
+        write(6,*) '-[no]sym     Use symmetry to form Zmat    ',  use_symmetry
         write(6,*) '·· Correct with Numeric Lder [deprecated] ··'
         write(6,*) '-[no]correct-num Correction with numerical ', do_correct_num
         write(6,*) '             derivatives of L1 (Cart)      '
