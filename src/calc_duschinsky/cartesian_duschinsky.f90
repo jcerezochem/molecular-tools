@@ -52,7 +52,8 @@ program cartesian_duschinsky
                verticalQspace2=.false.,&
                do_correct_num=.false., &
                do_correct_int=.false., &
-               gradcorrectS1=.false.
+               gradcorrectS1=.false., &
+               check_symmetry=.true.
     character(len=4) :: def_internal='zmat'
     !======================
 
@@ -60,6 +61,8 @@ program cartesian_duschinsky
     !System variables
     type(str_resmol) :: state1,state2
     integer,dimension(1:NDIM) :: isym
+    integer,dimension(1:4,1:NDIM,1:NDIM) :: Osym
+    integer :: Nsym
     integer :: Nat, Nvib, Ns
     !====================== 
 
@@ -107,7 +110,7 @@ program cartesian_duschinsky
     !=============
     !Counters
     integer :: i,j,k,l, ii,jj,kk, iat, k90,k95,k99, nn, imin, imax,&
-               i1,i2,i3,i4
+               i1,i2,i3,i4, iop
     !=============
 
     !================
@@ -398,6 +401,40 @@ program cartesian_duschinsky
         
             !Compute H_Q' = L1^t (Hess - gQ LLL^Q) L1
             Hess2(1:Nvib,1:Nvib) = matrix_basisrot(Nvib,3*Nat,L1,Hess2,counter=.true.)
+
+            ! Also check the symmetry of the correction term
+            if (check_symmetry) then
+                print'(/,X,A)', "---------------------------------------"
+                print'(X,A  )', " Check effect of symmetry operations"
+                print'(X,A  )', " on the correction term gs^t\beta"
+                print'(X,A  )', "---------------------------------------"
+                state1%PG="XX"
+                call symm_atoms(state1,isym,Osym,rotate=.false.,nsym_ops=nsym)
+                ! Check the symmetry of the correction term
+                ! First compute the correction term (was already computed)
+                Aux2(1:3*Nat,1:3*Nat) = Aux(1:3*Nat,1:3*Nat)
+                ! Print if verbose level is high
+                if (verbose>2) &
+                    call MAT0(6,Aux2,3*Nat,3*Nat,"gs*Bder matrix")
+                ! Check all detected symmetry ops
+                do iop=1,Nsym
+                    Aux(1:3*Nat,1:3*Nat) = dfloat(Osym(iop,1:3*Nat,1:3*Nat))
+                    Aux(1:3*Nat,1:3*Nat) = matrix_basisrot(3*Nat,3*Nat,Aux,Aux2,counter=.true.)
+                    Theta=0.d0
+                    do i=1,3*Nat 
+                    do j=1,3*Nat
+                        if (Theta < abs(Aux(i,j)-Aux2(i,j))) then
+                            Theta = abs(Aux(i,j)-Aux2(i,j))
+                            Theta2=Aux2(i,j)
+                        endif
+                    enddo
+                    enddo
+                    print'(X,A,I0)', "Symmetry operation :   ", iop
+                    print'(X,A,F10.6)',   " Max abs difference : ", Theta
+                    print'(X,A,F10.6,/)', " Value before sym op: ", Theta2
+                enddo
+                print'(X,A,/)', "---------------------------------------"
+            endif
         
         elseif (do_correct_num) then ! DEPRECATED
             print'(X,A,/)', "Apply correction for vertical case based on numerical derivates (not-tested)..."

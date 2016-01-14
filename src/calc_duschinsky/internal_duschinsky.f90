@@ -342,6 +342,9 @@ program internal_duschinski
                 enddo
             enddo
             enddo
+            ! Print if verbose level is high
+            if (verbose>2) &
+                call MAT0(6,Aux2,3*Nat,3*Nat,"gs*Bder matrix")
             ! Check all detected symmetry ops
             do iop=1,Nsym
                 Aux(1:3*Nat,1:3*Nat) = dfloat(Osym(iop,1:3*Nat,1:3*Nat))
@@ -349,11 +352,15 @@ program internal_duschinski
                 Theta=0.d0
                 do i=1,3*Nat 
                 do j=1,3*Nat 
-                    Theta = max(Theta,abs(Aux(i,j)-Aux2(i,j)))
+                    if (Theta < abs(Aux(i,j)-Aux2(i,j))) then
+                        Theta = abs(Aux(i,j)-Aux2(i,j))
+                        Theta2=Aux2(i,j)
+                    endif
                 enddo
                 enddo
                 print'(X,A,I0)', "Symmetry operation :   ", iop
-                print'(X,A,F10.6,/)', " Max abs difference: ", Theta
+                print'(X,A,F10.6)',   " Max abs difference : ", Theta
+                print'(X,A,F10.6,/)', " Value before sym op: ", Theta2
             enddo
             print'(X,A,/)', "---------------------------------------"
         endif
@@ -559,6 +566,9 @@ program internal_duschinski
                 enddo
             enddo
             enddo
+            ! Print if verbose level is high
+            if (verbose>2) &
+                call MAT0(6,Aux2,3*Nat,3*Nat,"gs*Bder matrix")
             ! Check all detected symmetry ops
             do iop=1,Nsym
                 Aux(1:3*Nat,1:3*Nat) = dfloat(Osym(iop,1:3*Nat,1:3*Nat))
@@ -566,11 +576,15 @@ program internal_duschinski
                 Theta=0.d0
                 do i=1,3*Nat 
                 do j=1,3*Nat 
-                    Theta = max(Theta,abs(Aux(i,j)-Aux2(i,j)))
+                    if (Theta < abs(Aux(i,j)-Aux2(i,j))) then
+                        Theta = abs(Aux(i,j)-Aux2(i,j))
+                        Theta2=Aux2(i,j)
+                    endif
                 enddo
                 enddo
                 print'(X,A,I0)', "Symmetry operation :   ", iop
-                print'(X,A,F10.6,/)', " Max abs difference: ", Theta
+                print'(X,A,F10.6)',   " Max abs difference : ", Theta
+                print'(X,A,F10.6,/)', " Value before sym op: ", Theta2
             enddo
             print'(X,A,/)', "---------------------------------------"
         endif
