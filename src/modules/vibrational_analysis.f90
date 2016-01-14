@@ -383,6 +383,53 @@ module vibrational_analysis
 
     end subroutine Lmwc_to_Lcart
 
+    subroutine Lcart_to_Lmwc(Nat,Nvib,Mass,Lcart,Lmwc,error_flag)
+
+        !==============================================================
+        ! This code is part of MOLECULAR_TOOLS
+        !==============================================================
+        !Description
+        ! Tranform the Lcart into the Lmwc.
+        !
+        !Arguments
+        ! Nat     (inp) int /scalar   Number of atoms
+        ! Nvib    (inp) int /scalar   Number of vibrational degrees of freedom
+        ! Mass    (inp) real/vector   Atomic masses (AMU)
+        ! Lcart   (inp) real/matrix   Normal modes in Cartesian (mass_AU^-1/2) (3Nat x Nvib)
+        ! Lmwc    (inp) real/matrix   Normal modes in mxc (adim)           (3Nat x Nvib)
+        ! error_flag (out) flag  0 : success
+        !
+        !Notes
+        ! We can use the same matrix as input and as output as there is
+        ! no conflict
+        !
+        !==============================================================
+
+        integer,intent(in)                      :: Nat, Nvib
+        real(kind=8),dimension(:),intent(in)    :: Mass
+        real(kind=8),dimension(:,:),intent(in)  :: Lcart
+        real(kind=8),dimension(:,:),intent(out) :: Lmwc
+        integer,intent(out),optional            :: error_flag
+
+        !Local
+        integer :: i, ii
+        integer :: error_local
+        real(kind=8),dimension(Nat) :: Mass_local
+
+        !Working in AU: transform mass to AU
+        Mass_local(1:Nat) = Mass(1:Nat) * AMUtoAU
+
+        error_local = 0
+        do i=1,3*Nat
+            ii = (i-1)/3+1
+            Lmwc(i,1:Nvib) = Lcart(i,1:Nvib)*dsqrt(Mass_local(ii))
+        enddo
+        if (present(error_flag)) error_flag=error_local
+
+        return
+
+    end subroutine Lcart_to_Lmwc
+
 
     subroutine Lcart_to_LcartNrm(Nat,Nvib,Lcart,LcartNrm,error_flag)
 

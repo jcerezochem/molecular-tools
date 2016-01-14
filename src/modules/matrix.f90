@@ -1022,9 +1022,12 @@ module matrix
     
     subroutine rotation_3D(vx,vy,vz,tx,ty,tz,Theta) 
     
+        !==============================================
         !Description:
+        ! ------------
         ! Subroutine to rotate the vector (vx,vy,vz) around the axis
         ! defined by (tx,ty,tz) an angle Theta (rad).
+        !==============================================
     
         real(8), intent(inout) :: vx,vy,vz
         real(8), intent(in)    :: tx,ty,tz, Theta
@@ -1061,5 +1064,70 @@ module matrix
        return
     
     end subroutine rotation_3D
+
+
+    function rotate3D_matrix(N,M,A,Rot,tA) result(Arot)
+    
+        !==============================================
+        ! Description
+        ! ------------
+        ! Rotate a NxM matrix according to:
+        ! Arot = R * A
+        !  where R is a 3x3 rotation matrix
+        !  (actually 3N'x3N' formed by repeating
+        !  the same 3x3 block)
+        !  and A is (NxM), where N=3*N'
+        ! Allows to transpose the input matrix with
+        ! an optional argument
+        !
+        ! Notes
+        ! -----
+        ! This is not the same as rotation_3D, which
+        ! rotates 3D vectors. This routine rotates
+        ! 3N'xM matrices
+        !=================================================
+      
+        integer,intent(in)                     :: N,M
+        real(8),dimension(:,:),intent(inout)   :: A
+        real(8),dimension(1:3,1:3),intent(in)  :: rot
+        real(8),dimension(N,N)                 :: Arot
+        logical,intent(in),optional            :: tA
+        !Local
+        ! scalar
+        integer :: i, j, k, ii, jj, kk
+      
+        if (present(tA).and.tA) then
+            do i=1,N
+            do j=1,M
+                Arot(i,j) = 0.d0
+                ! ii runs over the 3x3 rot matrix
+                ii=mod(i+2,3)+1
+                ! kk selects the block of the NxN matrix
+                kk = 3*((i-1)/3) + 1
+                do k=1,3
+                    Arot(i,j) = Arot(i,j) + Rot(ii,k) * A(j,kk)
+                    kk=kk+1 
+                enddo
+            enddo
+            enddo
+        else
+            do i=1,N
+            do j=1,M
+                Arot(i,j) = 0.d0
+                ! ii runs over the 3x3 rot matrix
+                ii=mod(i+2,3)+1
+                ! kk selects the block of the NxN matrix
+                kk = 3*((i-1)/3) + 1
+                do k=1,3
+                    Arot(i,j) = Arot(i,j) + Rot(ii,k) * A(kk,j)
+                    kk=kk+1 
+                enddo
+            enddo
+            enddo
+        endif
+    
+        return
+    
+    end function rotate3D_matrix
 
 end module matrix
