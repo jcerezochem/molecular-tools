@@ -693,7 +693,7 @@ module vibrational_analysis
         integer,dimension(size(K)) :: ipiv
         real(8),dimension(size(K)) ::         Kinv
         real(8),dimension(size(K),size(K)) :: Ginv
-        real(8) :: Theta 
+        real(8) :: Theta, Qindex
 
         !Define the Factor to convert into shift into addimensional displacements
         ! for the shift in SI units:
@@ -702,11 +702,11 @@ module vibrational_analysis
         Factor(1:Nvib)=Factor(1:Nvib)*BOHRtoM*dsqrt(AUtoKG)
 
         write(unt,*) ""
-        write(unt,*) "====================================================================================="
+        write(unt,*) "==============================================================================================="
         write(unt,*) " DUSCHINSKI MATRIX (STATE1 WITH RESPECT TO STATE2) (SUMMARY)"
-        write(unt,*) "====================================================================================="
-        write(unt,*) "   NM     FREQ1      I2      C2^2       I90     I95     I99       K     K-Dimless"
-        write(unt,*) "-------------------------------------------------------------------------------------"
+        write(unt,*) "==============================================================================================="
+        write(unt,*) "   NM     FREQ1      I2      C2^2       I90     I95     I99       K     K-Dimless   Q-index "
+        write(unt,*) "-----------------------------------------------------------------------------------------------"
         do i=1,Nvib
             k90=0
             k95=0
@@ -714,6 +714,11 @@ module vibrational_analysis
             !Copy the row and reorder 
             AuxVec(1:Nvib) = abs(G(i,1:Nvib))
             call sort_vec_max(AuxVec(1:Nvib),ipiv(1:Nvib),Nvib)
+            !Compute quality index
+            Qindex = 0.d0
+            do j=1,Nvib
+                Qindex = Qindex + G(i,j)**2
+            enddo
             Theta = 0.d0
             do j=1,Nvib
                 if (Theta > 0.9d0) exit
@@ -735,10 +740,10 @@ module vibrational_analysis
                 Theta = Theta + G(i,jj)**2
                 k99=k99+1
             enddo 
-            write(unt,'(X,I5,3X,F8.2,2X,I5,3X,F7.2,5X,3(I5,3X),F7.2,X,F9.4)') &
-                i, Freq1(i), ipiv(1),G(i,ipiv(1))**2, k90, k95, k99, K(i), K(i)*Factor(i)
+            write(unt,'(X,I5,3X,F8.2,2X,I5,3X,F7.2,5X,3(I5,3X),F7.2,X,F9.4,2X,F9.4)') &
+                i, Freq1(i), ipiv(1),G(i,ipiv(1))**2, k90, k95, k99, K(i), K(i)*Factor(i),Qindex
         enddo
-        write(unt,*) "====================================================================================="
+        write(unt,*) "==============================================================================================="
         write(unt,*) ""
 
 
@@ -763,11 +768,11 @@ module vibrational_analysis
         Factor(1:Nvib)=Factor(1:Nvib)*BOHRtoM*dsqrt(AUtoKG)
 
         write(unt,*) ""
-        write(unt,*) "====================================================================================="
+        write(unt,*) "==============================================================================================="
         write(unt,*) " DUSCHINSKI MATRIX (STATE2 WITH RESPECT TO STATE1) (SUMMARY)"
-        write(unt,*) "====================================================================================="
-        write(unt,*) "   NM     FREQ2      I1      C1^2       I90     I95     I99       K     K-Dimless"
-        write(unt,*) "-------------------------------------------------------------------------------------"
+        write(unt,*) "==============================================================================================="
+        write(unt,*) "   NM     FREQ1      I2      C2^2       I90     I95     I99       K     K-Dimless   Q-index "
+        write(unt,*) "-----------------------------------------------------------------------------------------------"
         do i=1,Nvib
             k90=0
             k95=0
@@ -775,31 +780,36 @@ module vibrational_analysis
             !Copy the row and reorder 
             AuxVec(1:Nvib) = abs(Ginv(i,1:Nvib))
             call sort_vec_max(AuxVec(1:Nvib),ipiv(1:Nvib),Nvib)
+            !Compute quality index
+            Qindex = 0.d0
+            do j=1,Nvib
+                Qindex = Qindex + Ginv(i,j)**2
+            enddo
             Theta = 0.d0
             do j=1,Nvib
                 if (Theta > 0.9d0) exit
                 jj = ipiv(j)
-                Theta = Theta + G(i,jj)**2
+                Theta = Theta + Ginv(i,jj)**2
                 k90=k90+1
             enddo 
             Theta = 0.d0
             do j=1,Nvib
                 if (Theta > 0.95d0) exit
                 jj = ipiv(j)
-                Theta = Theta + G(i,jj)**2
+                Theta = Theta + Ginv(i,jj)**2
                 k95=k95+1
             enddo 
             Theta = 0.d0
             do j=1,Nvib
                 if (Theta > 0.99d0) exit
                 jj = ipiv(j)
-                Theta = Theta + G(i,jj)**2
+                Theta = Theta + Ginv(i,jj)**2
                 k99=k99+1
             enddo 
-            write(unt,'(X,I5,3X,F8.2,2X,I5,3X,F7.2,5X,3(I5,3X),F7.2,X,F9.4)') &
-                i, Freq2(i), ipiv(1),Ginv(i,ipiv(1))**2, k90, k95, k99, Kinv(i), Kinv(i)*Factor(i)
+            write(unt,'(X,I5,3X,F8.2,2X,I5,3X,F7.2,5X,3(I5,3X),F7.2,X,F9.4,2X,F9.4)') &
+                i, Freq2(i), ipiv(1),Ginv(i,ipiv(1))**2, k90, k95, k99, Kinv(i), Kinv(i)*Factor(i),Qindex
         enddo
-        write(unt,*) "====================================================================================="
+        write(unt,*) "==============================================================================================="
         write(unt,*) ""
 
 
