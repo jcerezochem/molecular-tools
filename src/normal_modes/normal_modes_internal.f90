@@ -347,13 +347,13 @@ program normal_modes_animation
     call gen_bonded(molecule)
 
     ! Define internal set
-    if (def_internal=="ALL".or.(def_internal=="ZMAT".and.rmzfile/="none")) then 
+    if (def_internal=="SEL".or.def_internal=="ALL".or.(def_internal=="ZMAT".and.rmzfile/="none")) then 
         !Only if def_internal="all", we can print the animation mapping the Zmat
         !but NOT for "sel"
         print*, "Preliminary Zmat analysis"
         ! Get Zmat first
         def_internal_aux="ZMAT"
-        call define_internal_set(molecule,def_internal_aux,intfile,"none",use_symmetry,isym,S_sym,Ns)
+        call define_internal_set(molecule,def_internal_aux,"none","none",use_symmetry,isym,S_sym,Ns)
         ! Get only the geom, and reuse molecule
         zmatgeom=molecule%geom
         ! Compute S values (to get initial values for frozen (rmzfile) ICs)
@@ -510,12 +510,16 @@ program normal_modes_animation
         LL(1:Ns,1:Nvib) = matrix_product(Ns,Nvib,Nvib,Asel,LL)
     endif
 
-    if (def_internal=="SEL") then
-        if (Nsel/=0) call alert_msg("warning","Animations not possible "//&
-                                              "with -intmode sel")
+    if (molecule%geom%nimprop/=0) then
+        if (Nsel/=0) call alert_msg("warning","Animations not yet possible "//&
+                                              "when impropers are selected")
         call cpu_time(tf)
         write(6,'(/,A,X,F12.3,/)') "CPU time (s)", tf-ti
         stop
+    endif
+    if (def_internal=="SEL") then
+        if (Nsel/=0) call alert_msg("warning","Animations may missbehave "//&
+                                              "with -intmode sel")
     endif
 
     !==========================================================0
