@@ -673,6 +673,54 @@ module vibrational_analysis
 
     end function Freq2FC
 
+    function Hess_to_Hlt(N,Hess) result(Hlt)
+
+        integer,intent(in) :: N
+        real(8),dimension(:,:),intent(in) :: Hess
+        real(8),dimension(1:(N*(N+1))/2) :: Hlt 
+
+        !Local
+        integer :: i,j,k
+
+
+        k=0
+        do i=1,N 
+        do j=1,i
+            k=k+1
+            Hlt(k) = Hess(i,j)
+        enddo
+        enddo
+
+        return
+
+    end function Hess_to_Hlt
+
+    function Hlt_to_Hess(N,Hlt) result(Hess)
+
+        integer,intent(in) :: N
+        real(8),dimension(:),intent(in) :: Hlt
+        real(8),dimension(N,N) :: Hess 
+
+        !Local
+        integer :: i,j,k
+
+
+        k=0
+        do i=1,N 
+        do j=1,i
+            k=k+1
+            Hess(i,j) = Hlt(k)
+            Hess(j,i) = Hess(i,j)
+        enddo
+        enddo
+
+        return
+
+    end function Hlt_to_Hess
+
+!%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+! ANALYSIS
+
 
     subroutine analyze_duschinsky(unt,Nvib,G,K,Freq1,Freq2)
 

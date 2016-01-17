@@ -66,9 +66,12 @@ nm_cartesian_new_SOURCES =   ../modules/version.f90             \
                              ../modules/manage_psi4.f90         \
                              ../modules/manage_xyz.f90          \
                              ../modules/manage_gro.f90          \
+                             ../modules/zmat_manage.f90         \
                              ../modules/generic_io.f90          \
                              ../modules/generic_io_molec.f90    \
                              ../modules/symmetry.f90            \
+                             ../modules/ff_build.f90            \
+                             ../modules/internal.f90            \
                              ../modules/vibrational_analysis.f90\
                              normal_modes_Cartesian.f90
 # ============

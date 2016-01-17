@@ -414,7 +414,7 @@ program cartesian_duschinsky
             enddo
             enddo
         
-            ! Compute (Hess - gQ LLL^Q) -- store in Hess2
+            ! Compute (Hess - gQ LLL^Q) -- store in Hess2 (we keep normal Hess to compute Er)
             Hess2(1:3*Nat,1:3*Nat) = Hess(1:3*Nat,1:3*Nat) - Aux(1:3*Nat,1:3*Nat)
         
             !Compute H_Q' = L1^t (Hess - gQ LLL^Q) L1

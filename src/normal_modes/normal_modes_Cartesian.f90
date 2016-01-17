@@ -39,13 +39,15 @@ program normal_modes_cartesian
     !  Structure-related modules
     !============================================
     use molecular_structure
+    use ff_build
     use atomic_geom
     use symmetry
     !============================================
     !  Vibrational 
     !============================================
+    use internal_module
+    use zmat_manage 
     use vibrational_analysis
-
     implicit none
 
     integer,parameter :: NDIM = 600
@@ -55,14 +57,19 @@ program normal_modes_cartesian
     logical :: use_symmetry=.false.,    &
                include_hbonds=.false.,  &
                vertical=.false.,        &
+               analytic_Bder=.false.,   &
+               check_symmetry=.true.,   &
                full_diagonalize=.false.
     !======================
 
     !====================== 
     !System variables
     type(str_resmol) :: molecule, molec_aux
+    type(str_bonded) :: zmatgeom
     real(8),dimension(NDIM) :: X0, Y0, Z0
     integer,dimension(1:NDIM) :: isym
+    integer,dimension(4,1:NDIM,1:NDIM) :: Osym
+    integer :: nsym
     integer :: Nat, Nvib, Ns
     character(len=5) :: PG
     !Job info
@@ -77,11 +84,17 @@ program normal_modes_cartesian
     real(8) :: dist
     !io flags
     integer :: error, info
+    ! other flags
+    integer :: verbose_current
+    ! Auxiliar real arrays/scalars
+    real(8),dimension(1:NDIM,1:NDIM) :: Aux, Aux2
+    real(8),dimension(:),allocatable :: Vec_alloc
+    real(8) :: Theta, Theta2
     !====================== 
 
     !=============
     !Counters
-    integer :: i,j,k,l, ii, jj, kk
+    integer :: i,j,k,l, ii, jj, kk, iop
     !=============
 
     !====================== 
@@ -104,12 +117,32 @@ program normal_modes_cartesian
                movie_steps
     !====================== 
 
+    !====================== 
+    !INTERNAL CODE THINGS
+    real(8),dimension(1:NDIM,1:NDIM) :: B, G, Asel
+    real(8),dimension(1:NDIM,1:NDIM,1:NDIM) :: Bder
+    real(8),dimension(1:NDIM,1:NDIM) :: X,Xinv
+    !Save definitio of the modes in character
+    character(len=100),dimension(NDIM) :: ModeDef
+    !VECTORS
+    real(8),dimension(NDIM) :: S, Sref, S0
+    integer,dimension(NDIM) :: S_sym
+    ! Switches
+    character(len=5) :: def_internal="ZMAT", def_internal_aux
+    character(len=2) :: scan_type="NM"
+    !Coordinate map
+    integer,dimension(NDIM) :: Zmap
+    ! Number of ic (Shortcuts)
+    integer :: nbonds, nangles, ndihed, nimprop
+    !====================== 
+
     !================
     !I/O stuff 
     !units
     integer :: I_INP=10,  &
                I_SYM=12,  &
                I_RMF=16,  &
+               I_CNX=17,  &
                O_GRO=20,  &
                O_G09=21,  &
                O_G96=22,  &
@@ -120,12 +153,14 @@ program normal_modes_cartesian
 
     !files
     character(len=10) :: ft ="guess",  ftg="guess",  fth="guess", ftn="guess"
-    character(len=200):: inpfile  ="molecule.fchk", &
+    character(len=200):: inpfile  ="state1.fchk", &
                          gradfile ="same", &
                          hessfile ="same", &
                          nmfile   ="none", &
+                         intfile  ="none", &
+                         rmzfile  ="none", &
                          symm_file="none", &
-                         cnull = "none"
+                         cnx_file="guess"
     !Structure files to be created
     character(len=100) :: g09file,qfile, tmpfile, g96file, grofile,numfile
     !status
@@ -157,7 +192,13 @@ program normal_modes_cartesian
                      ! Options (Cartesian)
                      full_diagonalize,                                     &
                      ! Movie
-                     movie_vmd, movie_cycles)
+                     movie_vmd, movie_cycles ,                             &   
+                     ! Options (internal)
+                     use_symmetry,def_internal,intfile,rmzfile,            & !except scan_type
+                     ! connectivity file
+                     cnx_file,                                             &
+                     ! (hidden)
+                     analytic_Bder)
 
  
     ! 1. READ DATA
@@ -222,7 +263,20 @@ program normal_modes_cartesian
     Nat = molecule%natoms
 
 
-    ! Vibrational analysis: either read from file or from diagonalization of Hessian
+    ! MANAGE INTERNAL COORDS
+    ! ---------------------------------
+    ! Get connectivity 
+    if (cnx_file == "guess") then
+        call guess_connect(molecule)
+    else
+        print'(/,A,/)', "Reading connectivity from file: "//trim(adjustl(cnx_file))
+        open(I_CNX,file=cnx_file,status='old')
+        call read_connect(I_CNX,molecule)
+        close(I_CNX)
+    endif
+
+
+    ! VIBRATIONAL ANALYSIS: either read from file or from diagonalization of Hessian
     if (adjustl(nmfile) /= "none") then
         open(I_INP,file=nmfile,status='old',iostat=IOstatus)
         if (IOstatus /= 0) call alert_msg( "fatal","Unable to open "//trim(adjustl(nmfile)) )
@@ -234,7 +288,9 @@ program normal_modes_cartesian
         call LcartNrm_to_Lmwc(Nat,Nvib,molecule%atom(:)%mass,LL,LL)
         call Lmwc_to_Lcart(Nat,Nvib,molecule%atom(:)%mass,LL,LL,error)
         close(I_INP)
+
     else
+        ! ACTUALLY PERFORM THE ANALYSIS
         ! HESSIAN FILE
         open(I_INP,file=hessfile,status='old',iostat=IOstatus)
         if (IOstatus /= 0) call alert_msg( "fatal","Unable to open "//trim(adjustl(hessfile)) )
@@ -248,6 +304,143 @@ program normal_modes_cartesian
             if (IOstatus /= 0) call alert_msg( "fatal","Unable to open "//trim(adjustl(gradfile)) )
             call generic_gradient_reader(I_INP,ftg,Nat,Grad,error)
             close(I_INP)
+        endif
+
+
+        if (vertical) then
+            ! Run vibrations_Cart to get the number of Nvib (to detect linear molecules)
+            print*, "Preliminary vibrational analysis"
+            call vibrations_Cart(Nat,molecule%atom(:)%X,molecule%atom(:)%Y,molecule%atom(:)%Z,molecule%atom(:)%Mass,Hlt,&
+                                 Nvib,LL,Freq,error_flag=error)
+            ! Manage symmetry
+            if (.not.use_symmetry) then
+                molecule%PG="C1"
+            else if (trim(adjustl(symm_file)) /= "none") then
+                call alert_msg("note","Using custom symmetry file: "//trim(adjustl(symm_file)) )
+                open(I_SYM,file=symm_file)
+                do i=1,molecule%natoms
+                    read(I_SYM,*) j, isym(j)
+                enddo
+                close(I_SYM)
+                !Set PG to CUStom
+                molecule%PG="CUS"
+            else
+                molecule%PG="XX"
+                call symm_atoms(molecule,isym)
+            endif
+            
+            !Generate bonded info
+            call gen_bonded(molecule)
+            
+            !From now on work in au
+            call set_geom_units(molecule,"Bohr")
+
+            ! Define internal set
+            if (def_internal=="SEL".or.def_internal=="ALL".or.(def_internal=="ZMAT".and.rmzfile/="none")) then 
+                !Only if def_internal="all", we can print the animation mapping the Zmat
+                !but NOT for "sel"
+                print*, "Preliminary Zmat analysis"
+                ! Get Zmat first
+                def_internal_aux="ZMAT"
+                call define_internal_set(molecule,def_internal_aux,"none","none",use_symmetry,isym,S_sym,Ns)
+                ! Get only the geom, and reuse molecule
+                zmatgeom=molecule%geom
+                ! Compute S values (to get initial values for frozen (rmzfile) ICs)
+                verbose_current=verbose
+!                 verbose=0
+                call set_geom_units(molecule,"Bohr")
+                call internal_Wilson_new(molecule,Ns,S0,B)
+                call set_geom_units(molecule,"Angs")
+                verbose=verbose_current
+                ! And reset bonded parameters
+                call gen_bonded(molecule)
+            endif
+            call define_internal_set(molecule,def_internal,intfile,rmzfile,use_symmetry,isym,S_sym,Ns)
+            if (Ns > Nvib) then
+                call red2zmat_mapping(molecule,zmatgeom,Zmap)
+            elseif (def_internal=="ZMAT".and.rmzfile/="none") then
+                ! We also get a Zmap
+                call red2zmat_mapping(molecule,zmatgeom,Zmap)
+                Nvib=Ns
+            elseif (Ns < Nvib) then
+                print*, "Ns", Ns
+                print*, "Nvib", Nvib
+                call alert_msg("warning","Reduced coordinates only produce animations with rmzfiles")
+                ! Need to freeze unused coords to its input values
+            endif
+
+            print'(X,A,/)', "Apply correction for non-stationary points"
+            ! Get metric matrix and Bders
+            call internal_Wilson_new(molecule,Ns,S,B,ModeDef)
+            call internal_Gmetric(Nat,Ns,molecule%atom(:)%mass,B,G)
+            call calc_Bder(molecule,Ns,Bder,analytic_Bder)
+            if (Ns > Nvib) then
+                call redundant2nonredundant(Ns,Nvib,G,Asel)
+                ! Rotate Bmatrix
+                B(1:Nvib,1:3*Nat) = matrix_product(Nvib,3*Nat,Ns,Asel,B,tA=.true.)
+                ! Rotate Gmatrix
+                G(1:Nvib,1:Nvib) = matrix_basisrot(Nvib,Ns,Asel(1:Ns,1:Nvib),G,counter=.true.)
+                ! Rotate Bders
+                do j=1,3*Nat
+                    Bder(1:Nvib,j,1:3*Nat) =  matrix_product(Nvib,3*Nat,Ns,Asel,Bder(1:Ns,j,1:3*Nat),tA=.true.)
+                enddo
+            endif
+            ! Get gradient in internal coordinates
+            call Gradcart2int(Nat,Nvib,Grad,molecule%atom(:)%mass,B,G)
+
+            ! Compute gs^t * Lder
+            do i=1,3*Nat
+            do j=1,3*Nat
+                Aux(i,j) = 0.d0
+                do k=1,Nvib
+                    Aux(i,j) = Aux(i,j) + Bder(k,i,j)*Grad(k)
+                enddo
+            enddo
+            enddo
+
+            ! Compute modified Hessian (Hess - gs^t beta) directly on Hlt
+            allocate(Vec_alloc(1:(3*Nat*(3*Nat+1))/2))
+            Vec_alloc(1:(3*Nat*(3*Nat+1))/2) = Hess_to_Hlt(3*Nat,Aux)
+            Hlt(1:(3*Nat*(3*Nat+1))/2) = Hlt(1:(3*Nat*(3*Nat+1))/2) - Vec_alloc(1:(3*Nat*(3*Nat+1))/2)
+            deallocate(Vec_alloc)
+
+            ! Also check the symmetry of the correction term
+            if (check_symmetry) then
+                print'(/,X,A)', "---------------------------------------"
+                print'(X,A  )', " Check effect of symmetry operations"
+                print'(X,A  )', " on the correction term gs^t\beta"
+                print'(X,A  )', "---------------------------------------"
+                molecule%PG="XX"
+                call symm_atoms(molecule,isym,Osym,rotate=.false.,nsym_ops=nsym)
+                ! Check the symmetry of the correction term
+                ! First compute the correction term (was already computed)
+                Aux2(1:3*Nat,1:3*Nat) = Aux(1:3*Nat,1:3*Nat)
+                ! Print if verbose level is high
+                if (verbose>2) &
+                    call MAT0(6,Aux2,3*Nat,3*Nat,"gs*Bder matrix")
+                ! Check all detected symmetry ops
+                do iop=1,Nsym
+                    Aux(1:3*Nat,1:3*Nat) = dfloat(Osym(iop,1:3*Nat,1:3*Nat))
+                    Aux(1:3*Nat,1:3*Nat) = matrix_basisrot(3*Nat,3*Nat,Aux,Aux2,counter=.true.)
+                    Theta=0.d0
+                    do i=1,3*Nat 
+                    do j=1,3*Nat
+                        if (Theta < abs(Aux(i,j)-Aux2(i,j))) then
+                            Theta = abs(Aux(i,j)-Aux2(i,j))
+                            Theta2=Aux2(i,j)
+                        endif
+                    enddo
+                    enddo
+                    print'(X,A,I0)', "Symmetry operation :   ", iop
+                    print'(X,A,F10.6)',   " Max abs difference : ", Theta
+                    print'(X,A,F10.6,/)', " Value before sym op: ", Theta2
+                enddo
+                print'(X,A,/)', "---------------------------------------"
+            endif
+
+            !Reset Angs
+            call set_geom_units(molecule,"Angs")
+
         endif
 
         ! VIBRATIONAL ANALYSIS
@@ -282,8 +475,7 @@ program normal_modes_cartesian
             if (verbose>0) &
                 call print_vector(6,Freq,Nvib,"Frequencies (cm-1)")
         else
-            ! Run vibrations_Cart to get the number of Nvib (to detect linear molecules). In Cartesian we are done now
-            ! with this vibrational analysis (How to handle the gradient?)
+            ! Run final vibrations_Cart 
             call vibrations_Cart(Nat,molecule%atom(:)%X,molecule%atom(:)%Y,molecule%atom(:)%Z,molecule%atom(:)%Mass,Hlt,&
                                  Nvib,LL,Freq,error_flag=error)
             if (error /= 0) then
@@ -449,7 +641,7 @@ program normal_modes_cartesian
     call summary_alerts
 
     call cpu_time(tf)
-    write(0,'(/,A,X,F12.3,/)') "CPU time (s)", tf-ti
+    write(6,'(/,A,X,F12.3,/)') "CPU time (s)", tf-ti
 
     ! CALL EXTERNAL PROGRAM TO RUN ANIMATIONS
 
@@ -571,15 +763,25 @@ program normal_modes_cartesian
                            ! Options (Cartesian)
                            full_diagonalize,                                     &
                            ! Movie
-                           movie_vmd, movie_cycles)
+                           movie_vmd, movie_cycles,                              &
+                           ! Options (internal)
+                           use_symmetry,def_internal,intfile,rmzfile,            &
+                           ! connectivity file
+                           cnx_file,                                             &
+                           ! (hidden)
+                           analytic_Bder)
     !==================================================
     ! My input parser (gromacs style)
     !==================================================
         implicit none
 
-        character(len=*),intent(inout) :: inpfile,ft,hessfile,fth,gradfile,ftg,nmfile,ftn,selection
+        character(len=*),intent(inout) :: inpfile,ft,hessfile,fth,gradfile,ftg,nmfile,ftn,selection, &
+                                          !Internal
+                                          def_internal,intfile,rmzfile,cnx_file
         real(8),intent(inout)          :: Amplitude
-        logical,intent(inout)          :: call_vmd, include_hbonds,vertical,movie_vmd,full_diagonalize
+        logical,intent(inout)          :: call_vmd, include_hbonds,vertical,movie_vmd,full_diagonalize, &
+                                          ! Internal
+                                          use_symmetry,analytic_Bder
         integer,intent(inout)          :: movie_cycles
 
         ! Local
@@ -623,16 +825,6 @@ program normal_modes_cartesian
                 case ("-ftn") 
                     call getarg(i+1, ftn)
                     argument_retrieved=.true.
-! 
-!                 case ("-sym")
-!                     use_symmetry=.true.
-!                 case ("-nosym")
-!                     use_symmetry=.false.
-
-                case ("-vert")
-                    vertical=.true.
-                case ("-novert")
-                    vertical=.false.
 
                 case ("-fulldiag")
                     full_diagonalize=.true.
@@ -661,6 +853,40 @@ program normal_modes_cartesian
 
                 case ("-include_hb")
                     include_hbonds=.true.
+
+                ! Internal (for correction) options
+                case ("-vert")
+                    vertical=.true.
+                case ("-novert")
+                    vertical=.false.
+
+                case ("-sym")
+                    use_symmetry=.true.
+                case ("-nosym")
+                    use_symmetry=.false.
+
+                case ("-cnx") 
+                    call getarg(i+1, cnx_file)
+                    argument_retrieved=.true.
+
+                case ("-intfile") 
+                    call getarg(i+1, intfile)
+                    argument_retrieved=.true.
+
+                case ("-rmzfile") 
+                    call getarg(i+1, rmzfile)
+                    argument_retrieved=.true.
+
+                case ("-intmode")
+                    call getarg(i+1, def_internal)
+                    argument_retrieved=.true.
+
+                ! (HIDDEN FLAG)
+                case ("-anaBder")
+                    analytic_Bder=.true.
+                case ("-noanaBder")
+                    analytic_Bder=.false.
+
         
                 case ("-h")
                     need_help=.true.
@@ -727,9 +953,6 @@ program normal_modes_cartesian
         write(6,*)       '-ftn           \_ FileType                     ', trim(adjustl(ftn))
         write(6,*)       '-nm            Selection of normal modes to    ', trim(adjustl(selection))
         write(6,*)       '               generate animations            '
-!         write(6,*      ) '-[no]sym       ',  use_symmetry
-!         write(6,*)       '-[no]vert      Correct with B derivatives for ',  vertical
-!         write(6,*)       '               non-stationary points'
         write(6,*)       '-[no]fulldiag  Diagonalize the 3Nx3N matrix   ',  full_diagonalize
         write(6,*)       '-[no]vmd       Launch VMD after computing the ',  call_vmd
         write(6,*)       '               modes (needs VMD installed)'
@@ -739,6 +962,16 @@ program normal_modes_cartesian
         write(6,'(X,A,F5.2)') &
                          '-disp          Mode displacements for animate ',  Amplitude
         write(6,*)       '               (dimensionless displacements)'
+        write(6,*)       ''
+        write(6,*)       ' ** Options for correction non-stationary points **'
+        write(6,*)       '-[no]vert      Correct with B derivatives for ',  vertical
+        write(6,*)       '               non-stationary points'
+        write(6,*)       '-cnx           Connectivity [filename|guess]   ', trim(adjustl(cnx_file))
+        write(6,*)       '-intmode       Internal set:[zmat|sel|all]     ', trim(adjustl(def_internal))
+        write(6,*)       '-intfile       File with ICs (for "sel")       ', trim(adjustl(intfile))
+        write(6,*)       '-[no]sym       Use symmetry to form Zmat      ',  use_symmetry
+!         write(6,*)       '-rmzfile       File deleting ICs from Zmat     ', trim(adjustl(rmzfile))
+        write(6,*)       ''
         write(6,*)       '-h             Display this help              ',  need_help
         write(6,'(A)') '-------------------------------------------------------------------'
         write(6,'(X,A,I0)') &

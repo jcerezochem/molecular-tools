@@ -96,7 +96,7 @@ program normal_modes_animation
     !====================== 
     ! PES topology and normal mode things
     real(8),dimension(:),allocatable :: Hlt
-    real(8),dimension(1:NDIM,1:NDIM) :: Hess, LL, Asel
+    real(8),dimension(1:NDIM,1:NDIM) :: Hess, LL
     real(8),dimension(NDIM) :: Freq, Factor, Grad
     !Moving normal modes
     character(len=50) :: selection="none"
@@ -114,7 +114,7 @@ program normal_modes_animation
 
     !====================== 
     !INTERNAL CODE THINGS
-    real(8),dimension(1:NDIM,1:NDIM) :: B, G
+    real(8),dimension(1:NDIM,1:NDIM) :: B, G, Asel
     real(8),dimension(1:NDIM,1:NDIM,1:NDIM) :: Bder
     real(8),dimension(1:24,1:30,1:30) :: Bder1, Bder2, Bder3
     real(8),dimension(1:NDIM,1:NDIM) :: X,Xinv
