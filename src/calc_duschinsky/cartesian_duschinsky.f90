@@ -124,6 +124,7 @@ program cartesian_duschinsky
                I_AD2=15,  &
                I_RMF=16,  &
                I_DER=17,  &
+               I_CNX=18,  &
                O_DUS=20,  &
                O_DIS=21,  &
                O_DMAT=22, &
@@ -141,7 +142,8 @@ program cartesian_duschinsky
                          gradfile2 ="same", &
                          intfile  ="none",       &
                          rmzfile  ="none",       &
-                         symm_file="none",     & 
+                         symm_file="none", &
+                         cnx_file="guess", &
                          derfile="base", derfile_base, &
                          tmpfile
     !status
@@ -170,7 +172,7 @@ program cartesian_duschinsky
 !                               filetype,"-ft","c",&
 !                               )
     call parse_input(inpfile,ft,gradfile,ftg,hessfile,fth,inpfile2,ft2,gradfile2,ftg2,hessfile2,fth2,&
-                     intfile,rmzfile,def_internal,use_symmetry,derfile,do_correct_num,do_correct_int,&
+                     cnx_file,intfile,rmzfile,def_internal,use_symmetry,derfile,do_correct_num,do_correct_int,&
                      gradcorrectS1,vertical,verticalQspace1,verticalQspace2)
     call set_word_upper_case(def_internal)
 
@@ -256,8 +258,14 @@ program cartesian_duschinsky
         endif
 
         !Generate bonded info
-        !From now on, we'll use atomic units
-        call guess_connect(state1)
+        if (cnx_file == "guess") then
+            call guess_connect(state1)
+        else
+            print'(/,A,/)', "Reading connectivity from file: "//trim(adjustl(cnx_file))
+            open(I_CNX,file=cnx_file,status='old')
+            call read_connect(I_CNX,state1)
+            close(I_CNX)
+        endif
         call gen_bonded(state1)
     
         ! Define internal set
@@ -899,7 +907,7 @@ program cartesian_duschinsky
     !=============================================
 
     subroutine parse_input(inpfile,ft,gradfile,ftg,hessfile,fth,inpfile2,ft2,gradfile2,ftg2,hessfile2,fth2,&
-                           intfile,rmzfile,def_internal,use_symmetry,derfile,do_correct_num,do_correct_int,&
+                           cnx_file,intfile,rmzfile,def_internal,use_symmetry,derfile,do_correct_num,do_correct_int,&
                            gradcorrectS1,vertical,verticalQspace1,verticalQspace2)
     !==================================================
     ! My input parser (gromacs style)
@@ -907,7 +915,7 @@ program cartesian_duschinsky
         implicit none
 
         character(len=*),intent(inout) :: inpfile,ft,gradfile,ftg,hessfile,fth,gradfile2,ftg2,hessfile2,fth2,&
-                                          intfile,rmzfile,def_internal,derfile,inpfile2,ft2
+                                          cnx_file,intfile,rmzfile,def_internal,derfile,inpfile2,ft2
         logical,intent(inout)          :: use_symmetry,do_correct_num,do_correct_int,gradcorrectS1,vertical,&
                                           verticalQspace1,verticalQspace2
         ! Local
@@ -1012,6 +1020,10 @@ program cartesian_duschinsky
                 case ("-nosym")
                     use_symmetry=.false.
 
+                case ("-cnx")
+                    call getarg(i+1, cnx_file)
+                    argument_retrieved=.true.
+
                 ! -corrS1 has no effect now
                 ! (only if vib analysis in intenal coords was done)
                 case ("-corrS1")
@@ -1110,6 +1122,7 @@ program cartesian_duschinsky
         write(6,*) '             derivatives based on internal '
         write(6,*) '             analysis (alias -correct-int) '
         write(6,*) '-[no]corrS1  Correct S1 at vib-in(useless) ', gradcorrectS1
+        write(6,*) '-cnx         Connectivity [filename|guess] ', trim(adjustl(cnx_file))
         write(6,*) '-intmode     Internal set [zmat|sel|all]   ', trim(adjustl(def_internal))
         write(6,*) '             (-correct-int)'               
         write(6,*) '-intfile     File with internal set def.   ', trim(adjustl(intfile))
