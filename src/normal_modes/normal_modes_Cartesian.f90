@@ -59,7 +59,8 @@ program normal_modes_cartesian
                vertical=.false.,        &
                analytic_Bder=.false.,   &
                check_symmetry=.true.,   &
-               full_diagonalize=.false.
+               full_diagonalize=.false.,&
+               animate=.true.
     !======================
 
     !====================== 
@@ -191,8 +192,8 @@ program normal_modes_cartesian
                      Amplitude,call_vmd,include_hbonds,selection,vertical, &
                      ! Options (Cartesian)
                      full_diagonalize,                                     &
-                     ! Movie
-                     movie_vmd, movie_cycles ,                             &   
+                     ! Animation and Movie
+                     animate,movie_vmd, movie_cycles ,                     &   
                      ! Options (internal)
                      use_symmetry,def_internal,intfile,rmzfile,            & !except scan_type
                      ! connectivity file
@@ -493,6 +494,13 @@ program normal_modes_cartesian
     ! but we need it from au not SI
     Factor(1:Nvib)=Factor(1:Nvib)*BOHRtoM*dsqrt(AUtoKG)
 
+    ! Check if we should continue
+    if (.not.animate) then
+        call cpu_time(tf)
+        write(6,'(/,A,X,F12.3,/)') "CPU time (s)", tf-ti
+        stop
+    endif
+
     ! Get the selection of normal modes to represent
     if (adjustl(selection) == "all") then
         Nsel=Nvib
@@ -763,7 +771,7 @@ program normal_modes_cartesian
                            ! Options (Cartesian)
                            full_diagonalize,                                     &
                            ! Movie
-                           movie_vmd, movie_cycles,                              &
+                           animate,movie_vmd, movie_cycles,                      &
                            ! Options (internal)
                            use_symmetry,def_internal,intfile,rmzfile,            &
                            ! connectivity file
@@ -779,7 +787,7 @@ program normal_modes_cartesian
                                           !Internal
                                           def_internal,intfile,rmzfile,cnx_file
         real(8),intent(inout)          :: Amplitude
-        logical,intent(inout)          :: call_vmd, include_hbonds,vertical,movie_vmd,full_diagonalize, &
+        logical,intent(inout)          :: call_vmd, include_hbonds,vertical,movie_vmd,full_diagonalize,animate,&
                                           ! Internal
                                           use_symmetry,analytic_Bder
         integer,intent(inout)          :: movie_cycles
@@ -844,6 +852,11 @@ program normal_modes_cartesian
                     call_vmd=.true.
                 case ("-novmd")
                     call_vmd=.false.
+
+                case ("-animate")
+                    animate=.true.
+                case ("-noanimate")
+                    animate=.false.
 
                 case ("-movie")
                     call getarg(i+1, arg)
@@ -951,17 +964,20 @@ program normal_modes_cartesian
         write(6,*)       '-ftg           \_ FileType                     ', trim(adjustl(ftg))
         write(6,*)       '-fnm           Gradient file                   ', trim(adjustl(nmfile))
         write(6,*)       '-ftn           \_ FileType                     ', trim(adjustl(ftn))
+        write(6,*)       '-[no]fulldiag  Diagonalize the 3Nx3N matrix   ',  full_diagonalize
+        write(6,*)       ''
+        write(6,*)       ' ** Options for animation **'
+        write(6,*)       '-[no]animate   Generate animation files       ',  animate
         write(6,*)       '-nm            Selection of normal modes to    ', trim(adjustl(selection))
         write(6,*)       '               generate animations            '
-        write(6,*)       '-[no]fulldiag  Diagonalize the 3Nx3N matrix   ',  full_diagonalize
+        write(6,'(X,A,F5.2)') &
+                         '-disp          Mode displacements for animate ',  Amplitude
+        write(6,*)       '               (dimensionless displacements)'
         write(6,*)       '-[no]vmd       Launch VMD after computing the ',  call_vmd
         write(6,*)       '               modes (needs VMD installed)'
         write(6,'(X,A,I0)') &
                          '-movie         Number of cycles to record on   ',  movie_cycles
         write(6,*)       '               a movie with the animation'
-        write(6,'(X,A,F5.2)') &
-                         '-disp          Mode displacements for animate ',  Amplitude
-        write(6,*)       '               (dimensionless displacements)'
         write(6,*)       ''
         write(6,*)       ' ** Options for correction non-stationary points **'
         write(6,*)       '-[no]vert      Correct with B derivatives for ',  vertical

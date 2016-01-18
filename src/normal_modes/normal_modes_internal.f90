@@ -59,7 +59,8 @@ program normal_modes_animation
                include_hbonds=.false., &
                vertical=.false.,       &
                analytic_Bder=.false.,  &
-               check_symmetry=.true.
+               check_symmetry=.true.,  &
+               animate=.true.
     !======================
 
     !====================== 
@@ -192,7 +193,7 @@ program normal_modes_animation
                      ! Options (general)
                      Amplitude,call_vmd,include_hbonds,selection,vertical, &
                      ! Movie
-                     movie_vmd, movie_cycles,                              &
+                     animate,movie_vmd, movie_cycles,                      &
                      ! Options (internal)
                      use_symmetry,def_internal,intfile,rmzfile,scan_type,  &
                      ! connectivity file
@@ -347,7 +348,7 @@ program normal_modes_animation
     call gen_bonded(molecule)
 
     ! Define internal set
-    if (def_internal=="SEL".or.def_internal=="ALL".or.(def_internal=="ZMAT".and.rmzfile/="none")) then 
+    if (animate.and.(def_internal=="SEL".or.def_internal=="ALL".or.(def_internal=="ZMAT".and.rmzfile/="none"))) then 
         !Only if def_internal="all", we can print the animation mapping the Zmat
         !but NOT for "sel"
         print*, "Preliminary Zmat analysis"
@@ -487,10 +488,16 @@ program normal_modes_animation
             endif
             call gf_method(Nvib,G,Hess,LL,Freq,X,Xinv)
             if (verbose>1) then
-                if (use_symmetry) then
-                    call analyze_internal(Nvib,Ns,LL,Freq,ModeDef)
+                ! Analyze normal modes in terms of the redundant set
+                if (Nvib<Ns) then
+                    Aux(1:Ns,1:Nvib) = matrix_product(Ns,Nvib,Nvib,Asel,LL)
                 else
-                    call analyze_internal(Nvib,Ns,LL,Freq,ModeDef,S_sym)
+                    Aux(1:Ns,1:Nvib) = LL(1:Ns,1:Nvib)
+                endif
+                if (use_symmetry) then
+                    call analyze_internal(Nvib,Ns,Aux,Freq,ModeDef,S_sym)
+                else
+                    call analyze_internal(Nvib,Ns,Aux,Freq,ModeDef)
                 endif
             endif
         else
@@ -504,12 +511,7 @@ program normal_modes_animation
         Factor(1:Nvib)=Factor(1:Nvib)*BOHRtoM*dsqrt(AUtoKG)
     endif
 
-    ! If redundant set, transform from orthogonal non-redundant
-    if (Nvib < Ns) then
-        print'(/,X,A,/)', "Transform from non-redundant orthogonal to original redundant set"
-        LL(1:Ns,1:Nvib) = matrix_product(Ns,Nvib,Nvib,Asel,LL)
-    endif
-
+    ! Check if we should continue
     if (molecule%geom%nimprop/=0) then
         if (Nsel/=0) call alert_msg("warning","Animations not yet possible "//&
                                               "when impropers are selected")
@@ -520,6 +522,17 @@ program normal_modes_animation
     if (def_internal=="SEL") then
         if (Nsel/=0) call alert_msg("warning","Animations may missbehave "//&
                                               "with -intmode sel")
+    endif
+    if (.not.animate) then
+        call cpu_time(tf)
+        write(6,'(/,A,X,F12.3,/)') "CPU time (s)", tf-ti
+        stop
+    endif
+
+    ! If redundant set, transform from orthogonal non-redundant
+    if (Nvib < Ns) then
+        print'(/,X,A,/)', "Transform from non-redundant orthogonal to original redundant set"
+        LL(1:Ns,1:Nvib) = matrix_product(Ns,Nvib,Nvib,Asel,LL)
     endif
 
     !==========================================================0
@@ -852,9 +865,9 @@ program normal_modes_animation
                            ! Options (general)
                            Amplitude,call_vmd,include_hbonds,selection,vertical, &
                            ! Movie
-                           movie_vmd, movie_cycles,                              &
+                           animate,movie_vmd, movie_cycles,                      &
                            ! Options (internal)
-                           use_symmetry,def_internal,intfile,rmzfile,scan_type, &
+                           use_symmetry,def_internal,intfile,rmzfile,scan_type,  &
                            ! connectivity file
                            cnx_file,                                             &
                            ! (hidden)
@@ -868,7 +881,7 @@ program normal_modes_animation
                                           intfile,rmzfile,scan_type,def_internal,selection, &
                                           cnx_file
         real(8),intent(inout)          :: Amplitude
-        logical,intent(inout)          :: call_vmd, include_hbonds,vertical, use_symmetry,movie_vmd, &
+        logical,intent(inout)          :: call_vmd, include_hbonds,vertical, use_symmetry,movie_vmd,animate,&
                                           analytic_Bder
         integer,intent(inout)          :: movie_cycles
 
@@ -961,6 +974,12 @@ program normal_modes_animation
                 case ("-novmd")
                     call_vmd=.false.
 
+                case ("-animate")
+                    animate=.true.
+                case ("-noanimate")
+                    animate=.false.
+
+
                 case ("-movie")
                     call getarg(i+1, arg)
                     read(arg,*) movie_cycles
@@ -1050,24 +1069,28 @@ program normal_modes_animation
         write(6,*)       '-cnx           Connectivity [filename|guess]   ', trim(adjustl(cnx_file))
 !         write(6,*)       '-fnm           Gradient file                   ', trim(adjustl(nmfile))
 !         write(6,*)       '-ftn           \_ FileType                     ', trim(adjustl(ftn))
-        write(6,*)       '-nm            Selection of normal modes to    ', trim(adjustl(nm_selection))
-        write(6,*)       '               generate animations             '
-        write(6,*)       '-int           Selection of internal coords    ', trim(adjustl(int_selection))
-        write(6,*)       '               to generate animations          '
         write(6,*)       '-intmode       Internal set:[zmat|sel|all]     ', trim(adjustl(def_internal))
         write(6,*)       '-intfile       File with ICs (for "sel")       ', trim(adjustl(intfile))
         write(6,*)       '-rmzfile       File deleting ICs from Zmat     ', trim(adjustl(rmzfile))
         write(6,*)       '-[no]sym       Use symmetry to form Zmat      ',  use_symmetry
         write(6,*)       '-[no]vert      Correct with B derivatives for ',  vertical
         write(6,*)       '               non-stationary points'
+        write(6,*)       ''
+        write(6,*)       ' ** Options for animation **'
+        write(6,*)       '-[no]animate   Generate animation files       ',  animate
+        write(6,*)       '-nm            Selection of normal modes to    ', trim(adjustl(nm_selection))
+        write(6,*)       '               generate animations             '
+        write(6,*)       '-int           Selection of internal coords    ', trim(adjustl(int_selection))
+        write(6,*)       '               to generate animations          '
+        write(6,'(X,A,F5.2)') &
+                         '-disp          Mode displacements for animate ',  Amplitude
+        write(6,*)       '               (dimensionless displacements)'
         write(6,*)       '-[no]vmd       Launch VMD after computing the ',  call_vmd
         write(6,*)       '               modes (needs VMD installed)'
         write(6,'(X,A,I0)') &
                          '-movie         Number of cycles to record on   ',  movie_cycles
         write(6,*)       '               a movie with the animation'
-        write(6,'(X,A,F5.2)') &
-                         '-disp          Mode displacements for animate ',  Amplitude
-        write(6,*)       '               (dimensionless displacements)'
+        write(6,*)       ''
         write(6,*)       '-h             Display this help              ',  need_help
         write(6,'(A)') '-------------------------------------------------------------------'
         write(6,'(X,A,I0)') &

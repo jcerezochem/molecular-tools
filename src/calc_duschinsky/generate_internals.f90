@@ -86,6 +86,7 @@ program vertical2adiabatic
                I_ZMAT=11, &
                I_SYM=12,  &
                I_RMF=16,  &
+               I_CNX=17,  &
                O_ICF=20
     !files
     character(len=10) :: ft ="guess"
@@ -93,7 +94,8 @@ program vertical2adiabatic
                          intfile  ="int_coords.dat", &
                          rmzfile  ="none",           &
                          zmatfile ="none",           &
-                         symm_file="none"
+                         symm_file="none",           &
+                         cnx_file="guess"
     !status
     integer :: IOstatus
     !===================
@@ -112,7 +114,7 @@ program vertical2adiabatic
 !     call generic_input_parser(inpfile, "-f" ,"c",&
 !                               filetype,"-ft","c",&
 !                               )
-    call parse_input(inpfile,ft,zmatfile,rmzfile,def_internal,use_symmetry,intfile)
+    call parse_input(inpfile,ft,zmatfile,rmzfile,def_internal,use_symmetry,intfile,cnx_file)
     call set_word_upper_case(def_internal)
 
     ! READ DATA (each element from a different file is possible)
@@ -132,7 +134,14 @@ program vertical2adiabatic
     ! MANAGE INTERNAL COORDS
     ! ---------------------------------
     ! Get connectivity 
-    call guess_connect(state1)
+    if (cnx_file == "guess") then
+        call guess_connect(state1)
+    else
+        print'(/,A,/)', "Reading connectivity from file: "//trim(adjustl(cnx_file))
+        open(I_CNX,file=cnx_file,status='old')
+        call read_connect(I_CNX,state1)
+        close(I_CNX)
+    endif
 
     ! Manage symmetry
     if (.not.use_symmetry) then
@@ -183,14 +192,14 @@ program vertical2adiabatic
     contains
     !=============================================
 
-    subroutine parse_input(inpfile,ft,zmatfile,rmzfile,def_internal,use_symmetry,intfile)
+    subroutine parse_input(inpfile,ft,zmatfile,rmzfile,def_internal,use_symmetry,intfile,cnx_file)
     !==================================================
     ! My input parser (gromacs style)
     !==================================================
         implicit none
 
         character(len=*),intent(inout) :: inpfile,ft,zmatfile,&
-                                          intfile,rmzfile,def_internal
+                                          intfile,rmzfile,def_internal,cnx_file
         logical,intent(inout)          :: use_symmetry
         ! Local
         logical :: argument_retrieved,  &
@@ -211,6 +220,10 @@ program vertical2adiabatic
                     argument_retrieved=.true.
                 case ("-ft") 
                     call getarg(i+1, ft)
+                    argument_retrieved=.true.
+
+                case ("-cnx") 
+                    call getarg(i+1, cnx_file)
                     argument_retrieved=.true.
 
                 case ("-intfile") 
@@ -269,6 +282,7 @@ program vertical2adiabatic
         write(6,'(/,A)') '--------------------------------------------------'
         write(6,*) '-f              ', trim(adjustl(inpfile))
         write(6,*) '-ft             ', trim(adjustl(ft))
+        write(6,*) '-cnx            ', trim(adjustl(cnx_file))
         write(6,*) '-intmode        ', trim(adjustl(def_internal))
         write(6,*) '-intfile        ', trim(adjustl(intfile))
         write(6,*) '-zmatfile       ', trim(adjustl(zmatfile))
