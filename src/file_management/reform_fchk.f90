@@ -125,7 +125,7 @@ program reorder_fchk
     !files
     character(len=10) :: filetype="guess"
     character(len=200):: inpfile ="input.fchk",  &
-                         orderfile = "reorder.dat", &
+                         orderfile = "none", &
                          outfile="output.fchk"
     !Control of stdout
     logical :: verbose=.false.
@@ -206,38 +206,46 @@ program reorder_fchk
     endif
 
     !CHANGE ORDER
-    open(I_ORD,file=orderfile,status="old")
-    molec_aux = molecule
-    ! Only change the selected ones
-    read(I_ORD,*) nswap
-    ! initialize iord
-    iord(1:3*molecule%natoms) = [ (i, i=1,3*molecule%natoms) ]
-    do i=1,nswap !molecule%natoms
-        read(I_ORD,*) iat_orig, iat_new
-        molec_aux%atom(iat_new)=molecule%atom(iat_orig)
-        !Build an ordering array with the 3N elements: (x1,y1,z1,x2,y2...) -> (x1',y1',z1',x2',y2'...)
-        j_orig = 3*iat_orig
-        j_new  = 3*iat_new
-        iord(j_new-2) = j_orig-2
-        iord(j_new-1) = j_orig-1
-        iord(j_new)   = j_orig
-    enddo
-!     do i=1,molecule%natoms
-!         print*, i, 3*i-2, iord(3*i-2) 
-!         print*, i, 3*i-1, iord(3*i-1) 
-!         print*, i, 3*i-0, iord(3*i-0) 
-!     enddo
-    do i=1,3*molecule%natoms
-        Grad(i) = Grad_aux(iord(i))
-        do j=1,i
-            Hess(i,j) = Hess_aux(iord(i),iord(j))
-            Hess(j,i) = Hess(i,j)
+    if (adjustl(orderfile)/="none") then
+        open(I_ORD,file=orderfile,status="old")
+        molec_aux = molecule
+        ! Only change the selected ones
+        read(I_ORD,*) nswap
+        ! initialize iord
+        iord(1:3*molecule%natoms) = [ (i, i=1,3*molecule%natoms) ]
+        do i=1,nswap !molecule%natoms
+            read(I_ORD,*) iat_orig, iat_new
+            molec_aux%atom(iat_new)=molecule%atom(iat_orig)
+            !Build an ordering array with the 3N elements: (x1,y1,z1,x2,y2...) -> (x1',y1',z1',x2',y2'...)
+            j_orig = 3*iat_orig
+            j_new  = 3*iat_new
+            iord(j_new-2) = j_orig-2
+            iord(j_new-1) = j_orig-1
+            iord(j_new)   = j_orig
         enddo
-    enddo
+!         do i=1,molecule%natoms
+!             print*, i, 3*i-2, iord(3*i-2) 
+!             print*, i, 3*i-1, iord(3*i-1) 
+!             print*, i, 3*i-0, iord(3*i-0) 
+!         enddo
+        do i=1,3*molecule%natoms
+            Grad(i) = Grad_aux(iord(i))
+            do j=1,i
+                Hess(i,j) = Hess_aux(iord(i),iord(j))
+                Hess(j,i) = Hess(i,j)
+            enddo
+        enddo
+        
+        molecule = molec_aux
+!         Grad = Grad_aux
+!         Hess = Hess_aux
+        
+    else
+        Nat = molecule%natoms
+        Grad(1:3*Nat)         = Grad_aux(1:3*Nat)
+        Hess(1:3*Nat,1:3*Nat) = Hess_aux(1:3*Nat,1:3*Nat)
 
-    molecule = molec_aux
-!     Grad = Grad_aux
-!     Hess = Hess_aux
+    endif
 
     !REWRITE FCHK
     open(O_FCHK,file=outfile)
