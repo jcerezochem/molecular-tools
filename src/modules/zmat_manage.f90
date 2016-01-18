@@ -447,7 +447,7 @@ module zmat_manage
                         !Add line to Z-mat (and symmetric)
                         k=k+1
                         if (verbose>0) &
-                         print*, k,molec%atom(i)%name, molec%geom%dihed(j,1:4), "!reversed"
+                         print*, k,molec%atom(i)%name, molec%geom%dihed(j,1:4) !, "!reversed"
                         !Save bonded
                         bond_s(k,1:2)  = (/i_2,i_1/) 
                         angle_s(k,1:3) = (/i_3,i_2,i_1/) 

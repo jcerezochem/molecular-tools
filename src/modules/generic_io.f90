@@ -22,6 +22,7 @@ module generic_io
     use gmx_manage
     use pdb_manage
     use fcc_manage
+    use xyz_manage
     implicit none
 
     contains
@@ -91,6 +92,8 @@ module generic_io
              call read_molpro_natoms(unt,Nat,error_local)
             case("g96")
              call read_g96_natoms(unt,Nat)
+            case("xyz")
+             call read_xyz_natoms(unt,Nat)
             case default
              call alert_msg("fatal","Unsupported filetype:"//trim(adjustl(filetype)))
 !              call supported_filetype_list('freq')
@@ -192,6 +195,9 @@ module generic_io
              call assign_masses(Nat,AtName,Mass)
             case("g96")
              call read_g96_geom(unt,Nat,AtName,X,Y,Z)
+             call assign_masses(Nat,AtName,Mass)
+            case("xyz")
+             call read_xyz_geom(unt,Nat,AtName,X,Y,Z)
              call assign_masses(Nat,AtName,Mass)
             case("pdb")
              call read_pdb_geom(unt,Nat,AtName,X,Y,Z)

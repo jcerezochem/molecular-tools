@@ -22,7 +22,7 @@ program check_derivatives
     !============================================
     use generic_io
     use generic_io_molec
-    use xyz_manage
+    use xyz_manage_molec
     !============================================
     !  Structure-related modules
     !============================================

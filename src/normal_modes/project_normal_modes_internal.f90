@@ -30,7 +30,7 @@ program projection_normal_modes_int
     !============================================
     use generic_io
     use generic_io_molec
-    use xyz_manage
+    use xyz_manage_molec
     use gro_manage
     use gaussian_manage
     !============================================

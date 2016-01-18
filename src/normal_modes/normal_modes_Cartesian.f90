@@ -32,7 +32,7 @@ program normal_modes_cartesian
     !============================================
     use generic_io
     use generic_io_molec
-    use xyz_manage
+    use xyz_manage_molec
     use gro_manage
     use gaussian_manage
     !============================================

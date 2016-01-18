@@ -32,6 +32,7 @@ nm_internal_new_SOURCES =    ../modules/version.f90             \
                              ../modules/manage_pdb.f90          \
                              ../modules/manage_psi4.f90         \
                              ../modules/manage_xyz.f90          \
+                             ../modules/manage_xyz_molec.f90    \
                              ../modules/manage_gro.f90          \
                              ../modules/zmat_manage.f90         \
                              ../modules/generic_io.f90          \
@@ -65,6 +66,7 @@ nm_cartesian_new_SOURCES =   ../modules/version.f90             \
                              ../modules/manage_pdb.f90          \
                              ../modules/manage_psi4.f90         \
                              ../modules/manage_xyz.f90          \
+                             ../modules/manage_xyz_molec.f90    \
                              ../modules/manage_gro.f90          \
                              ../modules/zmat_manage.f90         \
                              ../modules/generic_io.f90          \
@@ -97,6 +99,7 @@ gen_Lder_numx_SOURCES =../modules/alerts.f90                 \
                              ../modules/manage_pdb.f90          \
                              ../modules/manage_psi4.f90         \
                              ../modules/manage_xyz.f90          \
+                             ../modules/manage_xyz_molec.f90    \
                              ../modules/manage_gro.f90          \
                              ../modules/generic_io.f90          \
                              ../modules/generic_io_molec.f90    \
@@ -126,6 +129,7 @@ check_derivatives_SOURCES = ../modules/alerts.f90                 \
                              ../modules/manage_pdb.f90          \
                              ../modules/manage_psi4.f90         \
                              ../modules/manage_xyz.f90          \
+                             ../modules/manage_xyz_molec.f90    \
                              ../modules/manage_gro.f90          \
                              ../modules/zmat_manage.f90         \
                              ../modules/generic_io.f90          \
@@ -178,6 +182,7 @@ numder_L_SOURCES = ../modules/alerts.f90\
                    ../modules/manage_pdb.f90          \
                    ../modules/manage_psi4.f90         \
                    ../modules/manage_xyz.f90          \
+                   ../modules/manage_xyz_molec.f90    \
                    ../modules/manage_gro.f90          \
                    ../modules/generic_io.f90          \
                    ../modules/generic_io_molec.f90    \
@@ -210,6 +215,7 @@ numder_Lint_SOURCES = ../modules/alerts.f90                 \
                              ../modules/manage_pdb.f90          \
                              ../modules/manage_psi4.f90         \
                              ../modules/manage_xyz.f90          \
+                             ../modules/manage_xyz_molec.f90    \
                              ../modules/manage_gro.f90          \
                              ../modules/zmat_manage.f90         \
                              ../modules/generic_io.f90          \
@@ -243,6 +249,7 @@ prj_nm_internal_new_SOURCES =../modules/alerts.f90              \
                              ../modules/manage_pdb.f90          \
                              ../modules/manage_psi4.f90         \
                              ../modules/manage_xyz.f90          \
+                             ../modules/manage_xyz_molec.f90    \
                              ../modules/manage_gro.f90          \
                              ../modules/zmat_manage.f90         \
                              ../modules/generic_io.f90          \
