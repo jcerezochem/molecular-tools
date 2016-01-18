@@ -76,7 +76,12 @@ program reorder_fchk
     integer,dimension(1:NDIM) :: iord
     integer :: Nat, Nvib
     character(len=5) :: PG
-    !====================== 
+    !======================
+
+    !=====================
+    ! Available data swithes
+    logical :: have_gradient, have_hessian
+    !===================== 
 
     !====================== 
     !MATRICES
@@ -162,21 +167,27 @@ program reorder_fchk
         allocate(props)
         call parse_summary(I_INP,molecule,props,"read_hess")
         !Caution: we NEED to read the Freq summary section
-        if (adjustl(molecule%job%type) /= "Freq") &
-          call alert_msg( "fatal","Section from the logfile is not a Freq calculation")
-        ! RECONSTRUCT THE FULL HESSIAN
-        k=0
-        do i=1,3*Nat
-            do j=1,i
-                k=k+1
-                Hess_aux(i,j) = props%H(k) 
-                Hess_aux(j,i) = Hess_aux(i,j)
+        if (adjustl(molecule%job%type) /= "Freq") then
+            call alert_msg( "warning","Section from the logfile is not a Freq calculation")
+            have_hessian=.false.
+        else
+            ! RECONSTRUCT THE FULL HESSIAN
+            k=0
+            do i=1,3*Nat
+                do j=1,i
+                    k=k+1
+                    Hess_aux(i,j) = props%H(k) 
+                    Hess_aux(j,i) = Hess_aux(i,j)
+                enddo
             enddo
-        enddo
-!        deallocate(props)
-        !No job info read for the moment. Use "sensible" defaults
-        molecule%job%title = ""
-        molecule%job%type= "SP"
+            have_hessian=.true.
+!            deallocate(props)
+            !No job info read for the moment. Use "sensible" defaults
+            molecule%job%title = ""
+            molecule%job%type= "SP"
+        endif
+        ! We don't have gradient with log for the moment
+        have_gradient=.false.
     else if (adjustl(filetype) == "fchk") then
         !FCHK file    
         call read_fchk(I_INP,"Cartesian Force Constants",dtype,N,A,IA,error)
@@ -191,8 +202,13 @@ program reorder_fchk
                 enddo
             enddo
             deallocate(A)
-            !Read gradient from fchk
-            call read_fchk(I_INP,"Cartesian Gradient",dtype,N,A,IA,error)
+        else 
+            have_hessian=.false.
+        endif
+        !Read gradient from fchk
+        call read_fchk(I_INP,"Cartesian Gradient",dtype,N,A,IA,error)
+        if (error == 0) then
+            ! GET GRADIENT
             Grad_aux(1:N) = A(1:N)
             deallocate(A)
         endif
@@ -249,14 +265,16 @@ program reorder_fchk
 
     !REWRITE FCHK
     open(O_FCHK,file=outfile)
-    !Copy lines till "Atomic Numbers"
-    read (I_INP,'(A)') line
-    line=trim(adjustl(line))//" -- REORDERED"
-    do while (index(line,"Atomic numbers")==0)
-        write(O_FCHK,'(A)') trim(adjustl(line))
-        read(I_INP,'(A)',iostat=IOstatus) line
-    enddo
-    rewind(I_INP)
+    if (adjustl(filetype) == "fchk") then
+        !Copy lines till "Atomic Numbers" if this is a fchk
+        read (I_INP,'(A)') line
+        line=trim(adjustl(line))//" -- REORDERED"
+        do while (index(line,"Atomic numbers")==0)
+            write(O_FCHK,'(A)') trim(adjustl(line))
+            read(I_INP,'(A)',iostat=IOstatus) line
+        enddo
+    endif
+    close(I_INP)
     !Atomic Numbers and Nuclear charges
     dtype="I"
     N=molecule%natoms
@@ -300,28 +318,28 @@ program reorder_fchk
         deallocate(A,IA)
     endif
     !Energy 
-    call read_fchk(I_INP,"SCF Energy",dtype,N,A,IA,error)
-    if (error == 0) then
-        N=0
-        call write_fchk(O_FCHK,"SCF Energy",dtype,N,A,IA,error)
-        deallocate(A)
-    endif
-    call read_fchk(I_INP,"CIS Energy",dtype,N,A,IA,error)
-    if (error == 0) then
-        N=0
-        call write_fchk(O_FCHK,"CIS Energy",dtype,N,A,IA,error)
-        deallocate(A)
-    endif
-    call read_fchk(I_INP,"Total Energy",dtype,N,A,IA,error)
-    if (error == 0) then
-        N=0
-        call write_fchk(O_FCHK,"Total Energy",dtype,N,A,IA,error)
-        deallocate(A)
+    if (adjustl(filetype) == "fchk") then
+        call read_fchk(I_INP,"SCF Energy",dtype,N,A,IA,error)
+        if (error == 0) then
+            N=0
+            call write_fchk(O_FCHK,"SCF Energy",dtype,N,A,IA,error)
+            deallocate(A)
+        endif
+        call read_fchk(I_INP,"CIS Energy",dtype,N,A,IA,error)
+        if (error == 0) then
+            N=0
+            call write_fchk(O_FCHK,"CIS Energy",dtype,N,A,IA,error)
+            deallocate(A)
+        endif
+        call read_fchk(I_INP,"Total Energy",dtype,N,A,IA,error)
+        if (error == 0) then
+            N=0
+            call write_fchk(O_FCHK,"Total Energy",dtype,N,A,IA,error)
+            deallocate(A)
+        endif
     endif
     !Gradient
-    call read_fchk(I_INP,"Cartesian Gradient",dtype,N,A,IA,error)
-    if (error == 0) then
-        deallocate(A)
+    if (have_gradient) then
         dtype="R"
         N=3*molecule%natoms
         allocate(IA(1:1),A(1:N))
@@ -330,9 +348,7 @@ program reorder_fchk
         deallocate(A,IA)
     endif
     !Hessian
-    call read_fchk(I_INP,"Cartesian Force Constants",dtype,N,A,IA,error)
-    if (error == 0) then
-        deallocate(A)
+    if (have_hessian) then
         dtype="R"
         N=3*molecule%natoms*(3*molecule%natoms+1)/2
         allocate(IA(1:1),A(1:N))
