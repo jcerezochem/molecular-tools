@@ -52,7 +52,7 @@ program vertical2adiabatic
     !System variables
     type(str_resmol) :: state1,state2
     integer,dimension(1:NDIM) :: isym
-    integer :: Nat, Nvib, Ns
+    integer :: Nat, Nvib, Ns, N
     !====================== 
 
     !====================== 
@@ -60,7 +60,7 @@ program vertical2adiabatic
     real(8),dimension(NDIM,NDIM) :: Aux, Aux2
     !VECTORS
     real(8),dimension(NDIM) :: S1, S2, Vec, Vec2, Factor
-    integer,dimension(NDIM) :: S_sym, bond_sym,angle_sym,dihed_sym
+    integer,dimension(NDIM) :: S_sym, bond_sym,angle_sym,dihed_sym, OrderMap
     !====================== 
 
 
@@ -76,7 +76,7 @@ program vertical2adiabatic
     !=============
     !Counters
     integer :: i,j,k,l, ii,jj,kk, iat, k90,k95,k99, nn, imin, imax,&
-               i1,i2,i3,i4
+               i1,i2,i3,i4, i_old, i_new
     !=============
 
     !================
@@ -87,6 +87,7 @@ program vertical2adiabatic
                I_SYM=12,  &
                I_RMF=16,  &
                I_CNX=17,  &
+               I_ORD=18,  &
                O_ICF=20
     !files
     character(len=10) :: ft ="guess"
@@ -95,7 +96,8 @@ program vertical2adiabatic
                          rmzfile  ="none",           &
                          zmatfile ="none",           &
                          symm_file="none",           &
-                         cnx_file="guess"
+                         cnx_file="guess",           &
+                         order_file="none"
     !status
     integer :: IOstatus
     !===================
@@ -114,7 +116,7 @@ program vertical2adiabatic
 !     call generic_input_parser(inpfile, "-f" ,"c",&
 !                               filetype,"-ft","c",&
 !                               )
-    call parse_input(inpfile,ft,zmatfile,rmzfile,def_internal,use_symmetry,intfile,cnx_file)
+    call parse_input(inpfile,ft,zmatfile,rmzfile,def_internal,use_symmetry,intfile,cnx_file,order_file)
     call set_word_upper_case(def_internal)
 
     ! READ DATA (each element from a different file is possible)
@@ -167,6 +169,34 @@ program vertical2adiabatic
     ! Define internal set
     call define_internal_set(state1,def_internal,zmatfile,rmzfile,use_symmetry,isym, S_sym,Ns)
 
+    if (adjustl(order_file) /= "none") then
+        ! Read order_file
+        open(I_ORD,file=order_file,status="old")
+        read(I_ORD,*) N
+        do i=1,N
+            read(I_ORD,*) i_old, i_new
+            OrderMap(i_old) = i_new
+        enddo
+        close(I_ORD)
+        
+        ! And change numbers accordingly
+        do i=1,state1%geom%nbonds
+            state1%geom%bond(i,1) = OrderMap(state1%geom%bond(i,1))
+            state1%geom%bond(i,2) = OrderMap(state1%geom%bond(i,2))
+        enddo
+        do i=1,state1%geom%nangles
+            state1%geom%angle(i,1) = OrderMap(state1%geom%angle(i,1))
+            state1%geom%angle(i,2) = OrderMap(state1%geom%angle(i,2))
+            state1%geom%angle(i,3) = OrderMap(state1%geom%angle(i,3))
+        enddo
+        do i=1,state1%geom%ndihed
+            state1%geom%dihed(i,1) = OrderMap(state1%geom%dihed(i,1))
+            state1%geom%dihed(i,2) = OrderMap(state1%geom%dihed(i,2))
+            state1%geom%dihed(i,3) = OrderMap(state1%geom%dihed(i,3))
+            state1%geom%dihed(i,4) = OrderMap(state1%geom%dihed(i,4))
+        enddo
+    endif
+
     !WRITE MODEREDUNDANT FILE
     open(O_ICF,file=intfile,status="new",iostat=IOstatus)
     if (IOstatus /= 0) call alert_msg("fatal","Cannot write on output: "//trim(adjustl(intfile)) )
@@ -192,14 +222,15 @@ program vertical2adiabatic
     contains
     !=============================================
 
-    subroutine parse_input(inpfile,ft,zmatfile,rmzfile,def_internal,use_symmetry,intfile,cnx_file)
+    subroutine parse_input(inpfile,ft,zmatfile,rmzfile,def_internal,use_symmetry,intfile,cnx_file,order_file)
     !==================================================
     ! My input parser (gromacs style)
     !==================================================
         implicit none
 
         character(len=*),intent(inout) :: inpfile,ft,zmatfile,&
-                                          intfile,rmzfile,def_internal,cnx_file
+                                          intfile,rmzfile,def_internal,cnx_file, &
+                                          order_file
         logical,intent(inout)          :: use_symmetry
         ! Local
         logical :: argument_retrieved,  &
@@ -224,6 +255,10 @@ program vertical2adiabatic
 
                 case ("-cnx") 
                     call getarg(i+1, cnx_file)
+                    argument_retrieved=.true.
+
+                case ("-reorder")
+                    call getarg(i+1, order_file)
                     argument_retrieved=.true.
 
                 case ("-intfile") 
@@ -283,6 +318,7 @@ program vertical2adiabatic
         write(6,*) '-f              ', trim(adjustl(inpfile))
         write(6,*) '-ft             ', trim(adjustl(ft))
         write(6,*) '-cnx            ', trim(adjustl(cnx_file))
+        write(6,*) '-reorder        ', trim(adjustl(order_file))
         write(6,*) '-intmode        ', trim(adjustl(def_internal))
         write(6,*) '-intfile        ', trim(adjustl(intfile))
         write(6,*) '-zmatfile       ', trim(adjustl(zmatfile))

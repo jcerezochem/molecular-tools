@@ -380,6 +380,7 @@ program normal_modes_animation
         print*, "Ns", Ns
         print*, "Nvib", Nvib
         call alert_msg("warning","Reduced coordinates only produce animations with rmzfiles")
+        Nvib=Ns
         ! Need to freeze unused coords to its input values
     endif
 
