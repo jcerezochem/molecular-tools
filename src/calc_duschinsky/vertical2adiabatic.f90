@@ -262,7 +262,7 @@ program vertical2adiabatic
     endif
     call define_internal_set(state1,def_internal,intfile,rmzfile,use_symmetry,isym,S_sym,Ns)
     if (Ns > Nvib) then
-        call red2zmat_mapping(state1,zmatgeom,Zmap)
+        call internals_mapping(state1%geom,zmatgeom,Zmap)
     elseif (Ns < Nvib) then
         print*, "Ns", Ns
         print*, "Nvib", Nvib

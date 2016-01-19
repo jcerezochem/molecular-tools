@@ -60,17 +60,19 @@ program normal_modes_animation
                vertical=.false.,       &
                analytic_Bder=.false.,  &
                check_symmetry=.true.,  &
-               animate=.true.
+               animate=.true.,         &
+               project_on_all=.true.
     !======================
 
     !====================== 
     !System variables
     type(str_resmol) :: molecule, molec_aux
-    type(str_bonded) :: zmatgeom
+    type(str_bonded) :: zmatgeom, allgeom, currentgeom
     integer,dimension(1:NDIM) :: isym
     integer,dimension(4,1:NDIM,1:NDIM) :: Osym
     integer :: Nsym
-    integer :: Nat, Nvib, Ns, Ns_zmat
+    integer :: Nat, Nvib, Ns
+    integer :: Ns_zmat, Ns_all, Nvib_all
     character(len=5) :: PG
     !Job info
     character(len=20) :: calc, method, basis
@@ -97,7 +99,7 @@ program normal_modes_animation
     !====================== 
     ! PES topology and normal mode things
     real(8),dimension(:),allocatable :: Hlt
-    real(8),dimension(1:NDIM,1:NDIM) :: Hess, LL
+    real(8),dimension(1:NDIM,1:NDIM) :: Hess, Hess_all, LL, LL_all
     real(8),dimension(NDIM) :: Freq, Factor, Grad
     !Moving normal modes
     character(len=50) :: selection="none"
@@ -115,14 +117,14 @@ program normal_modes_animation
 
     !====================== 
     !INTERNAL CODE THINGS
-    real(8),dimension(1:NDIM,1:NDIM) :: B, G, Asel
+    real(8),dimension(1:NDIM,1:NDIM) :: B, G, Asel, Asel_all
     real(8),dimension(1:NDIM,1:NDIM,1:NDIM) :: Bder
     real(8),dimension(1:24,1:30,1:30) :: Bder1, Bder2, Bder3
     real(8),dimension(1:NDIM,1:NDIM) :: X,Xinv
     !Save definitio of the modes in character
     character(len=100),dimension(NDIM) :: ModeDef
     !VECTORS
-    real(8),dimension(NDIM) :: S, Sref, S0
+    real(8),dimension(NDIM) :: S, Sref, Szmat, Sall
     integer,dimension(NDIM) :: S_sym
     ! Switches
     character(len=5) :: def_internal="ZMAT", def_internal_aux
@@ -135,7 +137,7 @@ program normal_modes_animation
 
     !====================== 
     !Auxiliar
-    real(8),dimension(1:NDIM,1:NDIM) :: Aux, Aux2
+    real(8),dimension(1:NDIM,1:NDIM) :: Aux, Aux2, Aux3
     real(8) :: Theta, Theta2
     !====================== 
 
@@ -152,6 +154,7 @@ program normal_modes_animation
                O_Q  =23,  &
                O_NUM=24,  &
                O_MOV=25,  &
+               O_PRJ=26,  &
                S_VMD=30
 
     !files
@@ -291,6 +294,7 @@ program normal_modes_animation
             ! Run vibrations_Cart to get the number of Nvib (to detect linear molecules)
             call vibrations_Cart(Nat,molecule%atom(:)%X,molecule%atom(:)%Y,molecule%atom(:)%Z,&
                                  molecule%atom(:)%Mass,Hlt,Nvib,LL,Freq,error_flag=error)
+            Nvib_all=Nvib
             k=0
             do i=1,3*Nat
             do j=1,i
@@ -312,8 +316,8 @@ program normal_modes_animation
     else
         !We need to provide a value for Nvib. Lets assume non-liear molecules
         Nvib = 3*Nat-6
+        Nvib_all=Nvib
     endif
-
 
     ! MANAGE INTERNAL COORDS
     ! ---------------------------------
@@ -363,24 +367,41 @@ program normal_modes_animation
         verbose_current=verbose
 !         verbose=0
         call set_geom_units(molecule,"Bohr")
-        call internal_Wilson_new(molecule,Ns,S0,B)
+        call internal_Wilson_new(molecule,Ns,Szmat,B)
         call set_geom_units(molecule,"Angs")
         verbose=verbose_current
         ! And reset bonded parameters
         call gen_bonded(molecule)
     endif
+    if (project_on_all.and.def_internal=="SEL") then
+        print'(/X,A,/)', "Preparing to make the projection on 'all' set"
+        ! Prepare to compute selected frame on all coords
+        ! Get all coordinates
+        def_internal_aux="ALL"
+        call define_internal_set(molecule,def_internal_aux,"none","none",use_symmetry,isym,S_sym,Ns)
+        ! Get Ns at this point to latter form the proper Zmat
+        Ns_all = Ns
+        ! Get only the geom, and reuse molecule
+        allgeom=molecule%geom
+        ! And reset bonded parameters
+        call gen_bonded(molecule)
+        print'(X,A,/)', "Projection on 'all' prepared"
+    else
+        call alert_msg("note","The projection on the 'all' set is not possible")
+        project_on_all=.false.
+    endif
     call define_internal_set(molecule,def_internal,intfile,rmzfile,use_symmetry,isym,S_sym,Ns)
     if (Ns > Nvib) then
-        call red2zmat_mapping(molecule,zmatgeom,Zmap)
+        call internals_mapping(molecule%geom,zmatgeom,Zmap)
     elseif (def_internal=="ZMAT".and.rmzfile/="none") then
         ! We also get a Zmap
-        call red2zmat_mapping(molecule,zmatgeom,Zmap)
-        Nvib=Ns
+        call internals_mapping(molecule%geom,zmatgeom,Zmap)
+!         Nvib=Ns ! Will come from the diag of G
     elseif (Ns < Nvib) then
         print*, "Ns", Ns
         print*, "Nvib", Nvib
         call alert_msg("warning","Reduced coordinates only produce animations with rmzfiles")
-        Nvib=Ns
+!         Nvib=Ns ! Will come from the diag of G
         ! Need to freeze unused coords to its input values
     endif
 
@@ -414,6 +435,100 @@ program normal_modes_animation
         !--------------------------------------
         ! 2. Normal Mode SCAN
         !--------------------------------------
+        ! ALL 
+        !=======
+        if (project_on_all) then
+            print'(/,X,A)', "Vibrational anlysis with 'all' set"
+            ! First get the geom for current state
+            currentgeom=molecule%geom
+            
+            ! Then make the whole analysis for 'All' set
+            molecule%geom=allgeom
+            Hess_all(1:3*Nat,1:3*Nat) = Hess(1:3*Nat,1:3*Nat)
+            call internal_Wilson_new(molecule,Ns_all,Sall,B,ModeDef)
+            !SOLVE GF METHOD TO GET NM AND FREQ
+            call internal_Gmetric(Nat,Ns_all,molecule%atom(:)%mass,B,G)
+
+            if (vertical) then
+                call calc_Bder(molecule,Ns_all,Bder,analytic_Bder)
+            endif
+
+            if (Ns_all > Nvib_all) then
+                call redundant2nonredundant(Ns_all,Nvib_all,G,Asel_all)
+                ! Rotate Bmatrix
+                B(1:Nvib_all,1:3*Nat) = matrix_product(Nvib_all,3*Nat,Ns_all,Asel_all,B,tA=.true.)
+                ! Rotate Gmatrix
+                G(1:Nvib_all,1:Nvib_all) = matrix_basisrot(Nvib_all,Ns_all,Asel_all(1:Ns_all,1:Nvib_all),G,counter=.true.)
+                ! Rotate Bders
+                if (vertical) then
+                    do j=1,3*Nat
+                        Bder(1:Nvib_all,j,1:3*Nat) =  &
+                         matrix_product(Nvib_all,3*Nat,Ns_all,Asel_all,Bder(1:Ns_all,j,1:3*Nat),tA=.true.)
+                    enddo
+                endif
+            endif
+
+            if (vertical) then
+                call HessianCart2int(Nat,Nvib_all,Hess_all,molecule%atom(:)%mass,B,G,Grad,Bder)
+                if (verbose>2) then
+                    do i=1,Nvib_all
+                        write(tmpfile,'(A,I0,A)') "Bder, ic=",i
+                        call MAT0(6,Bder(i,:,:),3*Nat,3*Nat,trim(tmpfile))
+                    enddo
+                endif
+
+                if (check_symmetry) then
+                    print'(/,X,A)', "---------------------------------------"
+                    print'(X,A  )', " Check effect of symmetry operations"
+                    print'(X,A  )', " on the correction term gs^t\beta"
+                    print'(X,A  )', "---------------------------------------"
+                    molecule%PG="XX"
+                    call symm_atoms(molecule,isym,Osym,rotate=.false.,nsym_ops=nsym)
+                    ! Check the symmetry of the correction term
+                    ! First compute the correction term
+                    do i=1,3*Nat
+                    do j=1,3*Nat
+                        Aux2(i,j) = 0.d0
+                        do k=1,Nvib_all
+                            Aux2(i,j) = Aux2(i,j) + Bder(k,i,j)*Grad(k)
+                        enddo
+                    enddo
+                    enddo
+                    ! Print if verbose level is high
+                    if (verbose>2) &
+                        call MAT0(6,Aux2,3*Nat,3*Nat,"gs*Bder matrix")
+                    ! Check all detected symmetry ops
+                    do iop=1,Nsym
+                        Aux(1:3*Nat,1:3*Nat) = dfloat(Osym(iop,1:3*Nat,1:3*Nat))
+                        Aux(1:3*Nat,1:3*Nat) = matrix_basisrot(3*Nat,3*Nat,Aux,Aux2,counter=.true.)
+                        Theta=0.d0
+                        do i=1,3*Nat 
+                        do j=1,3*Nat 
+                            if (Theta < abs(Aux(i,j)-Aux2(i,j))) then
+                                Theta = abs(Aux(i,j)-Aux2(i,j))
+                                Theta2=Aux2(i,j)
+                            endif
+                        enddo
+                        enddo
+                        print'(X,A,I0)', "Symmetry operation :   ", iop
+                        print'(X,A,F10.6)',   " Max abs difference : ", Theta
+                        print'(X,A,F10.6,/)', " Value before sym op: ", Theta2
+                    enddo
+                    print'(X,A,/)', "---------------------------------------"
+                endif
+
+            else
+                call HessianCart2int(Nat,Nvib_all,Hess_all,molecule%atom(:)%mass,B,G)
+            endif
+            call gf_method(Nvib_all,G,Hess_all,LL_all,Freq,X,Xinv)
+
+           ! Restore original geom
+           molecule%geom=currentgeom
+            
+            print'(X,A,/)', "Vibrational anlysis done. Ready for projection"
+
+        endif
+
         call internal_Wilson_new(molecule,Ns,S,B,ModeDef)
         if (nmfile == "none") then
             !SOLVE GF METHOD TO GET NM AND FREQ
@@ -423,7 +538,9 @@ program normal_modes_animation
                 call calc_Bder(molecule,Ns,Bder,analytic_Bder)
             endif
 
-            if (Ns > Nvib) then
+            ! The diagonalization of the G matrix can be donne with all sets
+            ! (either redundant or non-redundant)
+!             if (Ns > Nvib) then
                 call redundant2nonredundant(Ns,Nvib,G,Asel)
                 ! Rotate Bmatrix
                 B(1:Nvib,1:3*Nat) = matrix_product(Nvib,3*Nat,Ns,Asel,B,tA=.true.)
@@ -435,7 +552,12 @@ program normal_modes_animation
                         Bder(1:Nvib,j,1:3*Nat) =  matrix_product(Nvib,3*Nat,Ns,Asel,Bder(1:Ns,j,1:3*Nat),tA=.true.)
                     enddo
                 endif
-            endif
+!             else
+!                 Asel(1:Ns,1:Ns) = 0.d0
+!                 do i=1,Ns
+!                     Asel(i,i) = 1.d0
+!                 enddo
+!             endif
 
             if (vertical) then
                 call HessianCart2int(Nat,Nvib,Hess,molecule%atom(:)%mass,B,G,Grad,Bder)
@@ -504,7 +626,7 @@ program normal_modes_animation
                 endif
             endif
         else
-            ! Transform LcartNrm read from file to Ls
+            ! Transform LcartNrm read from file to Ls (this is approximate if -vert!)
             call Lcart_to_Ls(Nat,Nvib,B,LL,LL,error)
         endif
         !Define the Factor to convert shift into addimensional displacements
@@ -532,11 +654,70 @@ program normal_modes_animation
         stop
     endif
 
+    if (project_on_all.and.Nvib_all>Nvib) then
+        print*, "Projecting reduced normal mode set on whole set"
+        ! Map 'all' modes with reduced space
+        call internals_mapping(currentgeom,allgeom,Zmap)
+   
+        do i=1,Ns_all
+            j=Zmap(i) 
+            if (j/=0) then
+                Aux2(i,1:Nvib) = Asel(j,1:Nvib)
+            else
+                Aux2(i,1:Nvib) = 0.d0
+            endif
+        enddo
+        !
+        ! Prj1 = (LL)^-1 * (Asel)^t * Asel_all * LL_all
+        !
+        ! (Asel)^t * Asel_all
+        Aux(1:Nvib,1:Nvib_all) = matrix_product(Nvib,Nvib_all,Ns_all,Aux2,Asel_all,tA=.true.)
+        ! (LL)^-1 * [(Asel)^t * Asel_all]
+        Aux3(1:Nvib,1:Nvib) = inverse_realgen(Nvib,LL)
+        Aux(1:Nvib,1:Nvib_all) = matrix_product(Nvib,Nvib_all,Nvib,Aux3,Aux)
+        ! [(LL)^-1 * (Asel)^t * Asel_all] * LL_all
+        Aux(1:Nvib,1:Nvib_all) = matrix_product(Nvib,Nvib_all,Nvib_all,Aux,LL_all)
+
+        print*, "Projection: "
+        print'(X,A,/)', "  (LL_reduced)^-1 * (LL_all)", Nvib, Nvib_all
+        open(O_PRJ,file="Prj1_reduced.dat")
+        do i=1,Nvib 
+        do j=1,Nvib_all
+            write(98,*) Aux(i,j)
+        enddo
+        enddo
+
+!       The inverse is not well defined, since we'd try to get one space from a reduced one
+!         !
+!         ! Prj2 = (LL_all)^-1 * (Asel_all)^t * Asel * LL
+!         !
+!         ! (Asel_all)^t * Asel
+!         Aux(1:Nvib_all,1:Nvib) = matrix_product(Nvib_all,Nvib,Ns_all,Asel_all,Aux2,tA=.true.)
+!         ! (LL_all)^-1 * [(Asel_all)^t * Asel]
+!         Aux3(1:Nvib_all,1:Nvib_all) = inverse_realgen(Nvib_all,LL_all)
+!         Aux(1:Nvib_all,1:Nvib) = matrix_product(Nvib_all,Nvib,Nvib_all,Aux3,Aux)
+!         ! [(LL_all)^-1 * (Asel_all)^t * Asel] * LL
+!         Aux(1:Nvib_all,1:Nvib) = matrix_product(Nvib_all,Nvib,Nvib,Aux,LL)
+! 
+!         print*, "Projection 2: "
+!         print*, "  (LL_all)^-1 * (LL_reduced)", Nvib_all, Nvib
+!         open(O_PRJ,file="Prj2.dat")
+!         do i=1,Nvib_all  
+!         do j=1,Nvib
+!             write(O_PRJ,*) Aux(i,j)
+!         enddo
+!         enddo
+!         close(O_PRJ)
+        
+    endif
+
+
     ! If redundant set, transform from orthogonal non-redundant
     if (Nvib < Ns) then
         print'(/,X,A,/)', "Transform from non-redundant orthogonal to original redundant set"
         LL(1:Ns,1:Nvib) = matrix_product(Ns,Nvib,Nvib,Asel,LL)
     endif
+
 
     !==========================================================0
     !  Normal mode displacements
@@ -556,7 +737,7 @@ program normal_modes_animation
     if (Ns /= Ns_zmat .and. scan_type == "NM") then
         ! From now on, we use the zmatgeom 
         molecule%geom = zmatgeom
-        S(1:Ns_zmat) = map_Zmatrix(Ns_zmat,S,Zmap,S0)
+        S(1:Ns_zmat) = map_Zmatrix(Ns_zmat,S,Zmap,Szmat)
     endif
     call zmat2cart(molecule,S)
     ! Save state as reference frame for RMSD fit (in AA)
@@ -635,7 +816,7 @@ program normal_modes_animation
             call displace_Scoord(LL(:,j),nbonds,nangles,ndihed,Qstep/Factor(j)*i,S)
             ! Get Cart coordinates
             if (Ns /= Ns_zmat .and. scan_type == "NM") then
-                S(1:Ns_zmat) = map_Zmatrix(Ns_zmat,S,Zmap,S0)
+                S(1:Ns_zmat) = map_Zmatrix(Ns_zmat,S,Zmap,Szmat)
             endif
             call zmat2cart(molecule,S)
             !call rmsd_fit_frame(state,ref): efficient but not always works. If so, it uses rmsd_fit_frame_brute(state,ref)
@@ -675,7 +856,7 @@ program normal_modes_animation
             call displace_Scoord(LL(:,j),nbonds,nangles,ndihed,Qstep/Factor(j)*i,S)
             ! Get Cart coordinates
             if (Ns /= Ns_zmat .and. scan_type == "NM") then
-                S(1:Ns_zmat) = map_Zmatrix(Ns_zmat,S,Zmap,S0)
+                S(1:Ns_zmat) = map_Zmatrix(Ns_zmat,S,Zmap,Szmat)
             endif
             call zmat2cart(molecule,S)
             !Transform to AA and comparae with last step (stored in state) -- comparison in AA
@@ -719,7 +900,7 @@ program normal_modes_animation
             call displace_Scoord(LL(:,j),nbonds,nangles,ndihed,Qstep/Factor(j)*i,S)
             ! Get Cart coordinates
             if (Ns /= Ns_zmat .and. scan_type == "NM") then
-                S(1:Ns_zmat) = map_Zmatrix(Ns_zmat,S,Zmap,S0)
+                S(1:Ns_zmat) = map_Zmatrix(Ns_zmat,S,Zmap,Szmat)
             endif
             call zmat2cart(molecule,S)
             !call rmsd_fit_frame(state,ref): efficient but not always works. If so, it uses rmsd_fit_frame_brute(state,ref)

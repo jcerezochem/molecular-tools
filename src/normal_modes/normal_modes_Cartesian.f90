@@ -358,10 +358,10 @@ program normal_modes_cartesian
             endif
             call define_internal_set(molecule,def_internal,intfile,rmzfile,use_symmetry,isym,S_sym,Ns)
             if (Ns > Nvib) then
-                call red2zmat_mapping(molecule,zmatgeom,Zmap)
+                call internals_mapping(molecule%geom,zmatgeom,Zmap)
             elseif (def_internal=="ZMAT".and.rmzfile/="none") then
                 ! We also get a Zmap
-                call red2zmat_mapping(molecule,zmatgeom,Zmap)
+                call internals_mapping(molecule%geom,zmatgeom,Zmap)
                 Nvib=Ns
             elseif (Ns < Nvib) then
                 print*, "Ns", Ns

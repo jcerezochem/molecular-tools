@@ -187,80 +187,90 @@ module internal_module
     end subroutine define_internal_set
 
 
-    subroutine red2zmat_mapping(molecule,zmatgeom,Zmap)
+    subroutine internals_mapping(geom1,geom2,Map)
 
-
-        ! Manage redundant by cherry-picking the non-redundant
-        ! among the whole set.
+        !==============================================================
+        ! This code is part of MOLECULAR_TOOLS 
+        !==============================================================
+        ! Description
+        ! Map geom2 elements into geom1 elements
+        ! For zmat mapping: 
+        !    zmatgeom = geom2
+        !    allgeom  = geom1
+        !
+        ! Normally, geom2 should be a subgroup of geom1
+        ! Otherwise, zeroes will arise in the Map 
+        ! for non-coincident atoms
+        !  
+        !--------------------------------------------------------------
 
         use structure_types
 
         integer,parameter :: NDIM = 600
 
-        type(str_resmol),intent(in)         :: molecule
-        type(str_bonded),intent(in)         :: zmatgeom
-        integer,dimension(NDIM),intent(out) :: Zmap
+        type(str_bonded),intent(in)         :: geom1, geom2
+        integer,dimension(NDIM),intent(out) :: Map
 
         ! Local
-        integer :: nbonds,nangles,ndihed, Nat, Nvib
-        integer,dimension(1:NDIM,1:4) :: bond_s, angle_s, dihed_s
-        integer :: i,j
+        integer :: i,j, k1, k2, Ns2
 
-        print*, "Mapping zmat on redundant set"
+        print*, "Mapping internal sets..."
 
-        Nat    = molecule%natoms
-        nbonds = molecule%geom%nbonds
-        nangles= molecule%geom%nangles
-        ndihed = molecule%geom%ndihed
         !Initialize Zmap
-        Zmap(:) = 0
+        Ns2=geom2%nbonds+geom2%nangles+geom2%ndihed
+        Map(1:Ns2) = 0
 
-        do j=1,Nat-1  ! Zmat loop 
-        do i=1,nbonds ! Redundant loop
-            if (zmatgeom%bond(j,1)==molecule%geom%bond(i,1).and.&
-                zmatgeom%bond(j,2)==molecule%geom%bond(i,2)) then
-                Zmap(j) = i
+        ! Map(geom2) = geom1
+        do j=1,geom2%nbonds  !Nat-1  ! Zmat loop 
+        do i=1,geom1%nbonds ! Redundant loop
+            if (geom2%bond(j,1)==geom1%bond(i,1).and.&
+                geom2%bond(j,2)==geom1%bond(i,2)) then
+                Map(j) = i
             endif
-            if (zmatgeom%bond(j,2)==molecule%geom%bond(i,1).and.&
-                zmatgeom%bond(j,1)==molecule%geom%bond(i,2)) then
-                Zmap(j) = i
-            endif
-        enddo
-        enddo
-        do j=1,Nat-2   ! Zmat loop 
-        do i=1,nangles ! Redundant loop
-            if (zmatgeom%angle(j,1)==molecule%geom%angle(i,1).and.&
-                zmatgeom%angle(j,2)==molecule%geom%angle(i,2).and.&
-                zmatgeom%angle(j,3)==molecule%geom%angle(i,3)) then
-                Zmap(j+Nat-1) = i+nbonds
-            endif
-            if (zmatgeom%angle(j,3)==molecule%geom%angle(i,1).and.&
-                zmatgeom%angle(j,2)==molecule%geom%angle(i,2).and.&
-                zmatgeom%angle(j,1)==molecule%geom%angle(i,3)) then
-                Zmap(j+Nat-1) = i+nbonds
+            if (geom2%bond(j,2)==geom1%bond(i,1).and.&
+                geom2%bond(j,1)==geom1%bond(i,2)) then
+                Map(j) = i
             endif
         enddo
         enddo
-        do j=1,Nat-3  ! Zmat loop 
-        do i=1,ndihed ! Redundant loop
-            if (zmatgeom%dihed(j,1)==molecule%geom%dihed(i,1).and.&
-                zmatgeom%dihed(j,2)==molecule%geom%dihed(i,2).and.&
-                zmatgeom%dihed(j,3)==molecule%geom%dihed(i,3).and.&
-                zmatgeom%dihed(j,4)==molecule%geom%dihed(i,4)) then
-                Zmap(j+2*Nat-3) = i+nbonds+nangles
+        k1=geom1%nbonds
+        k2=geom2%nbonds
+        do j=1,geom2%nangles !Nat-2   ! Zmat loop 
+        do i=1,geom1%nangles ! Redundant loop
+            if (geom2%angle(j,1)==geom1%angle(i,1).and.&
+                geom2%angle(j,2)==geom1%angle(i,2).and.&
+                geom2%angle(j,3)==geom1%angle(i,3)) then
+                Map(k2+j) = k1+i
             endif
-            if (zmatgeom%dihed(j,4)==molecule%geom%dihed(i,1).and.&
-                zmatgeom%dihed(j,3)==molecule%geom%dihed(i,2).and.&
-                zmatgeom%dihed(j,2)==molecule%geom%dihed(i,3).and.&
-                zmatgeom%dihed(j,1)==molecule%geom%dihed(i,4)) then
-                Zmap(j+2*Nat-3) = i+nbonds+nangles
+            if (geom2%angle(j,3)==geom1%angle(i,1).and.&
+                geom2%angle(j,2)==geom1%angle(i,2).and.&
+                geom2%angle(j,1)==geom1%angle(i,3)) then
+                Map(k2+j) = k1+i
+            endif
+        enddo
+        enddo
+        k1=k1+geom1%nangles
+        k2=k2+geom2%nangles
+        do j=1,geom2%ndihed !Nat-3  ! Zmat loop 
+        do i=1,geom1%ndihed ! Redundant loop
+            if (geom2%dihed(j,1)==geom1%dihed(i,1).and.&
+                geom2%dihed(j,2)==geom1%dihed(i,2).and.&
+                geom2%dihed(j,3)==geom1%dihed(i,3).and.&
+                geom2%dihed(j,4)==geom1%dihed(i,4)) then
+                Map(k2+j) = k1+i
+            endif
+            if (geom2%dihed(j,4)==geom1%dihed(i,1).and.&
+                geom2%dihed(j,3)==geom1%dihed(i,2).and.&
+                geom2%dihed(j,2)==geom1%dihed(i,3).and.&
+                geom2%dihed(j,1)==geom1%dihed(i,4)) then
+                Map(k2+j) = k1+i
             endif
         enddo
         enddo
 
         return
 
-    end subroutine red2zmat_mapping
+    end subroutine internals_mapping
 
     function map_Zmatrix(Nvib,S,Zmap,S0) result(Sz)
 
