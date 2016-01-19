@@ -373,7 +373,7 @@ program normal_modes_animation
         ! And reset bonded parameters
         call gen_bonded(molecule)
     endif
-    if (project_on_all.and.def_internal=="SEL") then
+    if (project_on_all.and.def_internal/="ALL") then
         print'(/X,A,/)', "Preparing to make the projection on 'all' set"
         ! Prepare to compute selected frame on all coords
         ! Get all coordinates
@@ -386,8 +386,8 @@ program normal_modes_animation
         ! And reset bonded parameters
         call gen_bonded(molecule)
         print'(X,A,/)', "Projection on 'all' prepared"
-    else
-        call alert_msg("note","The projection on the 'all' set is not possible")
+    elseif (def_internal=="ALL") then
+        call alert_msg("note","The projection on the 'all' set is not done with -intmode all")
         project_on_all=.false.
     endif
     call define_internal_set(molecule,def_internal,intfile,rmzfile,use_symmetry,isym,S_sym,Ns)
@@ -403,6 +403,11 @@ program normal_modes_animation
         call alert_msg("warning","Reduced coordinates only produce animations with rmzfiles")
 !         Nvib=Ns ! Will come from the diag of G
         ! Need to freeze unused coords to its input values
+    endif
+    ! The projection not possible if impropers are selected (not included in the 'all' set 
+    if (molecule%geom%nimprop/=0) then
+        call alert_msg("note","Cannot perform the projection with impropers")
+        project_on_all=.false.
     endif
 
     !From now on, we'll use atomic units
