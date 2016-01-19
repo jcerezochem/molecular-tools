@@ -100,7 +100,7 @@ program normal_modes_animation
     ! PES topology and normal mode things
     real(8),dimension(:),allocatable :: Hlt
     real(8),dimension(1:NDIM,1:NDIM) :: Hess, Hess_all, LL, LL_all
-    real(8),dimension(NDIM) :: Freq, Factor, Grad
+    real(8),dimension(NDIM) :: Freq, Factor, Grad, Freq_all
     !Moving normal modes
     character(len=50) :: selection="none"
     real(8) :: Amplitude = 2.d0, qcoord
@@ -525,7 +525,7 @@ program normal_modes_animation
             else
                 call HessianCart2int(Nat,Nvib_all,Hess_all,molecule%atom(:)%mass,B,G)
             endif
-            call gf_method(Nvib_all,G,Hess_all,LL_all,Freq,X,Xinv)
+            call gf_method(Nvib_all,G,Hess_all,LL_all,Freq_all,X,Xinv)
 
            ! Restore original geom
            molecule%geom=currentgeom
@@ -659,7 +659,7 @@ program normal_modes_animation
         stop
     endif
 
-    if (project_on_all.and.Nvib_all>Nvib) then
+    if (project_on_all) then
         print*, "Projecting reduced normal mode set on whole set"
         ! Map 'all' modes with reduced space
         call internals_mapping(currentgeom,allgeom,Zmap)
@@ -683,14 +683,35 @@ program normal_modes_animation
         ! [(LL)^-1 * (Asel)^t * Asel_all] * LL_all
         Aux(1:Nvib,1:Nvib_all) = matrix_product(Nvib,Nvib_all,Nvib_all,Aux,LL_all)
 
-        print*, "Projection: "
-        print'(X,A,/)', "  (LL_reduced)^-1 * (LL_all)", Nvib, Nvib_all
-        open(O_PRJ,file="Prj1_reduced.dat")
+        print*, "Projection an modes with 'all' internal set: "
+        print'(X,A,I0,X,I0,/)', " Prj = (LL_current)^-1 * (LL_all). Size: ", Nvib, Nvib_all
+        open(O_PRJ,file="Prj1_modes.dat")
         do i=1,Nvib 
         do j=1,Nvib_all
-            write(98,*) Aux(i,j)
+            write(O_PRJ,*) Aux(i,j)
         enddo
         enddo
+        close(O_PRJ)
+
+        !Make the assignememts
+        print'(/,X,A)', "--------------------------------------------------------"
+        print'(X,A)',   " Assignments of reduced set based on Prj"
+        print'(X,A)',   "--------------------------------------------------------"
+        print'(X,A)',   " Reduced/Freq     Complete/Freq      Coef^2     Norm"
+        do i=1,Nvib
+            Theta=0.d0
+            Theta2=0.d0
+            do j=1,Nvib_all
+                if (Theta<=abs(Aux(i,j))) then
+                    Theta=abs(Aux(i,j))
+                    k=j
+                endif 
+                Theta2=Theta2+Aux(i,j)**2
+            enddo
+            print'(I4,2X,F8.2,4X,I4,2X,F8.2,3X,F8.3,3X,F8.3)', &
+                          i, Freq(i), k, Freq_all(k), Theta**2, Theta2
+        enddo
+        print'(X,A,/)',   "--------------------------------------------------------"
 
 !       The inverse is not well defined, since we'd try to get one space from a reduced one
 !         !
