@@ -61,7 +61,8 @@ program normal_modes_animation
                analytic_Bder=.false.,  &
                check_symmetry=.true.,  &
                animate=.true.,         &
-               project_on_all=.true.
+               project_on_all=.true.,  &
+               do_zmap
     !======================
 
     !====================== 
@@ -130,7 +131,7 @@ program normal_modes_animation
     character(len=5) :: def_internal="ZMAT", def_internal_aux
     character(len=2) :: scan_type="NM"
     !Coordinate map
-    integer,dimension(NDIM) :: Zmap
+    integer,dimension(NDIM) :: Zmap, IntMap
     ! Number of ic (Shortcuts)
     integer :: nbonds, nangles, ndihed, nimprop
     !====================== 
@@ -353,9 +354,14 @@ program normal_modes_animation
 
     ! Define internal set
     Ns_zmat=0
-    if (animate.and.(def_internal=="SEL".or.def_internal=="ALL".or.(def_internal=="ZMAT".and.rmzfile/="none"))) then 
-        !Only if def_internal="all", we can print the animation mapping the Zmat
-        !but NOT for "sel"
+    ! Shortcut logical: whether or not do zmap 
+    !  1/ If -intmode zmat but we are removing coordinates
+    do_zmap = def_internal=="ZMAT".and.rmzfile/="none"
+    !  2/ If -intmode not equal zmat
+    do_zmap = do_zmap.or.def_internal/="ZMAT"
+    ! 3/ But only do it if we want the animation
+    do_zmap = do_zmap.and.animate
+    if (do_zmap) then 
         print*, "Preliminary Zmat analysis"
         ! Get Zmat first
         def_internal_aux="ZMAT"
@@ -391,24 +397,22 @@ program normal_modes_animation
         call alert_msg("note","The projection on the 'all' set is not done with -intmode all")
         project_on_all=.false.
     endif
+    ! NOW, GET THE ACTUAL WORKING INTERNAL SET
     call define_internal_set(molecule,def_internal,intfile,rmzfile,use_symmetry,isym,S_sym,Ns)
-    if (Ns > Nvib) then
-        call internals_mapping(molecule%geom,zmatgeom,Zmap)
-    elseif (def_internal=="ZMAT".and.rmzfile/="none") then
-        ! We also get a Zmap
-        call internals_mapping(molecule%geom,zmatgeom,Zmap)
-!         Nvib=Ns ! Will come from the diag of G
-    elseif (Ns < Nvib) then
-        print*, "Ns", Ns
-        print*, "Nvib", Nvib
-        call alert_msg("warning","Reduced coordinates only produce animations with rmzfiles")
-!         Nvib=Ns ! Will come from the diag of G
-        ! Need to freeze unused coords to its input values
-    endif
-    ! The projection not possible if impropers are selected (not included in the 'all' set 
+
+    ! Set variables based on the working internal set 
     if (molecule%geom%nimprop/=0) then
-        call alert_msg("note","Cannot perform the projection with impropers")
-        project_on_all=.false.
+        if (project_on_all) then
+            call alert_msg("note","Cannot perform the projection with impropers")
+            project_on_all=.false.
+        endif
+        if (do_zmap) then
+            call alert_msg("note","Cannot produce animations with impropers")
+            do_zmap=.false.
+        endif
+    endif
+    if (do_zmap) then
+        call internals_mapping(molecule%geom,zmatgeom,Zmap)
     endif
 
     !From now on, we'll use atomic units
@@ -441,8 +445,7 @@ program normal_modes_animation
         !--------------------------------------
         ! 2. Normal Mode SCAN
         !--------------------------------------
-        ! ALL 
-        !=======
+        ! If requested, get the vibrations with the 'all' set
         if (project_on_all) then
             print'(/,X,A)', "Vibrational anlysis with 'all' set"
             ! First get the geom for current state
@@ -459,19 +462,17 @@ program normal_modes_animation
                 call calc_Bder(molecule,Ns_all,Bder,analytic_Bder)
             endif
 
-            if (Ns_all > Nvib_all) then
-                call redundant2nonredundant(Ns_all,Nvib_all,G,Asel_all)
-                ! Rotate Bmatrix
-                B(1:Nvib_all,1:3*Nat) = matrix_product(Nvib_all,3*Nat,Ns_all,Asel_all,B,tA=.true.)
-                ! Rotate Gmatrix
-                G(1:Nvib_all,1:Nvib_all) = matrix_basisrot(Nvib_all,Ns_all,Asel_all(1:Ns_all,1:Nvib_all),G,counter=.true.)
-                ! Rotate Bders
-                if (vertical) then
-                    do j=1,3*Nat
-                        Bder(1:Nvib_all,j,1:3*Nat) =  &
-                         matrix_product(Nvib_all,3*Nat,Ns_all,Asel_all,Bder(1:Ns_all,j,1:3*Nat),tA=.true.)
-                    enddo
-                endif
+            call redundant2nonredundant(Ns_all,Nvib_all,G,Asel_all)
+            ! Rotate Bmatrix
+            B(1:Nvib_all,1:3*Nat) = matrix_product(Nvib_all,3*Nat,Ns_all,Asel_all,B,tA=.true.)
+            ! Rotate Gmatrix
+            G(1:Nvib_all,1:Nvib_all) = matrix_basisrot(Nvib_all,Ns_all,Asel_all(1:Ns_all,1:Nvib_all),G,counter=.true.)
+            ! Rotate Bders
+            if (vertical) then
+                do j=1,3*Nat
+                    Bder(1:Nvib_all,j,1:3*Nat) =  &
+                     matrix_product(Nvib_all,3*Nat,Ns_all,Asel_all,Bder(1:Ns_all,j,1:3*Nat),tA=.true.)
+                enddo
             endif
 
             if (vertical) then
@@ -547,23 +548,17 @@ program normal_modes_animation
             endif
 
             ! The diagonalization of the G matrix can be donne with all sets
-            ! (either redundant or non-redundant)
-            if (Ns > Nvib) then
-                call redundant2nonredundant(Ns,Nvib,G,Asel)
-                ! Rotate Bmatrix
-                B(1:Nvib,1:3*Nat) = matrix_product(Nvib,3*Nat,Ns,Asel,B,tA=.true.)
-                ! Rotate Gmatrix
-                G(1:Nvib,1:Nvib) = matrix_basisrot(Nvib,Ns,Asel(1:Ns,1:Nvib),G,counter=.true.)
-                ! Rotate Bders
-                if (vertical) then
-                    do j=1,3*Nat
-                        Bder(1:Nvib,j,1:3*Nat) =  matrix_product(Nvib,3*Nat,Ns,Asel,Bder(1:Ns,j,1:3*Nat),tA=.true.)
-                    enddo
-                endif
-            else
-                Asel(1:Ns,1:Ns) = 0.d0
-                do i=1,Ns
-                    Asel(i,i) = 1.d0
+            ! (either redundant or non-redundant), and it is the best way to 
+            ! set the number of vibrations. The following call also set Nvib
+            call redundant2nonredundant(Ns,Nvib,G,Asel)
+            ! Rotate Bmatrix
+            B(1:Nvib,1:3*Nat) = matrix_product(Nvib,3*Nat,Ns,Asel,B,tA=.true.)
+            ! Rotate Gmatrix
+            G(1:Nvib,1:Nvib) = matrix_basisrot(Nvib,Ns,Asel(1:Ns,1:Nvib),G,counter=.true.)
+            ! Rotate Bders
+            if (vertical) then
+                do j=1,3*Nat
+                    Bder(1:Nvib,j,1:3*Nat) =  matrix_product(Nvib,3*Nat,Ns,Asel,Bder(1:Ns,j,1:3*Nat),tA=.true.)
                 enddo
             endif
 
@@ -644,31 +639,13 @@ program normal_modes_animation
         Factor(1:Nvib)=Factor(1:Nvib)*BOHRtoM*dsqrt(AUtoKG)
     endif
 
-    ! Check if we should continue
-    if (molecule%geom%nimprop/=0) then
-        if (Nsel/=0) call alert_msg("warning","Animations not yet possible "//&
-                                              "when impropers are selected")
-        call cpu_time(tf)
-        write(6,'(/,A,X,F12.3,/)') "CPU time (s)", tf-ti
-        stop
-    endif
-    if (def_internal=="SEL") then
-        if (Nsel/=0) call alert_msg("warning","Animations may missbehave "//&
-                                              "with -intmode sel")
-    endif
-    if (.not.animate) then
-        call cpu_time(tf)
-        write(6,'(/,A,X,F12.3,/)') "CPU time (s)", tf-ti
-        stop
-    endif
-
     if (project_on_all) then
         print*, "Projecting reduced normal mode set on whole set"
         ! Map 'all' modes with reduced space
-        call internals_mapping(currentgeom,allgeom,Zmap)
+        call internals_mapping(currentgeom,allgeom,IntMap)
    
         do i=1,Ns_all
-            j=Zmap(i) 
+            j=IntMap(i) 
             if (j/=0) then
                 Aux2(i,1:Nvib) = Asel(j,1:Nvib)
             else
@@ -715,31 +692,22 @@ program normal_modes_animation
                           i, Freq(i), k, Freq_all(k), Theta**2, Theta2
         enddo
         print'(X,A,/)',   "--------------------------------------------------------"
-
-!       The inverse is not well defined, since we'd try to get one space from a reduced one
-!         !
-!         ! Prj2 = (LL_all)^-1 * (Asel_all)^t * Asel * LL
-!         !
-!         ! (Asel_all)^t * Asel
-!         Aux(1:Nvib_all,1:Nvib) = matrix_product(Nvib_all,Nvib,Ns_all,Asel_all,Aux2,tA=.true.)
-!         ! (LL_all)^-1 * [(Asel_all)^t * Asel]
-!         Aux3(1:Nvib_all,1:Nvib_all) = inverse_realgen(Nvib_all,LL_all)
-!         Aux(1:Nvib_all,1:Nvib) = matrix_product(Nvib_all,Nvib,Nvib_all,Aux3,Aux)
-!         ! [(LL_all)^-1 * (Asel_all)^t * Asel] * LL
-!         Aux(1:Nvib_all,1:Nvib) = matrix_product(Nvib_all,Nvib,Nvib,Aux,LL)
-! 
-!         print*, "Projection 2: "
-!         print*, "  (LL_all)^-1 * (LL_reduced)", Nvib_all, Nvib
-!         open(O_PRJ,file="Prj2.dat")
-!         do i=1,Nvib_all  
-!         do j=1,Nvib
-!             write(O_PRJ,*) Aux(i,j)
-!         enddo
-!         enddo
-!         close(O_PRJ)
         
     endif
 
+    ! Check if we should continue
+    if (molecule%geom%nimprop/=0) then
+        if (Nsel/=0) call alert_msg("warning","Animations not yet possible "//&
+                                              "when impropers are selected")
+        Nsel=0
+    endif
+    if (def_internal=="SEL") then
+        if (Nsel/=0) call alert_msg("warning","Animations may missbehave "//&
+                                              "with -intmode sel")
+    endif
+    if (.not.animate) then
+        Nsel=0
+    endif
 
     ! If redundant set, transform from orthogonal non-redundant
 !     if (Nvib < Ns) then
@@ -751,33 +719,38 @@ program normal_modes_animation
     !==========================================================0
     !  Normal mode displacements
     !==========================================================0
-    ! Tune Ns to activate switches
-    if (rmzfile/="none") Ns=0
-    ! Take number of ICs as Shortcuts
-    nbonds = molecule%geom%nbonds
-    nangles= molecule%geom%nangles
-    ndihed = molecule%geom%ndihed
-    ! Initialization
-    Sref = S
-    ! To ensure that we always have the same orientation, we stablish the reference here
-    ! this can be used to use the input structure as reference (this might need also a 
-    ! traslation if not at COM -> not necesary, the L matrices are not dependent on the 
-    ! COM position, only on the orientation)
-    if (Ns_zmat /= 0 .and. scan_type == "NM") then
-        ! From now on, we use the zmatgeom 
-        molecule%geom = zmatgeom
-        S(1:Ns_zmat) = map_Zmatrix(Ns_zmat,S,Zmap,Szmat)
+    if (Nsel > 0) then
+        ! Tune Ns to activate switches
+        if (rmzfile/="none") Ns=0
+        ! Take number of ICs as Shortcuts
+        nbonds = molecule%geom%nbonds
+        nangles= molecule%geom%nangles
+        ndihed = molecule%geom%ndihed
+        ! Initialization
+        Sref = S
+        ! To ensure that we always have the same orientation, we stablish the reference here
+        ! this can be used to use the input structure as reference (this might need also a 
+        ! traslation if not at COM -> not necesary, the L matrices are not dependent on the 
+        ! COM position, only on the orientation)
+        if (Ns_zmat /= 0 .and. scan_type == "NM") then
+            ! From now on, we use the zmatgeom 
+            molecule%geom = zmatgeom
+            S(1:Ns_zmat) = map_Zmatrix(Ns_zmat,S,Zmap,Szmat)
+        endif
+        call zmat2cart(molecule,S)
+        ! Save state as reference frame for RMSD fit (in AA)
+        molec_aux=molecule
+        ! Default steps (to be set by the user..)
+        Nsteps = 101
+        if ( mod(Nsteps,2) == 0 ) Nsteps = Nsteps + 1 ! ensure odd number of steps (so we have same left and right)
+        ! Qstep is dimless
+        Qstep = Amplitude/float(Nsteps-1)*2.d0  ! Do the range (-A ... +A)
+        molecule%atom(1:molecule%natoms)%resname = "RES" ! For printing
     endif
-    call zmat2cart(molecule,S)
-    ! Save state as reference frame for RMSD fit (in AA)
-    molec_aux=molecule
-    ! Default steps (to be set by the user..)
-    Nsteps = 101
-    if ( mod(Nsteps,2) == 0 ) Nsteps = Nsteps + 1 ! ensure odd number of steps (so we have same left and right)
-    ! Qstep is dimless
-    Qstep = Amplitude/float(Nsteps-1)*2.d0  ! Do the range (-A ... +A)
-    molecule%atom(1:molecule%natoms)%resname = "RES" ! For printing
+    
+    !---------------------------------------------
     ! Run over all selected modes/internals
+    !---------------------------------------------
     do jj=1,Nsel 
         k=0 ! equilibrium corresponds to k=0
         j = nm(jj)
@@ -993,6 +966,9 @@ program normal_modes_animation
             vmdcall = trim(adjustl(vmdcall))//" "//trim(adjustl(grofile))
         enddo
         vmdcall = trim(adjustl(vmdcall))//" -e vmd_conf.dat"
+        open(O_MOV,file="vmd_call.cmd")
+        write(O_MOV,*) trim(adjustl(vmdcall))
+        close(O_MOV)
         call system(vmdcall)
     endif
 

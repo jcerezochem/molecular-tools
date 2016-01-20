@@ -685,6 +685,9 @@ program normal_modes_cartesian
             vmdcall = trim(adjustl(vmdcall))//" "//trim(adjustl(grofile))
         enddo
         vmdcall = trim(adjustl(vmdcall))//" -e vmd_conf.dat"
+        open(O_MOV,file="vmd_call.cmd")
+        write(O_MOV,*) trim(adjustl(vmdcall))
+        close(O_MOV)
         call system(vmdcall)
     endif
 
