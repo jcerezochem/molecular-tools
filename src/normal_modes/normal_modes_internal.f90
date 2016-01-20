@@ -352,6 +352,7 @@ program normal_modes_animation
     call gen_bonded(molecule)
 
     ! Define internal set
+    Ns_zmat=0
     if (animate.and.(def_internal=="SEL".or.def_internal=="ALL".or.(def_internal=="ZMAT".and.rmzfile/="none"))) then 
         !Only if def_internal="all", we can print the animation mapping the Zmat
         !but NOT for "sel"
@@ -739,10 +740,10 @@ program normal_modes_animation
 
 
     ! If redundant set, transform from orthogonal non-redundant
-    if (Nvib < Ns) then
+!     if (Nvib < Ns) then
         print'(/,X,A,/)', "Transform from non-redundant orthogonal to original redundant set"
         LL(1:Ns,1:Nvib) = matrix_product(Ns,Nvib,Nvib,Asel,LL)
-    endif
+!     endif
 
 
     !==========================================================0
@@ -760,7 +761,7 @@ program normal_modes_animation
     ! this can be used to use the input structure as reference (this might need also a 
     ! traslation if not at COM -> not necesary, the L matrices are not dependent on the 
     ! COM position, only on the orientation)
-    if (Ns /= Ns_zmat .and. scan_type == "NM") then
+    if (Ns_zmat /= 0 .and. scan_type == "NM") then
         ! From now on, we use the zmatgeom 
         molecule%geom = zmatgeom
         S(1:Ns_zmat) = map_Zmatrix(Ns_zmat,S,Zmap,Szmat)
