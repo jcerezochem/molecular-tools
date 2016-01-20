@@ -277,7 +277,7 @@ program cartesian_duschinsky
         ! INTERNAL COORDINATES
     
         !SOLVE GF METHOD TO GET NM AND FREQ
-        call internal_Wilson_new(state1,Ns,S1,B,ModeDef)
+        call internal_Wilson(state1,Ns,S1,B,ModeDef)
         call internal_Gmetric(Nat,Ns,state1%atom(:)%mass,B,G1)
         call calc_BDer(state1,Ns,Bder)
     

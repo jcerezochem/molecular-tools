@@ -100,7 +100,7 @@ program normal_modes_animation
     ! PES topology and normal mode things
     real(8),dimension(:),allocatable :: Hlt
     real(8),dimension(1:NDIM,1:NDIM) :: Hess, Hess_all, LL, LL_all
-    real(8),dimension(NDIM) :: Freq, Factor, Grad, Freq_all
+    real(8),dimension(NDIM) :: Freq, Freq_all, Factor, Grad, Grad_all
     !Moving normal modes
     character(len=50) :: selection="none"
     real(8) :: Amplitude = 2.d0, qcoord
@@ -368,7 +368,7 @@ program normal_modes_animation
         verbose_current=verbose
 !         verbose=0
         call set_geom_units(molecule,"Bohr")
-        call internal_Wilson_new(molecule,Ns,Szmat,B)
+        call internal_Wilson(molecule,Ns,Szmat,B)
         call set_geom_units(molecule,"Angs")
         verbose=verbose_current
         ! And reset bonded parameters
@@ -451,7 +451,7 @@ program normal_modes_animation
             ! Then make the whole analysis for 'All' set
             molecule%geom=allgeom
             Hess_all(1:3*Nat,1:3*Nat) = Hess(1:3*Nat,1:3*Nat)
-            call internal_Wilson_new(molecule,Ns_all,Sall,B,ModeDef)
+            call internal_Wilson(molecule,Ns_all,Sall,B,ModeDef)
             !SOLVE GF METHOD TO GET NM AND FREQ
             call internal_Gmetric(Nat,Ns_all,molecule%atom(:)%mass,B,G)
 
@@ -475,7 +475,9 @@ program normal_modes_animation
             endif
 
             if (vertical) then
-                call HessianCart2int(Nat,Nvib_all,Hess_all,molecule%atom(:)%mass,B,G,Grad,Bder)
+                ! We save the original gradient
+                Grad_all(1:3*Nat) = Grad(1:3*Nat)
+                call HessianCart2int(Nat,Nvib_all,Hess_all,molecule%atom(:)%mass,B,G,Grad_all,Bder)
                 if (verbose>2) then
                     do i=1,Nvib_all
                         write(tmpfile,'(A,I0,A)') "Bder, ic=",i
@@ -496,7 +498,7 @@ program normal_modes_animation
                     do j=1,3*Nat
                         Aux2(i,j) = 0.d0
                         do k=1,Nvib_all
-                            Aux2(i,j) = Aux2(i,j) + Bder(k,i,j)*Grad(k)
+                            Aux2(i,j) = Aux2(i,j) + Bder(k,i,j)*Grad_all(k)
                         enddo
                     enddo
                     enddo
@@ -535,7 +537,7 @@ program normal_modes_animation
 
         endif
 
-        call internal_Wilson_new(molecule,Ns,S,B,ModeDef)
+        call internal_Wilson(molecule,Ns,S,B,ModeDef)
         if (nmfile == "none") then
             !SOLVE GF METHOD TO GET NM AND FREQ
             call internal_Gmetric(Nat,Ns,molecule%atom(:)%mass,B,G)
@@ -546,7 +548,7 @@ program normal_modes_animation
 
             ! The diagonalization of the G matrix can be donne with all sets
             ! (either redundant or non-redundant)
-!             if (Ns > Nvib) then
+            if (Ns > Nvib) then
                 call redundant2nonredundant(Ns,Nvib,G,Asel)
                 ! Rotate Bmatrix
                 B(1:Nvib,1:3*Nat) = matrix_product(Nvib,3*Nat,Ns,Asel,B,tA=.true.)
@@ -558,12 +560,12 @@ program normal_modes_animation
                         Bder(1:Nvib,j,1:3*Nat) =  matrix_product(Nvib,3*Nat,Ns,Asel,Bder(1:Ns,j,1:3*Nat),tA=.true.)
                     enddo
                 endif
-!             else
-!                 Asel(1:Ns,1:Ns) = 0.d0
-!                 do i=1,Ns
-!                     Asel(i,i) = 1.d0
-!                 enddo
-!             endif
+            else
+                Asel(1:Ns,1:Ns) = 0.d0
+                do i=1,Ns
+                    Asel(i,i) = 1.d0
+                enddo
+            endif
 
             if (vertical) then
                 call HessianCart2int(Nat,Nvib,Hess,molecule%atom(:)%mass,B,G,Grad,Bder)

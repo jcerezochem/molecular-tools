@@ -187,6 +187,166 @@ module internal_module
     end subroutine define_internal_set
 
 
+    subroutine compute_internal(molec,Ns,S, &
+!                                           Optional:
+                                            ICDef)
+    
+        !==============================================================
+        ! This code is part of MOLECULAR_TOOLS 
+        !==============================================================
+        ! Description
+        !  Computes internal coordinates. Similar to internal_Wilson
+        !  but without computing the B matrix
+        !
+        !--------------------------------------------------------------
+
+        use structure_types
+        use line_preprocess
+        use alerts
+        use constants
+        use atomic_geom
+        use matrix
+        use verbosity
+    
+        implicit none
+    
+        integer,parameter :: NDIM = 600
+        real(8),parameter :: ZEROp = 1.d-10 !practically zero
+    
+        !====================== 
+        !ARGUMENTS
+        type(str_resmol),intent(in)        :: molec    ! Input molecule (but only use geom...) - 
+                                                       !    maybe ic structure used in fcclasses2 might be useful, setting
+                                                       !    the values of the IC out of this SR
+        integer,intent(in)                 :: Ns       ! Total number of internal coordiantes to use
+        real(8),dimension(NDIM),intent(out)      :: S       ! Vector of internal coordinates
+        character(len=100),dimension(NDIM),intent(out),optional :: ICDef !Definition of ICs
+        !====================== 
+    
+        !======================
+        !LOCAL 
+        !System info
+        integer,dimension(1:NDIM,1:4) :: bond_s, angle_s, dihed_s, improp_s
+        integer :: nbonds, ndihed, nangles, nimprop
+        integer :: Nat
+        !Intenal parameters ant unitary vectors
+        real(8) :: ang1, r21
+        !Counters
+        integer :: i,j,k
+        integer :: i_1, i_2, i_3, i_4
+        !=============
+    
+        if (verbose>0) &
+            print'(/,X,A,/)', "Computing internal coordianates"
+    
+        !Set bonded
+        nbonds  = molec%geom%nbonds
+        nangles = molec%geom%nangles
+        ndihed  = molec%geom%ndihed
+        nimprop = molec%geom%nimprop
+        bond_s(1:nbonds,1:2)  =  molec%geom%bond(1:nbonds,1:2)
+        angle_s(1:nangles,1:3) =  molec%geom%angle(1:nangles,1:3)
+        dihed_s(1:ndihed,1:4)  =  molec%geom%dihed(1:ndihed,1:4)
+        improp_s(1:nimprop,1:4)  =  molec%geom%improp(1:nimprop,1:4)    
+
+        !Initialize matrices
+        Nat = molec%natoms
+    
+        !k-index runs over internal coordinates
+        k=0
+        if (verbose>0) &
+        write(6,'(/,A,I3)') "BONDS", nbonds 
+        do i=1,nbonds
+            k=k+1
+
+            i_1 = bond_s(i,1)
+            i_2 = bond_s(i,2)
+            r21 = calc_atm_dist(molec%atom(i_1),molec%atom(i_2))
+            S(k) = r21
+            if (verbose>0) &
+            write(6,'(I5,X,A,2(I3,A),2F15.8)') k, trim(adjustl(molec%atom(i_1)%name))//"(",i_1,") -- "//&
+                                                  trim(adjustl(molec%atom(i_2)%name))//"(",i_2,")", &
+                                               r21*BOHRtoAMS, r21
+            if (present(ICDef)) &
+            write(ICDef(k),'(A,2(I3,A))') trim(adjustl(molec%atom(i_1)%name))//"(",i_1,") -- "//&
+                                          trim(adjustl(molec%atom(i_2)%name))//"(",i_2,")"
+        enddo
+    
+        if (verbose>0) &
+        write(6,'(/,A,I3)') "ANGLES", nangles
+        do i=1,nangles
+            k=k+1
+    
+            i_1 = angle_s(i,1)
+            i_3 = angle_s(i,2)
+            i_2 = angle_s(i,3)
+            ang1 = calc_atm_angle(molec%atom(i_1),molec%atom(i_3),molec%atom(i_2))
+            S(k) = ang1
+            if (verbose>0) &
+            write(6,'(I5,X,A,3(I3,A),F15.8)') k, trim(adjustl(molec%atom(i_1)%name))//"(",i_1,") -- "//&
+                                                 trim(adjustl(molec%atom(i_3)%name))//"(",i_3,") -- "//&
+                                                 trim(adjustl(molec%atom(i_2)%name))//"(",i_2,")", &
+                                              ang1*360.d0/2.d0/pi
+            if (present(ICDef)) &
+            write(ICDef(k),'(A,3(I3,A))') trim(adjustl(molec%atom(i_1)%name))//"(",i_1,") -- "//&
+                                          trim(adjustl(molec%atom(i_3)%name))//"(",i_3,") -- "//&
+                                          trim(adjustl(molec%atom(i_2)%name))//"(",i_2,")"
+        enddo
+    
+        if (verbose>0) &
+        write(6,'(/,A,I3)') "DIHEDRALS", ndihed
+        do i=1,ndihed
+            k=k+1
+    
+            i_1 = dihed_s(i,1)
+            i_2 = dihed_s(i,2)
+            i_3 = dihed_s(i,3)
+            i_4 = dihed_s(i,4)
+            ang1 = calc_atm_dihed_new(molec%atom(i_1),molec%atom(i_2),molec%atom(i_3),molec%atom(i_4))
+            S(k) = ang1
+            if (verbose>0) &
+            write(6,'(I5,X,A,4(I3,A),F15.8)') k, trim(adjustl(molec%atom(i_1)%name))//"(",i_1,") -- "//&
+                                                 trim(adjustl(molec%atom(i_2)%name))//"(",i_2,") -- "//&
+                                                 trim(adjustl(molec%atom(i_3)%name))//"(",i_3,") -- "//&
+                                                 trim(adjustl(molec%atom(i_4)%name))//"(",i_4,")", &
+                                              ang1*360.d0/2.d0/pi
+            if (present(ICDef)) &
+            write(ICDef(k),'(A,4(I3,A))') trim(adjustl(molec%atom(i_1)%name))//"(",i_1,") -- "//&
+                                          trim(adjustl(molec%atom(i_2)%name))//"(",i_2,") -- "//&
+                                          trim(adjustl(molec%atom(i_3)%name))//"(",i_3,") -- "//&
+                                          trim(adjustl(molec%atom(i_4)%name))//"(",i_4,")"
+        enddo
+    
+        if (verbose>0) &
+        write(6,'(/,A,I3)') "IMPROPERS", nimprop
+        do i=1,nimprop
+            k=k+1
+    
+            i_1 = improp_s(i,1)
+            i_2 = improp_s(i,2)
+            i_3 = improp_s(i,3)
+            i_4 = improp_s(i,4)
+            ang1 = calc_atm_improper(molec%atom(i_1),molec%atom(i_2),molec%atom(i_3),molec%atom(i_4))
+            S(k) = ang1
+            if (verbose>0) &
+            write(6,'(I5,X,A,4(I3,A),F15.8)') k, trim(adjustl(molec%atom(i_1)%name))//"(",i_1,") -- "//&
+                                                 trim(adjustl(molec%atom(i_2)%name))//"(",i_2,") -- "//&
+                                                 trim(adjustl(molec%atom(i_3)%name))//"(",i_3,") -- "//&
+                                                 trim(adjustl(molec%atom(i_4)%name))//"(",i_4,")", &
+                                              ang1*360.d0/2.d0/pi
+            if (present(ICDef)) &
+            write(ICDef(k),'(A,4(I3,A))') trim(adjustl(molec%atom(i_1)%name))//"(",i_1,") -- "//&
+                                          trim(adjustl(molec%atom(i_2)%name))//"(",i_2,") -- "//&
+                                          trim(adjustl(molec%atom(i_3)%name))//"(",i_3,") -- "//&
+                                          trim(adjustl(molec%atom(i_4)%name))//"(",i_4,")"
+    
+        enddo
+
+        return
+    
+    end subroutine compute_internal
+
+
     subroutine internals_mapping(geom1,geom2,Map)
 
         !==============================================================
@@ -901,9 +1061,9 @@ module internal_module
     end subroutine dernumBimpr
 
 
-    subroutine internal_Wilson_new(molec,Ns,S,B, &
-!                                           Optional:
-                                            ICDef)
+    subroutine internal_Wilson(molec,Ns,S,B, &
+!                              Optional:
+                               ICDef)
     
         !==============================================================
         ! This code is part of MOLECULAR_TOOLS 
@@ -1097,304 +1257,6 @@ module internal_module
     
         enddo
 
-        if (verbose>0) &
-            print*, ""
-        if (verbose>1) &
-            call MAT0(6,B,Ns,3*Nat,"B MATRIX")
-
-        return
-    
-    end subroutine internal_Wilson_new
-
-
-
-    subroutine internal_Wilson(molec,Ns,S,B, &
-!                                           Optional:
-                                            ICDef)
-    
-        !==============================================================
-        ! This code is part of MOLECULAR_TOOLS 
-        !==============================================================
-        ! Description
-        !  Computes Wilson B matrix. Also get computed the values of the
-        !  internal coordiantes (ICs) and, optionally, gets a written
-        !  description of the ICs
-        !
-        !   Ref: Decius, Cross and Wilson (Section 4.2) --
-        !    The same nomenclature is used (index refer to the same
-        !    atoms, even if reversed)
-        !--------------------------------------------------------------
-
-        use structure_types
-        use line_preprocess
-        use alerts
-        use constants
-        use atomic_geom
-        use matrix
-        use verbosity
-    
-        implicit none
-    
-        integer,parameter :: NDIM = 600
-        real(8),parameter :: ZEROp = 1.d-10 !practically zero
-    
-        !====================== 
-        !ARGUMENTS
-        type(str_resmol),intent(in)        :: molec    ! Input molecule (but only use geom...) - 
-                                                       !    maybe ic structure used in fcclasses2 might be useful, setting
-                                                       !    the values of the IC out of this SR
-        integer,intent(in)                 :: Ns       ! Total number of internal coordiantes to use
-        real(8),dimension(NDIM,NDIM),intent(out) :: B  ! B Wilson matrix
-        real(8),dimension(NDIM),intent(out)      :: S       ! Vector of internal coordinates
-        character(len=100),dimension(NDIM),intent(out),optional :: ICDef !Definition of ICs
-        !====================== 
-    
-        !======================
-        !LOCAL 
-        !System info
-        integer,dimension(1:NDIM,1:4) :: bond_s, angle_s, dihed_s
-        integer :: nbonds, ndihed, nangles
-        integer :: Nat
-        !AUXILIAR MATRICES
-        !Intenal parameters ant unitary vectors
-        real(8) :: ang1, ang2, ang3, r21, r31, r32, r43
-        real(8) :: e21x, e21y, e21z,&
-                   e31x, e31y, e31z,&
-                   e32x, e32y, e32z,&
-                   e43x, e43y, e43z
-        real(8) :: e21Pe32x,e21Pe32y,e21Pe32z,&
-                   e43Pe32x,e43Pe32y,e43Pe32z,&
-                   e32Pe21Pe32x,e32Pe21Pe32y,e32Pe21Pe32z,&
-                   e32Pe43Pe32x,e32Pe43Pe32y,e32Pe43Pe32z
-        !Counters
-        integer :: i,j,k
-        integer :: i_1, i_2, i_3, i_4
-        !=============
-    
-    
-        !Set bonded
-        nbonds  = molec%geom%nbonds
-        nangles = molec%geom%nangles
-        ndihed  = molec%geom%ndihed
-        bond_s(1:nbonds,1:2)  =  molec%geom%bond(1:nbonds,1:2)
-        angle_s(1:nangles,1:3) =  molec%geom%angle(1:nangles,1:3)
-        dihed_s(1:ndihed,1:4)  =  molec%geom%dihed(1:ndihed,1:4)
-    
-        !Initialize matrices
-        Nat = molec%natoms
-        B(1:Ns,1:3*Nat) = 0.d0
-    
-        !k-index runs over internal coordinates
-        k=0
-        if (verbose>0) &
-        write(6,'(/,A,I3)') "BONDS", nbonds 
-        do i=1,nbonds
-            k=k+1
-
-            i_1 = bond_s(i,1)
-            i_2 = bond_s(i,2)
-            r21 = calc_atm_dist(molec%atom(i_1),molec%atom(i_2))
-            S(k) = r21
-            if (verbose>0) &
-            write(6,'(I5,X,A,2(I3,A),2F15.8)') k, trim(adjustl(molec%atom(i_1)%name))//"(",i_1,") -- "//&
-                                                  trim(adjustl(molec%atom(i_2)%name))//"(",i_2,")", &
-                                               r21*BOHRtoAMS, r21
-            if (present(ICDef)) &
-            write(ICDef(k),'(A,2(I3,A))') trim(adjustl(molec%atom(i_1)%name))//"(",i_1,") -- "//&
-                                          trim(adjustl(molec%atom(i_2)%name))//"(",i_2,")"
-    
-            !Two cart displacements different from zero.
-             e21x = (molec%atom(i_1)%x-molec%atom(i_2)%x)/r21
-             e21y = (molec%atom(i_1)%y-molec%atom(i_2)%y)/r21
-             e21z = (molec%atom(i_1)%z-molec%atom(i_2)%z)/r21
-            ! s1 = e21 = -e12
-             !B, index: internal,cartesian -> xn = 3n-2; yn=3n-1; zn=3n
-             B(k,3*i_1-2) = e21x
-             B(k,3*i_1-1) = e21y
-             B(k,3*i_1  ) = e21z
-            ! s2 = e12 = -e21
-             B(k,3*i_2-2) = -e21x
-             B(k,3*i_2-1) = -e21y
-             B(k,3*i_2  ) = -e21z
-        enddo
-    
-        if (verbose>0) &
-        write(6,'(/,A,I3)') "ANGLES", nangles
-        do i=1,nangles
-            k=k+1
-    
-            i_1 = angle_s(i,1)
-            i_3 = angle_s(i,2)
-            i_2 = angle_s(i,3)
-            ang1 = calc_atm_angle(molec%atom(i_1),molec%atom(i_3),molec%atom(i_2))
-            S(k) = ang1
-            if (verbose>0) &
-            write(6,'(I5,X,A,3(I3,A),F15.8)') k, trim(adjustl(molec%atom(i_1)%name))//"(",i_1,") -- "//&
-                                                 trim(adjustl(molec%atom(i_3)%name))//"(",i_3,") -- "//&
-                                                 trim(adjustl(molec%atom(i_2)%name))//"(",i_2,")", &
-                                              ang1*360.d0/2.d0/pi
-            if (present(ICDef)) &
-            write(ICDef(k),'(A,3(I3,A))') trim(adjustl(molec%atom(i_1)%name))//"(",i_1,") -- "//&
-                                          trim(adjustl(molec%atom(i_3)%name))//"(",i_3,") -- "//&
-                                          trim(adjustl(molec%atom(i_2)%name))//"(",i_2,")"
-    
-            !Three cart displacements different from zero.
-             r31=calc_atm_dist(molec%atom(i_1),molec%atom(i_3))
-             e31x = (molec%atom(i_1)%x-molec%atom(i_3)%x)/r31
-             e31y = (molec%atom(i_1)%y-molec%atom(i_3)%y)/r31
-             e31z = (molec%atom(i_1)%z-molec%atom(i_3)%z)/r31
-             r32=calc_atm_dist(molec%atom(i_2),molec%atom(i_3))
-             e32x = (molec%atom(i_2)%x-molec%atom(i_3)%x)/r32
-             e32y = (molec%atom(i_2)%y-molec%atom(i_3)%y)/r32
-             e32z = (molec%atom(i_2)%z-molec%atom(i_3)%z)/r32
-             ! s1 = [ cos(ang1)*e31 - e32 ] / [ r31 sin(ang1)]
-             B(k,3*i_1-2) = (dcos(ang1)*e31x-e32x)/(r31*dsin(ang1))
-             B(k,3*i_1-1) = (dcos(ang1)*e31y-e32y)/(r31*dsin(ang1))
-             B(k,3*i_1  ) = (dcos(ang1)*e31z-e32z)/(r31*dsin(ang1))
-             ! s2 = [ cos(ang1)*e32 - e31 ] / [ r32 sin(ang1)]
-             B(k,3*i_2-2) = (dcos(ang1)*e32x-e31x)/(r32*dsin(ang1))
-             B(k,3*i_2-1) = (dcos(ang1)*e32y-e31y)/(r32*dsin(ang1))
-             B(k,3*i_2  ) = (dcos(ang1)*e32z-e31z)/(r32*dsin(ang1))
-             ! s3 = [(r31-r32 cos(ang1))e31 + (r32-r31 cos(ang1))e32 / [ rr3132 sin(ang1)]
-             B(k,3*i_3-2) = ( (r31-r32*dcos(ang1))*e31x + (r32-r31*dcos(ang1))*e32x )&
-                          / ( r31*r32*dsin(ang1))
-             B(k,3*i_3-1) = ( (r31-r32*dcos(ang1))*e31y + (r32-r31*dcos(ang1))*e32y )&
-                          / ( r31*r32*dsin(ang1))
-             B(k,3*i_3  ) = ( (r31-r32*dcos(ang1))*e31z + (r32-r31*dcos(ang1))*e32z )&
-                          / ( r31*r32*dsin(ang1))
-        enddo
-    
-        if (verbose>0) &
-        write(6,'(/,A,I3)') "DIHEDRALS", ndihed
-        do i=1,ndihed
-            k=k+1
-    
-            i_1 = dihed_s(i,1)
-            i_2 = dihed_s(i,2)
-            i_3 = dihed_s(i,3)
-            i_4 = dihed_s(i,4)
-            ang1 = calc_atm_dihed_new(molec%atom(i_1),molec%atom(i_2),molec%atom(i_3),molec%atom(i_4))
-            S(k) = ang1
-            if (verbose>0) &
-            write(6,'(I5,X,A,4(I3,A),F15.8)') k, trim(adjustl(molec%atom(i_1)%name))//"(",i_1,") -- "//&
-                                                 trim(adjustl(molec%atom(i_2)%name))//"(",i_2,") -- "//&
-                                                 trim(adjustl(molec%atom(i_3)%name))//"(",i_3,") -- "//&
-                                                 trim(adjustl(molec%atom(i_4)%name))//"(",i_4,")", &
-                                              ang1*360.d0/2.d0/pi
-            if (present(ICDef)) &
-            write(ICDef(k),'(A,4(I3,A))') trim(adjustl(molec%atom(i_1)%name))//"(",i_1,") -- "//&
-                                          trim(adjustl(molec%atom(i_2)%name))//"(",i_2,") -- "//&
-                                          trim(adjustl(molec%atom(i_3)%name))//"(",i_3,") -- "//&
-                                          trim(adjustl(molec%atom(i_4)%name))//"(",i_4,")"
-    
-            !Four cart displacements different from zero (some index intercheged with Decius..)
-            ! this was buggy. Changed on 10/06/2014
-            ang2 = calc_atm_angle(molec%atom(i_1),molec%atom(i_2),molec%atom(i_3))
-            ang3 = calc_atm_angle(molec%atom(i_2),molec%atom(i_3),molec%atom(i_4))
-            r21  = calc_atm_dist(molec%atom(i_1),molec%atom(i_2))
-            e21x = (molec%atom(i_1)%x-molec%atom(i_2)%x)/r21
-            e21y = (molec%atom(i_1)%y-molec%atom(i_2)%y)/r21
-            e21z = (molec%atom(i_1)%z-molec%atom(i_2)%z)/r21
-            r32  = calc_atm_dist(molec%atom(i_2),molec%atom(i_3))
-            e32x = (molec%atom(i_2)%x-molec%atom(i_3)%x)/r32
-            e32y = (molec%atom(i_2)%y-molec%atom(i_3)%y)/r32
-            e32z = (molec%atom(i_2)%z-molec%atom(i_3)%z)/r32
-            r43  = calc_atm_dist(molec%atom(i_3),molec%atom(i_4))
-            e43x = (molec%atom(i_3)%x-molec%atom(i_4)%x)/r43
-            e43y = (molec%atom(i_3)%y-molec%atom(i_4)%y)/r43
-            e43z = (molec%atom(i_3)%z-molec%atom(i_4)%z)/r43
-            e21Pe32x=e21y*e32z-e21z*e32y
-            e21Pe32y=e21z*e32x-e21x*e32z
-            e21Pe32z=e21x*e32y-e21y*e32x
-            e32Pe21Pe32x=e32y*e21Pe32z-e32z*e21Pe32y
-            e32Pe21Pe32y=e32z*e21Pe32x-e32x*e21Pe32z
-            e32Pe21Pe32z=e32x*e21Pe32y-e32y*e21Pe32x
-            e43Pe32x=e43y*e32z-e43z*e32y
-            e43Pe32y=e43z*e32x-e43x*e32z
-            e43Pe32z=e43x*e32y-e43y*e32x
-            e32Pe43Pe32x=e32y*e43Pe32z-e32z*e43Pe32y
-            e32Pe43Pe32y=e32z*e43Pe32x-e32x*e43Pe32z
-            e32Pe43Pe32z=e32x*e43Pe32y-e32y*e43Pe32x
-    
-            !s1
-            B(k,3*i_1-2) =  -e21Pe32x/(r21*dsin(ang2)**2)
-            B(k,3*i_1-1) =  -e21Pe32y/(r21*dsin(ang2)**2)
-            B(k,3*i_1  ) =  -e21Pe32z/(r21*dsin(ang2)**2)
-            !s2 
-            B(k,3*i_2-2) = ((r32-r21*dcos(ang2))*e21Pe32x/(r32*r21*dsin(ang2)**2) &
-                         +  dcos(ang3)*e43Pe32x/(r32*dsin(ang3)**2))
-            B(k,3*i_2-1) = ((r32-r21*dcos(ang2))*e21Pe32y/(r32*r21*dsin(ang2)**2) &
-                         +  dcos(ang3)*e43Pe32y/(r32*dsin(ang3)**2))
-            B(k,3*i_2  ) = ((r32-r21*dcos(ang2))*e21Pe32z/(r32*r21*dsin(ang2)**2) &
-                         +  dcos(ang3)*e43Pe32z/(r32*dsin(ang3)**2))
-            !s3
-            B(k,3*i_3-2) = ((r32-r43*dcos(ang3))*e43Pe32x/(r32*r43*dsin(ang3)**2) &
-                         +  dcos(ang2)*e21Pe32x/(r32*dsin(ang2)**2))
-            B(k,3*i_3-1) = ((r32-r43*dcos(ang3))*e43Pe32y/(r32*r43*dsin(ang3)**2) &
-                         +  dcos(ang2)*e21Pe32y/(r32*dsin(ang2)**2))
-            B(k,3*i_3  ) = ((r32-r43*dcos(ang3))*e43Pe32z/(r32*r43*dsin(ang3)**2) &
-                         +  dcos(ang2)*e21Pe32z/(r32*dsin(ang2)**2))
-            !s4
-            B(k,3*i_4-2) =  -e43Pe32x/(r43*dsin(ang3)**2)
-            B(k,3*i_4-1) =  -e43Pe32y/(r43*dsin(ang3)**2)
-            B(k,3*i_4  ) =  -e43Pe32z/(r43*dsin(ang3)**2)
-    
-        enddo
-    
-!         write(6,'(/,A,I3)') "IMPROPERS", nimprop
-!         do i=1,nimprop
-!             k=k+1
-!     
-!             i_1 = dihed_s(i,1)
-!             i_2 = dihed_s(i,2)
-!             i_3 = dihed_s(i,3)
-!             i_4 = dihed_s(i,4)
-!             ang1 = calc_atm_dihed_new(molec%atom(i_1),molec%atom(i_2),molec%atom(i_3),molec%atom(i_4))
-!             S(k) = ang1
-!             if (verbose>0) &
-!             write(6,'(I5,X,A,4(I3,A),F15.8)') k, trim(adjustl(molec%atom(i_1)%name))//"(",i_1,") -- "//&
-!                                                  trim(adjustl(molec%atom(i_2)%name))//"(",i_2,") -- "//&
-!                                                  trim(adjustl(molec%atom(i_3)%name))//"(",i_3,") -- "//&
-!                                                  trim(adjustl(molec%atom(i_4)%name))//"(",i_4,")", &
-!                                               ang1*360.d0/2.d0/pi
-!             if (present(ICDef)) &
-!             write(ICDef(k),'(A,4(I3,A))') trim(adjustl(molec%atom(i_1)%name))//"(",i_1,") -- "//&
-!                                           trim(adjustl(molec%atom(i_2)%name))//"(",i_2,") -- "//&
-!                                           trim(adjustl(molec%atom(i_3)%name))//"(",i_3,") -- "//&
-!                                           trim(adjustl(molec%atom(i_4)%name))//"(",i_4,")"
-!     
-!             !Four cart displacements different from zero (some index intercheged with Decius..)
-!             ang2 = calc_atm_angle(molec%atom(i_1),molec%atom(i_2),molec%atom(i_3))
-!             ang3 = calc_atm_angle(molec%atom(i_2),molec%atom(i_3),molec%atom(i_4))
-!             r21  = calc_atm_dist(molec%atom(i_1),molec%atom(i_2))
-!             e21x = (molec%atom(i_1)%x-molec%atom(i_2)%x)/r21
-!             e21y = (molec%atom(i_1)%y-molec%atom(i_2)%y)/r21
-!             e21z = (molec%atom(i_1)%z-molec%atom(i_2)%z)/r21
-!             r32  = calc_atm_dist(molec%atom(i_2),molec%atom(i_3))
-!             e32x = (molec%atom(i_2)%x-molec%atom(i_3)%x)/r32
-!             e32y = (molec%atom(i_2)%y-molec%atom(i_3)%y)/r32
-!             e32z = (molec%atom(i_2)%z-molec%atom(i_3)%z)/r32
-!             r43  = calc_atm_dist(molec%atom(i_3),molec%atom(i_4))
-!             e43x = (molec%atom(i_3)%x-molec%atom(i_4)%x)/r43
-!             e43y = (molec%atom(i_3)%y-molec%atom(i_4)%y)/r43
-!             e43z = (molec%atom(i_3)%z-molec%atom(i_4)%z)/r43
-!             e21Pe32x=e21y*e32z-e21z*e32y
-!             e21Pe32y=e21z*e32x-e21x*e32z
-!             e21Pe32z=e21x*e32y-e21y*e32x
-!             e32Pe21Pe32x=e32y*e21Pe32z-e32z*e21Pe32y
-!             e32Pe21Pe32y=e32z*e21Pe32x-e32x*e21Pe32z
-!             e32Pe21Pe32z=e32x*e21Pe32y-e32y*e21Pe32x
-!             e43Pe32x=e43y*e32z-e43z*e32y
-!             e43Pe32y=e43z*e32x-e43x*e32z
-!             e43Pe32z=e43x*e32y-e43y*e32x
-!             e32Pe43Pe32x=e32y*e43Pe32z-e32z*e43Pe32y
-!             e32Pe43Pe32y=e32z*e43Pe32x-e32x*e43Pe32z
-!             e32Pe43Pe32z=e32x*e43Pe32y-e32y*e43Pe32x
-!     
-!             !s1...
-!             
-!         enddo
-    
         if (verbose>0) &
             print*, ""
         if (verbose>1) &
@@ -2044,116 +1906,6 @@ module internal_module
         return
 
     end subroutine analyze_internal
-    
-
-!     subroutine NumBDer(molec,Ns,Bder)
-!     
-!         use structure_types
-!         use verbosity
-!     
-!         integer,parameter :: NDIM = 600
-!         real(8),parameter :: delta = 1.889726133d-3 !for numerical ders, in bohr(=10^-3 \AA, as Num freq in G09)
-!     
-!         !====================== 
-!         !ARGUMENTS
-!         type(str_resmol),intent(inout)       :: molec
-!         integer,intent(in)                   :: Ns
-!         real(8),dimension(:,:,:),intent(out) :: Bder    ! (Ns x 3Nat x 3Nat) the last index is the second der
-!         !======================
-! 
-!         !======================  
-!         !LOCAL
-!         integer :: Nat
-!         real(8),dimension(NDIM) :: S
-! !         type(str_resmol) :: molecB
-!         real(8) :: X0, Y0, Z0
-!         real(8),dimension(NDIM,NDIM) :: Bplus, Bmin
-!         integer :: verbose_current
-!         !Counters
-!         integer :: i,j,k, ii
-!         !======================  
-! 
-!         !Get current verbose level
-!         verbose_current = verbose
-!         !And set to quiet
-!         verbose = 0
-!  
-!         ! This SR works in AU
-!         call set_geom_units(molec,"Bohr")
-!     
-!         !shortcuts
-!         Nat = molec%natoms
-!     
-!         if (verbose_current>0) then
-!             print*, ""
-!             print*, "COMPUTING NUMERICAL DERIVATIVES FOR B..."
-!             print*, ""
-!         endif
-!     
-!         do i=1,Nat
-!     
-!              X0=molec%atom(i)%x
-!              Y0=molec%atom(i)%y
-!              Z0=molec%atom(i)%z
-! 
-!             !Displace X
-!             ii = 3*i-2
-!             molec%atom(i)%x = X0 + delta
-!             !Call B matrix at this geometry   
-!             call internal_Wilson(molec,Ns,S,Bplus)
-!             molec%atom(i)%x = X0 - delta
-!             !Call B matrix at this geometry   
-!             call internal_Wilson(molec,Ns,S,Bmin)
-!             ! Restore value
-!             molec%atom(i)%x = X0
-!     
-!             do j=1,Ns
-!             do k=1,3*Nat
-!                Bder(j,k,ii) = ( Bplus(j,k) - Bmin(j,k) ) / (2.d0*delta)
-!             enddo
-!             enddo
-!     
-!             !Displace Y
-!             ii = 3*i-1
-!             molec%atom(i)%y = Y0 + delta
-!             !Call B matrix at this geometry   
-!             call internal_Wilson(molec,Ns,S,Bplus)
-!             molec%atom(i)%y = Y0 - delta
-!             !Call B matrix at this geometry   
-!             call internal_Wilson(molec,Ns,S,Bmin)
-!             ! Restore value
-!             molec%atom(i)%y = Y0
-!     
-!             do j=1,Ns
-!             do k=1,3*Nat
-!                Bder(j,k,ii) = ( Bplus(j,k) - Bmin(j,k) ) / (2.d0*delta)
-!             enddo
-!             enddo
-!     
-!             !Displace Z
-!             ii = 3*i
-!             molec%atom(i)%z = Z0 + delta
-!             !Call B matrix at this geometry   
-!             call internal_Wilson(molec,Ns,S,Bplus)
-!             molec%atom(i)%z = Z0 - delta
-!             !Call B matrix at this geometry   
-!             call internal_Wilson(molec,Ns,S,Bmin)
-!             molec%atom(i)%z = Z0
-!     
-!             do j=1,Ns
-!             do k=1,3*Nat
-!                Bder(j,k,ii) = ( Bplus(j,k) - Bmin(j,k) ) / (2.d0*delta)
-!             enddo
-!             enddo
-!     
-!         enddo
-!     
-!         !Restore verbose level
-!         verbose =  verbose_current
-! 
-!         return
-!     
-!     end subroutine NumBDer
 
 
     subroutine calc_BDer(molec,Ns,Bder,analytical)

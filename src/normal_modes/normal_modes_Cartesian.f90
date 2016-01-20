@@ -350,7 +350,7 @@ program normal_modes_cartesian
                 verbose_current=verbose
 !                 verbose=0
                 call set_geom_units(molecule,"Bohr")
-                call internal_Wilson_new(molecule,Ns,S0,B)
+                call internal_Wilson(molecule,Ns,S0,B)
                 call set_geom_units(molecule,"Angs")
                 verbose=verbose_current
                 ! And reset bonded parameters
@@ -372,7 +372,7 @@ program normal_modes_cartesian
 
             print'(X,A,/)', "Apply correction for non-stationary points"
             ! Get metric matrix and Bders
-            call internal_Wilson_new(molecule,Ns,S,B,ModeDef)
+            call internal_Wilson(molecule,Ns,S,B,ModeDef)
             call internal_Gmetric(Nat,Ns,molecule%atom(:)%mass,B,G)
             call calc_Bder(molecule,Ns,Bder,analytic_Bder)
             if (Ns > Nvib) then

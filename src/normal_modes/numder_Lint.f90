@@ -210,7 +210,7 @@ program numder_fc
         print*, "Reading step...", istep, R(istep)
 
 !         call vibrations_Cart(Nat,X,Y,Z,Mass,Hlt,Nvib,LL(istep,:,:),Freq,error_flag=error)
-        call internal_Wilson_new(molecule,Nvib,S,B,ModeDef)
+        call internal_Wilson(molecule,Nvib,S,B,ModeDef)
         !SOLVE GF METHOD TO GET NM AND FREQ
         call internal_Gmetric(Nat,Nvib,molecule%atom(:)%mass,B,G)
         call calc_Bder(molecule,Nvib,Bder,.true.)

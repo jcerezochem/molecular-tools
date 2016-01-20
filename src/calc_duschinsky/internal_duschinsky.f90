@@ -299,7 +299,7 @@ program internal_duschinski
     ! INTERNAL COORDINATES
 
     !SOLVE GF METHOD TO GET NM AND FREQ
-    call internal_Wilson_new(state1,Ns,S1,B,ModeDef)
+    call internal_Wilson(state1,Ns,S1,B,ModeDef)
     call internal_Gmetric(Nat,Ns,state1%atom(:)%mass,B,G1)
     if (gradcorrectS1) then
 !         call NumBder(state1,Ns,Bder)
@@ -520,7 +520,7 @@ program internal_duschinski
     ! INTERNAL COORDINATES
 
     !SOLVE GF METHOD TO GET NM AND FREQ
-    call internal_Wilson_new(state2,Ns,S2,B,ModeDef)
+    call internal_Wilson(state2,Ns,S2,B,ModeDef)
     call internal_Gmetric(Nat,Ns,state2%atom(:)%mass,B,G2)
     if (gradcorrectS2) then
 !         call NumBder(state2,Ns,Bder)
