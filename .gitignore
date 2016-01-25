@@ -67,6 +67,7 @@ src/normal_modes/numder_fc
 *_new
 src/normal_modes/numder_Lint
 src/normal_modes/check_derivatives
+src/calc_duschinsky/generate_connetivity
 
 # output from test calcs
 *output.?

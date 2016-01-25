@@ -205,7 +205,7 @@ program cartesian_duschinsky
     close(I_INP)
     ! Shortcuts
     Nat = state1%natoms
-    print'(X,A,/)', "Sucess!"
+    print'(X,A,/)', "Done"
 
     ! HESSIAN FILE (State1)
     print'(X,A)', "READING STATE1 FILE (HESSIAN)..."
@@ -214,7 +214,7 @@ program cartesian_duschinsky
     allocate(Hlt(1:3*Nat*(3*Nat+1)/2))
     call generic_Hessian_reader(I_INP,fth,Nat,Hlt,error) 
     close(I_INP)
-    print'(X,A,/)', "Sucess!"
+    print'(X,A,/)', "Done"
     ! Run vibrations_Cart to get the number of Nvib (to detect linear molecules)
     print'(X,A)', "Preliminar vibrational analysis (Cartesian coordinates)..."
     call vibrations_Cart(Nat,state1%atom(:)%X,state1%atom(:)%Y,state1%atom(:)%Z,state1%atom(:)%Mass,Hlt,&
@@ -228,7 +228,7 @@ program cartesian_duschinsky
         if (IOstatus /= 0) call alert_msg( "fatal","Unable to open "//trim(adjustl(gradfile)) )
         call generic_gradient_reader(I_INP,ftg,Nat,Grad,error) 
         close(I_INP)
-        print'(X,A,/)', "Sucess!"
+        print'(X,A,/)', "Done"
     else
         print'(X,A,/)', "Assuming gradient for State1 equal to zero"
         Grad(1:3*Nat) = 0.d0
@@ -327,7 +327,7 @@ program cartesian_duschinsky
     close(I_INP)
     ! Shortcuts
     Nat = state2%natoms
-    print'(X,A,/)', "Sucess!"
+    print'(X,A,/)', "Done"
     ! HESSIAN FILE (State2)
     print'(/,X,A)', "READING STATE2 FILE (HESSIAN)..."
     open(I_INP,file=hessfile2,status='old',iostat=IOstatus)

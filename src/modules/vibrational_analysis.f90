@@ -34,7 +34,7 @@ module vibrational_analysis
         ! Nat     (int) int /scalar   Number of atoms
         ! X,Y,Z   (inp) real/vectors  Coordinate vectors (ANGSTRONG)
         ! Mass    (inp) real/vector   Atomic masses (AMU)
-        ! Hlt     (inp) real/vector   Lower triangular part of the Hessian in Cartesian coordinates (AU)
+        ! Hlt     (inp) real/vector   Lower triangular part of the Hessian in MWCartesian coordinates (AU)
         ! Nvib    (out) int /scalar   Number of vibrational degrees of freedom
         ! L       (out) real/matrix   Normal modes (vibrations only) in Cartesian coordinates (Dimless)
         ! Freq    (out) real/vector   Frequencies (cm-1)
@@ -254,7 +254,7 @@ module vibrational_analysis
         !Diagonalize
         call diagonalize_full(H(1:Nvib,1:Nvib),Nvib,L(1:Nvib,1:Nvib),Freq(1:Nvib),"lapack")
         !Transform L from internal frame (Nvib x Nvib) into Cartesian (3Nat x Nvib) using Mass and D(3Nat x Nvib)
-        ! Lcart = m^1/2 D L
+        ! Lq = D L
         L(1:3*Nat,1:Nvib) = matmul(D(1:3*Nat,Nrt+1:3*Nat),L(1:Nvib,1:Nvib))
 
         !Check FC
