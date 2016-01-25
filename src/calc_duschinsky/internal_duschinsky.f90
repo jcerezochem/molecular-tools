@@ -72,7 +72,8 @@ program internal_duschinski
                gradcorrectS2=.false.  ,&
                same_red2nonred_rotation=.true., &
                analytic_Bder=.false., &
-               check_symmetry=.true.
+               check_symmetry=.true., &
+               orthogonalize=.false.
     character(len=4) :: def_internal='zmat'
     !======================
 
@@ -95,7 +96,8 @@ program internal_duschinski
     real(8),dimension(NDIM,NDIM) :: B
     !Other arrays
     real(8),dimension(1:NDIM) :: Grad
-    real(8),dimension(1:NDIM,1:NDIM) :: Hess, X, X1inv,X2inv, L1,L2, Asel1,Asel2
+    real(8),dimension(1:NDIM,1:NDIM) :: Hess, X, X1inv,X2inv, L1,L2, &
+                                        Asel1,Asel2,Asel1inv,Asel2inv
     real(8),dimension(1:NDIM,1:NDIM,1:NDIM) :: Bder
     !Duschisky
     real(8),dimension(NDIM,NDIM) :: G1, G2, Jdus
@@ -195,7 +197,8 @@ program internal_duschinski
 !                    tswitch,
                      symaddapt,same_red2nonred_rotation,analytic_Bder,&
                      vertical,verticalQspace2,verticalQspace1,&
-                     gradcorrectS1,gradcorrectS2)
+                     gradcorrectS1,gradcorrectS2,&
+                     orthogonalize)
     call set_word_upper_case(def_internal)
 
     ! 1. INTERNAL VIBRATIONAL ANALYSIS ON STATE1 AND STATE2
@@ -308,20 +311,38 @@ program internal_duschinski
 
     ! SET REDUNDANT/SYMETRIZED/CUSTOM INTERNAL SETS
 !     if (symaddapt) then (implement in an analogous way as compared with the transformation from red to non-red
-    if (Ns > Nvib) then ! Redundant
+! always do redundant2nonredundant
+!     if (Ns > Nvib) then ! Redundant
         call redundant2nonredundant(Ns,Nvib,G1,Asel1)
-        ! Rotate Bmatrix
-        B(1:Nvib,1:3*Nat) = matrix_product(Nvib,3*Nat,Ns,Asel1,B,tA=.true.)
         ! Rotate Gmatrix
-        G1(1:Nvib,1:Nvib) = matrix_basisrot(Nvib,Ns,Asel1(1:Ns,1:Nvib),G1,counter=.true.)
+        G1(1:Nvib,1:Nvib) = matrix_basisrot(Nvib,Ns,Asel1(1:Ns,1:Nvib),G1,&
+                                            counter=.true.)
+        ! Check if we want orthogonalization
+        if (orthogonalize) then
+print*, "Orthogonalyzing state1 internals..."
+            X1inv(1:Nvib,1:Nvib) = 0.d0
+            X(1:Nvib,1:Nvib)     = 0.d0
+            do i=1,Nvib
+                X1inv(i,i) = 1.d0/dsqrt(G1(i,i))
+                X(i,i)     = dsqrt(G1(i,i))
+            enddo
+            ! Rotate Gmatrix (again)
+            G1(1:Nvib,1:Nvib) = matrix_basisrot(Nvib,Nvib,X1inv(1:Nvib,1:Nvib),G1)
+            ! Update Asel(inv)
+            Asel1inv(1:Nvib,1:Ns) = matrix_product(Nvib,Ns,Nvib,X1inv,Asel1,tB=.true.)
+            Asel1(1:Ns,1:Nvib)    = matrix_product(Ns,Nvib,Nvib,Asel1,X)
+        else
+            Asel1inv(1:Nvib,1:Ns) = transpose(Asel1(1:Ns,1:Nvib))
+        endif
+        ! Rotate Bmatrix
+        B(1:Nvib,1:3*Nat) = matrix_product(Nvib,3*Nat,Ns,Asel1inv,B)
         ! Rotate Bders
         if (gradcorrectS1) then
             do j=1,3*Nat
-                Bder(1:Nvib,j,1:3*Nat) =  matrix_product(Nvib,3*Nat,Ns,Asel1,Bder(1:Ns,j,1:3*Nat),tA=.true.)
+                Bder(1:Nvib,j,1:3*Nat) =  matrix_product(Nvib,3*Nat,Ns,Asel1inv,Bder(1:Ns,j,1:3*Nat))
             enddo
         endif
-    endif
-
+!     endif
 
     if (gradcorrectS1) then
         call HessianCart2int(Nat,Nvib,Hess,state1%atom(:)%mass,B,G1,Grad,Bder)
@@ -372,11 +393,12 @@ program internal_duschinski
     call gf_method(Nvib,G1,Hess,L1,Freq1,X,X1inv)
     if (verbose>0) then
         ! Analyze normal modes in terms of the redundant set
-        if (Nvib<Ns) then
+! always do redundant2nonredundant
+!         if (Nvib<Ns) then
             Aux(1:Ns,1:Nvib) = matrix_product(Ns,Nvib,Nvib,Asel1,L1)
-        else
-            Aux(1:Ns,1:Nvib) = L1(1:Ns,1:Nvib)
-        endif
+!         else
+!             Aux(1:Ns,1:Nvib) = L1(1:Ns,1:Nvib)
+!         endif
         if (use_symmetry) then
             call analyze_internal(Nvib,Ns,Aux,Freq1,ModeDef,S_sym)
         else
@@ -528,24 +550,45 @@ program internal_duschinski
     endif
     ! Handle redundant/symtrized sets
 !     if (symaddapt) then (implement in an analogous way as compared with the transformation from red to non-red
-    if (Ns > Nvib) then
+! always do redundant2nonredundant
+!     if (Ns > Nvib) then
         if (same_red2nonred_rotation) then
             ! Using Asel1 (from state1)
             Asel2(1:Ns,1:Nvib) = Asel1(1:Ns,1:Nvib)
+            Asel2inv(1:Nvib,1:Ns) = Asel1inv(1:Nvib,1:Ns)
+            ! Rotate Gmatrix
+            G2(1:Nvib,1:Nvib) = matrix_basisrot(Nvib,Ns,Asel2inv(1:Nvib,1:Ns),G2)
         else
             call redundant2nonredundant(Ns,Nvib,G2,Asel2)
+            ! Rotate Gmatrix
+            G2(1:Nvib,1:Nvib) = matrix_basisrot(Nvib,Ns,Asel2(1:Ns,1:Nvib),G2,&
+                                                counter=.true.)
+            if (orthogonalize) then
+print*, "Orthogonalyzing state2 internals..."
+                X2inv(1:Nvib,1:Nvib) = 0.d0
+                X(1:Nvib,1:Nvib)     = 0.d0
+                do i=1,Nvib
+                    X2inv(i,i) = 1.d0/dsqrt(G2(i,i))
+                    X(i,i)     = dsqrt(G2(i,i))
+                enddo
+                ! Rotate Gmatrix (again)
+                G2(1:Nvib,1:Nvib) = matrix_basisrot(Nvib,Nvib,X2inv(1:Nvib,1:Nvib),G2)
+                ! Update Asel(inv)
+                Asel2inv(1:Nvib,1:Ns) = matrix_product(Nvib,Ns,Nvib,X2inv,Asel2,tB=.true.)
+                Asel2(1:Ns,1:Nvib)    = matrix_product(Ns,Nvib,Nvib,Asel2,X)
+            else
+                Asel2inv(1:Nvib,1:Ns) = transpose(Asel2(1:Ns,1:Nvib))
+            endif
         endif
         ! Rotate Bmatrix
-        B(1:Nvib,1:3*Nat) = matrix_product(Nvib,3*Nat,Ns,Asel2,B,tA=.true.)
-        ! Rotate Gmatrix
-        G2(1:Nvib,1:Nvib) = matrix_basisrot(Nvib,Ns,Asel2(1:Ns,1:Nvib),G2,counter=.true.)
+        B(1:Nvib,1:3*Nat) = matrix_product(Nvib,3*Nat,Ns,Asel2inv,B)
         ! Rotate Bders
         if (gradcorrectS2) then
             do j=1,3*Nat
-                Bder(1:Nvib,j,1:3*Nat) =  matrix_product(Nvib,3*Nat,Ns,Asel2,Bder(1:Ns,j,1:3*Nat),tA=.true.)
+                Bder(1:Nvib,j,1:3*Nat) =  matrix_product(Nvib,3*Nat,Ns,Asel2inv,Bder(1:Ns,j,1:3*Nat))
             enddo
         endif
-    endif
+!     endif
 
     if (gradcorrectS2) then
         call HessianCart2int(Nat,Nvib,Hess,state2%atom(:)%mass,B,G2,Grad,Bder)
@@ -596,11 +639,12 @@ program internal_duschinski
     call gf_method(Nvib,G2,Hess,L2,Freq2,X,X2inv)
     if (verbose>0) then
         ! Analyze normal modes in terms of the redundant set
-        if (Nvib<Ns) then
+! always do redundant2nonredundant
+!         if (Nvib<Ns) then
             Aux(1:Ns,1:Nvib) = matrix_product(Ns,Nvib,Nvib,Asel2,L2)
-        else
-            Aux(1:Ns,1:Nvib) = L2(1:Ns,1:Nvib)
-        endif
+!         else
+!             Aux(1:Ns,1:Nvib) = L2(1:Ns,1:Nvib)
+!         endif
         if (use_symmetry) then
             call analyze_internal(Nvib,Ns,Aux,Freq2,ModeDef,S_sym)
         else
@@ -729,12 +773,14 @@ program internal_duschinski
     L1(1:Nvib,1:Nvib) = inverse_realgen(Nvib,L1(1:Nvib,1:Nvib))
     ! Account for different rotations to non-redundant set 
     ! but preserve the inverse L1 matrix in L1
-    if (Nvib<Ns .and. .not.same_red2nonred_rotation) then
+! always do redundant2nonredundant
+!     if (Nvib<Ns .and. .not.same_red2nonred_rotation) then
+    if (.not.same_red2nonred_rotation) then
         ! We need to include the fact that Asel1 /= Asel2, i.e.,
         ! rotate to the same redundant space L(red) = Asel * L(non-red)
-        ! J = L1^-1 A1^t A2 L2
-        ! so store in Aux the following part: [L1^-1 A1^t A2]
-        Aux(1:Nvib,1:Nvib) = matrix_product(Nvib,Nvib,Ns,Asel1,Asel2,tA=.true.)
+        ! J = L1^-1 A1^-1 A2 L2
+        ! so store in Aux the following part: [L1^-1 A1^-1 A2]
+        Aux(1:Nvib,1:Nvib) = matrix_product(Nvib,Nvib,Ns,Asel1inv,Asel2)
         Aux(1:Nvib,1:Nvib) = matrix_product(Nvib,Nvib,Nvib,L1,Aux)
     else
         Aux(1:Nvib,1:Nvib) = L1(1:Nvib,1:Nvib)
@@ -767,7 +813,8 @@ program internal_duschinski
                 Delta(i) = Delta(i)-Aux(i,k) * Grad(k)
             enddo 
         enddo
-        if (Nvib<Ns) then
+! always do redundant2nonredundant
+!         if (Nvib<Ns) then
             !Transform Delta' into Delta (for control purposes only)
             ! Delta = A Delta'
             do i=1,Ns
@@ -776,9 +823,9 @@ program internal_duschinski
                     Vec1(i) = Vec1(i) + Asel1(i,k)*Delta(k)
                 enddo
             enddo
-        else
-            Vec1(1:Nvib)=Delta(1:Nvib)
-        endif
+!         else
+!             Vec1(1:Nvib)=Delta(1:Nvib)
+!         endif
 
         ! Get coordinates
         do i=1,Ns
@@ -814,17 +861,18 @@ program internal_duschinski
 
         ! Store Deltas into the auxiliar vector Vec1
         Vec1(1:Ns) = Delta(1:Ns)
-        if (Nvib<Ns) then
+! always do redundant2nonredundant
+!         if (Nvib<Ns) then
             ! Need to transform Deltas into the non-redundant coordinates set
-            ! Delta' = A^t Delta
+            ! Delta' = A^-1 Delta
             do i=1,Nvib
                 Vec2(i) = 0.d0
                 do k=1,Ns
-                    Vec2(i) = Vec2(i) + Asel1(k,i)*Delta(k)
+                    Vec2(i) = Vec2(i) + Asel1inv(i,k)*Delta(k)
                 enddo
             enddo
             Delta(1:Nvib) = Vec2(1:Nvib)
-        endif
+!         endif
 
     endif
 
@@ -1091,7 +1139,8 @@ program internal_duschinski
 !                          tswitch,
                            symaddapt,same_red2nonred_rotation,analytic_Bder,&
                            vertical,verticalQspace2,verticalQspace1,&
-                           gradcorrectS1,gradcorrectS2)
+                           gradcorrectS1,gradcorrectS2,&
+                           orthogonalize)
     !==================================================
     ! My input parser (gromacs style)
     !==================================================
@@ -1103,7 +1152,8 @@ program internal_duschinski
         logical,intent(inout)          :: use_symmetry, vertical, verticalQspace2, &
                                           verticalQspace1, &
                                           gradcorrectS1, gradcorrectS2, symaddapt, &
-                                          same_red2nonred_rotation,analytic_Bder
+                                          same_red2nonred_rotation,analytic_Bder, &
+                                          orthogonalize
 !         logical,intent(inout) :: tswitch
 
         ! Local
@@ -1221,6 +1271,12 @@ program internal_duschinski
                     verticalQspace2=.false.
                     ! Apply defaults
                     gradcorrectS2=.true.
+
+                case ("-orth")
+                    orthogonalize=.true.
+                case ("-noorth")
+                    orthogonalize=.false.
+                    
         
                 case ("-h")
                     need_help=.true.
@@ -1306,6 +1362,7 @@ program internal_duschinski
         write(6,*) '-[no]sym     Use symmetry to form Zmat    ',  use_symmetry
         write(6,*) '-[no]samerot Use S1 red->non-red rotation ',  same_red2nonred_rotation
         write(6,*) '             for S2'
+        write(6,*) '-[no]orth    Use orthogonalized internals ',  orthogonalize
         write(6,*) '               '
         write(6,*) ' ** Options Vertical Model **'
         write(6,*) '-[no]vert    Vertical model               ',  vertical
