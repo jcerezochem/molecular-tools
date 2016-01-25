@@ -697,6 +697,9 @@ module vibrational_analysis
 
     function Hlt_to_Hess(N,Hlt) result(Hess)
 
+        ! Where 
+        ! N=3*Nat 
+
         integer,intent(in) :: N
         real(8),dimension(:),intent(in) :: Hlt
         real(8),dimension(N,N) :: Hess 

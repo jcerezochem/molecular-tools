@@ -60,7 +60,9 @@ program normal_modes_cartesian
                analytic_Bder=.false.,   &
                check_symmetry=.true.,   &
                full_diagonalize=.false.,&
-               animate=.true.
+               animate=.true.,          &
+               orthogonalize=.false.,    &
+               Eckart_frame=.true.
     !======================
 
     !====================== 
@@ -71,7 +73,7 @@ program normal_modes_cartesian
     integer,dimension(1:NDIM) :: isym
     integer,dimension(4,1:NDIM,1:NDIM) :: Osym
     integer :: nsym
-    integer :: Nat, Nvib, Ns
+    integer :: Nat, Nvib, Ns, Nrt
     character(len=5) :: PG
     !Job info
     character(len=20) :: calc, method, basis
@@ -100,7 +102,7 @@ program normal_modes_cartesian
 
     !====================== 
     ! PES topology and normal mode things
-    real(8),dimension(1:NDIM,1:NDIM) :: LL
+    real(8),dimension(1:NDIM,1:NDIM) :: LL, D
     real(8),dimension(1:NDIM*NDIM)   :: Hlt
     real(8),dimension(:,:),allocatable :: Hess
     real(8),dimension(NDIM) :: Freq, Factor, Grad
@@ -120,7 +122,7 @@ program normal_modes_cartesian
 
     !====================== 
     !INTERNAL CODE THINGS
-    real(8),dimension(1:NDIM,1:NDIM) :: B, G, Asel
+    real(8),dimension(1:NDIM,1:NDIM) :: B, G, Asel, Aselinv
     real(8),dimension(1:NDIM,1:NDIM,1:NDIM) :: Bder
     real(8),dimension(1:NDIM,1:NDIM) :: X,Xinv
     !Save definitio of the modes in character
@@ -196,6 +198,8 @@ program normal_modes_cartesian
                      animate,movie_vmd, movie_cycles ,                     &   
                      ! Options (internal)
                      use_symmetry,def_internal,intfile,rmzfile,            & !except scan_type
+                     ! Additional vib options
+                     Eckart_frame,orthogonalize,                           &
                      ! connectivity file
                      cnx_file,                                             &
                      ! (hidden)
@@ -244,6 +248,7 @@ program normal_modes_cartesian
     endif
         
     ! STRUCTURE FILE
+    print'(X,A)', "READING STATE1 FILE (STRUCTURE)..."
     open(I_INP,file=inpfile,status='old',iostat=IOstatus)
     if (IOstatus /= 0) call alert_msg( "fatal","Unable to open "//trim(adjustl(inpfile)) )
     call generic_strmol_reader(I_INP,ft,molecule,error)
@@ -262,6 +267,7 @@ program normal_modes_cartesian
     close(I_INP)
     ! Shortcuts
     Nat = molecule%natoms
+    print'(X,A,/)', "Done"
 
 
     ! MANAGE INTERNAL COORDS
@@ -279,6 +285,7 @@ program normal_modes_cartesian
 
     ! VIBRATIONAL ANALYSIS: either read from file or from diagonalization of Hessian
     if (adjustl(nmfile) /= "none") then
+        print'(X,A)', "READING NORMAL MODES FROM FILE..."
         open(I_INP,file=nmfile,status='old',iostat=IOstatus)
         if (IOstatus /= 0) call alert_msg( "fatal","Unable to open "//trim(adjustl(nmfile)) )
         call generic_nm_reader(I_INP,ftn,Nat,Nvib,Freq,LL)
@@ -289,30 +296,39 @@ program normal_modes_cartesian
         call LcartNrm_to_Lmwc(Nat,Nvib,molecule%atom(:)%mass,LL,LL)
         call Lmwc_to_Lcart(Nat,Nvib,molecule%atom(:)%mass,LL,LL,error)
         close(I_INP)
+        print'(X,A,/)', "Done"
 
     else
         ! ACTUALLY PERFORM THE ANALYSIS
         ! HESSIAN FILE
+        print'(X,A)', "READING HESSIAN FILE..."
         open(I_INP,file=hessfile,status='old',iostat=IOstatus)
         if (IOstatus /= 0) call alert_msg( "fatal","Unable to open "//trim(adjustl(hessfile)) )
         call generic_Hessian_reader(I_INP,fth,Nat,Hlt,error)
         if (error /= 0) call alert_msg("fatal","Error reading Hessian (State1)")
         close(I_INP)
+        print'(X,A,/)', "Done"
         
         ! GRADIENT FILE
         if (vertical) then
+            print'(X,A)', "READING GRADIENT FILE..."
             open(I_INP,file=gradfile,status='old',iostat=IOstatus)
             if (IOstatus /= 0) call alert_msg( "fatal","Unable to open "//trim(adjustl(gradfile)) )
             call generic_gradient_reader(I_INP,ftg,Nat,Grad,error)
             close(I_INP)
+            print'(X,A,/)', "Done"
         endif
 
 
+        print'(/,X,A,/)', "VIBRATIONAL ANALYSIS"
+
+        ! Run vibrations_Cart to get the number of Nvib (to detect linear molecules)
+        print*, "Preliminary vibrational analysis"
+        call vibrations_Cart(Nat,molecule%atom(:)%X,molecule%atom(:)%Y,molecule%atom(:)%Z,molecule%atom(:)%Mass,Hlt,&
+                        Nvib,LL,Freq,error_flag=error,Dout=D)
+
         if (vertical) then
-            ! Run vibrations_Cart to get the number of Nvib (to detect linear molecules)
-            print*, "Preliminary vibrational analysis"
-            call vibrations_Cart(Nat,molecule%atom(:)%X,molecule%atom(:)%Y,molecule%atom(:)%Z,molecule%atom(:)%Mass,Hlt,&
-                                 Nvib,LL,Freq,error_flag=error)
+            print'(/,X,A)', "Managing internal coordinates"
             ! Manage symmetry
             if (.not.use_symmetry) then
                 molecule%PG="C1"
@@ -375,118 +391,111 @@ program normal_modes_cartesian
             call internal_Wilson(molecule,Ns,S,B,ModeDef)
             call internal_Gmetric(Nat,Ns,molecule%atom(:)%mass,B,G)
             call calc_Bder(molecule,Ns,Bder,analytic_Bder)
-            if (Ns > Nvib) then
+! always do redundant2nonredundant
+!             if (Ns > Nvib) then
                 call redundant2nonredundant(Ns,Nvib,G,Asel)
-                ! Rotate Bmatrix
-                B(1:Nvib,1:3*Nat) = matrix_product(Nvib,3*Nat,Ns,Asel,B,tA=.true.)
                 ! Rotate Gmatrix
-                G(1:Nvib,1:Nvib) = matrix_basisrot(Nvib,Ns,Asel(1:Ns,1:Nvib),G,counter=.true.)
+                G(1:Nvib,1:Nvib) = matrix_basisrot(Nvib,Ns,Asel(1:Ns,1:Nvib),G,&
+                                                   counter=.true.)
+                ! Check if we want orthogonalization
+                if (orthogonalize) then
+                    print*, "Orthogonalyzing internals..."
+                    Xinv(1:Nvib,1:Nvib) = 0.d0
+                    X(1:Nvib,1:Nvib)     = 0.d0
+                    do i=1,Nvib
+                        Xinv(i,i) = 1.d0/dsqrt(G(i,i))
+                        X(i,i)     = dsqrt(G(i,i))
+                    enddo
+                    ! Rotate Gmatrix (again)
+                    G(1:Nvib,1:Nvib) = matrix_basisrot(Nvib,Nvib,Xinv(1:Nvib,1:Nvib),G)
+                    ! Update Asel(inv)
+                    Aselinv(1:Nvib,1:Ns) = matrix_product(Nvib,Ns,Nvib,Xinv,Asel,tB=.true.)
+                    Asel(1:Ns,1:Nvib)    = matrix_product(Ns,Nvib,Nvib,Asel,X)
+                else
+                    Aselinv(1:Nvib,1:Ns) = transpose(Asel(1:Ns,1:Nvib))
+                endif
+                ! Rotate Bmatrix
+                B(1:Nvib,1:3*Nat) = matrix_product(Nvib,3*Nat,Ns,Aselinv,B)
                 ! Rotate Bders
                 do j=1,3*Nat
-                    Bder(1:Nvib,j,1:3*Nat) =  matrix_product(Nvib,3*Nat,Ns,Asel,Bder(1:Ns,j,1:3*Nat),tA=.true.)
+                    Bder(1:Nvib,j,1:3*Nat) =  matrix_product(Nvib,3*Nat,Ns,Aselinv,Bder(1:Ns,j,1:3*Nat))
                 enddo
-            endif
-            ! Get gradient in internal coordinates
-            call Gradcart2int(Nat,Nvib,Grad,molecule%atom(:)%mass,B,G)
-
-            ! Compute gs^t * Lder
-            do i=1,3*Nat
-            do j=1,3*Nat
-                Aux(i,j) = 0.d0
-                do k=1,Nvib
-                    Aux(i,j) = Aux(i,j) + Bder(k,i,j)*Grad(k)
-                enddo
-            enddo
-            enddo
-
-            ! Compute modified Hessian (Hess - gs^t beta) directly on Hlt
-            allocate(Vec_alloc(1:(3*Nat*(3*Nat+1))/2))
-            Vec_alloc(1:(3*Nat*(3*Nat+1))/2) = Hess_to_Hlt(3*Nat,Aux)
-            Hlt(1:(3*Nat*(3*Nat+1))/2) = Hlt(1:(3*Nat*(3*Nat+1))/2) - Vec_alloc(1:(3*Nat*(3*Nat+1))/2)
-            deallocate(Vec_alloc)
-
-            ! Also check the symmetry of the correction term
-            if (check_symmetry) then
-                print'(/,X,A)', "---------------------------------------"
-                print'(X,A  )', " Check effect of symmetry operations"
-                print'(X,A  )', " on the correction term gs^t\beta"
-                print'(X,A  )', "---------------------------------------"
-                molecule%PG="XX"
-                call symm_atoms(molecule,isym,Osym,rotate=.false.,nsym_ops=nsym)
-                ! Check the symmetry of the correction term
-                ! First compute the correction term (was already computed)
-                Aux2(1:3*Nat,1:3*Nat) = Aux(1:3*Nat,1:3*Nat)
-                ! Print if verbose level is high
-                if (verbose>2) &
-                    call MAT0(6,Aux2,3*Nat,3*Nat,"gs*Bder matrix")
-                ! Check all detected symmetry ops
-                do iop=1,Nsym
-                    Aux(1:3*Nat,1:3*Nat) = dfloat(Osym(iop,1:3*Nat,1:3*Nat))
-                    Aux(1:3*Nat,1:3*Nat) = matrix_basisrot(3*Nat,3*Nat,Aux,Aux2,counter=.true.)
-                    Theta=0.d0
-                    do i=1,3*Nat 
-                    do j=1,3*Nat
-                        if (Theta < abs(Aux(i,j)-Aux2(i,j))) then
-                            Theta = abs(Aux(i,j)-Aux2(i,j))
-                            Theta2=Aux2(i,j)
-                        endif
-                    enddo
-                    enddo
-                    print'(X,A,I0)', "Symmetry operation :   ", iop
-                    print'(X,A,F10.6)',   " Max abs difference : ", Theta
-                    print'(X,A,F10.6,/)', " Value before sym op: ", Theta2
-                enddo
-                print'(X,A,/)', "---------------------------------------"
-            endif
+!             endif
 
             !Reset Angs
             call set_geom_units(molecule,"Angs")
 
         endif
 
+
         ! VIBRATIONAL ANALYSIS
-        ! Using either the full 3Natx3Nat space of internal frame (default)
-        if (full_diagonalize) then
-            ! Diag in 3Natx3Nat
-            allocate(Hess(1:3*Nat,1:3*Nat))
-            !Massweight the Hessian
-            k=0
-            do i=1,3*Nat
-            do j=1,i
-                k=k+1
-                ii = (i-1)/3+1
-                jj = (j-1)/3+1
-                Hess(i,j) = Hlt(k)/sqrt(molecule%atom(ii)%mass * &
-                                        molecule%atom(jj)%mass) / AMUtoAU
-                Hess(j,i) = Hess(i,j)
-            enddo 
-            enddo
-            ! Make Nvib equal to full space dimension
-            Nvib = 3*Nat
-            call diagonalize_full(Hess(1:Nvib,1:Nvib),Nvib,LL(1:Nvib,1:Nvib),Freq(1:Nvib),"lapack")
-            deallocate(Hess)
-            !Check FC
-            if (verbose>1) &
-             call print_vector(6,Freq*1.d6,Nvib,"FORCE CONSTANTS x 10^6 (A.U.)")
-            !Transform to FC to Freq
-            do i=1,Nvib
-                  Freq(i) = sign(dsqrt(abs(Freq(i))*HARTtoJ/BOHRtoM**2/AUtoKG)/2.d0/pi/clight/1.d2,&
-                                 Freq(i))
-            enddo
-            if (verbose>0) &
-                call print_vector(6,Freq,Nvib,"Frequencies (cm-1)")
-        else
-            ! Run final vibrations_Cart 
-            call vibrations_Cart(Nat,molecule%atom(:)%X,molecule%atom(:)%Y,molecule%atom(:)%Z,molecule%atom(:)%Mass,Hlt,&
-                                 Nvib,LL,Freq,error_flag=error)
-            if (error /= 0) then
-                call alert_msg("fatal","Error in the diagonalization")
-                stop
-            endif
+        print'(/,X,A)', "Final vibrational analysis"
+        print'(X,A,/)', "-----------------------------"
+        !-------------------------------------
+        ! Vibrational analysis:
+        !-------------------------------------
+        ! With grad correction (vertical)
+        !   Ht = D M^-1/2 B^t Hs B M^-1/2 D^t  (assuming G constant)
+        ! Without grad correction: 
+        !   Ht = D M^1/2 Hx M^1/2 D^t
+        !-------------------------------------
+        ! Get Hess matrix from H(lowertriangular)
+        allocate (Hess(1:NDIM,1:NDIM))
+        Hess(1:3*Nat,1:3*Nat) = Hlt_to_Hess(3*Nat,Hlt)
+        if (vertical) then
+            ! Hs (with the correction)
+            call HessianCart2int(Nat,Nvib,Hess,molecule%atom(:)%mass,B,G,Grad,Bder)
+            ! B^t Hs B [~Hx]
+            Hess(1:3*Nat,1:3*Nat) = matrix_basisrot(3*Nat,Nvib,B,Hess,counter=.true.)
         endif
+        ! M^-1/2 [Hx] M^1/2
+        do i=1,3*Nat
+        do j=1,i
+            ii = (i-1)/3+1
+            jj = (j-1)/3+1
+            Hess(i,j) = Hess(i,j) &
+                        /dsqrt(molecule%atom(ii)%mass*AMUtoAU) &
+                        /dsqrt(molecule%atom(jj)%mass*AMUtoAU)
+            Hess(j,i) = Hess(i,j)
+        enddo
+        enddo
+        ! Eckart traslation and rotation can be computed for testing
+        if (.not.Eckart_frame.and..not.full_diagonalize) then
+            call alert_msg("note","With -noEckart -fulldiag is always done")
+            full_diagonalize=.true.
+        endif
+        if (full_diagonalize) then
+            Nrt = 0
+            Nvib=3*Nat
+        else
+            Nrt = 3*Nat - Nvib
+        endif
+        if (Eckart_frame) then
+            ! D [M^-1/2 [Hx] M^1/2] D^t
+            Hess(1:Nvib,1:Nvib) = matrix_basisrot(Nvib,3*Nat,D(1:3*Nat,Nrt+1:3*Nat),Hess,counter=.true.)
+        endif
+
+        ! Diagonalize and get data
+        call diagonalize_full(Hess(1:Nvib,1:Nvib),Nvib,LL(1:Nvib,1:Nvib),Freq(1:Nvib),"lapack")
+        deallocate(Hess)
+        if (Eckart_frame) then
+            LL(1:3*Nat,1:Nvib) = matrix_product(3*Nat,Nvib,Nvib,D(1:3*Nat,Nrt+1:3*Nat),LL(1:Nvib,1:Nvib))
+        endif
+        !Check FC
+        if (verbose>1) &
+         call print_vector(6,Freq*1.d6,Nvib,"FORCE CONSTANTS x 10^6 (A.U.)")
+        !Transform to FC to Freq
+        do i=1,Nvib
+              Freq(i) = sign(dsqrt(abs(Freq(i))*HARTtoJ/BOHRtoM**2/AUtoKG)/2.d0/pi/clight/1.d2,&
+                             Freq(i))
+        enddo
+        if (verbose>0) &
+            call print_vector(6,Freq,Nvib,"Frequencies (cm-1)")
+
         !Transform L to Cartesian (output in AU(mass) as with internal)
         call Lmwc_to_Lcart(Nat,Nvib,molecule%atom(1:Nat)%mass,LL,LL)
-    endif
+
+    endif ! Read normal modes OR do vibrationa analisis
 
     !Define the Factor to convert shift into addimensional displacements
     ! from the shift in SI units:
@@ -777,6 +786,8 @@ program normal_modes_cartesian
                            animate,movie_vmd, movie_cycles,                      &
                            ! Options (internal)
                            use_symmetry,def_internal,intfile,rmzfile,            &
+                           ! Additional vib options
+                           Eckart_frame,orthogonalize,                           &
                            ! connectivity file
                            cnx_file,                                             &
                            ! (hidden)
@@ -792,7 +803,9 @@ program normal_modes_cartesian
         real(8),intent(inout)          :: Amplitude
         logical,intent(inout)          :: call_vmd, include_hbonds,vertical,movie_vmd,full_diagonalize,animate,&
                                           ! Internal
-                                          use_symmetry,analytic_Bder
+                                          use_symmetry,analytic_Bder, &
+                                          ! Other
+                                          Eckart_frame, orthogonalize
         integer,intent(inout)          :: movie_cycles
 
         ! Local
@@ -837,10 +850,20 @@ program normal_modes_cartesian
                     call getarg(i+1, ftn)
                     argument_retrieved=.true.
 
+                case ("-Eckart")
+                    Eckart_frame=.true.
+                case ("-noEckart")
+                    Eckart_frame=.false.
+
                 case ("-fulldiag")
                     full_diagonalize=.true.
                 case ("-nofulldiag")
                     full_diagonalize=.false.
+
+                case ("-orth")
+                    orthogonalize=.true.
+                case ("-noorth")
+                    orthogonalize=.false.
 
                 case ("-nm") 
                     call getarg(i+1, selection)
@@ -967,7 +990,12 @@ program normal_modes_cartesian
         write(6,*)       '-ftg           \_ FileType                     ', trim(adjustl(ftg))
         write(6,*)       '-fnm           Gradient file                   ', trim(adjustl(nmfile))
         write(6,*)       '-ftn           \_ FileType                     ', trim(adjustl(ftn))
+        write(6,*)       ''
+        write(6,*)       ' ** Options for vibration analysis **'
         write(6,*)       '-[no]fulldiag  Diagonalize the 3Nx3N matrix   ',  full_diagonalize
+        write(6,*)       '-[no]Eckart    Include translation & rotation ',  Eckart_frame
+        write(6,*)       '               in the Eckart frame            '
+        write(6,*)       '-[no]orth      Use orthogonalized internals   ',  orthogonalize
         write(6,*)       ''
         write(6,*)       ' ** Options for animation **'
         write(6,*)       '-[no]animate   Generate animation files       ',  animate

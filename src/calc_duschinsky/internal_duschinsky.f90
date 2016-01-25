@@ -319,7 +319,7 @@ program internal_duschinski
                                             counter=.true.)
         ! Check if we want orthogonalization
         if (orthogonalize) then
-print*, "Orthogonalyzing state1 internals..."
+            print*, "Orthogonalyzing state1 internals..."
             X1inv(1:Nvib,1:Nvib) = 0.d0
             X(1:Nvib,1:Nvib)     = 0.d0
             do i=1,Nvib
@@ -564,7 +564,7 @@ print*, "Orthogonalyzing state1 internals..."
             G2(1:Nvib,1:Nvib) = matrix_basisrot(Nvib,Ns,Asel2(1:Ns,1:Nvib),G2,&
                                                 counter=.true.)
             if (orthogonalize) then
-print*, "Orthogonalyzing state2 internals..."
+                print*, "Orthogonalyzing state2 internals..."
                 X2inv(1:Nvib,1:Nvib) = 0.d0
                 X(1:Nvib,1:Nvib)     = 0.d0
                 do i=1,Nvib
