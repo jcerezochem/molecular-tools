@@ -61,8 +61,9 @@ program normal_modes_cartesian
                check_symmetry=.true.,   &
                full_diagonalize=.false.,&
                animate=.true.,          &
-               orthogonalize=.false.,    &
-               Eckart_frame=.true.
+               orthogonalize=.false.,   &
+               Eckart_frame=.true.,     &
+               modes_as_internals=.false. 
     !======================
 
     !====================== 
@@ -199,7 +200,7 @@ program normal_modes_cartesian
                      ! Options (internal)
                      use_symmetry,def_internal,intfile,rmzfile,            & !except scan_type
                      ! Additional vib options
-                     Eckart_frame,orthogonalize,                           &
+                     Eckart_frame,orthogonalize,modes_as_internals,        &
                      ! connectivity file
                      cnx_file,                                             &
                      ! (hidden)
@@ -323,12 +324,13 @@ program normal_modes_cartesian
         print'(/,X,A,/)', "VIBRATIONAL ANALYSIS"
 
         ! Run vibrations_Cart to get the number of Nvib (to detect linear molecules)
-        print*, "Preliminary vibrational analysis"
+        print*, "Preliminary vibrational analysis (Cartesian)"
         call vibrations_Cart(Nat,molecule%atom(:)%X,molecule%atom(:)%Y,molecule%atom(:)%Z,molecule%atom(:)%Mass,Hlt,&
                         Nvib,LL,Freq,error_flag=error,Dout=D)
 
         if (vertical) then
             print'(/,X,A)', "Managing internal coordinates"
+            print'(X,A,/)', "-----------------------------"
             ! Manage symmetry
             if (.not.use_symmetry) then
                 molecule%PG="C1"
@@ -386,41 +388,67 @@ program normal_modes_cartesian
                 ! Need to freeze unused coords to its input values
             endif
 
-            print'(X,A,/)', "Apply correction for non-stationary points"
-            ! Get metric matrix and Bders
+            ! If we use uncorrected modes as linear combinations for internals
+            ! we now compute them
+            if (modes_as_internals) then
+                allocate (Hess(1:NDIM,1:NDIM))
+                Hess(1:3*Nat,1:3*Nat) = Hlt_to_Hess(3*Nat,Hlt)
+                verbose_current=verbose
+                verbose=0
+                call internal_Wilson(molecule,Ns,S,B,ModeDef)
+                call internal_Gmetric(Nat,Ns,molecule%atom(:)%mass,B,G)
+                call redundant2nonredundant(Ns,Nvib,G,Asel)
+                verbose=verbose_current
+                G(1:Nvib,1:Nvib) = matrix_basisrot(Nvib,Ns,Asel(1:Ns,1:Nvib),G,&
+                                                   counter=.true.)
+                B(1:Nvib,1:3*Nat) = matrix_product(Nvib,3*Nat,Ns,Aselinv,B)
+                call HessianCart2int(Nat,Nvib,Hess,molecule%atom(:)%mass,B,G)
+                call gf_method(Nvib,G,Hess,LL,Freq,X,Xinv)
+                deallocate(Hess)
+                ! Save L(in LL) and Linv(in Aux)
+                Aux(1:Nvib,1:Nvib) = inverse_realgen(Nvib,LL)
+                Aux(1:Nvib,1:Ns)   = matrix_product(Nvib,Ns,Nvib,Aux,Asel,tB=.true.)
+                LL(1:Ns,1:Nvib)    = matrix_product(Ns,Nvib,Nvib,Asel,LL)
+            endif
+
+            !------------------------------------------------
+            ! Get B, G and Bders to perform the correction
+            !------------------------------------------------
+            print'(X,A,/)', "Prepare correction for non-stationary points"
             call internal_Wilson(molecule,Ns,S,B,ModeDef)
             call internal_Gmetric(Nat,Ns,molecule%atom(:)%mass,B,G)
             call calc_Bder(molecule,Ns,Bder,analytic_Bder)
-! always do redundant2nonredundant
-!             if (Ns > Nvib) then
+            ! Select internal linear combinations
+            if (modes_as_internals) then
+                Asel(1:Ns,1:Nvib) = LL(1:Ns,1:Nvib)
+                Aselinv(1:Nvib,1:Ns) = Aux(1:Nvib,1:Ns)
+            else
                 call redundant2nonredundant(Ns,Nvib,G,Asel)
-                ! Rotate Gmatrix
-                G(1:Nvib,1:Nvib) = matrix_basisrot(Nvib,Ns,Asel(1:Ns,1:Nvib),G,&
-                                                   counter=.true.)
-                ! Check if we want orthogonalization
-                if (orthogonalize) then
-                    print*, "Orthogonalyzing internals..."
-                    Xinv(1:Nvib,1:Nvib) = 0.d0
-                    X(1:Nvib,1:Nvib)     = 0.d0
-                    do i=1,Nvib
-                        Xinv(i,i) = 1.d0/dsqrt(G(i,i))
-                        X(i,i)     = dsqrt(G(i,i))
-                    enddo
-                    ! Rotate Gmatrix (again)
-                    G(1:Nvib,1:Nvib) = matrix_basisrot(Nvib,Nvib,Xinv(1:Nvib,1:Nvib),G)
-                    ! Update Asel(inv)
-                    Aselinv(1:Nvib,1:Ns) = matrix_product(Nvib,Ns,Nvib,Xinv,Asel,tB=.true.)
-                    Asel(1:Ns,1:Nvib)    = matrix_product(Ns,Nvib,Nvib,Asel,X)
-                else
-                    Aselinv(1:Nvib,1:Ns) = transpose(Asel(1:Ns,1:Nvib))
-                endif
-                ! Rotate Bmatrix
-                B(1:Nvib,1:3*Nat) = matrix_product(Nvib,3*Nat,Ns,Aselinv,B)
-                ! Rotate Bders
-                do j=1,3*Nat
-                    Bder(1:Nvib,j,1:3*Nat) =  matrix_product(Nvib,3*Nat,Ns,Aselinv,Bder(1:Ns,j,1:3*Nat))
+                Aselinv(1:Nvib,1:Ns) = transpose(Asel(1:Ns,1:Nvib))
+            endif
+            ! Rotate Gmatrix
+            G(1:Nvib,1:Nvib) = matrix_basisrot(Nvib,Ns,Aselinv(1:Nvib,1:Ns),G)
+            ! Check if we want orthogonalization
+            if (orthogonalize) then
+                print*, "Orthogonalyzing internals..."
+                Xinv(1:Nvib,1:Nvib) = 0.d0
+                X(1:Nvib,1:Nvib)     = 0.d0
+                do i=1,Nvib
+                    Xinv(i,i) = 1.d0/dsqrt(G(i,i))
+                    X(i,i)     = dsqrt(G(i,i))
                 enddo
-!             endif
+                ! Rotate Gmatrix (again)
+                G(1:Nvib,1:Nvib) = matrix_basisrot(Nvib,Nvib,Xinv(1:Nvib,1:Nvib),G)
+                ! Update Asel(inv)
+                Aselinv(1:Nvib,1:Ns) = matrix_product(Nvib,Ns,Nvib,Xinv,Aselinv)
+                Asel(1:Ns,1:Nvib)    = matrix_product(Ns,Nvib,Nvib,Asel,X)
+            endif
+            ! Rotate Bmatrix
+            B(1:Nvib,1:3*Nat) = matrix_product(Nvib,3*Nat,Ns,Aselinv,B)
+            ! Rotate Bders
+            do j=1,3*Nat
+                Bder(1:Nvib,j,1:3*Nat) =  matrix_product(Nvib,3*Nat,Ns,Aselinv,Bder(1:Ns,j,1:3*Nat))
+            enddo
 
             !Reset Angs
             call set_geom_units(molecule,"Angs")
@@ -787,7 +815,7 @@ program normal_modes_cartesian
                            ! Options (internal)
                            use_symmetry,def_internal,intfile,rmzfile,            &
                            ! Additional vib options
-                           Eckart_frame,orthogonalize,                           &
+                           Eckart_frame,orthogonalize,modes_as_internals,        &
                            ! connectivity file
                            cnx_file,                                             &
                            ! (hidden)
@@ -805,7 +833,7 @@ program normal_modes_cartesian
                                           ! Internal
                                           use_symmetry,analytic_Bder, &
                                           ! Other
-                                          Eckart_frame, orthogonalize
+                                          Eckart_frame, orthogonalize, modes_as_internals
         integer,intent(inout)          :: movie_cycles
 
         ! Local
@@ -864,6 +892,11 @@ program normal_modes_cartesian
                     orthogonalize=.true.
                 case ("-noorth")
                     orthogonalize=.false.
+
+                case ("-modes2int")
+                    modes_as_internals=.true.
+                case ("-nomodes2int")
+                    modes_as_internals=.false.
 
                 case ("-nm") 
                     call getarg(i+1, selection)
@@ -996,6 +1029,8 @@ program normal_modes_cartesian
         write(6,*)       '-[no]Eckart    Include translation & rotation ',  Eckart_frame
         write(6,*)       '               in the Eckart frame            '
         write(6,*)       '-[no]orth      Use orthogonalized internals   ',  orthogonalize
+        write(6,*)       '-[no]modes2int Use uncorrected modes as the   ',  modes_as_internals
+        write(6,*)       '               definiton of the internals     '
         write(6,*)       ''
         write(6,*)       ' ** Options for animation **'
         write(6,*)       '-[no]animate   Generate animation files       ',  animate

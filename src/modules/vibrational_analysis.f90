@@ -822,7 +822,7 @@ module vibrational_analysis
         write(unt,*) "==============================================================================================="
         write(unt,*) " DUSCHINSKI MATRIX (STATE2 WITH RESPECT TO STATE1) (SUMMARY)"
         write(unt,*) "==============================================================================================="
-        write(unt,*) "   NM     FREQ1      I2      C2^2       I90     I95     I99       K     K-Dimless   Q-index "
+        write(unt,*) "   NM     FREQ2      I2      C2^2       I90     I95     I99       K     K-Dimless   Q-index "
         write(unt,*) "-----------------------------------------------------------------------------------------------"
         do i=1,Nvib
             k90=0
