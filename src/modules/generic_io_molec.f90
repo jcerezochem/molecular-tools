@@ -14,6 +14,9 @@ module generic_io_molec
     !===================
     use structure_types
     use generic_io
+    ! The following need to be Supported by generic_io module
+    use gro_manage
+    use xyz_manage_molec
     implicit none
 
     contains
@@ -37,8 +40,6 @@ module generic_io_molec
         !==============================================================
 
         use molecular_structure
-        ! The following need to be Supported by generic_io module
-        use gro_manage
 
         integer,intent(in)              :: unt
         character(len=*),intent(in)     :: filetype
@@ -49,16 +50,12 @@ module generic_io_molec
         integer   :: error_local
         character(len=200) :: msg
 
-        ! Supported in generic_io
-        if (adjustl(filetype)=="log"    .or. &
-            adjustl(filetype)=="fchk"   .or. &
-            adjustl(filetype)=="psi4"   .or. &
-            adjustl(filetype)=="gms"    .or. &
-            adjustl(filetype)=="molcas" .or. &
-            adjustl(filetype)=="molpro" .or. &
-            adjustl(filetype)=="g96"    .or. &
-            adjustl(filetype)=="pdb"    .or. &
-            adjustl(filetype)=="fcc"    ) then
+        ! Readers still unsupported by generic_io module
+        if (adjustl(filetype)=="gro") then
+            call read_gro(unt,molec)
+
+        ! any other format is assumed to be supported
+        else 
             call generic_structure_reader(unt,filetype,molec%natoms,      &
                                                        molec%atom(:)%x,   &
                                                        molec%atom(:)%y,   &
@@ -66,13 +63,6 @@ module generic_io_molec
                                                        molec%atom(:)%mass,&
                                                        molec%atom(:)%name,&
                                           error_local)
-        ! The following need to be put in the generic_io module
-        else if (adjustl(filetype)=="gro") then
-            call read_gro(unt,molec)
-
-        ! When all are supported, this warning should be given by generic_io module
-        else
-            call alert_msg("warning","Unsupported format: "//trim(adjustl(filetype)))
         endif
 
         call atname2element(molec)
@@ -128,13 +118,22 @@ module generic_io_molec
         current_units=molec%units
         call set_geom_units(molec,"Angs")
 
-        call generic_structure_writer(unt,filetype,molec%natoms,      &
-                                                   molec%atom(:)%x,   &
-                                                   molec%atom(:)%y,   &
-                                                   molec%atom(:)%z,   &
-                                                   molec%atom(:)%mass,&
-                                                   molec%atom(:)%name,&
-                                      error_local)
+        ! Readers still unsupported by generic_io module
+        if (adjustl(filetype)=="gro") then
+            call write_gro(unt,molec)
+        elseif (adjustl(filetype)=="xyz") then
+            call write_xyz(unt,molec)
+
+        ! any other format is assumed to be supported
+        else 
+            call generic_structure_writer(unt,filetype,molec%natoms,      &
+                                                       molec%atom(:)%x,   &
+                                                       molec%atom(:)%y,   &
+                                                       molec%atom(:)%z,   &
+                                                       molec%atom(:)%mass,&
+                                                       molec%atom(:)%name,&
+                                          error_local)
+        endif
 
         ! Error handling
         if (error_local /= 0) then

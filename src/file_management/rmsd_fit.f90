@@ -33,20 +33,36 @@ program rmsd_fit
     !
     !============================================================================    
 
+    !*****************
+    !   MODULE LOAD
+    !*****************
+    !============================================
+    !   Generic
+    !============================================
     use alerts
-    use structure_types
     use line_preprocess
-    use gro_manage
-    use pdb_manage
-    use gaussian_manage
-    use gaussian_fchk_manage
+    use constants 
+    use verbosity
+    use matrix
+    use matrix_print
+    !============================================
+    !   Structure types module
+    !============================================
+    use structure_types
+    !============================================
+    !   File readers
+    !============================================
+    use generic_io
+    use generic_io_molec
     use xyz_manage
-    use molden_manage
-    use molcas_unsym_manage
-    use psi4_manage
-    use gamess_manage
-    use ff_build
+    use gaussian_manage
+    !============================================
+    !  Structure-related modules
+    !============================================
     use molecular_structure
+    use ff_build
+    use atomic_geom
+    use symmetry
 
     implicit none
 
@@ -109,7 +125,7 @@ program rmsd_fit
     if (IOstatus /= 0) call alert_msg( "fatal","Unable to open "//trim(adjustl(inpfile)) )
 
     if (adjustl(filetype_inp) == "guess") call split_line_back(inpfile,".",null,filetype_inp)
-    call generic_strfile_read(I_INP,filetype_inp,molec)
+    call generic_strmol_reader(I_INP,filetype_inp,molec)
     close(I_INP)
     !Option to specify the resname from command line
     if (adjustl(resname) /= "read") molec%atom(:)%resname=resname
@@ -119,7 +135,7 @@ program rmsd_fit
     if (IOstatus /= 0) call alert_msg( "fatal","Unable to open "//trim(adjustl(reffile)) )
 
     if (adjustl(filetype_ref) == "guess") call split_line_back(reffile,".",null,filetype_ref)
-    call generic_strfile_read(I_INP,filetype_ref,molecRef)
+    call generic_strmol_reader(I_INP,filetype_ref,molecRef)
     close(I_INP)
     !Option to specify the resname from command line
     if (adjustl(resname) /= "read") molecRef%atom(:)%resname=resname
@@ -147,9 +163,9 @@ program rmsd_fit
     !Removing center of gravity
     if (remove_mode == "COM") then
         call atname2element(molec_filt)
-        call assign_masses(molec_filt)
+        call assign_masses_molec(molec_filt)
         call atname2element(molecRef_filt)
-        call assign_masses(molecRef_filt)
+        call assign_masses_molec(molecRef_filt)
         call get_com(molec_filt)
         call get_com(molecRef_filt)
         i=molec_filt%natoms
@@ -196,7 +212,7 @@ program rmsd_fit
     call ROTATA1(molec_filt,molecRef_filt,Rot)
     print*, "Rotation matrix: "
     do i=1,3
-        print'(3F10.3)', Rot(1:3,i)
+        print'(3F11.4)', Rot(i,1:3)
     enddo
     print*, ""
     ! Place the whole molec according to COM mol
@@ -228,11 +244,12 @@ program rmsd_fit
         call guess_connect(molec)
         filetype_out="pdb-c"
     endif
-    call generic_strfile_write(O_OUT,filetype_out,molec) 
+    call generic_strmol_writer(O_OUT,filetype_out,molec) 
     close(O_OUT)
 
-    call generic_strfile_write(80,"xyz",molec_filt)
-    call generic_strfile_write(90,"xyz",molecRef_filt)
+    ! For debugging
+!     call generic_strmol_writer(80,"xyz",molec_filt)
+!     call generic_strmol_writer(90,"xyz",molecRef_filt)
 
     stop
 
@@ -350,177 +367,6 @@ program rmsd_fit
 
         return
     end subroutine parse_input
-
-
-    subroutine generic_strfile_read(unt,filetype,molec)
-
-        integer, intent(in) :: unt
-        character(len=*),intent(in) :: filetype
-        type(str_resmol),intent(inout) :: molec
-
-        !Local
-        type(str_molprops) :: props
-
-        ! Predefined filetypes
-        select case (adjustl(filetype))
-            case("gro")
-             call read_gro(unt,molec)
-            case("pdb")
-             call read_pdb_new(unt,molec)
-            case("g96")
-             call read_g96(unt,molec)
-            case("xyz")
-             call read_xyz(unt,molec)
-            case("log")
-             call parse_summary(unt,molec,props,"struct_only")
-             molec%atom(:)%resname = "UNK"
-             molec%atom(:)%resseq = 1
-            case("stdori")
-             call get_first_std_geom(unt,molec)
-             molec%atom(:)%resname = "UNK"
-             molec%atom(:)%resseq = 1
-            case("inpori")
-             call get_first_inp_geom(unt,molec)
-             molec%atom(:)%resname = "UNK"
-             molec%atom(:)%resseq = 1
-            case("fchk")
-             call read_fchk_geom(unt,molec)
-             molec%atom(:)%resname = "UNK"
-             molec%atom(:)%resseq = 1
-            case("UnSym")
-             call read_molcas_geom(unt,molec)
-            case("molden")
-             call read_molden(unt,molec)
-            case("psi4")
-             call read_psi_geom(unt,molec)
-            case("gamess")
-             call read_gamess_geom(unt,molec)
-            case default
-             call alert_msg("fatal","File type not supported: "//filetype)
-        end select
-
-        call atname2element(molec)
-
-        return
-
-    end subroutine generic_strfile_read
-
-
-    subroutine generic_strfile_write(unt,filetype,molec)
-
-        integer, intent(in) :: unt
-        character(len=*),intent(in) :: filetype
-        type(str_resmol),intent(inout) :: molec
-
-        ! Predefined filetypes
-        select case (adjustl(filetype))
-            case("gro")
-             call write_gro(unt,molec)
-            case("pdb")
-             call write_pdb(unt,molec)
-            case("pdb-c")
-             call write_pdb_connect(unt,molec)
-            case("g96")
-             call write_g96(unt,molec)
-            case("xyz")
-             call write_xyz(unt,molec)
-            case("fchk")
-             call element2AtNum(molec)
-             call write_fchk_geom(unt,molec)
-            case("fcc")
-             call write_fcc(unt,molec)
-            case default
-             call alert_msg("fatal","File type not supported: "//filetype)
-        end select
-
-        return
-
-    end subroutine generic_strfile_write 
-
-
-    subroutine stringbl2vector_char(raw_vector,array_vector,n_elem,sep)
-
-        !Description
-        ! Tranforms a string of <sep> sepparated values into an
-        ! array of such characters 
-
-        character(len=*),intent(in) :: raw_vector
-        character(len=*),dimension(:),intent(out) :: array_vector
-        integer,intent(out) :: n_elem
-        character(len=*) :: sep !separador
-
-        !Local
-        character(len=len_trim(raw_vector)) :: raw_vector_copy
-        character(len=240) :: auxchar
-        integer :: i
-    
-        
-        !Copy the original vector to avoid modifying it
-        raw_vector_copy = trim(adjustl(raw_vector))
-
-        !Read unknown length vector
-        i=0
-        do 
-            i=i+1
-            if (len_trim(raw_vector_copy) == 0) then
-                i=i-1
-                exit
-            else if ( INDEX(raw_vector_copy,sep) /= 0 ) then
-                call split_line(raw_vector_copy,sep,auxchar,raw_vector_copy)
-                read(auxchar,*) array_vector(i)
-                ! By adjustl-ing every time we avoid double counting blank spaces
-                raw_vector_copy = adjustl(raw_vector_copy)
-            else 
-                read(raw_vector_copy,*) array_vector(i)
-                exit
-            endif
-        enddo  
-        n_elem=i
-
-        return
-
-    end subroutine stringbl2vector_char
-
-
-    subroutine selection2intlist(selection,list,Nlist)
-
-        character(len=*), intent(in) :: selection
-        integer, intent(out) :: Nlist
-        integer,dimension(1:100) :: list
-        !local 
-        character(len=5),dimension(100) :: selection_split
-        integer :: i, j 
-        integer :: N, range_last, range_width
-        logical :: is_range
-
-        call stringbl2vector_char(selection,selection_split,N," ")
-
-        is_range = .false.
-        j = 0
-        do i=1,N
-            if (selection_split(i) == "to") then
-                is_range =  .true.
-                cycle
-            endif
-            ! Read number
-            if (.not.is_range) then
-                j = j+1
-                read(selection_split(i),*) list(j)
-            else
-                read(selection_split(i),*) range_last
-                range_width = range_last - list(j)
-                do jj = 1, range_width
-                    j = j + 1
-                    list(j) = list(j-1) + 1
-                enddo
-                is_range = .false.
-            endif
-        enddo
-        Nlist = j
-
-        return
-
-    end subroutine selection2intlist
 
 
 end program rmsd_fit
