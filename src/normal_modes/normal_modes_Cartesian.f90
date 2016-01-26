@@ -63,7 +63,8 @@ program normal_modes_cartesian
                animate=.true.,          &
                orthogonalize=.false.,   &
                Eckart_frame=.true.,     &
-               modes_as_internals=.false. 
+               modes_as_internals=.false., &
+               original_internal=.false.
     !======================
 
     !====================== 
@@ -200,7 +201,7 @@ program normal_modes_cartesian
                      ! Options (internal)
                      use_symmetry,def_internal,intfile,rmzfile,            & !except scan_type
                      ! Additional vib options
-                     Eckart_frame,orthogonalize,modes_as_internals,        &
+                     Eckart_frame,orthogonalize,modes_as_internals,original_internal, &
                      ! connectivity file
                      cnx_file,                                             &
                      ! (hidden)
@@ -420,9 +421,18 @@ program normal_modes_cartesian
             call calc_Bder(molecule,Ns,Bder,analytic_Bder)
             ! Select internal linear combinations
             if (modes_as_internals) then
+                print*, "Using internal defined as uncorrected modes"
                 Asel(1:Ns,1:Nvib) = LL(1:Ns,1:Nvib)
                 Aselinv(1:Nvib,1:Ns) = Aux(1:Nvib,1:Ns)
+            elseif (original_internal.and.Nvib==Ns) then
+                print*, "Using internal without linear combination"
+                Asel(1:Ns,1:Nvib) = 0.d0
+                do i=1,Nvib
+                    Asel(i,i) = 1.d0 
+                enddo
+                Aselinv(1:Nvib,1:Ns) = Asel(1:Ns,1:Nvib)
             else
+                print*, "Getting internals from eigevector of G"
                 call redundant2nonredundant(Ns,Nvib,G,Asel)
                 Aselinv(1:Nvib,1:Ns) = transpose(Asel(1:Ns,1:Nvib))
             endif
@@ -815,7 +825,7 @@ program normal_modes_cartesian
                            ! Options (internal)
                            use_symmetry,def_internal,intfile,rmzfile,            &
                            ! Additional vib options
-                           Eckart_frame,orthogonalize,modes_as_internals,        &
+                           Eckart_frame,orthogonalize,modes_as_internals,original_internal,&
                            ! connectivity file
                            cnx_file,                                             &
                            ! (hidden)
@@ -833,7 +843,7 @@ program normal_modes_cartesian
                                           ! Internal
                                           use_symmetry,analytic_Bder, &
                                           ! Other
-                                          Eckart_frame, orthogonalize, modes_as_internals
+                                          Eckart_frame, orthogonalize, modes_as_internals, original_internal
         integer,intent(inout)          :: movie_cycles
 
         ! Local
@@ -882,6 +892,11 @@ program normal_modes_cartesian
                     Eckart_frame=.true.
                 case ("-noEckart")
                     Eckart_frame=.false.
+
+                case ("-origint")
+                    original_internal=.true.
+                case ("-noorigint")
+                    original_internal=.false.
 
                 case ("-fulldiag")
                     full_diagonalize=.true.
@@ -1031,6 +1046,9 @@ program normal_modes_cartesian
         write(6,*)       '-[no]orth      Use orthogonalized internals   ',  orthogonalize
         write(6,*)       '-[no]modes2int Use uncorrected modes as the   ',  modes_as_internals
         write(6,*)       '               definiton of the internals     '
+        write(6,*)       '-[no]origint   Use originally defined inter-  ',  original_internal
+        write(6,*)       '               nal w\o linear combinations    '
+        write(6,*)       '               (valid for non-redundant sets) '
         write(6,*)       ''
         write(6,*)       ' ** Options for animation **'
         write(6,*)       '-[no]animate   Generate animation files       ',  animate
