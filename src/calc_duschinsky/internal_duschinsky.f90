@@ -546,7 +546,7 @@ program internal_duschinski
     call internal_Gmetric(Nat,Ns,state2%atom(:)%mass,B,G2)
     if (gradcorrectS2) then
 !         call NumBder(state2,Ns,Bder)
-        call calc_BDer(state1,Ns,Bder,analytic_Bder)
+        call calc_BDer(state2,Ns,Bder,analytic_Bder)
     endif
     ! Handle redundant/symtrized sets
 !     if (symaddapt) then (implement in an analogous way as compared with the transformation from red to non-red
