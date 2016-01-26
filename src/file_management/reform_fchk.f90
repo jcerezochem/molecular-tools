@@ -34,32 +34,42 @@ program reorder_fchk
     !
     !============================================================================    
 
-!*****************
-!   MODULE LOAD
-!*****************
-!============================================
-!   Generic (structure_types independent)
-!============================================
+
+    !*****************
+    !   MODULE LOAD
+    !*****************
+    !============================================
+    !   Generic
+    !============================================
     use alerts
     use line_preprocess
-    use constants
-!   Matrix manipulation (i.e. rotation matrices)
-    use MatrixMod
-!============================================
-!   Structure types module
-!============================================
+    use constants 
+    use verbosity
+    use matrix
+    use matrix_print
+    !============================================
+    !   Structure types module
+    !============================================
     use structure_types
-!============================================
-!   Structure dependent modules
-!============================================
-    use gro_manage
-    use pdb_manage
-    use gaussian_manage
-    use gaussian_fchk_manage
+    !============================================
+    !   File readers
+    !============================================
+    use generic_io
+    use generic_io_molec
     use xyz_manage
-    use molcas_unsym_manage
-!   Structural parameters
+    use gaussian_manage
+    !============================================
+    !  Structure-related modules
+    !============================================
     use molecular_structure
+    use ff_build
+    use atomic_geom
+    use symmetry
+    !============================================
+    !  Vibrational info
+    !============================================
+    use vibrational_analysis, only: Hlt_to_Hess,Hess_to_Hlt
+
 
     implicit none
 
@@ -71,19 +81,29 @@ program reorder_fchk
 
     !====================== 
     !System variables
-    type(str_resmol) :: molecule, molec_aux
-    type(str_job)    :: job
+    type(str_resmol)  :: molecule, molec_aux
+    character(len=50) :: calc_type,basis
+    character(len=60) :: method
+    integer           :: charge, mult
     integer,dimension(1:NDIM) :: iord
     integer :: Nat, Nvib
     character(len=5) :: PG
-    !====================== 
+    !======================
+
+    !=====================
+    ! Available data swithes
+    logical :: have_gradient, have_hessian
+    !===================== 
 
     !====================== 
     !MATRICES
     !Other matrices
+    real(8),dimension(:),allocatable :: Hlt
     real(8),dimension(1:NDIM,1:NDIM) :: Hess, Hess_aux
     !VECTORS
     real(8),dimension(NDIM) :: Grad, Grad_aux
+    ! Rotation matrix 
+    real(8),dimension(3,3) :: R
     !====================== 
 
     !====================== 
@@ -92,8 +112,6 @@ program reorder_fchk
     integer,dimension(:),allocatable :: IA
     character(len=1) :: dtype
     integer :: error, N
-    !Read gaussian log auxiliars
-    type(str_molprops),allocatable :: props
     !====================== 
 
     !====================== 
@@ -121,14 +139,14 @@ program reorder_fchk
     !units
     integer :: I_INP=10,  &
                I_ORD=11,  &
+               I_ROT=12,  &
                O_FCHK=20
     !files
     character(len=10) :: filetype="guess"
     character(len=200):: inpfile ="input.fchk",  &
-                         orderfile = "reorder.dat", &
-                         outfile="output.fchk"
-    !Control of stdout
-    logical :: verbose=.false.
+                         orderfile = "none", &
+                         outfile="output.fchk", &
+                         rotfile="none"
     !status
     integer :: IOstatus
     !===================
@@ -143,119 +161,175 @@ program reorder_fchk
     call cpu_time(ti)
 
     ! 0. GET COMMAND LINE ARGUMENTS
-    call parse_input(inpfile,filetype,orderfile,outfile)
+    call parse_input(inpfile,filetype,orderfile,rotfile,outfile)
  
-    ! 1. READ DATA
-    ! ---------------------------------
+    !================
+    ! READ DATA
+    !================
+    if (adjustl(filetype) == "guess") &
+    call split_line_back(inpfile,".",null,filetype)
+
+    if (adjustl(filetype) /= "log" .and. adjustl(filetype) /= "fchk") &
+        call alert_msg("fatal","Only Gaussian log and fchk files supported")
+
+    ! STRUCTURE FILE
+    print'(X,A)', "READING STRUCTURE..."
     open(I_INP,file=inpfile,status='old',iostat=IOstatus)
     if (IOstatus /= 0) call alert_msg( "fatal","Unable to open "//trim(adjustl(inpfile)) )
-
-    !Read structure
-    call generic_strfile_read(I_INP,filetype,molecule)
+    call generic_strmol_reader(I_INP,filetype,molecule)
     !Shortcuts
     Nat = molecule%natoms
     Nvib = 3*Nat-6
+    print'(X,A,/)', "Done"
 
-    !Read the and Gradient Hessian: only on supported files
-    if (adjustl(filetype) == "log") then
-        !Gaussian logfile
-        allocate(props)
-        call parse_summary(I_INP,molecule,props,"read_hess")
-        !Caution: we NEED to read the Freq summary section
-        if (adjustl(molecule%job%type) /= "Freq") &
-          call alert_msg( "fatal","Section from the logfile is not a Freq calculation")
-        ! RECONSTRUCT THE FULL HESSIAN
-        k=0
-        do i=1,3*Nat
-            do j=1,i
-                k=k+1
-                Hess_aux(i,j) = props%H(k) 
-                Hess_aux(j,i) = Hess_aux(i,j)
-            enddo
-        enddo
-!        deallocate(props)
-        !No job info read for the moment. Use "sensible" defaults
-        molecule%job%title = ""
-        molecule%job%type= "SP"
-    else if (adjustl(filetype) == "fchk") then
-        !FCHK file    
-        call read_fchk(I_INP,"Cartesian Force Constants",dtype,N,A,IA,error)
-        if (error == 0) then
-            ! RECONSTRUCT THE FULL HESSIAN
-            k=0
-            do i=1,3*Nat
-                do j=1,i
-                    k=k+1
-                    Hess_aux(i,j) = A(k) 
-                    Hess_aux(j,i) = Hess_aux(i,j)
-                enddo
-            enddo
-            deallocate(A)
-            !Read gradient from fchk
-            call read_fchk(I_INP,"Cartesian Gradient",dtype,N,A,IA,error)
-            Grad_aux(1:N) = A(1:N)
-            deallocate(A)
-        endif
-        !Read job info
-!         call get_jobtype_fchk(I_INP,molecule%job,error)
-!         molecule%job%type= "SP"
-!    else if (adjustl(filetype) == "UnSym") then
-!        call read_molcas_hess(I_INP,N,Hess_aux,error)
-    else
-        call alert_msg("fatal","Filet type "//filetype//" does not support Gradient/Hessian r/w")
+    ! JOB INFO
+    print'(X,A)', "READING JOB INFO..."
+    rewind(I_INP)
+    call read_gauss_job(I_INP,filetype,calc_type,method,basis)
+    print'(X,A)', " Job type: "//trim(adjustl(calc_type))
+    print'(X,A)', " Method  : "//trim(adjustl(method))
+    print'(X,A)', " Basis   : "//trim(adjustl(basis))
+    rewind(I_INP)
+    call read_gauss_chargemult(I_INP,filetype,charge,mult)
+    print'(X,A,I0)', " Charge  : ", charge
+    print'(X,A,I0)', " Mult.   : ", mult
+    print'(X,A,/)', "Done"
+
+    ! HESSIAN FILE
+    have_hessian=.false.
+    if (adjustl(calc_type) == "Freq") then
+        rewind(I_INP)
+        print'(X,A)', "READING HESSIAN..."
+        allocate(Hlt(1:3*Nat*(3*Nat+1)/2))
+        call generic_Hessian_reader(I_INP,filetype,Nat,Hlt,error) 
+        Hess(1:3*Nat,1:3*Nat) = Hlt_to_Hess(3*Nat,Hlt)
+        print'(X,A,/)', "Done"
+        have_hessian=.true.
     endif
 
-    !CHANGE ORDER
-    open(I_ORD,file=orderfile,status="old")
-    molec_aux = molecule
-    ! Only change the selected ones
-    read(I_ORD,*) nswap
-    ! initialize iord
-    iord(1:3*molecule%natoms) = [ (i, i=1,3*molecule%natoms) ]
-    do i=1,nswap !molecule%natoms
-        read(I_ORD,*) iat_orig, iat_new
-        molec_aux%atom(iat_new)=molecule%atom(iat_orig)
-        !Build an ordering array with the 3N elements: (x1,y1,z1,x2,y2...) -> (x1',y1',z1',x2',y2'...)
-        j_orig = 3*iat_orig
-        j_new  = 3*iat_new
-        iord(j_new-2) = j_orig-2
-        iord(j_new-1) = j_orig-1
-        iord(j_new)   = j_orig
-    enddo
-!     do i=1,molecule%natoms
-!         print*, i, 3*i-2, iord(3*i-2) 
-!         print*, i, 3*i-1, iord(3*i-1) 
-!         print*, i, 3*i-0, iord(3*i-0) 
-!     enddo
-    do i=1,3*molecule%natoms
-        Grad(i) = Grad_aux(iord(i))
-        do j=1,i
-            Hess(i,j) = Hess_aux(iord(i),iord(j))
-            Hess(j,i) = Hess(i,j)
+    ! GRADIENT FILE
+    have_gradient=.false.
+    if (adjustl(calc_type) == "Opt"   .or. &
+        adjustl(calc_type) == "FOpt"  .or. &
+        adjustl(calc_type) == "Force" .or. &
+        adjustl(calc_type) == "Freq") then
+        rewind(I_INP)
+        print'(X,A)', "READING GRADIENT..."
+        call generic_gradient_reader(I_INP,filetype,Nat,Grad,error) 
+        print'(X,A,/)', "Done"
+        have_gradient=.true.
+    endif
+    close(I_INP)
+
+
+    !================
+    !CHANGE ORDER (if needed)
+    !================
+    if (adjustl(orderfile)/="none") then
+        print'(X,A)', "REORDERING:"
+        print'(X,A)', "  STRUCTURE..."
+        open(I_ORD,file=orderfile,status="old")
+        ! Only change the selected ones
+        read(I_ORD,*) nswap
+        ! initialize iord
+        iord(1:3*molecule%natoms) = [ (i, i=1,3*molecule%natoms) ]
+        molec_aux = molecule
+        do i=1,nswap !molecule%natoms
+            read(I_ORD,*) iat_orig, iat_new
+            molec_aux%atom(iat_new)=molecule%atom(iat_orig)
+            !Build an ordering array with the 3N elements: (x1,y1,z1,x2,y2...) -> (x1',y1',z1',x2',y2'...)
+            j_orig = 3*iat_orig
+            j_new  = 3*iat_new
+            iord(j_new-2) = j_orig-2
+            iord(j_new-1) = j_orig-1
+            iord(j_new)   = j_orig
         enddo
-    enddo
+        close(I_ORD)
+        molecule = molec_aux
 
-    molecule = molec_aux
-!     Grad = Grad_aux
-!     Hess = Hess_aux
+        ! Reorder Gradient and Hessian if present
+        if (have_gradient) then
+            print'(X,A)', "  GRADIENT..."
+            Grad_aux(1:3*Nat) = Grad(1:3*Nat)
+            do i=1,3*molecule%natoms
+                Grad(i) = Grad_aux(iord(i))
+            enddo
+        endif
+        if (have_hessian) then
+            print'(X,A)', "  HESSIAN..."
+            Hess_aux(1:3*Nat,1:3*Nat) = Hess(1:3*Nat,1:3*Nat)
+            do i=1,3*molecule%natoms
+                do j=1,i
+                    Hess(i,j) = Hess_aux(iord(i),iord(j))
+                    Hess(j,i) = Hess(i,j)
+                enddo
+            enddo
+        endif
+        print'(X,A,/)', "Done"
+    endif
 
+    !================
+    !ROTATE (if needed)
+    !================
+    if (adjustl(rotfile)/="none") then
+        print'(X,A)', "ROTATING:"
+        open(I_ROT,file=rotfile,status="old")
+        ! Read rotation matrix.
+        do i=1,3
+            read(I_ROT,*) R(i,1:3)
+        enddo
+        close(I_ROT)
+        print'(X,A)', "  STRUCTURE..."
+        call rotate_molec(molecule,R)
+
+        ! Reorder Gradient and Hessian if present
+        if (have_gradient) then
+            print'(X,A)', "  GRADIENT..."
+            ! Grad' = R Grad
+            Grad(1:3*Nat) = rotate3D_vector(3*Nat,Grad,R)
+        endif
+        if (have_hessian) then
+            print'(X,A)', "  HESSIAN..."
+            ! Rotate useing rotate3D_matrix
+            ! Hess' = R Hess R^t
+            !  [R Hess]
+            Hess(1:3*Nat,1:3*Nat) = rotate3D_matrix(3*Nat,3*Nat,Hess,R)
+            ! and in the second step
+            ! (Hess')^t = R [R Hess]^t = Hess' (symmetric Hessian)
+            Hess(1:3*Nat,1:3*Nat) = rotate3D_matrix(3*Nat,3*Nat,Hess,R,tA=.true.)
+        endif
+        print'(X,A,/)', "Done"
+    endif
+
+    !================
     !REWRITE FCHK
+    !================
+    print'(X,A)', "WRITTING FCHK..."
+    print'(X,A)', "  Output file: "//trim(adjustl(outfile))
     open(O_FCHK,file=outfile)
-    !Copy lines till "Atomic Numbers"
-    read (I_INP,'(A)') line
-    line=trim(adjustl(line))//" -- REORDERED"
-    do while (index(line,"Atomic numbers")==0)
-        write(O_FCHK,'(A)') trim(adjustl(line))
+    ! Title and job info
+    write(O_FCHK,'(A)') "FCHK created with reform_fchk from "//trim(adjustl(inpfile))
+    write(O_FCHK,'(A10,A60,A10)') adjustl(calc_type), adjustl(method), adjustl(basis)
+    call write_fchk(O_FCHK,"Number of atoms","I",0,A,(/Nat/),error)
+    call write_fchk(O_FCHK,"Charge","I",0,A,(/charge/),error)
+    call write_fchk(O_FCHK,"Multiplicity","I",0,A,(/mult/),error)
+
+    !If fchk, copy first lines
+    if (adjustl(filetype) == "fchk") then
+        !Copy lines till "Atomic Numbers" if this is a fchk
+        read (I_INP,'(A)') line ! Title is changed
+        read (I_INP,'(A)') line ! Job info
         read(I_INP,'(A)',iostat=IOstatus) line
-    enddo
-    rewind(I_INP)
+        do while (index(line,"Atomic numbers")==0)
+            write(O_FCHK,'(A)') trim(adjustl(line))
+            read(I_INP,'(A)',iostat=IOstatus) line
+        enddo
+    endif
+    close(I_INP)
+
     !Atomic Numbers and Nuclear charges
-    dtype="I"
     N=molecule%natoms
-    allocate(IA(1:N),A(1:1))
-    IA(1:N) = molecule%atom(1:N)%AtNum
-    call write_fchk(O_FCHK,"Atomic numbers",dtype,N,A,IA,error)
-    deallocate(A,IA)
+    call write_fchk(O_FCHK,"Atomic numbers",'I',N,A,molecule%atom(1:N)%AtNum,error)
     dtype="R"
     N=molecule%natoms
     allocate(IA(1:1),A(1:N))
@@ -275,74 +349,46 @@ program reorder_fchk
     call write_fchk(O_FCHK,"Current cartesian coordinates",dtype,N,A,IA,error)
     deallocate(A,IA)
     !Atomic weights
-    call read_fchk(I_INP,"Integer atomic weights",dtype,N,A,IA,error)
-    if (error == 0) then
-        deallocate(IA)
-        dtype="I"
-        N=molecule%natoms
-        allocate(IA(1:N),A(1:1))
-        IA(1:N) = int(molecule%atom(1:N)%mass)
-        call write_fchk(O_FCHK,"Integer atomic weights",dtype,N,A,IA,error)
-        deallocate(A,IA)
-        dtype="R"
-        N=molecule%natoms
-        allocate(IA(1:1),A(1:N))
-        A(1:N) = molecule%atom(1:N)%mass
-        call write_fchk(O_FCHK,"Real atomic weights",dtype,N,A,IA,error)
-        deallocate(A,IA)
-    endif
+    call write_fchk(O_FCHK,"Integer atomic weights",'I',3*Nat,A,int(molecule%atom(:)%mass),error)
+    call write_fchk(O_FCHK,"Real atomic weights",'R',3*Nat,molecule%atom(:)%mass,IA,error)
     !Energy 
-    call read_fchk(I_INP,"SCF Energy",dtype,N,A,IA,error)
-    if (error == 0) then
-        N=0
-        call write_fchk(O_FCHK,"SCF Energy",dtype,N,A,IA,error)
-        deallocate(A)
-    endif
-    call read_fchk(I_INP,"CIS Energy",dtype,N,A,IA,error)
-    if (error == 0) then
-        N=0
-        call write_fchk(O_FCHK,"CIS Energy",dtype,N,A,IA,error)
-        deallocate(A)
-    endif
-    call read_fchk(I_INP,"Total Energy",dtype,N,A,IA,error)
-    if (error == 0) then
-        N=0
-        call write_fchk(O_FCHK,"Total Energy",dtype,N,A,IA,error)
-        deallocate(A)
+    if (adjustl(filetype) == "fchk") then
+        call read_fchk(I_INP,"SCF Energy",dtype,N,A,IA,error)
+        if (error == 0) then
+            N=0
+            call write_fchk(O_FCHK,"SCF Energy",dtype,N,A,IA,error)
+            deallocate(A)
+        endif
+        call read_fchk(I_INP,"CIS Energy",dtype,N,A,IA,error)
+        if (error == 0) then
+            N=0
+            call write_fchk(O_FCHK,"CIS Energy",dtype,N,A,IA,error)
+            deallocate(A)
+        endif
+        call read_fchk(I_INP,"Total Energy",dtype,N,A,IA,error)
+        if (error == 0) then
+            N=0
+            call write_fchk(O_FCHK,"Total Energy",dtype,N,A,IA,error)
+            deallocate(A)
+        endif
     endif
     !Gradient
-    call read_fchk(I_INP,"Cartesian Gradient",dtype,N,A,IA,error)
-    if (error == 0) then
-        deallocate(A)
-        dtype="R"
-        N=3*molecule%natoms
-        allocate(IA(1:1),A(1:N))
-        A(1:N) = Grad(1:N)
-        call write_fchk(O_FCHK,"Cartesian Gradient",dtype,N,A,IA,error)
-        deallocate(A,IA)
+    if (have_gradient) then
+        call write_fchk(O_FCHK,"Cartesian Gradient",'R',3*Nat,Grad,IA,error)
     endif
     !Hessian
-    call read_fchk(I_INP,"Cartesian Force Constants",dtype,N,A,IA,error)
-    if (error == 0) then
-        deallocate(A)
-        dtype="R"
-        N=3*molecule%natoms*(3*molecule%natoms+1)/2
-        allocate(IA(1:1),A(1:N))
-        k=0
-        do i=1,3*Nat
-            do j=1,i
-                k=k+1
-                A(k) = Hess(i,j)
-            enddo
-        enddo
-        call write_fchk(O_FCHK,"Cartesian Force Constants",dtype,N,A,IA,error)
-        deallocate(A,IA)
+    if (have_hessian) then
+        ! Transform the Hess into Hlt 
+        N=3*Nat*(3*Nat+1)/2
+        Hlt(1:N) = Hess_to_Hlt(3*Nat,Hess)
+        call write_fchk(O_FCHK,"Cartesian Force Constants",'R',N,Hlt,IA,error)
     endif
+
+    print'(X,A,/)', "Done"
 
     call cpu_time(tf)
     write(0,'(/,A,X,F12.3,/)') "CPU time (s)", tf-ti
 
-    close(I_INP)
     close(O_FCHK)
 
     stop
@@ -352,13 +398,13 @@ program reorder_fchk
     contains
     !=============================================
 
-    subroutine parse_input(inpfile,filetype,orderfile,outfile)
+    subroutine parse_input(inpfile,filetype,orderfile,rotfile,outfile)
     !==================================================
     ! My input parser (gromacs style)
     !==================================================
         implicit none
 
-        character(len=*),intent(inout) :: inpfile,filetype,orderfile,outfile
+        character(len=*),intent(inout) :: inpfile,filetype,orderfile,outfile,rotfile
         ! Local
         logical :: argument_retrieved,  &
                    need_help = .false.
@@ -382,6 +428,9 @@ program reorder_fchk
                 case ("-reor") 
                     call getarg(i+1, orderfile)
                     argument_retrieved=.true.      
+                case ("-rot") 
+                    call getarg(i+1, rotfile)
+                    argument_retrieved=.true.      
                 case("-o")
                     call getarg(i+1, outfile)
                     argument_retrieved=.true.
@@ -402,6 +451,7 @@ program reorder_fchk
         write(0,*) '-f              ', trim(adjustl(inpfile))
         write(0,*) '-ft             ', trim(adjustl(filetype))
         write(0,*) '-reor           ', trim(adjustl(orderfile))
+        write(0,*) '-rot            ', trim(adjustl(rotfile))
         write(0,*) '-o              ', trim(adjustl(outfile))
         write(0,*) '-h             ',  need_help
         write(0,*) '--------------------------------------------------'
@@ -409,79 +459,6 @@ program reorder_fchk
 
         return
     end subroutine parse_input
-
-
-    subroutine generic_strfile_read(unt,filetype,molec)
-
-        integer, intent(in) :: unt
-        character(len=*),intent(inout) :: filetype
-        type(str_resmol),intent(inout) :: molec
-
-        !local
-        type(str_molprops) :: props
-
-        if (adjustl(filetype) == "guess") then
-        ! Guess file type
-        call split_line(inpfile,".",null,filetype)
-        select case (adjustl(filetype))
-            case("gro")
-             call read_gro(I_INP,molec)
-             call atname2element(molec)
-             call assign_masses(molec)
-            case("pdb")
-             call read_pdb_new(I_INP,molec)
-             call atname2element(molec)
-             call assign_masses(molec)
-            case("log")
-             call parse_summary(I_INP,molec,props,"struct_only")
-             call atname2element(molec)
-             call assign_masses(molec)
-            case("fchk")
-             call read_fchk_geom(I_INP,molec)
-             call atname2element(molec)
-!              call assign_masses(molec) !read_fchk_geom includes the fchk masses
-            case("UnSym")
-             call read_molcas_geom(I_INP,molec)
-             call atname2element(molec)
-             call assign_masses(molec)
-            case default
-             call alert_msg("fatal","Trying to guess, but file type but not known: "//adjustl(trim(filetype))&
-                        //". Try forcing the filetype with -ft flag (available: log, fchk)")
-        end select
-
-        else
-        ! Predefined filetypes
-        select case (adjustl(filetype))
-            case("gro")
-             call read_gro(I_INP,molec)
-             call atname2element(molec)
-             call assign_masses(molec)
-            case("pdb")
-             call read_pdb_new(I_INP,molec)
-             call atname2element(molec)
-             call assign_masses(molec)
-            case("log")
-             call parse_summary(I_INP,molec,props,"struct_only")
-             call atname2element(molec)
-             call assign_masses(molec)
-            case("fchk")
-             call read_fchk_geom(I_INP,molec)
-             call atname2element(molec)
-!              call assign_masses(molec) !read_fchk_geom includes the fchk masses
-            case("UnSym")
-             call read_molcas_geom(I_INP,molec)
-             call atname2element(molec)
-             call assign_masses(molec)
-            case default
-             call alert_msg("fatal","File type not supported: "//filetype)
-        end select
-        endif
-
-
-        return
-
-
-    end subroutine generic_strfile_read
        
 
 end program reorder_fchk

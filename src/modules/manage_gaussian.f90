@@ -54,7 +54,7 @@ module gaussian_manage
 
     end subroutine rewind_summary
 
-    subroutine summary_parser(unt,isect,section,error_flag)
+    subroutine summary_parser(unt,isect,section,error_flag,error_handler)
 
         !==============================================================
         ! This code is part of MOLECULAR_TOOLS
@@ -88,6 +88,9 @@ module gaussian_manage
         !                            are required. The output includes the last
         !                            part of the section that fits the length
         !
+        ! error_handler (in)
+        !                        0 : Suppress error check  
+        !
         !==============================================================
 
 
@@ -95,6 +98,7 @@ module gaussian_manage
         integer,intent(in)           :: isect
         character(len=*),intent(out) :: section
         integer,intent(out),optional :: error_flag
+        integer,intent(in),optional  :: error_handler
 
         !Local
         ! Counters
@@ -102,7 +106,10 @@ module gaussian_manage
         ! I/O
         integer :: IOstatus
         character(len=240) :: line, msg
-        integer :: error_local
+        integer :: error_local, error_handler_local
+
+        error_handler_local=-1 ! this gives the standard behaviour
+        if (present(error_handler)) error_handler_local=error_handler
 
         !Locate summary
         error_local = 0
@@ -138,7 +145,15 @@ module gaussian_manage
                     error_local = error_local - len_trim(line)
                     write(msg,'(A,I0)') "String cannot hold section ",isection
                     if (isect == isection) then
-                        call alert_msg("fatal",trim(msg))
+                        ! If error_handler=0, we exit here (used to get only the first part)
+                        ! otherwise follow the Standard behaviour (fatal error)
+                        if (error_handler_local==0) then
+                            write(msg,'(A,I0,A)') "Only part of section ",isection, " is read"
+                            call alert_msg("note",trim(msg))
+                            return
+                        else
+                            call alert_msg("fatal",trim(msg))
+                        endif
                     else
                         call alert_msg("note",trim(msg))
                     endif
@@ -784,7 +799,7 @@ module gaussian_manage
         character(len=1),intent(in) :: data_type
         integer,intent(in) :: N
         double precision, dimension(:), intent(in) :: A
-        integer,dimension(:), allocatable, intent(in) :: I
+        integer,dimension(:), intent(in) :: I
         integer,intent(out) :: error_flag
 
         !Local stuff
@@ -1361,6 +1376,78 @@ module gaussian_manage
         return
 
     end subroutine read_gauss_job
+
+    subroutine read_gauss_chargemult(unt,ft,charge,mult)
+
+        !==============================================================
+        ! This code is part of MOLECULAR_TOOLS
+        !==============================================================
+        !Description
+        ! Get charge/mul from fchk or log summary section 4,
+        ! which contains
+        !  1       : Charge, Multiplicity   <===
+        !  2-2+3NAt: AtName,Geom
+        ! USES ROUTINES IN THIS MODULE
+        !
+        !Arguments
+        !
+        !Notes:
+        ! -About allocatable characters:
+        !  Fortran2003 supports allocatable strings (implemented in gfortran >=4.8, ifort v12 and maybe lower)
+        !  This would overcome the need of explicetily allocating the auxiliar strings
+        !  (but would impose a requirement to the compiler version)
+        !
+        !==============================================================
+
+        integer,intent(in)           :: unt
+        character(len=*),intent(in)  :: ft
+        integer,intent(out)          :: charge
+        integer,intent(out)          :: mult
+
+        !Local
+        integer :: n_elem
+        integer :: error_local
+        character(len=500) :: geom_section !At least as large as 2 lines (480)
+        character(len=10)  :: charge_data, mult_data
+        character :: null
+        ! FCHK reading
+        character                        :: dtype
+        integer,dimension(:),allocatable :: IA
+        real(8),dimension(:),allocatable :: A
+        integer                          :: N, error
+        ! Counters
+        integer :: i
+
+
+        select case (adjustl(ft))
+            case("log")
+             ! we use the error_handler=0 to suppress error check
+             call summary_parser(unt,4,geom_section,error_local,error_handler=0)
+             if (error_local /= 0) call alert_msg("fatal","Reading job info from g09 log")
+             
+             !We want the first element
+             call split_line(geom_section,'\',geom_section,null)
+             call split_line(geom_section,',',charge_data,mult_data)
+             read(charge_data,*) charge
+             read(mult_data,*) mult
+             
+
+            case("fchk")
+             rewind(unt)
+             call read_fchk(unt,'Charge',dtype,N,A,IA,error)
+             charge = IA(1)
+             deallocate(IA)
+             call read_fchk(unt,'Multiplicity',dtype,N,A,IA,error)
+             mult = IA(1)
+             deallocate(IA)
+
+            case default 
+             call alert_msg("fatal","API error: Unkonwn filetype in this context (read_gauss_job):"//ft)
+        end select
+
+        return
+
+    end subroutine read_gauss_chargemult
 
 
     subroutine read_glog_nm(unt,Nvib,Nat,Freq,L,err_label)

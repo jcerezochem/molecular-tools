@@ -18,7 +18,7 @@ module alerts
                      alert_unt=0
     integer, save :: nmax_notes=20
     ! Silent will mute the NOTES
-    logical, save :: silent_notes = .true.
+    logical, save :: silent_notes = .false.
 
     contains
 
@@ -29,7 +29,7 @@ module alerts
         character(len=*),intent(in):: attype, SENTENCE
 
         if (.not.silent_notes .and. n_notes == nmax_notes) then
-            write(alert_unt,'(/,A,/)') "NOTE: Too many notes. Desactivating notes on output"
+            write(alert_unt,'(/,A,/)') "NOTE: Too many notes. Deactivating notes on output"
             n_notes=n_notes+1
             silent_notes=.true.
         endif

@@ -26,6 +26,7 @@ vertical2adiabatic_new_SOURCES = ../modules/version.f90\
                              ../modules/manage_psi4.f90                   \
                              ../modules/manage_xyz.f90                    \
                              ../modules/manage_xyz_molec.f90              \
+                             ../modules/manage_gro_molec.f90              \
                              ../modules/zmat_manage.f90                   \
                              ../modules/generic_io.f90\
                              ../modules/generic_io_molec.f90\
@@ -56,6 +57,7 @@ cartesian_duschinsky_SOURCES = ../modules/version.f90\
                              ../modules/manage_pdb.f90                    \
                              ../modules/manage_psi4.f90                   \
                              ../modules/manage_xyz.f90                    \
+                             ../modules/manage_gro_molec.f90              \
                              ../modules/zmat_manage.f90                   \
                              ../modules/generic_io.f90\
                              ../modules/generic_io_molec.f90\
@@ -86,6 +88,7 @@ internal_duschinsky_new_SOURCES = ../modules/version.f90\
                              ../modules/manage_pdb.f90                    \
                              ../modules/manage_psi4.f90                   \
                              ../modules/manage_xyz.f90                    \
+                             ../modules/manage_gro_molec.f90              \
                              ../modules/zmat_manage.f90                   \
                              ../modules/generic_io.f90\
                              ../modules/generic_io_molec.f90\
@@ -115,6 +118,7 @@ generate_internals_SOURCES = ../modules/alerts.f90\
                              ../modules/manage_pdb.f90                    \
                              ../modules/manage_psi4.f90                   \
                              ../modules/manage_xyz.f90                    \
+                             ../modules/manage_gro_molec.f90              \
                              ../modules/zmat_manage.f90                   \
                              ../modules/generic_io.f90\
                              ../modules/generic_io_molec.f90\
@@ -143,6 +147,7 @@ generate_connetivity_SOURCES = ../modules/alerts.f90\
                              ../modules/manage_pdb.f90                    \
                              ../modules/manage_psi4.f90                   \
                              ../modules/manage_xyz.f90                    \
+                             ../modules/manage_gro_molec.f90              \
                              ../modules/zmat_manage.f90                   \
                              ../modules/generic_io.f90\
                              ../modules/generic_io_molec.f90\

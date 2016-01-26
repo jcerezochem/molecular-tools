@@ -116,6 +116,36 @@ module molecular_structure
 
     end subroutine assign_masses_molec
 
+    subroutine assign_atnum_molec(molec)
+
+        !==============================================================
+        ! This code is part of MOLECULAR_TOOLS (version 0.4/February 2014)
+        !==============================================================
+        !Description
+        ! Assign masses based on atom names
+        !Arguments
+        ! molec (str_system,inout): molecule
+        !
+        !Notes
+        !Based on assign_masses_molec
+        !==============================================================
+
+        use constants
+
+        type(str_resmol),intent(inout) :: molec
+
+        integer :: i
+        character(len=2) :: atname
+
+        do i=1,molec%natoms
+            atname = adjustl(molec%atom(i)%element)
+            molec%atom(i)%Atnum = atnum_from_atname(atname)
+        enddo
+
+        return
+
+    end subroutine assign_atnum_molec
+
    !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
     subroutine write_connect(unt,molec)
@@ -1065,6 +1095,9 @@ module molecular_structure
 
 
       subroutine rotate_molec(molec,Rot)
+
+        ! X' = R * X
+        ! (from FClasses code)
 
         type(str_resmol),intent(inout)         :: molec
         real(8),dimension(1:3,1:3),intent(in)  :: rot

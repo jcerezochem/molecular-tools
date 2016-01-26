@@ -42,7 +42,7 @@ libmoleculartools_a_SOURCES =         \
     manage_pdb.f90                    \
     manage_xyz.f90                    \
     manage_xyz_molec.f90              \
-    manage_gro.f90                    \
+    manage_gro_molec.f90              \
     zmat_manage.f90                   \
 \
     generic_io.f90                    \

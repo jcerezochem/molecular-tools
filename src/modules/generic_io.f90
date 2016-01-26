@@ -309,6 +309,11 @@ module generic_io
         select case (adjustl(filetype))
             case("log")
              call summary_parser(unt,7,section,error_local)
+             if (error_local /= 0) then
+                 call alert_msg("warning","Gradient could not be read")
+                 if (present(error_flag)) error_flag=error_local
+                 return
+             endif
              read(section,*) Grad(1:3*Nat)
             case("fchk")
              call read_fchk(unt,'Cartesian Gradient',data_type,N,A,IA,error_local)
