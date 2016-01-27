@@ -345,24 +345,31 @@ program rmsd_fit
         !----------------------------
 
        !Print options (to stderr)
-        write(0,'(/,A)') '--------------------------------------------------'
-        write(0,'(/,A)') '         R M S D   F I T '    
-        write(0,'(/,A)') '         Fit with ROTATA '  
-        write(0,'(/,A)') '       Revision: rmsd_fit-150911                  '         
-        write(0,'(/,A)') '--------------------------------------------------'
-        write(0,*) '-f              ', trim(adjustl(inpfile))
-        write(0,*) '-fti            ', trim(adjustl(filetype_inp))
-        write(0,*) '-o              ', trim(adjustl(outfile))
-        write(0,*) '-fto            ', trim(adjustl(filetype_out))
-        write(0,*) '-r              ', trim(adjustl(reffile))
-        write(0,*) '-ftr            ', trim(adjustl(filetype_ref))
-        write(0,*) '-rn             ',  trim(adjustl(resname))
-        write(0,*) '-filter         ', trim(adjustl(filter))
-        write(0,*) '-connect       ',  make_connect
-        write(0,*) '-use-elems     ',  use_elements
-        write(0,*) '-rmode          ', remove_mode
-        write(0,*) '-h             ',  need_help
-        write(0,*) '--------------------------------------------------'
+        write(0,'(/,A)') '========================================================'
+        write(0,'(/,A)') '                 R M S D    F I T '    
+        write(0,'(/,A)') '       Fit two structures minimizing RMSD '      
+        write(0,'(A)')   '                  (uses ROTATA1)'        
+        call print_version()
+        write(0,'(/,A)') '========================================================'
+        write(0,'(/,A)') '-------------------------------------------------------------------'
+        write(0,'(A)')   ' Flag         Description                      Value'
+        write(0,'(A)')   '-------------------------------------------------------------------'
+        write(0,*)       '-f           Input file                       ', trim(adjustl(inpfile))
+        write(0,*)       '-fti         \_ FileTyep                      ', trim(adjustl(filetype_inp))
+        write(0,*)       '-o           Input file                       ', trim(adjustl(outfile))
+        write(0,*)       '-fto         \_ FileTyep                      ', trim(adjustl(filetype_out))
+        write(0,*)       '-r           Refence file                     ', trim(adjustl(reffile))
+        write(0,*)       '-ftr         \_ FileTyep                      ', trim(adjustl(filetype_ref))
+        write(0,*)       '-filter      Use only a selection of atoms    ', trim(adjustl(filter))
+        write(0,*)       '             to do the rmsd fit'
+        write(0,*)       '-rmode       Refence to make the rotations:   ', remove_mode
+        write(0,*)       '             [COM|COG]'
+        write(0,*)       '-rn          Residue name (for output)        ',  trim(adjustl(resname))
+        write(0,*)       '-connect     Add connectivity to output file ',  make_connect
+        write(0,*)       '             (only for pdb files)'
+        write(0,*)       '-use-elems   Use elements names on output    ',  use_elements
+        write(0,*)       '-h           This help                       ',  need_help
+        write(0,*)       '-------------------------------------------------------------------'
         if (need_help) call alert_msg("fatal", 'There is no manual (for the moment)' )
 
         return

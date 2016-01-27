@@ -109,11 +109,12 @@ AC_CONFIG_FILES([Makefile
                  src/modules/Makefile
                  src/normal_modes/Makefile          
                  src/calc_duschinsky/Makefile
-                 src/file_management/Makefile   
+                 src/file_management/Makefile 
+                 src/bonded_info/Makefile    
 ])        
 AC_OUTPUT    
                
-#                 src/bonded_info/Makefile  
+
 #                 src/vibrations/Makefile           
 #                 src/wf_analysis/Makefile
 #                 src/gen_oniom/Makefile

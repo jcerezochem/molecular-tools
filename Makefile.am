@@ -3,10 +3,9 @@ SUBDIRS =                        \
           src/modules            \
           src/calc_duschinsky    \
           src/normal_modes       \
-          src/file_management   
+          src/file_management    \
+          src/bonded_info       
 
-#          src/file_management    \
-#          src/bonded_info        \
 #          src/build_top          \
 #          src/vibrations         \
 #          src/gen_oniom          \

@@ -19,18 +19,36 @@ program calcRMS_bonded
     ! Added RMSD of the whole structure (atomic positions)
     !============================================================================    
 
-    use structure_types
-    use line_preprocess
-    use ff_build
-    use gro_manage
-    use pdb_manage
+    !*****************
+    !   MODULE LOAD
+    !*****************
+    !============================================
+    !   Generic
+    !============================================
     use alerts
-    use constants
-    use atomic_geom
-    use gaussian_manage
-    use gaussian_fchk_manage
-    use molecular_structure
+    use line_preprocess
+    use constants 
+    use verbosity
+    use matrix
+    use matrix_print
+    !============================================
+    !   Structure types module
+    !============================================
+    use structure_types
+    !============================================
+    !   File readers
+    !============================================
+    use generic_io
+    use generic_io_molec
     use xyz_manage
+    use gaussian_manage
+    !============================================
+    !  Structure-related modules
+    !============================================
+    use molecular_structure
+    use ff_build
+    use atomic_geom
+    use symmetry
 
     implicit none
 
@@ -80,30 +98,24 @@ program calcRMS_bonded
 
     ! 1. READ DATA
     ! ---------------------------------
+    ! 1. READ INPUT
+    ! ---------------------------------
+    ! 1a. Rotable molecule
     open(I_INP,file=inpfile,status='old',iostat=IOstatus)
     if (IOstatus /= 0) call alert_msg( "fatal","Unable to open "//trim(adjustl(inpfile)) )
 
-    if (adjustl(ft) == "guess") then
-        ! Guess file type
-        call split_line_back(inpfile,".",null,ft)
-    endif
-
-    call generic_strfile_read(I_INP,ft,molec)
-         
+    if (adjustl(ft) == "guess") call split_line_back(inpfile,".",null,ft)
+    call generic_strmol_reader(I_INP,ft,molec)
     close(I_INP)
 
-    !Read reference structure
+    ! 1b. Refence molecule
     open(I_INP,file=reffile,status='old',iostat=IOstatus)
     if (IOstatus /= 0) call alert_msg( "fatal","Unable to open "//trim(adjustl(reffile)) )
 
-    if (adjustl(ft_ref) == "guess") then
-        ! Guess file type
-        call split_line_back(reffile,".",null,ft_ref)
-    endif
-
-    call generic_strfile_read(I_INP,ft_ref,ref_molec)
-
+    if (adjustl(ft_ref) == "guess") call split_line_back(reffile,".",null,ft_ref)
+    call generic_strmol_reader(I_INP,ft_ref,ref_molec)
     close(I_INP)
+
 
     !Print info for debug
 
@@ -122,8 +134,8 @@ program calcRMS_bonded
         endif
         !Using an external counter in case nonH is used
         k=k+1
-        ref  = calc_dist(ref_molec%atom(ref_molec%geom%bond(i,1)),ref_molec%atom(ref_molec%geom%bond(i,2))) 
-        calc = calc_dist(molec%atom(ref_molec%geom%bond(i,1)),molec%atom(ref_molec%geom%bond(i,2)))
+        ref  = calc_atm_dist(ref_molec%atom(ref_molec%geom%bond(i,1)),ref_molec%atom(ref_molec%geom%bond(i,2))) 
+        calc = calc_atm_dist(molec%atom(ref_molec%geom%bond(i,1)),molec%atom(ref_molec%geom%bond(i,2)))
         dif = abs(calc - ref)
         if (debug) &
         print'(A2,A1,I2,A5,A2,A1,I2,A1,X,2(F8.3,X),F11.6)', &
@@ -148,10 +160,10 @@ program calcRMS_bonded
         endif
         !Using an external counter in case nonH is used
         k=k+1
-        ref  = calc_angle(ref_molec%atom(ref_molec%geom%angle(i,1)),&
+        ref  = calc_atm_angle(ref_molec%atom(ref_molec%geom%angle(i,1)),&
                           ref_molec%atom(ref_molec%geom%angle(i,2)),&
                           ref_molec%atom(ref_molec%geom%angle(i,3)))
-        calc = calc_angle(molec%atom(ref_molec%geom%angle(i,1)),&
+        calc = calc_atm_angle(molec%atom(ref_molec%geom%angle(i,1)),&
                           molec%atom(ref_molec%geom%angle(i,2)),&
                           molec%atom(ref_molec%geom%angle(i,3)))
         calc = calc*180.d0/PI
@@ -183,11 +195,11 @@ program calcRMS_bonded
         endif
         !Using an external counter in case nonH is used
         k=k+1
-        ref  = calc_dihed(ref_molec%atom(ref_molec%geom%dihed(i,1)),&
+        ref  = calc_atm_dihed_new(ref_molec%atom(ref_molec%geom%dihed(i,1)),&
                           ref_molec%atom(ref_molec%geom%dihed(i,2)),&
                           ref_molec%atom(ref_molec%geom%dihed(i,3)),&
                           ref_molec%atom(ref_molec%geom%dihed(i,4)))
-        calc = calc_dihed(molec%atom(ref_molec%geom%dihed(i,1)),&
+        calc = calc_atm_dihed_new(molec%atom(ref_molec%geom%dihed(i,1)),&
                           molec%atom(ref_molec%geom%dihed(i,2)),&
                           molec%atom(ref_molec%geom%dihed(i,3)),&
                           molec%atom(ref_molec%geom%dihed(i,4)))
@@ -211,14 +223,14 @@ program calcRMS_bonded
 
     dev = 0.0
     k = 0
-    if (debug) print*, "LIST OF ATOMS"
+    if (debug) print*, "LIST OF ATOMIC DISPLACEMENTS"
     do i=1,ref_molec%natoms
         if (nonH) then
             if (adjustl(ref_molec%atom(i)%name) == "H") cycle
         endif
         !Using an external counter in case nonH is used
         k=k+1
-        dif = calc_dist(molec%atom(i),ref_molec%atom(i))
+        dif = calc_atm_dist(molec%atom(i),ref_molec%atom(i))
         if (debug) &
         print'(A2,A1,I2,A1,X,F11.6)', &
               ref_molec%atom(i)%name, "(", i, ")", dif
@@ -307,62 +319,28 @@ program calcRMS_bonded
         !----------------------------
 
        !Print options (to stderr)
-        write(0,'(/,A)') '--------------------------------------------------'
-        write(0,'(/,A)') '          R M S D - C A L C U L A T O R '    
-        write(0,'(/,A)') '      Compare two structures using rmsd values '        
-        write(0,'(/,A)') '--------------------------------------------------'
-        write(0,*) '-f              ', trim(adjustl(inpfile))
-        write(0,*) '-ft             ', trim(adjustl(ft))
-        write(0,*) '-r              ', trim(adjustl(reffile))
-        write(0,*) '-ftr            ', trim(adjustl(ft_ref))
-        write(0,*) '-dbg           ',  debug
-        write(0,*) '-nonH          ',  nonH
-        write(0,*) '-include_hb    ',  include_hbonds
-        write(0,*) '-h             ',  need_help
-        write(0,*) '--------------------------------------------------'
+        write(0,'(/,A)') '========================================================'
+        write(0,'(/,A)') '            R M S D - C A L C U L A T O R '    
+        write(0,'(/,A)') '      Compare two structures using rmsd values'        
+        call print_version()
+        write(0,'(/,A)') '========================================================'
+        write(0,'(/,A)') '-------------------------------------------------------------------'
+        write(0,'(A)')   ' Flag         Description                      Value'
+        write(0,'(A)')   '-------------------------------------------------------------------'
+        write(0,*)       '-f           Input file                       ', trim(adjustl(inpfile))
+        write(0,*)       '-ft          \_ FileTyep                      ', trim(adjustl(ft))
+        write(0,*)       '-r           Refence file                     ', trim(adjustl(reffile))
+        write(0,*)       '-ftr         \_ FileTyep                      ', trim(adjustl(ft_ref))
+        write(0,*)       '-dbg         Debug mode:include all values   ',  debug
+        write(0,*)       '-nonH        Ignore Hydrgens                 ',  nonH
+        write(0,*)       '-include_hb  Include H-bonds in connectivity ',  include_hbonds
+        write(0,*)       '-h           This help                       ',  need_help
+        write(0,*)       '-------------------------------------------------------------------'
         if (need_help) call alert_msg("fatal", 'There is no manual (for the moment)' )
 
         return
     end subroutine parse_input
 
-
-    subroutine generic_strfile_read(unt,filetype,molec)
-
-        integer, intent(in) :: unt
-        character(len=*),intent(inout) :: filetype
-        type(str_resmol),intent(inout) :: molec
-
-        !local axu
-        !Read gaussian log auxiliars
-        type(str_molprops),allocatable :: props
-        character :: null
-
-        select case (adjustl(filetype))
-            case("g96")
-             call read_g96(unt,molec)
-            case("xyz")
-             call read_xyz(unt,molec)
-            case("gro")
-             call read_gro(unt,molec)
-            case("pdb")
-             call read_pdb_new(unt,molec)
-            case("log")
-             allocate(props)
-             call parse_summary(unt,molec,props,"struct_only")
-             deallocate(props)
-            case("fchk")
-             call read_fchk_geom(unt,molec)
-            case default
-             call alert_msg("fatal","File type not supported: "//filetype)
-        end select
-
-        call atname2element(molec)
-
-
-        return
-
-
-    end subroutine generic_strfile_read
 
 end program calcRMS_bonded
 

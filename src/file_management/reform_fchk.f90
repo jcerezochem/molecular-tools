@@ -442,19 +442,24 @@ program reorder_fchk
             end select
         enddo 
 
-       !Print options (to stderr)
-        write(0,'(/,A)') '--------------------------------------------------'
-        write(0,'(/,A)') '                REORDER FCHK '    
-        write(0,'(/,A)') '          Reorder atoms in a FCHK file'        
-        write(0,'(/,A)') '        Revision: reorder_fchk-v140103-1'
-       write(0,'(/,A)') '--------------------------------------------------'
-        write(0,*) '-f              ', trim(adjustl(inpfile))
-        write(0,*) '-ft             ', trim(adjustl(filetype))
-        write(0,*) '-reor           ', trim(adjustl(orderfile))
-        write(0,*) '-rot            ', trim(adjustl(rotfile))
-        write(0,*) '-o              ', trim(adjustl(outfile))
-        write(0,*) '-h             ',  need_help
-        write(0,*) '--------------------------------------------------'
+       !Print options (to stdx)
+        write(0,'(/,A)') '========================================================'
+        write(0,'(/,A)') '             R E F O R M   F C H K '    
+        write(0,'(/,A)') '      Generate fchk file from log or fchk'        
+        write(0,'(A)')   '        reordering or rotating the data' 
+        write(0,'(A)')   '        (geometry, gradient and Hessian)' 
+        call print_version()
+        write(0,'(/,A)') '========================================================'
+        write(0,'(/,A)') '-------------------------------------------------------------------'
+        write(0,'(A)')   ' Flag         Description                      Value'
+        write(0,'(A)')   '-------------------------------------------------------------------'
+        write(0,*)       '-f           Input file                       ', trim(adjustl(inpfile))
+        write(0,*)       '-ft          \_ FileTyep                      ', trim(adjustl(filetype))
+        write(0,*)       '-reor        File with reordering instruction ', trim(adjustl(orderfile))
+        write(0,*)       '-rot         File with 3x3 rotation matrix    ', trim(adjustl(orderfile))
+        write(0,*)       '-f           Output file (fchk)               ', trim(adjustl(outfile))
+        write(0,*)       '-h           This help                       ',  need_help
+        write(0,*)       '-------------------------------------------------------------------'
         if (need_help) call alert_msg("fatal", 'There is no manual (for the moment)' )
 
         return
