@@ -209,15 +209,24 @@ program reorder_fchk
 
     ! GRADIENT FILE
     have_gradient=.false.
-    if (adjustl(calc_type) == "Opt"   .or. &
-        adjustl(calc_type) == "FOpt"  .or. &
-        adjustl(calc_type) == "Force" .or. &
-        adjustl(calc_type) == "Freq") then
+    if (adjustl(calc_type) == "Freq") then
+        ! Freq calcs have gradient in log and fchk
+        have_gradient=.true.
+    elseif (adjustl(calc_type) == "Opt"   .or. &
+            adjustl(calc_type) == "FOpt"  .or. &
+            adjustl(calc_type) == "Force") then
+        ! Other calcs only have gradient on fchk
+        if (adjustl(filetype) == "fchk") then
+            have_gradient=.true.
+        else
+            have_gradient=.false.
+        endif
+    endif
+    if (have_gradient) then
         rewind(I_INP)
         print'(X,A)', "READING GRADIENT..."
         call generic_gradient_reader(I_INP,filetype,Nat,Grad,error) 
         print'(X,A,/)', "Done"
-        have_gradient=.true.
     endif
     close(I_INP)
 
@@ -456,7 +465,7 @@ program reorder_fchk
         write(0,*)       '-f           Input file                       ', trim(adjustl(inpfile))
         write(0,*)       '-ft          \_ FileTyep                      ', trim(adjustl(filetype))
         write(0,*)       '-reor        File with reordering instruction ', trim(adjustl(orderfile))
-        write(0,*)       '-rot         File with 3x3 rotation matrix    ', trim(adjustl(orderfile))
+        write(0,*)       '-rot         File with 3x3 rotation matrix    ', trim(adjustl(rotfile))
         write(0,*)       '-f           Output file (fchk)               ', trim(adjustl(outfile))
         write(0,*)       '-h           This help                       ',  need_help
         write(0,*)       '-------------------------------------------------------------------'
