@@ -151,10 +151,11 @@ module gaussian_manage
                         ! If error_handler=0, we exit here (used to get only the first part)
                         ! otherwise follow the Standard behaviour (fatal error)
                         if (error_handler_local==1) then
-                            ! Set the error flag to 0, so as to pass the error check
-                            error_local = 0
                             write(msg,'(A,I0,A)') "Only part of section ",isection, " is read"
                             call alert_msg("note",trim(msg))
+                            ! Set the error flag to 0 is present, so as to pass the error check
+                            error_local=0
+                            if (present(error_flag)) error_flag=error_local
                             return
                         else
                             call alert_msg("fatal",trim(msg))
@@ -1426,7 +1427,8 @@ module gaussian_manage
 
         select case (adjustl(ft))
             case("log")
-             ! we use the error_handler=0 to suppress error check
+             ! we use the error_handler=1 to suppress error check when the
+             ! section string is very small (can only get the fisrt part of the section)
              call summary_parser(unt,4,geom_section,error_local,error_handler=1)
              if (error_local /= 0) call alert_msg("fatal","Reading job info from g09 log")
              
