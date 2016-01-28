@@ -89,7 +89,10 @@ module gaussian_manage
         !                            part of the section that fits the length
         !
         ! error_handler (in)
-        !                        0 : Suppress error check  
+        !                        0 : Standard behaviour
+        !                        1 : Exit with err_label=0 when the string secction
+        !                            length is reached (standard is exit with a fatal)
+        !                            intended when only the initial part of the section is needed
         !
         !==============================================================
 
@@ -108,7 +111,7 @@ module gaussian_manage
         character(len=240) :: line, msg
         integer :: error_local, error_handler_local
 
-        error_handler_local=-1 ! this gives the standard behaviour
+        error_handler_local=0 ! this means the standard behaviour
         if (present(error_handler)) error_handler_local=error_handler
 
         !Locate summary
@@ -147,7 +150,9 @@ module gaussian_manage
                     if (isect == isection) then
                         ! If error_handler=0, we exit here (used to get only the first part)
                         ! otherwise follow the Standard behaviour (fatal error)
-                        if (error_handler_local==0) then
+                        if (error_handler_local==1) then
+                            ! Set the error flag to 0, so as to pass the error check
+                            error_local = 0
                             write(msg,'(A,I0,A)') "Only part of section ",isection, " is read"
                             call alert_msg("note",trim(msg))
                             return
@@ -1422,7 +1427,7 @@ module gaussian_manage
         select case (adjustl(ft))
             case("log")
              ! we use the error_handler=0 to suppress error check
-             call summary_parser(unt,4,geom_section,error_local,error_handler=0)
+             call summary_parser(unt,4,geom_section,error_local,error_handler=1)
              if (error_local /= 0) call alert_msg("fatal","Reading job info from g09 log")
              
              !We want the first element
