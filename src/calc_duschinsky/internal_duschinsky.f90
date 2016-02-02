@@ -466,6 +466,24 @@ program internal_duschinski
     call generic_strmol_reader(I_INP,ft2,state2,error)
     if (error /= 0) call alert_msg("fatal","Error reading geometry (State2)")
     close(I_INP)
+    ! Check that the structure is that of the State1 if vertical is used
+    if (vertical) then
+        call set_geom_units(state1,"Angs")
+        Theta2=0.d0
+        Theta3=0.d0
+        do i=1,state1%natoms
+            Theta  = calc_atm_dist(state1%atom(i),state2%atom(i))
+            Theta2 = Theta2 + (Theta)**2
+            Theta3 = max(Theta3,Theta)
+        enddo
+        Theta = sqrt(Theta2/state1%natoms)
+        if (Theta3>1.d-4) then
+            print'(X,A,X,F8.3)  ', "RMSD_struct (AA):", Theta
+            print'(X,A,X,E10.3,/)', "Max Dist", Theta3
+            call alert_msg("fatal","vertical model is requested but State1 and State2 do not have the same structure")
+        endif
+        call set_geom_units(state1,"Bohr")
+    endif
     ! Shortcuts
     if (Nat /= state2%natoms) call alert_msg("fatal","Initial and final states don't have the same number of atoms.")
 
@@ -1391,7 +1409,8 @@ program internal_duschinski
        end select
 
        if (gradcorrectS2_default) then
-           if (verticalQspace1) then
+           ! All vertical models include the correction
+           if (vertical) then
                gradcorrectS2=.true.
            else
                gradcorrectS2=.false.
