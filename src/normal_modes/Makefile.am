@@ -2,7 +2,7 @@ AUTOMAKE_OPTIONS = subdir-objects
 
 LDFLAGS = -L$(top_builddir)/libs/AnalyticalBders @LIBS@ 
 
-bin_PROGRAMS = nm_internal_new numder_fc numder_L prj_nm_internal_new nm_cartesian_new gen_Lder_numx\
+bin_PROGRAMS = nm_internal numder_fc numder_L prj_nm_internal nm_cartesian gen_Lder_numx\
                check_derivatives numder_Lint
 
 # freq2fc   vibrations_cart
@@ -10,7 +10,7 @@ bin_PROGRAMS = nm_internal_new numder_fc numder_L prj_nm_internal_new nm_cartesi
 # ============
 # nm_internal
 # ============
-nm_internal_new_SOURCES =    ../modules/version.f90             \
+nm_internal_SOURCES =    ../modules/version.f90             \
                              ../modules/alerts.f90              \
                              ../modules/line_preprocess.f90     \
                              ../modules/constants.f90           \
@@ -45,7 +45,7 @@ nm_internal_new_SOURCES =    ../modules/version.f90             \
 # ============
 # nm_cartesian
 # ============
-nm_cartesian_new_SOURCES =   ../modules/version.f90             \
+nm_cartesian_SOURCES =   ../modules/version.f90             \
                              ../modules/alerts.f90              \
                              ../modules/line_preprocess.f90     \
                              ../modules/constants.f90           \
@@ -229,7 +229,7 @@ numder_Lint_SOURCES = ../modules/alerts.f90                 \
 # ============
 # prj_nm_internal
 # ============
-prj_nm_internal_new_SOURCES =../modules/alerts.f90              \
+prj_nm_internal_SOURCES =../modules/alerts.f90              \
                              ../modules/line_preprocess.f90     \
                              ../modules/constants.f90           \
                              ../modules/verbosity.f90           \

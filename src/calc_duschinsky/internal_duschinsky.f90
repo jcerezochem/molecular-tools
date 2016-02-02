@@ -26,6 +26,7 @@ program internal_duschinski
     !============================================
     !   Generic
     !============================================
+    use io
     use alerts
     use line_preprocess
     use constants 
@@ -75,7 +76,7 @@ program internal_duschinski
                check_symmetry=.true., &
                orthogonalize=.false., &
                original_internal=.false.
-    character(len=4) :: def_internal='zmat'
+    character(len=4) :: def_internal='all'
     !======================
 
     !====================== 
@@ -1177,6 +1178,15 @@ program internal_duschinski
                    need_help = .false.
         integer:: i
         character(len=200) :: arg
+        character(len=500) :: input_command
+        character(len=10)  :: model="adia", MODEL_UPPER
+
+        ! Tune defaults
+        logical :: gradcorrectS1_default=.true., &
+                   gradcorrectS2_default=.true.
+
+        !Initialize input_command
+        call get_input(0, input_command)
 
         argument_retrieved=.false.
         do i=1,iargc()
@@ -1184,72 +1194,72 @@ program internal_duschinski
                 argument_retrieved=.false.
                 cycle
             endif
-            call getarg(i, arg) 
+            call get_input(i, arg,input_command) 
             select case (adjustl(arg))
                 case ("-f") 
-                    call getarg(i+1, inpfile)
+                    call get_input(i+1, inpfile,input_command)
                     argument_retrieved=.true.
                 case ("-ft") 
-                    call getarg(i+1, ft)
+                    call get_input(i+1, ft,input_command)
                     argument_retrieved=.true.
 
                 case ("-fhess") 
-                    call getarg(i+1, hessfile)
+                    call get_input(i+1, hessfile,input_command)
                     argument_retrieved=.true.
                 case ("-fth") 
-                    call getarg(i+1, fth)
+                    call get_input(i+1, fth,input_command)
                     argument_retrieved=.true.
 
                 case ("-fgrad") 
-                    call getarg(i+1, gradfile)
+                    call get_input(i+1, gradfile,input_command)
                     argument_retrieved=.true.
                 case ("-ftg") 
-                    call getarg(i+1, ftg)
+                    call get_input(i+1, ftg,input_command)
                     argument_retrieved=.true.
 
                 case ("-f2") 
-                    call getarg(i+1, inpfile2)
+                    call get_input(i+1, inpfile2,input_command)
                     argument_retrieved=.true.
                 case ("-ft2") 
-                    call getarg(i+1, ft2)
+                    call get_input(i+1, ft2,input_command)
                     argument_retrieved=.true.
 
                 case ("-fhess2") 
-                    call getarg(i+1, hessfile2)
+                    call get_input(i+1, hessfile2,input_command)
                     argument_retrieved=.true.
                 case ("-fth2") 
-                    call getarg(i+1, fth2)
+                    call get_input(i+1, fth2,input_command)
                     argument_retrieved=.true.
 
                 case ("-fgrad2") 
-                    call getarg(i+1, gradfile2)
+                    call get_input(i+1, gradfile2,input_command)
                     argument_retrieved=.true.
                 case ("-ftg2") 
-                    call getarg(i+1, ftg2)
+                    call get_input(i+1, ftg2,input_command)
                     argument_retrieved=.true.
 
                 case ("-cnx") 
-                    call getarg(i+1, cnx_file)
+                    call get_input(i+1, cnx_file,input_command)
                     argument_retrieved=.true.
 
                 case ("-intfile") 
-                    call getarg(i+1, intfile)
+                    call get_input(i+1, intfile,input_command)
                     argument_retrieved=.true.
 
                 case ("-rmzfile") 
-                    call getarg(i+1, rmzfile)
+                    call get_input(i+1, rmzfile,input_command)
                     argument_retrieved=.true.
                 ! Kept for backward compatibility (but replaced by -rmzfile)
                 case ("-rmz") 
-                    call getarg(i+1, rmzfile)
+                    call get_input(i+1, rmzfile,input_command)
                     argument_retrieved=.true.
 
                 case ("-intmode")
-                    call getarg(i+1, def_internal)
+                    call get_input(i+1, def_internal,input_command)
                     argument_retrieved=.true.
                 ! Kept for backward compatibility (but replaced by -intmode)
                 case ("-intset")
-                    call getarg(i+1, def_internal)
+                    call get_input(i+1, def_internal,input_command)
                     argument_retrieved=.true.
 
                 case ("-sym")
@@ -1265,28 +1275,28 @@ program internal_duschinski
                 case("-nosamerot")
                     same_red2nonred_rotation=.false.
 
+                ! Options to tune the model
+                !================================================================
+                ! This is the new (and now standard way to get the model)
+                case ("-model")
+                    call get_input(i+1, model,input_command)
+                    argument_retrieved=.true.
+                !The others are kept for backward compatibility
                 case ("-vertQ1")
                     vertical=.true.
                     verticalQspace2=.false.
                     verticalQspace1=.true.
-                    ! Apply defaults
-                    gradcorrectS2=.true.
                 case ("-vertQ2")
                     vertical=.true.
                     verticalQspace2=.true.
                     verticalQspace1=.false.
-                    ! Apply defaults
-                    gradcorrectS2=.true.
                 case ("-vert")
                     vertical=.true.
                     verticalQspace2=.false.
-                    ! Apply defaults
-                    gradcorrectS2=.true.
                 case ("-novert")
                     vertical=.false.
                     verticalQspace2=.false.
-                    ! Apply defaults
-                    gradcorrectS2=.true.
+                !================================================================
 
                 case ("-orth")
                     orthogonalize=.true.
@@ -1303,12 +1313,16 @@ program internal_duschinski
 
                 case ("-corrS2")
                     gradcorrectS2=.true.
+                    gradcorrectS2_default=.false.
                 case ("-nocorrS2")
                     gradcorrectS2=.false.
+                    gradcorrectS2_default=.false.
                 case ("-corrS1")
                     gradcorrectS1=.true.
+                    gradcorrectS1_default=.false.
                 case ("-nocorrS1")
                     gradcorrectS1=.false.
+                    gradcorrectS1_default=.false.
 
                 !HIDDEN
 
@@ -1351,6 +1365,42 @@ program internal_duschinski
            if (adjustl(ftg2) == "guess")  ftg2=ft2
        endif
 
+       ! Set old options for the model with the new input key
+       MODEL_UPPER = adjustl(model)
+       call set_word_upper_case(MODEL_UPPER)
+       select case (adjustl(MODEL_UPPER))
+           case ("ADIA") 
+               vertical=.false.
+               verticalQspace1=.false.
+               verticalQspace2=.false.
+           case ("VERT") 
+               vertical=.true.
+               verticalQspace1=.false.
+               verticalQspace2=.false.
+           case ("VERTQ1") 
+               vertical=.true.
+               verticalQspace1=.true.
+               verticalQspace2=.false.
+           case ("VERTQ2") 
+               vertical=.true.
+               verticalQspace1=.false.
+               verticalQspace2=.true.
+           case default
+               call alert_msg("warning","Unkown model to describe PESs: "//adjustl(model))
+               need_help=.true.
+       end select
+
+       if (gradcorrectS2_default) then
+           if (verticalQspace1) then
+               gradcorrectS2=.true.
+           else
+               gradcorrectS2=.false.
+           endif
+       endif
+       if (gradcorrectS1_default) then
+           gradcorrectS1=.false.
+       endif
+
        !Print options (to stdout)
         write(6,'(/,A)') '========================================================'
         write(6,'(/,A)') '        I N T E R N A L   D U S C H I N S K Y '    
@@ -1388,13 +1438,13 @@ program internal_duschinski
         write(6,*) '             (valid for non-redundant sets)'
         write(6,*) '               '
         write(6,*) ' ** Options Vertical Model **'
-        write(6,*) '-[no]vert    Vertical model               ',  vertical
-        write(6,*) '-[no]corrS2  Apply correction(grad) on S2 ',  gradcorrectS2
-        write(6,*) '-[no]corrS1  Apply correction also on S1  ',  gradcorrectS1
-        write(6,*) '-[no]vertQ2  Vertical in normal-mode space',  verticalQspace2
-        write(6,*) '-[no]vertQ1  Vertical in normal-mode space',  verticalQspace1
+        write(6,*) '-model       Model for harmonic PESs       ', trim(adjustl(model))
+        write(6,*) '             [vert|vertQ1|vertQ2|adia]     '
         write(6,*) '               '
         write(6,*) '-h           Display this help            ',  need_help
+        write(6,'(A)') '-------------------------------------------------------------------'
+        write(6,'(A)') 'Input command:'
+        write(6,'(A)') trim(adjustl(input_command))   
         write(6,'(A)') '-------------------------------------------------------------------'
         write(6,'(X,A,I0)') &
                        'Verbose level:  ', verbose        

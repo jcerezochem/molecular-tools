@@ -7,6 +7,7 @@ program cartesian_duschinsky
     !============================================
     !   Generic
     !============================================
+    use io
     use alerts
     use line_preprocess
     use constants 
@@ -51,10 +52,10 @@ program cartesian_duschinsky
                verticalQspace1=.true.,&
                verticalQspace2=.false.,&
                do_correct_num=.false., &
-               do_correct_int=.false., &
+               gradcorrectS2=.false., &
                gradcorrectS1=.false., &
                check_symmetry=.true.
-    character(len=4) :: def_internal='zmat'
+    character(len=4) :: def_internal='all'
     !======================
 
     !====================== 
@@ -172,7 +173,7 @@ program cartesian_duschinsky
 !                               filetype,"-ft","c",&
 !                               )
     call parse_input(inpfile,ft,gradfile,ftg,hessfile,fth,inpfile2,ft2,gradfile2,ftg2,hessfile2,fth2,&
-                     cnx_file,intfile,rmzfile,def_internal,use_symmetry,derfile,do_correct_num,do_correct_int,&
+                     cnx_file,intfile,rmzfile,def_internal,use_symmetry,derfile,do_correct_num,gradcorrectS2,&
                      gradcorrectS1,vertical,verticalQspace1,verticalQspace2)
     call set_word_upper_case(def_internal)
 
@@ -234,7 +235,7 @@ program cartesian_duschinsky
         Grad(1:3*Nat) = 0.d0
     endif
 
-    if (do_correct_int) then
+    if (gradcorrectS2) then
         !***************************************************************
         ! The whole vibrational analysis is not needed, only the Bder
         print'(/,X,A)', "Preparing to compute Bder for correction terms..."
@@ -400,7 +401,7 @@ program cartesian_duschinsky
         !*****************************************************    
         ! Apply matrix derivative if the option is enabled
         !*****************************************************
-        if (do_correct_int) then
+        if (gradcorrectS2) then
             print'(X,A,/)', "Apply correction for vertical case based on internal vibrational analysis..."
             ! Compute gQ from gs
             !  gQ = L1int^t gs
@@ -772,7 +773,7 @@ program cartesian_duschinsky
             Er = Er - Theta * Q0(i) - 0.5d0 * FC(i) * Q0(i)**2
         enddo
     elseif (verticalQspace1) then
-        print*, "Vertical model / Q1space"
+        print*, "Vertical model / Q1space (with imag freq turn real)"
         ! Normal-mode space
         ! Er = -gQ * Q0 - 1/2 * Q0^t * Lambda_f * Q0
         ! At this point: 
@@ -787,7 +788,7 @@ program cartesian_duschinsky
             do k=1,Nvib
                 Theta = Theta + G1(k,i) * Grad(k)
             enddo
-            Er = Er - Theta * Q0(i) - 0.5d0 * FC(i) * Q0(i)**2
+            Er = Er - Theta * Q0(i) - 0.5d0 * abs(FC(i)) * Q0(i)**2
         enddo
     elseif (vertical) then
         print*, "Vertical model / X space"
@@ -907,7 +908,7 @@ program cartesian_duschinsky
     !=============================================
 
     subroutine parse_input(inpfile,ft,gradfile,ftg,hessfile,fth,inpfile2,ft2,gradfile2,ftg2,hessfile2,fth2,&
-                           cnx_file,intfile,rmzfile,def_internal,use_symmetry,derfile,do_correct_num,do_correct_int,&
+                           cnx_file,intfile,rmzfile,def_internal,use_symmetry,derfile,do_correct_num,gradcorrectS2,&
                            gradcorrectS1,vertical,verticalQspace1,verticalQspace2)
     !==================================================
     ! My input parser (gromacs style)
@@ -916,13 +917,22 @@ program cartesian_duschinsky
 
         character(len=*),intent(inout) :: inpfile,ft,gradfile,ftg,hessfile,fth,gradfile2,ftg2,hessfile2,fth2,&
                                           cnx_file,intfile,rmzfile,def_internal,derfile,inpfile2,ft2
-        logical,intent(inout)          :: use_symmetry,do_correct_num,do_correct_int,gradcorrectS1,vertical,&
+        logical,intent(inout)          :: use_symmetry,do_correct_num,gradcorrectS2,gradcorrectS1,vertical,&
                                           verticalQspace1,verticalQspace2
         ! Local
         logical :: argument_retrieved,  &
                    need_help = .false.
         integer:: i
         character(len=200) :: arg
+        character(len=500) :: input_command
+        character(len=10)  :: model="adia", MODEL_UPPER
+
+        ! Tune defaults
+        logical :: gradcorrectS1_default=.true., &
+                   gradcorrectS2_default=.true.
+
+        !Initialize input_command
+        call get_input(0, input_command)
 
         argument_retrieved=.false.
         do i=1,iargc()
@@ -930,90 +940,96 @@ program cartesian_duschinsky
                 argument_retrieved=.false.
                 cycle
             endif
-            call getarg(i, arg) 
+            call get_input(i, arg, input_command)
             select case (adjustl(arg))
                 case ("-f") 
-                    call getarg(i+1, inpfile)
+                    call get_input(i+1, inpfile, input_command)
                     argument_retrieved=.true.
                 case ("-ft") 
-                    call getarg(i+1, ft)
+                    call get_input(i+1, ft, input_command)
                     argument_retrieved=.true.
 
                 case ("-fhess") 
-                    call getarg(i+1, hessfile)
+                    call get_input(i+1, hessfile, input_command)
                     argument_retrieved=.true.
                 case ("-fth") 
-                    call getarg(i+1, fth)
+                    call get_input(i+1, fth, input_command)
                     argument_retrieved=.true.
 
                 case ("-fgrad") 
-                    call getarg(i+1, gradfile)
+                    call get_input(i+1, gradfile, input_command)
                     argument_retrieved=.true.
                 case ("-ftg") 
-                    call getarg(i+1, ftg)
+                    call get_input(i+1, ftg, input_command)
                     argument_retrieved=.true.
 
                 case ("-f2") 
-                    call getarg(i+1, inpfile2)
+                    call get_input(i+1, inpfile2, input_command)
                     argument_retrieved=.true.
                 case ("-ft2") 
-                    call getarg(i+1, ft2)
+                    call get_input(i+1, ft2, input_command)
                     argument_retrieved=.true.
 
                 case ("-fhess2") 
-                    call getarg(i+1, hessfile2)
+                    call get_input(i+1, hessfile2, input_command)
                     argument_retrieved=.true.
                 case ("-fth2") 
-                    call getarg(i+1, fth2)
+                    call get_input(i+1, fth2, input_command)
                     argument_retrieved=.true.
 
                 case ("-fgrad2") 
-                    call getarg(i+1, gradfile2)
+                    call get_input(i+1, gradfile2, input_command)
                     argument_retrieved=.true.
                 case ("-ftg2") 
-                    call getarg(i+1, ftg2)
+                    call get_input(i+1, ftg2, input_command)
                     argument_retrieved=.true.
 
                 case ("-intfile") 
-                    call getarg(i+1, intfile)
+                    call get_input(i+1, intfile, input_command)
                     argument_retrieved=.true.
 
                 case ("-rmzfile") 
-                    call getarg(i+1, rmzfile)
+                    call get_input(i+1, rmzfile, input_command)
                     argument_retrieved=.true.
                 ! Kept for backward compatibility (but replaced by -rmzfile)
                 case ("-rmz") 
-                    call getarg(i+1, rmzfile)
+                    call get_input(i+1, rmzfile, input_command)
                     argument_retrieved=.true.
 
                 case ("-intmode")
-                    call getarg(i+1, def_internal)
+                    call get_input(i+1, def_internal, input_command)
                     argument_retrieved=.true.
                 ! Kept for backward compatibility (but replaced by -intmode)
                 case ("-intset")
-                    call getarg(i+1, def_internal)
+                    call get_input(i+1, def_internal,input_command)
                     argument_retrieved=.true.
 
+                ! Options to tune the model
+                !================================================================
+                ! This is the new (and now standard way to get the model)
+                case ("-model")
+                    call get_input(i+1, model,input_command)
+                    argument_retrieved=.true.
+                !The others are kept for backward compatibility
                 case ("-vertQ1")
                     vertical=.true.
-                    verticalQspace1=.true.
                     verticalQspace2=.false.
-                case ("-novertQ1")
-                    verticalQspace1=.false.
+                    verticalQspace1=.true.
+                    model="vertQ1"
                 case ("-vertQ2")
                     vertical=.true.
                     verticalQspace2=.true.
                     verticalQspace1=.false.
-                case ("-novertQ2")
-                    verticalQspace2=.false.
+                    model="vertQ2"
                 case ("-vert")
                     vertical=.true.
-                    verticalQspace1=.false.
                     verticalQspace2=.false.
+                    model="vert"
                 case ("-novert")
                     vertical=.false.
-                    verticalQspace1=.false.
                     verticalQspace2=.false.
+                    model="adia"
+                !================================================================
 
                 case ("-sym")
                     use_symmetry=.true.
@@ -1021,28 +1037,24 @@ program cartesian_duschinsky
                     use_symmetry=.false.
 
                 case ("-cnx")
-                    call getarg(i+1, cnx_file)
+                    call get_input(i+1, cnx_file, input_command)
                     argument_retrieved=.true.
 
                 ! -corrS1 has no effect now
                 ! (only if vib analysis in intenal coords was done)
                 case ("-corrS1")
-                    do_correct_int=.true.
+                    gradcorrectS1=.true.
+                    gradcorrectS1_default=.false.
                 case ("-nocorrS1")
-                    do_correct_int=.false.
                     gradcorrectS1=.false.
+                    gradcorrectS1_default=.false.
         
                 case ("-corrS2")
-                    do_correct_int=.true.
+                    gradcorrectS2=.true.
+                    gradcorrectS2_default=.false.
                 case ("-nocorrS2")
-                    do_correct_int=.false.
-                    gradcorrectS1=.false.
-                !Keep for backward compatibility
-                case ("-correct-int")
-                    do_correct_int=.true.
-                case ("-nocorrect-int")
-                    do_correct_int=.false.
-                    gradcorrectS1=.false.
+                    gradcorrectS2=.false.
+                    gradcorrectS2_default=.false.
 
                 ! Deprecated options (numerical ders)
                 case ("-correct-num")
@@ -1050,7 +1062,7 @@ program cartesian_duschinsky
                 case ("-nocorrect-num")
                     do_correct_num=.false.
                 case ("-fder") 
-                    call getarg(i+1, derfile)
+                    call get_input(i+1, derfile,input_command)
                     argument_retrieved=.true.
 
                 case ("-h")
@@ -1090,6 +1102,42 @@ program cartesian_duschinsky
            if (adjustl(ftg2) == "guess")  ftg2=ft2
        endif
 
+       ! Set old options for the model with the new input key
+       MODEL_UPPER = adjustl(model)
+       call set_word_upper_case(MODEL_UPPER)
+       select case (adjustl(MODEL_UPPER))
+           case ("ADIA") 
+               vertical=.false.
+               verticalQspace1=.false.
+               verticalQspace2=.false.
+           case ("VERT") 
+               vertical=.true.
+               verticalQspace1=.false.
+               verticalQspace2=.false.
+           case ("VERTQ1") 
+               vertical=.true.
+               verticalQspace1=.true.
+               verticalQspace2=.false.
+           case ("VERTQ2") 
+               vertical=.true.
+               verticalQspace1=.false.
+               verticalQspace2=.true.
+           case default
+               call alert_msg("warning","Unkown model to describe PESs: "//adjustl(model))
+               need_help=.true.
+       end select
+
+       if (gradcorrectS2_default) then
+           if (verticalQspace1) then
+               gradcorrectS2=.true.
+           else
+               gradcorrectS2=.false.
+           endif
+       endif
+       if (gradcorrectS1_default) then
+           gradcorrectS1=.false.
+       endif
+
 
        !Print options (to stdout)    
         write(6,'(/,A)') '========================================================'
@@ -1115,10 +1163,9 @@ program cartesian_duschinsky
         write(6,*) '-ftg2        \_ FileType                   ', trim(adjustl(ftg2))
         write(6,*) ''
         write(6,*) '** Options correction method (vertical) **'
-        write(6,*) '-[no]vert    Vertical model                ', vertical
-        write(6,*) '-[no]vertQ1  Vertical in normal-mode space ', verticalQspace1
-        write(6,*) '-[no]vertQ2  Vertical in normal-mode space ', verticalQspace2
-        write(6,*) '-[no]corrS2  Correction with analytical L1 ', do_correct_int
+        write(6,*) '-model       Model for harmonic PESs       ', trim(adjustl(model))
+        write(6,*) '             [vert|vertQ1|vertQ2|adia]     '    
+        write(6,*) '-[no]corrS2  Correction with analytical L1 ', gradcorrectS2
         write(6,*) '             derivatives based on internal '
         write(6,*) '             analysis (alias -correct-int) '
         write(6,*) '-[no]corrS1  Correct S1 at vib-in(useless) ', gradcorrectS1
@@ -1137,10 +1184,13 @@ program cartesian_duschinsky
         write(6,*) ''
         write(6,*) '-h               ',  need_help
         write(6,'(A)') '-------------------------------------------------------------------'
+        write(6,'(A)') 'Input command:'
+        write(6,'(A)') trim(adjustl(input_command))   
+        write(6,'(A)') '-------------------------------------------------------------------'
         write(6,'(X,A,I0)') &
                        'Verbose level:  ', verbose        
-        write(6,'(A)') '-------------------------------------------------------------------'
-        if (do_correct_int.and.vertical.and..not.verticalQspace1) &
+        write(6,'(A)') '-------------------------------------------------------------------'     
+        if (gradcorrectS2.and.vertical.and..not.verticalQspace1) &
          call alert_msg("fatal","No correction possible within X-space (-vert). Use Q1-space instead (-vertQ1)")
         if (need_help) call alert_msg("fatal", 'There is no manual (for the moment)' )
 

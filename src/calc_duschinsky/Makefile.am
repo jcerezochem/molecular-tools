@@ -2,9 +2,10 @@ AUTOMAKE_OPTIONS = subdir-objects
 
 LDFLAGS = -L$(top_builddir)/libs/AnalyticalBders @LIBS@ 
 
-bin_PROGRAMS = vertical2adiabatic_new cartesian_duschinsky internal_duschinsky_new generate_internals generate_connetivity
+bin_PROGRAMS = vertical2adiabatic cartesian_duschinsky internal_duschinsky generate_internals generate_connetivity
 
-vertical2adiabatic_new_SOURCES = ../modules/version.f90\
+vertical2adiabatic_SOURCES = ../modules/io.f90\
+                             ../modules/version.f90\
                              ../modules/alerts.f90\
                              ../modules/line_preprocess.f90\
                              ../modules/constants.f90\
@@ -36,7 +37,8 @@ vertical2adiabatic_new_SOURCES = ../modules/version.f90\
                              ../modules/vibrational_analysis.f90\
                              vertical2adiabatic.f90
 
-cartesian_duschinsky_SOURCES = ../modules/version.f90\
+cartesian_duschinsky_SOURCES = ../modules/io.f90\
+                             ../modules/version.f90\
                              ../modules/alerts.f90\
                              ../modules/line_preprocess.f90\
                              ../modules/constants.f90\
@@ -68,7 +70,8 @@ cartesian_duschinsky_SOURCES = ../modules/version.f90\
                              ../modules/vibrational_analysis.f90\
                              cartesian_duschinsky.f90
 
-internal_duschinsky_new_SOURCES = ../modules/version.f90\
+internal_duschinsky_SOURCES = ../modules/io.f90\
+                             ../modules/version.f90\
                              ../modules/alerts.f90\
                              ../modules/line_preprocess.f90\
                              ../modules/constants.f90\
@@ -100,7 +103,8 @@ internal_duschinsky_new_SOURCES = ../modules/version.f90\
                              ../modules/vibrational_analysis.f90\
                              internal_duschinsky.f90
 
-generate_internals_SOURCES = ../modules/alerts.f90\
+generate_internals_SOURCES = ../modules/io.f90\
+                             ../modules/alerts.f90\
                              ../modules/line_preprocess.f90\
                              ../modules/constants.f90\
                              ../modules/verbosity.f90\
@@ -130,7 +134,8 @@ generate_internals_SOURCES = ../modules/alerts.f90\
                              ../modules/internal.f90\
                              generate_internals.f90 
 
-generate_connetivity_SOURCES = ../modules/alerts.f90\
+generate_connetivity_SOURCES = ../modules/io.f90\
+                             ../modules/alerts.f90\
                              ../modules/line_preprocess.f90\
                              ../modules/constants.f90\
                              ../modules/verbosity.f90\
