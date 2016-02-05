@@ -32,6 +32,19 @@ LDFLAGS="$LDFLAGS -L$srcdir/libs/AnalyticalBders"
  # ifort compiler works, but gfortran does not!
 AC_PROG_FC([])
 
+# Check compiler flags
+my_save_fcflags="$FCFLAGS"
+FCFLAGS=-cpp
+AC_MSG_CHECKING([whether $FC accepts -cpp])
+AC_COMPILE_IFELSE([AC_LANG_PROGRAM([])],
+    [AC_MSG_RESULT([yes])]
+    [AM_FCFLAGS=-cpp],
+    [AC_MSG_RESULT([no])]
+    [AC_MSG_ERROR([Compiler does not support preprocessor flags])]
+)
+FCFLAGS="$my_save_fcflags"
+AC_SUBST([AM_FCFLAGS])
+
 # Checks for libraries: LAPACK
 AC_ARG_WITH([mkl],
     AS_HELP_STRING([--with-mkl], [Use Intel MKL library for lapak subroutines]),
