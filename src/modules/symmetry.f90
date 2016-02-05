@@ -188,7 +188,7 @@ module symmetry
                  molec%PG="CI"   
 !                  return
                  if (verbose>2.and.present(Osym)) &
-                  call MAT0(6,dfloat(Osym(nsym,:,:)),3*Nat,3*Nat,"Matrix Representation (Cartesian basis)")
+                  call MAT0(6,dfloat(Osym(nsym,1:3*Nat,1:3*Nat)),3*Nat,3*Nat,"Matrix Representation (Cartesian basis)")
             else
                  nsym = nsym-1
             endif
@@ -230,7 +230,7 @@ module symmetry
                  molec%PG="C02"   
 !                  return
                  if (verbose>2.and.present(Osym)) &
-                  call MAT0(6,dfloat(Osym(nsym,:,:)),3*Nat,3*Nat,"Matrix Representation (Cartesian basis)")
+                  call MAT0(6,dfloat(Osym(nsym,1:3*Nat,1:3*Nat)),3*Nat,3*Nat,"Matrix Representation (Cartesian basis)")
             else
                  nsym = nsym-1
             endif
@@ -270,7 +270,7 @@ module symmetry
                  molec%PG="C02"   
 !                  return
                  if (verbose>2.and.present(Osym)) &
-                  call MAT0(6,dfloat(Osym(nsym,:,:)),3*Nat,3*Nat,"Matrix Representation (Cartesian basis)")
+                  call MAT0(6,dfloat(Osym(nsym,1:3*Nat,1:3*Nat)),3*Nat,3*Nat,"Matrix Representation (Cartesian basis)")
             else
                  nsym = nsym-1
             endif
@@ -310,7 +310,7 @@ module symmetry
                  molec%PG="C02"   
 !                  return
                  if (verbose>2.and.present(Osym)) &
-                  call MAT0(6,dfloat(Osym(nsym,:,:)),3*Nat,3*Nat,"Matrix Representation (Cartesian basis)")
+                  call MAT0(6,dfloat(Osym(nsym,1:3*Nat,1:3*Nat)),3*Nat,3*Nat,"Matrix Representation (Cartesian basis)")
             else
                  nsym = nsym-1
             endif

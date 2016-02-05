@@ -23,7 +23,7 @@ if test -z $FFLAGS; then
     FFLAGS='-I../modules/'
 fi
 if test -z $FCFLAGS; then
-    FCFLAGS='-cpp -DDOUBLE -DUSE_LAPACK -I../modules/'
+    FCFLAGS='-DDOUBLE -DUSE_LAPACK -I../modules/'
 fi
 
 LDFLAGS="$LDFLAGS -L$srcdir/libs/AnalyticalBders"
