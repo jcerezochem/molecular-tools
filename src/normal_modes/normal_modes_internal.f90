@@ -61,7 +61,7 @@ program normal_modes_animation
                analytic_Bder=.false.,  &
                check_symmetry=.true.,  &
                animate=.true.,         &
-               project_on_all=.true.,  &
+               project_on_all=.false.,  &
                do_zmap
     !======================
 
@@ -200,6 +200,7 @@ program normal_modes_animation
                      animate,movie_vmd, movie_cycles,                      &
                      ! Options (internal)
                      use_symmetry,def_internal,intfile,rmzfile,scan_type,  &
+                     project_on_all,                                       &
                      ! connectivity file
                      cnx_file,                                             &
                      ! (hidden)
@@ -393,7 +394,7 @@ program normal_modes_animation
         ! And reset bonded parameters
         call gen_bonded(molecule)
         print'(X,A,/)', "Projection on 'all' prepared"
-    elseif (def_internal=="ALL") then
+    elseif (project_on_all.and.def_internal=="ALL") then
         call alert_msg("note","The projection on the 'all' set is not done with -intmode all")
         project_on_all=.false.
     endif
@@ -1057,6 +1058,7 @@ program normal_modes_animation
                            animate,movie_vmd, movie_cycles,                      &
                            ! Options (internal)
                            use_symmetry,def_internal,intfile,rmzfile,scan_type,  &
+                           project_on_all,                                       &
                            ! connectivity file
                            cnx_file,                                             &
                            ! (hidden)
@@ -1071,7 +1073,7 @@ program normal_modes_animation
                                           cnx_file
         real(8),intent(inout)          :: Amplitude
         logical,intent(inout)          :: call_vmd, include_hbonds,vertical, use_symmetry,movie_vmd,animate,&
-                                          analytic_Bder
+                                          analytic_Bder,project_on_all
         integer,intent(inout)          :: movie_cycles
 
         ! Local
@@ -1167,6 +1169,11 @@ program normal_modes_animation
                     animate=.true.
                 case ("-noanimate")
                     animate=.false.
+
+                case ("-prjall")
+                    project_on_all=.true.
+                case ("-noprjall")
+                    project_on_all=.false.
 
 
                 case ("-movie")
@@ -1264,6 +1271,9 @@ program normal_modes_animation
         write(6,*)       '-[no]sym       Use symmetry to form Zmat      ',  use_symmetry
         write(6,*)       '-[no]vert      Correct with B derivatives for ',  vertical
         write(6,*)       '               non-stationary points'
+        write(6,*)       '-[no]prjall    Project modes with current     ', project_on_all
+        write(6,*)       '               internal set on those computed '
+        write(6,*)       '               with the "-intmode all" set    ' 
         write(6,*)       ''
         write(6,*)       ' ** Options for animation **'
         write(6,*)       '-[no]animate   Generate animation files       ',  animate
