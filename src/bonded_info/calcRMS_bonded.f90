@@ -294,7 +294,13 @@ program calcRMS_bonded
                 case ("-r") 
                     call getarg(i+1, reffile)
                     argument_retrieved=.true.
+                case ("-f2") 
+                    call getarg(i+1, reffile)
+                    argument_retrieved=.true.
                 case ("-ftr") 
+                    call getarg(i+1, ft_ref)
+                    argument_retrieved=.true.
+                case ("-ft2") 
                     call getarg(i+1, ft_ref)
                     argument_retrieved=.true.
 
@@ -330,7 +336,9 @@ program calcRMS_bonded
         write(0,*)       '-f           Input file                       ', trim(adjustl(inpfile))
         write(0,*)       '-ft          \_ FileTyep                      ', trim(adjustl(ft))
         write(0,*)       '-r           Refence file                     ', trim(adjustl(reffile))
+        write(0,*)       '             (-f2 is a synonym)               '
         write(0,*)       '-ftr         \_ FileTyep                      ', trim(adjustl(ft_ref))
+        write(0,*)       '             (-ft2 is a synonym)               '
         write(0,*)       '-dbg         Debug mode:include all values   ',  debug
         write(0,*)       '-nonH        Ignore Hydrgens                 ',  nonH
         write(0,*)       '-include_hb  Include H-bonds in connectivity ',  include_hbonds
