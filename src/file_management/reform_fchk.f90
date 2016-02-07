@@ -88,11 +88,15 @@ program reorder_fchk
     integer,dimension(1:NDIM) :: iord
     integer :: Nat, Nvib
     character(len=5) :: PG
+    ! Energies
+    real(8) :: E_scf, E_td, E_tot
     !======================
 
     !=====================
     ! Available data swithes
-    logical :: have_gradient, have_hessian
+    logical :: have_gradient, have_hessian,&
+               ! Energies
+               have_SCF,have_TD,have_TOT
     !===================== 
 
     !====================== 
@@ -111,7 +115,7 @@ program reorder_fchk
     real(8),dimension(:),allocatable :: A
     integer,dimension(:),allocatable :: IA
     character(len=1) :: dtype
-    integer :: error, N
+    integer :: error, N, lenght
     !====================== 
 
     !====================== 
@@ -228,6 +232,55 @@ program reorder_fchk
         call generic_gradient_reader(I_INP,filetype,Nat,Grad,error) 
         print'(X,A,/)', "Done"
     endif
+
+    ! ENERGIES
+    print'(X,A)', "READING ENERGIES..."
+    have_SCF=.false.
+    have_TD =.false.
+    have_TOT=.false.
+    if (adjustl(filetype) == "fchk") then
+        call read_fchk(I_INP,"SCF Energy",dtype,N,A,IA,error)
+        if (error == 0) then
+            E_scf = A(1)
+            have_SCF = .true.
+        endif
+        call read_fchk(I_INP,"CIS Energy",dtype,N,A,IA,error)
+        if (error == 0) then
+            E_td = A(1)
+            have_TD = .true.
+        endif
+        call read_fchk(I_INP,"Total Energy",dtype,N,A,IA,error)
+        if (error == 0) then
+            E_tot = A(1)
+            have_TOT = .true.
+        endif
+    elseif (adjustl(filetype) == "log") then
+        rewind(I_INP)
+        ! we need to first compute the section lenght where properties are 
+        call estimate_section_length(I_INP,5,lenght)
+        rewind(I_INP)
+        error=lenght ! we give the section lenght in the input error_flag
+        call read_gausslog_property(I_INP,"HF",line,error)
+        if (error == 0) then
+            read(line,*) E_scf
+            have_SCF = .true.
+            !Update Total Energy with this value
+            E_tot = E_scf
+            have_TOT = .true.
+        endif
+        rewind(I_INP)
+        call read_gauslog_tdenergy(I_INP,E_td,error)
+        if (error == 0) then
+            have_TD  = .true.
+            !Update Total Energy with this value
+            E_tot = E_td
+            have_TOT = .true.
+        endif
+    endif
+    if (have_SCF) print*, "  SCF Energy"
+    if (have_TD ) print*, "  CIS Energy"
+    if (have_TOT) print*, "  Total Energy"
+    print'(X,A,/)', "Done"
     close(I_INP)
 
 
@@ -310,6 +363,7 @@ program reorder_fchk
         print'(X,A,/)', "Done"
     endif
 
+
     !================
     !REWRITE FCHK
     !================
@@ -361,26 +415,12 @@ program reorder_fchk
     call write_fchk(O_FCHK,"Integer atomic weights",'I',3*Nat,A,int(molecule%atom(:)%mass),error)
     call write_fchk(O_FCHK,"Real atomic weights",'R',3*Nat,molecule%atom(:)%mass,IA,error)
     !Energy 
-    if (adjustl(filetype) == "fchk") then
-        call read_fchk(I_INP,"SCF Energy",dtype,N,A,IA,error)
-        if (error == 0) then
-            N=0
-            call write_fchk(O_FCHK,"SCF Energy",dtype,N,A,IA,error)
-            deallocate(A)
-        endif
-        call read_fchk(I_INP,"CIS Energy",dtype,N,A,IA,error)
-        if (error == 0) then
-            N=0
-            call write_fchk(O_FCHK,"CIS Energy",dtype,N,A,IA,error)
-            deallocate(A)
-        endif
-        call read_fchk(I_INP,"Total Energy",dtype,N,A,IA,error)
-        if (error == 0) then
-            N=0
-            call write_fchk(O_FCHK,"Total Energy",dtype,N,A,IA,error)
-            deallocate(A)
-        endif
-    endif
+    if (have_SCF) &
+        call write_fchk(O_FCHK,"SCF Energy",'R',0,(/E_scf/),IA,error)
+    if (have_TD) &
+        call write_fchk(O_FCHK,"CIS Energy",'R',0,(/E_td/),IA,error)
+    if (have_TOT) &
+        call write_fchk(O_FCHK,"Total Energy",'R',0,(/E_tot/),IA,error)
     !Gradient
     if (have_gradient) then
         call write_fchk(O_FCHK,"Cartesian Gradient",'R',3*Nat,Grad,IA,error)

@@ -182,6 +182,7 @@ module gaussian_manage
                 endif
             enddo
             if (isection == isect) then
+                if (present(error_flag)) error_flag=error_local
                 return
             endif
             if (line == "@") then
@@ -245,15 +246,16 @@ module gaussian_manage
         integer :: IOstatus
         character          :: cnull
         character(len=240) :: line
+        integer            :: error_local
 
         !Locate summary
-        error_flag = 0
+        error_local = 0
         i=0
         do
             i=i+1
             read(unt,'(X,A)',IOSTAT=IOstatus) line
             if ( IOstatus < 0 ) then
-                error_flag = i+10
+                if (present(error_flag)) error_flag = i+10
                 return
             endif
             if ( INDEX(line,"GINC") /= 0 ) exit
@@ -263,7 +265,7 @@ module gaussian_manage
         isection = 1
         do isection=1,7
             length     = 0
-            error_flag = 0
+            error_local = 0
             do
                 !Update length
                 length=length+len_trim(line)
@@ -277,20 +279,23 @@ module gaussian_manage
                 !Read in new line
                 read(unt,'(X,A)',IOSTAT=IOstatus) line
                 if ( IOstatus < 0 ) then
-                    error_flag = i+10
+                    if (present(error_flag)) error_flag = i+10
                     return
                 endif
             enddo
             if (isection == isect) then
+                ! Add a line length and return
+                length = length + 70
                 return
             endif
             if (line == "@") then
-                error_flag = 1
+                if (present(error_flag)) error_flag = 1
                 return
             endif
 
         enddo
 
+        if (present(error_flag)) error_flag =  error_local
         return
 
     end subroutine estimate_section_length
@@ -337,7 +342,7 @@ module gaussian_manage
         
         !local
         character(len=io_flag)       :: prop_section
-        character(len=len(property)+len(value))    :: current_property
+        character(len=len(property)+len(value)+1)    :: current_property
         character(len=5)             :: auxchar
         integer :: i,j
 
@@ -352,9 +357,10 @@ module gaussian_manage
         do while ( len_trim(prop_section) /= 0 )
             i=len_trim(prop_section)
             call split_line(prop_section,'\',current_property,prop_section)
+            ! If serch property is not present, go for the next one
+            if (index(current_property,trim(adjustl(property))) == 0) cycle
             !Get the value
             call split_line(current_property,'=',current_property,value)
-
             !Check if it is the requested property          
             if ( adjustl(current_property) == adjustl(property) ) then
                 !Check if 'value' was large enough
@@ -689,6 +695,88 @@ module gaussian_manage
         return
 
     end subroutine read_gauslog_stdori
+
+    subroutine read_gauslog_tdenergy(unt,E_td,error_flag)
+
+        !==============================================================
+        ! This code is part of MOLECULAR_TOOLS
+        !==============================================================
+        !Description
+        ! Get TD energy from "Total Energy, E(TD-HF/TD-KS)". It takes the
+        ! next occurrence from the current point of the file
+        ! USES ROUTINES IN THIS MODULE
+        !
+        !Arguments
+        ! unt     (inp) int /scalar    unit for the file 
+        ! E_td    (out) real/scalar    TD energy value
+        ! io_flag  (io ) flag          Error flag:
+        !                                   0 : Success
+        !                                   1 : required Z-mat, but not implemented
+        !                                   2 : Unkonwn format
+        !                       +/-(100000+i) : Error in read_gausslog_natoms call: +/-i
+        !                       +/-(200000+i) : Error in summary_parser call: +/-i
+        !
+        !Notes:
+        !
+        !==============================================================
+
+        implicit none
+
+        !Arguments
+        integer,intent(in)               :: unt
+#ifdef DOUBLE
+        real(8),intent(inout)            :: E_td
+#else
+        real,intent(inout)               :: E_td
+#endif
+        integer,intent(out),optional :: error_flag
+
+        !Reading stuff
+        character(len=240) :: line=""
+
+        !Auxiliar variables and Dummies
+        character(len=30)  :: dummy_char
+        integer            :: dummy_int, error_local
+        character(len=100) :: keyphrase
+
+        !Counters
+        integer :: i,j
+        !I/O stuff
+        !status
+        integer :: IOstatus
+        !===================
+
+        keyphrase="Total Energy, E(TD-HF/TD-KS)"
+
+        ! Look for the next KS-TD occurrence in file 
+        error_local = 1
+        do 
+            read(unt,'(X,A)',IOSTAT=IOstatus) line
+            ! Two possible scenarios while reading:
+            ! 1) End of file
+            if ( IOstatus < 0 ) then
+                call alert_msg("fatal","Unexpected end of file while looking for TD energy.")
+                return
+            endif 
+            ! 2) End of job
+            if ( INDEX(line,"GINC") /= 0 ) then
+                call alert_msg("note","No TD energies in this job.")
+                if (present(error_flag)) error_flag=error_local
+                return
+            endif 
+            ! 3) Found what looked for!      
+            if ( INDEX(line,trim(adjustl(keyphrase))) /= 0 ) exit
+        enddo
+        error_local = 0
+
+        call split_line(line,"=",dummy_char,line)
+        line=adjustl(line)
+        call split_line(line," ",line,dummy_char)
+        read(line,*) E_td
+
+        return
+
+    end subroutine read_gauslog_tdenergy
 
 
     subroutine read_fchk(unt,section,data_type,N,A,I,error_flag)
