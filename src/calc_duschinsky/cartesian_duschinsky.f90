@@ -340,7 +340,7 @@ program cartesian_duschinsky
         if (Theta3>1.d-4) then
             print'(X,A,X,F8.3)  ', "RMSD_struct (AA):", Theta
             print'(X,A,X,E10.3,/)', "Max Dist", Theta3
-            call alert_msg("fatal","vertical model is requested but State1 and State2 do not have the same structure")
+            call alert_msg("warning","vertical model is requested but State1 and State2 do not have the same structure")
         endif
         call set_geom_units(state1,"Bohr")
     endif
