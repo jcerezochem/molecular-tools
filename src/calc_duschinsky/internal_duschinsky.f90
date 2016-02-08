@@ -75,7 +75,8 @@ program internal_duschinski
                analytic_Bder=.false., &
                check_symmetry=.true., &
                orthogonalize=.false., &
-               original_internal=.false.
+               original_internal=.false., &
+               force_real=.false.
     character(len=4) :: def_internal='all'
     !======================
 
@@ -200,7 +201,7 @@ program internal_duschinski
                      symaddapt,same_red2nonred_rotation,analytic_Bder,&
                      vertical,verticalQspace2,verticalQspace1,&
                      gradcorrectS1,gradcorrectS2,&
-                     orthogonalize,original_internal)
+                     orthogonalize,original_internal,force_real)
     call set_word_upper_case(def_internal)
 
     ! 1. INTERNAL VIBRATIONAL ANALYSIS ON STATE1 AND STATE2
@@ -712,6 +713,11 @@ program internal_duschinski
     enddo
     enddo
     do j=1,Nvib
+        if (force_real.and.Freq2(j)<0) then
+            print*, Freq2(j)
+            call alert_msg("warning","An imagainary frequency turned real")
+            Freq2(j) = abs(Freq2(j))
+        endif
         write(O_STAT,'(F12.5)') Freq2(j)
     enddo
     close(O_STAT)
@@ -952,7 +958,12 @@ program internal_duschinski
             FC(i) = sign((Freq2(i)*2.d0*pi*clight*1.d2)**2/HARTtoJ*BOHRtoM**2*AUtoKG,Freq2(i))
             if (FC(i)<0) then
                 print*, i, FC(i)
-                call alert_msg("warning","A negative FC found")
+                if (force_real) then 
+                    FC(i)=abs(FC(i))
+                    call alert_msg("warning","Negative FC turned real")
+                else
+                    call alert_msg("warning","A negative FC found")
+                endif
             endif
         enddo
         ! Lambda_f^-1 * L2^t
@@ -1175,7 +1186,7 @@ program internal_duschinski
                            symaddapt,same_red2nonred_rotation,analytic_Bder,&
                            vertical,verticalQspace2,verticalQspace1,&
                            gradcorrectS1,gradcorrectS2,&
-                           orthogonalize,original_internal)
+                           orthogonalize,original_internal,force_real)
     !==================================================
     ! My input parser (gromacs style)
     !==================================================
@@ -1188,7 +1199,7 @@ program internal_duschinski
                                           verticalQspace1, &
                                           gradcorrectS1, gradcorrectS2, symaddapt, &
                                           same_red2nonred_rotation,analytic_Bder, &
-                                          orthogonalize,original_internal
+                                          orthogonalize,original_internal,force_real
 !         logical,intent(inout) :: tswitch
 
         ! Local
@@ -1316,6 +1327,11 @@ program internal_duschinski
                     verticalQspace2=.false.
                 !================================================================
 
+                case ("-force-real")
+                    force_real=.true.
+                case ("-noforce-real")
+                    force_real=.false.
+
                 case ("-orth")
                     orthogonalize=.true.
                 case ("-noorth")
@@ -1442,6 +1458,9 @@ program internal_duschinski
         write(6,*) '-fth2        \_ FileType                   ', trim(adjustl(fth2))
         write(6,*) '-fgrad2      Gradient(S2) file             ', trim(adjustl(gradfile2))
         write(6,*) '-ftg2        \_ FileType                   ', trim(adjustl(ftg2))
+        write(6,*) ''
+        write(6,*) '-[no]force-real Turn imaginary frequences ', force_real
+        write(6,*) '              to real'
         write(6,*) '               '                       
         write(6,*) ' ** Options Internal Coordinates **           '
         write(6,*) '-cnx         Connectivity [filename|guess] ', trim(adjustl(cnx_file))

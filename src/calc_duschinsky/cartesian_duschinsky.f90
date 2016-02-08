@@ -54,7 +54,8 @@ program cartesian_duschinsky
                do_correct_num=.false., &
                gradcorrectS2=.false., &
                gradcorrectS1=.false., &
-               check_symmetry=.true.
+               check_symmetry=.true., &
+               force_real=.false.
     character(len=4) :: def_internal='all'
     !======================
 
@@ -174,7 +175,7 @@ program cartesian_duschinsky
 !                               )
     call parse_input(inpfile,ft,gradfile,ftg,hessfile,fth,inpfile2,ft2,gradfile2,ftg2,hessfile2,fth2,&
                      cnx_file,intfile,rmzfile,def_internal,use_symmetry,derfile,do_correct_num,gradcorrectS2,&
-                     gradcorrectS1,vertical,verticalQspace1,verticalQspace2)
+                     gradcorrectS1,vertical,verticalQspace1,verticalQspace2,force_real)
     call set_word_upper_case(def_internal)
 
 
@@ -724,7 +725,12 @@ program cartesian_duschinsky
             FC(i) = sign((Freq2(i)*2.d0*pi*clight*1.d2)**2/HARTtoJ*BOHRtoM**2*AUtoKG,Freq2(i))
             if (FC(i)<0) then
                 print*, i, FC(i)
-                call alert_msg("warning","A negative FC found")
+                if (force_real) then 
+                    FC(i)=abs(FC(i))
+                    call alert_msg("warning","Negative FC turned real")
+                else
+                    call alert_msg("warning","A negative FC found")
+                endif
             endif
         enddo
         ! Lambda_f^-1 * L2^t
@@ -907,6 +913,11 @@ program cartesian_duschinsky
     enddo
     enddo
     do j=1,Nvib
+        if (force_real.and.Freq2(j)<0) then
+            print*, Freq2(j)
+            call alert_msg("warning","An imagainary frequency turned real")
+            Freq2(j) = abs(Freq2(j))
+        endif
         write(O_STAT,'(F12.5)') Freq2(j)
     enddo
     close(O_STAT)
@@ -927,7 +938,7 @@ program cartesian_duschinsky
 
     subroutine parse_input(inpfile,ft,gradfile,ftg,hessfile,fth,inpfile2,ft2,gradfile2,ftg2,hessfile2,fth2,&
                            cnx_file,intfile,rmzfile,def_internal,use_symmetry,derfile,do_correct_num,gradcorrectS2,&
-                           gradcorrectS1,vertical,verticalQspace1,verticalQspace2)
+                           gradcorrectS1,vertical,verticalQspace1,verticalQspace2,force_real)
     !==================================================
     ! My input parser (gromacs style)
     !==================================================
@@ -936,7 +947,7 @@ program cartesian_duschinsky
         character(len=*),intent(inout) :: inpfile,ft,gradfile,ftg,hessfile,fth,gradfile2,ftg2,hessfile2,fth2,&
                                           cnx_file,intfile,rmzfile,def_internal,derfile,inpfile2,ft2
         logical,intent(inout)          :: use_symmetry,do_correct_num,gradcorrectS2,gradcorrectS1,vertical,&
-                                          verticalQspace1,verticalQspace2
+                                          verticalQspace1,verticalQspace2, force_real
         ! Local
         logical :: argument_retrieved,  &
                    need_help = .false.
@@ -1048,6 +1059,11 @@ program cartesian_duschinsky
                     verticalQspace2=.false.
                     model="adia"
                 !================================================================
+
+                case ("-force-real")
+                    force_real=.true.
+                case ("-noforce-real")
+                    force_real=.false.
 
                 case ("-sym")
                     use_symmetry=.true.
@@ -1181,6 +1197,9 @@ program cartesian_duschinsky
         write(6,*) '-fgrad2      Gradient(S2) file             ', trim(adjustl(gradfile2))
         write(6,*) '-ftg2        \_ FileType                   ', trim(adjustl(ftg2))
         write(6,*) ''
+        write(6,*) '-[no]force-real Turn imaginary frequences ', force_real
+        write(6,*) '              to real'
+        write(6,*) '               '        
         write(6,*) '** Options correction method (vertical) **'
         write(6,*) '-model       Model for harmonic PESs       ', trim(adjustl(model))
         write(6,*) '             [vert|vertQ1|vertQ2|adia]     '    
