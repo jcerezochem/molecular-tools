@@ -236,70 +236,6 @@ program cartesian_duschinsky
         Grad(1:3*Nat) = 0.d0
     endif
 
-    if (gradcorrectS2) then
-        !***************************************************************
-        ! The whole vibrational analysis is not needed, only the Bder
-        print'(/,X,A)', "Preparing to compute Bder for correction terms..."
-    
-        ! Manage symmetry
-        if (.not.use_symmetry) then
-            state1%PG="C1"
-        else if (trim(adjustl(symm_file)) /= "none") then
-            msg = "Using custom symmetry file: "//trim(adjustl(symm_file)) 
-            call alert_msg("note",msg)
-            open(I_SYM,file=symm_file)
-            do i=1,state1%natoms
-                read(I_SYM,*) j, isym(j)
-            enddo
-            close(I_SYM)
-            !Set PG to CUStom
-            state1%PG="CUS"
-        else
-            state1%PG="XX"
-            call symm_atoms(state1,isym)
-        endif
-
-        !Generate bonded info
-        if (cnx_file == "guess") then
-            call guess_connect(state1)
-        else
-            print'(/,A,/)', "Reading connectivity from file: "//trim(adjustl(cnx_file))
-            open(I_CNX,file=cnx_file,status='old')
-            call read_connect(I_CNX,state1)
-            close(I_CNX)
-        endif
-        call gen_bonded(state1)
-    
-        ! Define internal set
-        call define_internal_set(state1,def_internal,intfile,rmzfile,use_symmetry,isym, S_sym,Ns)
-    
-        !From now on, we'll use atomic units
-        call set_geom_units(state1,"Bohr")
-    
-        ! INTERNAL COORDINATES
-    
-        !SOLVE GF METHOD TO GET NM AND FREQ
-        call internal_Wilson(state1,Ns,S1,B,ModeDef)
-        call internal_Gmetric(Nat,Ns,state1%atom(:)%mass,B,G1)
-        call calc_BDer(state1,Ns,Bder)
-    
-        ! SET REDUNDANT/SYMETRIZED/CUSTOM INTERNAL SETS
-    !     if (symaddapt) then (implement in an analogous way as compared with the transformation from red to non-red
-        if (Ns > Nvib) then ! Redundant
-            call redundant2nonredundant(Ns,Nvib,G1,Asel1)
-            ! Rotate Bmatrix
-            B(1:Nvib,1:3*Nat) = matrix_product(Nvib,3*Nat,Ns,Asel1,B,tA=.true.)
-            ! Rotate Gmatrix
-            G1(1:Nvib,1:Nvib) = matrix_basisrot(Nvib,Ns,Asel1(1:Ns,1:Nvib),G1,counter=.true.)
-            ! Rotate Bders
-            if (vertical) then
-                do j=1,3*Nat
-                    Bder(1:Nvib,j,1:3*Nat) =  matrix_product(Nvib,3*Nat,Ns,Asel1,Bder(1:Ns,j,1:3*Nat),tA=.true.)
-                enddo
-            endif
-        endif
-    endif
-
 
     !===========
     !State 2
@@ -348,6 +284,72 @@ program cartesian_duschinsky
     ! Shortcuts
     Nat = state2%natoms
     print'(X,A,/)', "Done"
+
+    if (gradcorrectS2) then
+        !***************************************************************
+        ! The whole vibrational analysis is not needed, only the Bder
+        print'(/,X,A)', "Preparing to compute Bder for correction terms..."
+    
+        ! Manage symmetry
+        if (.not.use_symmetry) then
+            state2%PG="C1"
+        else if (trim(adjustl(symm_file)) /= "none") then
+            msg = "Using custom symmetry file: "//trim(adjustl(symm_file)) 
+            call alert_msg("note",msg)
+            open(I_SYM,file=symm_file)
+            do i=1,state2%natoms
+                read(I_SYM,*) j, isym(j)
+            enddo
+            close(I_SYM)
+            !Set PG to CUStom
+            state2%PG="CUS"
+        else
+            state2%PG="XX"
+            call symm_atoms(state2,isym)
+        endif
+
+        !Generate bonded info
+        if (cnx_file == "guess") then
+            call guess_connect(state2)
+        else
+            print'(/,A,/)', "Reading connectivity from file: "//trim(adjustl(cnx_file))
+            open(I_CNX,file=cnx_file,status='old')
+            call read_connect(I_CNX,state2)
+            close(I_CNX)
+        endif
+        call gen_bonded(state2)
+    
+        ! Define internal set
+        call define_internal_set(state2,def_internal,intfile,rmzfile,use_symmetry,isym, S_sym,Ns)
+    
+        !From now on, we'll use atomic units
+        call set_geom_units(state2,"Bohr")
+    
+        ! INTERNAL COORDINATES
+    
+        !SOLVE GF METHOD TO GET NM AND FREQ
+        call internal_Wilson(state2,Ns,S1,B,ModeDef)
+        call internal_Gmetric(Nat,Ns,state2%atom(:)%mass,B,G1)
+        call calc_BDer(state2,Ns,Bder)
+    
+        ! SET REDUNDANT/SYMETRIZED/CUSTOM INTERNAL SETS
+    !     if (symaddapt) then (implement in an analogous way as compared with the transformation from red to non-red
+        if (Ns > Nvib) then ! Redundant
+            call redundant2nonredundant(Ns,Nvib,G1,Asel1)
+            ! Rotate Bmatrix
+            B(1:Nvib,1:3*Nat) = matrix_product(Nvib,3*Nat,Ns,Asel1,B,tA=.true.)
+            ! Rotate Gmatrix
+            G1(1:Nvib,1:Nvib) = matrix_basisrot(Nvib,Ns,Asel1(1:Ns,1:Nvib),G1,counter=.true.)
+            ! Rotate Bders
+            if (vertical) then
+                do j=1,3*Nat
+                    Bder(1:Nvib,j,1:3*Nat) =  matrix_product(Nvib,3*Nat,Ns,Asel1,Bder(1:Ns,j,1:3*Nat),tA=.true.)
+                enddo
+            endif
+        endif
+    endif
+
+
     ! HESSIAN FILE (State2)
     print'(/,X,A)', "READING STATE2 FILE (HESSIAN)..."
     open(I_INP,file=hessfile2,status='old',iostat=IOstatus)
@@ -549,8 +551,14 @@ program cartesian_duschinsky
             Freq2(i) = sign(dsqrt(abs(FC(i))*HARTtoJ/BOHRtoM**2/AUtoKG)/2.d0/pi/clight/1.d2,&
                              FC(i))
             if (FC(i)<0) then
-                print*, i, FC(i)
-                call alert_msg("warning","A negative FC found")
+                print*, i, FC(i), Freq2(i)
+                if (force_real) then 
+                    FC(i)    = abs(FC(i))
+                    Freq2(i) = abs(Freq2(i))
+                    call alert_msg("warning","Negative FC turned real")
+                else
+                    call alert_msg("warning","A negative FC found")
+                endif
             endif
         enddo
         if (verbose>0) &

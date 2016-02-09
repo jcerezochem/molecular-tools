@@ -957,9 +957,10 @@ program internal_duschinski
         do i=1,Nvib
             FC(i) = sign((Freq2(i)*2.d0*pi*clight*1.d2)**2/HARTtoJ*BOHRtoM**2*AUtoKG,Freq2(i))
             if (FC(i)<0) then
-                print*, i, FC(i)
+                print*, i, FC(i), Freq2(i)
                 if (force_real) then 
-                    FC(i)=abs(FC(i))
+                    FC(i)    = abs(FC(i))
+                    Freq2(i) = abs(Freq2(i))
                     call alert_msg("warning","Negative FC turned real")
                 else
                     call alert_msg("warning","A negative FC found")
