@@ -243,16 +243,19 @@ program reorder_fchk
         if (error == 0) then
             E_scf = A(1)
             have_SCF = .true.
+            deallocate(A)
         endif
         call read_fchk(I_INP,"CIS Energy",dtype,N,A,IA,error)
         if (error == 0) then
             E_td = A(1)
             have_TD = .true.
+            deallocate(A)
         endif
         call read_fchk(I_INP,"Total Energy",dtype,N,A,IA,error)
         if (error == 0) then
             E_tot = A(1)
             have_TOT = .true.
+            deallocate(A)
         endif
     elseif (adjustl(filetype) == "log") then
         rewind(I_INP)
@@ -379,28 +382,39 @@ program reorder_fchk
 
     !If fchk, copy first lines
     if (adjustl(filetype) == "fchk") then
+        open(I_INP,file=inpfile,status='old',iostat=IOstatus)
         !Copy lines till "Atomic Numbers" if this is a fchk
+        ! skipping the following lines:
         read (I_INP,'(A)') line ! Title is changed
         read (I_INP,'(A)') line ! Job info
+        read (I_INP,'(A)') line ! Number of atoms
+        !--
+        ! Info1-1 will be in a different place wrt original
+        read (I_INP,'(A)') line ! Info1-9 (1/2)
+        write(O_FCHK,'(A)') trim(adjustl(line))
+        read (I_INP,'(A)') line ! Info1-9 (2/2)
+        write(O_FCHK,'(A)') trim(adjustl(line))
+        ! skipping the following lines:
+        read (I_INP,'(A)') line ! Charge
+        read (I_INP,'(A)') line ! Multiplicity
+        !--
         read(I_INP,'(A)',iostat=IOstatus) line
         do while (index(line,"Atomic numbers")==0)
             write(O_FCHK,'(A)') trim(adjustl(line))
             read(I_INP,'(A)',iostat=IOstatus) line
         enddo
+        close(I_INP)
     endif
-    close(I_INP)
 
     !Atomic Numbers and Nuclear charges
     N=molecule%natoms
     call write_fchk(O_FCHK,"Atomic numbers",'I',N,A,molecule%atom(1:N)%AtNum,error)
-    dtype="R"
     N=molecule%natoms
     allocate(IA(1:1),A(1:N))
     A(1:N) = float(molecule%atom(1:N)%AtNum)
-    call write_fchk(O_FCHK,"Nuclear charges",dtype,N,A,IA,error)
+    call write_fchk(O_FCHK,"Nuclear charges",'R',N,A,IA,error)
     deallocate(A,IA)
     !Coordinates
-    dtype="R"
     N=3*molecule%natoms
     allocate(IA(1:1),A(1:N))
     do i=1,N/3
@@ -409,7 +423,7 @@ program reorder_fchk
         A(j-1) = molecule%atom(i)%y/BOHRtoANGS
         A(j)   = molecule%atom(i)%z/BOHRtoANGS
     enddo
-    call write_fchk(O_FCHK,"Current cartesian coordinates",dtype,N,A,IA,error)
+    call write_fchk(O_FCHK,"Current cartesian coordinates",'R',N,A,IA,error)
     deallocate(A,IA)
     !Atomic weights
     call write_fchk(O_FCHK,"Integer atomic weights",'I',3*Nat,A,int(molecule%atom(:)%mass),error)
