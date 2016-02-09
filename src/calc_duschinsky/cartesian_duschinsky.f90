@@ -899,6 +899,11 @@ program cartesian_duschinsky
     enddo
     enddo
     do j=1,Nvib
+        if (force_real.and.Freq1(j)<0) then
+            print*, Freq1(j)
+            call alert_msg("warning","An imagainary frequency turned real (state1)")
+            Freq1(j) = abs(Freq1(j))
+        endif
         write(O_STAT,'(F12.5)') Freq1(j)
     enddo
     close(O_STAT)
@@ -923,7 +928,7 @@ program cartesian_duschinsky
     do j=1,Nvib
         if (force_real.and.Freq2(j)<0) then
             print*, Freq2(j)
-            call alert_msg("warning","An imagainary frequency turned real")
+            call alert_msg("warning","An imagainary frequency turned real (state2)")
             Freq2(j) = abs(Freq2(j))
         endif
         write(O_STAT,'(F12.5)') Freq2(j)
