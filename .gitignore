@@ -64,10 +64,13 @@ src/file_management/numderX
 src/normal_modes/gen_Lder_numx
 src/normal_modes/numder_L
 src/normal_modes/numder_fc
-*_new
 src/normal_modes/numder_Lint
 src/normal_modes/check_derivatives
 src/calc_duschinsky/generate_connetivity
+src/calc_duschinsky/state2hessian
+src/calc_duschinsky/transpose_dusch
+src/calc_duschinsky/substract_disps
+src/calc_duschinsky/rotate_disp
 
 # output from test calcs
 *output.?
