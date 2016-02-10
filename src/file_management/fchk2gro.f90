@@ -9,44 +9,37 @@ program fchk2gro
     ! -----------
     ! Forms a gro structure with the one present in the fchk
     !
-    ! Compilation instructions (for mymake script):
-    !make$ echo "COMPILER: $FC"; sleep 1; $FC ../modules/alerts.f90 ../modules/structure_types_v2.f90 ../modules/line_preprocess.f90  ../modules/gro_manage_v2.f90 ../modules/pdb_manage_v2.f90 ../modules/constants_mod.f90 ../modules/gaussian_manage_v2.f90 ../modules/gaussian_fchk_manage_v2.f90 ../modules/xyz_manage.f90 ../modules/ff_build_module_v3.f90 fchk2gro_v2.1.f90 -o fchk2gro_v2.1.exe -cpp 
-    !
-    ! Change log:
-    !  July 2013: included xyz file format support
-    ! -- VERSION 2 --
-    !  July 2013: included std orientation from logs 
-    !             included -connect to create connections (for PDB only) -- needs: ff_build_module_v3.f90
-    ! -- VERSION 2.1 --
-    !  July 2013: guess connect is placed out of generic_strfile_read/write
-    !
-    !  Version 4: addapted to v4 modules
-    !  v4.1: add "swap" option (10/10/14)
-    !        included fcc (structure part of state file)
-    !  Jan15: Fixed the write_fchk call
-    !  Jan15: Added -use-elems to force use element names and not FF names
-    !  Jan15: Added -rmcog to remove the center of gravity (this is sueful 
-    !         to use with avogadro, since with large distance, do not show labels)
-    !
-    ! TODO:
-    ! ------
     !
     !============================================================================    
 
+    !*****************
+    !   MODULE LOAD
+    !*****************
+    !============================================
+    !   Generic
+    !============================================
     use alerts
-    use structure_types
     use line_preprocess
-    use gro_manage
-    use pdb_manage
-    use gaussian_manage
-    use gaussian_fchk_manage
+    use constants 
+    use verbosity
+    use matrix
+    use matrix_print
+    !============================================
+    !   Structure types module
+    !============================================
+    use structure_types
+    !============================================
+    !   File readers
+    !============================================
+    use generic_io
+    use generic_io_molec
     use xyz_manage
-    use molden_manage
-    use molcas_unsym_manage
-    use psi4_manage
-    use gamess_manage
-    use ff_build
+    use gaussian_manage
+    !============================================
+    !  Structure-related modules
+    !============================================
     use molecular_structure
+    use ff_build
 
     implicit none
 
@@ -80,6 +73,7 @@ program fchk2gro
     character(len=10) :: filetype_inp="guess",&
                          filetype_out="guess"
     character(len=200):: inpfile="input.fchk",&
+                         addfile="none",      &
                          outfile="default"   ,&
                          swapfile="none"  
     !status
@@ -89,17 +83,46 @@ program fchk2gro
 
 
     ! 0. GET COMMAND LINE ARGUMENTS
-    call parse_input(inpfile,filetype_inp,outfile,filetype_out,overwrite,make_connect,&
+    call parse_input(inpfile,filetype_inp,outfile,filetype_out,addfile,overwrite,make_connect,&
                      use_elements,remove_com,resname,swapfile,title)
 
  
     ! 1. READ INPUT
     ! ---------------------------------
+    ! Manage special files (fcc)
+    if (adjustl(filetype_inp) == "fcc".and.adjustl(addfile) == "none") then
+        call alert_msg("fatal","For fcc filetype, indicate statefile as -f and fcc-input as -add")
+    endif
+    if (adjustl(filetype_inp) == "fcc") then
+        ! inpfile has Nat, Nvib, and Masses          <= in addfile
+        ! statefile has coordinates and normal modes <= in inpfile
+        ! Generic readers parse the state (not the inpfile)
+        ! so we get that info here before calling the parser
+        open(I_INP,file=addfile,status='old',iostat=IOstatus)
+        if (IOstatus /= 0) call alert_msg( "fatal","Unable to open "//trim(adjustl(addfile)) )
+        read(I_INP,*,iostat=IOstatus) molec%natoms
+        if (IOstatus /= 0) &
+          call alert_msg("fatal","when scanning -add file. Make sure to indicate statefile as -f and fcc-input as -add")
+        read(I_INP,*,iostat=IOstatus) k ! Nvib
+        if (IOstatus /= 0) &
+          call alert_msg("fatal","when scanning -add file. Make sure to indicate statefile as -f and fcc-input as -add")
+        do i=1,molec%natoms 
+            read(I_INP,*,iostat=IOstatus) molec%atom(i)%mass
+            if (IOstatus /= 0) &
+              call alert_msg("fatal","when scanning -add file. Make sure to indicate statefile as -f and fcc-input as -add")
+            !Set atomnames from atommasses
+            call atominfo_from_atmass(molec%atom(i)%mass,  &
+                                      molec%atom(i)%AtNum, &
+                                      molec%atom(i)%name)
+        enddo
+        close(I_INP)
+    endif
+
     open(I_INP,file=inpfile,status='old',iostat=IOstatus)
     if (IOstatus /= 0) call alert_msg( "fatal","Unable to open "//trim(adjustl(inpfile)) )
 
     if (adjustl(filetype_inp) == "guess") call split_line_back(inpfile,".",null,filetype_inp)
-    call generic_strfile_read(I_INP,filetype_inp,molec)
+    call generic_strmol_reader(I_INP,filetype_inp,molec)
     close(I_INP)
     !Option to specify the resname from command line
     if (adjustl(resname) /= "read") molec%atom(:)%resname=resname
@@ -124,7 +147,7 @@ program fchk2gro
     !Removing center of gravity
     if (remove_com) then
         call atname2element(molec)
-        call assign_masses(molec)
+        call assign_masses_molec(molec)
         call get_com(molec)
         i=molec%natoms
         molec%atom(1:i)%x = molec%atom(1:i)%x - molec%comX
@@ -137,7 +160,7 @@ program fchk2gro
     if (overwrite) stat="unknown"
     open(O_OUT,file=outfile,status=stat,iostat=IOstatus)
     if (IOstatus /= 0) call alert_msg( "fatal","Cannot write in "//trim(adjustl(outfile))//&
-                                                            ". Already exists? Use -r to overwrite" )
+                                                            ". Already exists? Use -ow to overwrite" )
 
     if (adjustl(filetype_out) == "guess") call split_line_back(outfile,".",null,filetype_out)
     !If PDB check if connections are requested
@@ -146,7 +169,7 @@ program fchk2gro
         filetype_out="pdb-c"
     endif
     if (adjustl(title) /= "read") molec%title = trim(adjustl(title))
-    call generic_strfile_write(O_OUT,filetype_out,molec) 
+    call generic_strmol_writer(O_OUT,filetype_out,molec)
     close(O_OUT)
 
     stop
@@ -156,14 +179,14 @@ program fchk2gro
     contains
     !=============================================
 
-    subroutine parse_input(inpfile,filetype_inp,outfile,filetype_out,overwrite,make_connect,&
+    subroutine parse_input(inpfile,filetype_inp,outfile,filetype_out,addfile,overwrite,make_connect,&
                            use_elements,remove_com,resname,swapfile,title)
     !==================================================
     ! My input parser (gromacs style)
     !==================================================
         implicit none
 
-        character(len=*),intent(inout) :: inpfile,outfile,&
+        character(len=*),intent(inout) :: inpfile,outfile,addfile,&
                                           filetype_inp,filetype_out, &
                                           resname,swapfile,title
         logical,intent(inout) :: overwrite, make_connect, use_elements, &
@@ -187,6 +210,10 @@ program fchk2gro
                     argument_retrieved=.true.
                 case ("-fti") 
                     call getarg(i+1, filetype_inp)
+                    argument_retrieved=.true.
+
+                case ("-add") 
+                    call getarg(i+1,addfile)
                     argument_retrieved=.true.
 
                 case ("-o") 
@@ -239,117 +266,33 @@ program fchk2gro
 
         ! Some checks on the input
         !----------------------------
-
-       !Print options (to stderr)
-        write(0,'(/,A)') '--------------------------------------------------'
+        !Print options (to stderr)
+        write(0,'(/,A)') '========================================================'
         write(0,'(/,A)') '        F O R M A T    C O N V E R T E R '    
-        write(0,'(/,A)') '        Convert between geometry formats '  
-        write(0,'(/,A)') '         Revision: fchk2gro-150129               '         
-        write(0,'(/,A)') '--------------------------------------------------'
-        write(0,*) '-f              ', trim(adjustl(inpfile))
-        write(0,*) '-fti            ', trim(adjustl(filetype_inp))
-        write(0,*) '-o              ', trim(adjustl(outfile))
-        write(0,*) '-fto            ', trim(adjustl(filetype_out))
-        write(0,*) '-ow            ',  overwrite
-        write(0,*) '-r (deprecated)',  overwrite
-        write(0,*) '-swap           ',  trim(adjustl(swapfile))
-        write(0,*) '-rn             ',  trim(adjustl(resname))
-        write(0,*) '-connect       ',  make_connect
-        write(0,*) '-use-elems     ',  use_elements
-        write(0,*) '-rmcom         ',  remove_com
-        write(0,*) '-title          ', trim(adjustl(title))
-        write(0,*) '-h             ',  need_help
-        write(0,*) '--------------------------------------------------'
+        write(0,'(/,A)') '        Convert between geometry formats '      
+        call print_version()
+        write(0,'(/,A)') '========================================================'
+        write(0,'(/,A)') '-------------------------------------------------------------------'
+        write(0,'(A)')   ' Flag         Description                      Value'
+        write(0,'(A)')   '-------------------------------------------------------------------'
+        write(0,*)       '-f           Input structure file             ', trim(adjustl(inpfile))
+        write(0,*)       '-fti         \_ FileTyep                      ', trim(adjustl(filetype_inp))
+        write(0,*)       '-add         Additional file (fcc: inputfile) ', trim(adjustl(addfile))
+        write(0,*)       '-o           Output structure file            ', trim(adjustl(outfile))
+        write(0,*)       '-fto         \_ FileTyep                      ', trim(adjustl(filetype_out))
+        write(0,*)       '-ow          Overwrite output if exists       ',  overwrite
+        write(0,*)       '-swap        File with reordering instruction ',  trim(adjustl(swapfile))
+        write(0,*)       '-rn          Residue name                     ',  trim(adjustl(resname))
+        write(0,*)       '-connect     Add connectivity (pdb files)     ',  make_connect
+        write(0,*)       '-use-elems   Use elements not FF names        ',  use_elements
+        write(0,*)       '-rmcom       Remove COM (translate)           ',  remove_com
+        write(0,*)       '-title       Title/header of the file         ', trim(adjustl(title))
+        write(0,*)       '-h           This help                       ',  need_help
+        write(0,*)       '-------------------------------------------------------------------'
         if (need_help) call alert_msg("fatal", 'There is no manual (for the moment)' )
 
         return
     end subroutine parse_input
-
-
-    subroutine generic_strfile_read(unt,filetype,molec)
-
-        integer, intent(in) :: unt
-        character(len=*),intent(inout) :: filetype
-        type(str_resmol),intent(inout) :: molec
-
-        !Local
-        type(str_molprops) :: props
-
-        ! Predefined filetypes
-        select case (adjustl(filetype))
-            case("gro")
-             call read_gro(unt,molec)
-            case("pdb")
-             call read_pdb_new(unt,molec)
-            case("g96")
-             call read_g96(unt,molec)
-            case("xyz")
-             call read_xyz(unt,molec)
-            case("log")
-             call parse_summary(unt,molec,props,"struct_only")
-             molec%atom(:)%resname = "UNK"
-             molec%atom(:)%resseq = 1
-            case("stdori")
-             call get_first_std_geom(unt,molec)
-             molec%atom(:)%resname = "UNK"
-             molec%atom(:)%resseq = 1
-            case("inpori")
-             call get_first_inp_geom(unt,molec)
-             molec%atom(:)%resname = "UNK"
-             molec%atom(:)%resseq = 1
-            case("fchk")
-             call read_fchk_geom(unt,molec)
-             molec%atom(:)%resname = "UNK"
-             molec%atom(:)%resseq = 1
-            case("UnSym")
-             call read_molcas_geom(unt,molec)
-            case("molden")
-             call read_molden(unt,molec)
-            case("psi4")
-             call read_psi_geom(unt,molec)
-            case("gamess")
-             call read_gamess_geom(unt,molec)
-            case default
-             call alert_msg("fatal","File type not supported: "//filetype)
-        end select
-
-        call atname2element(molec)
-
-        return
-
-    end subroutine generic_strfile_read
-
-
-    subroutine generic_strfile_write(unt,filetype,molec)
-
-        integer, intent(in) :: unt
-        character(len=*),intent(inout) :: filetype
-        type(str_resmol),intent(inout) :: molec
-
-        ! Predefined filetypes
-        select case (adjustl(filetype))
-            case("gro")
-             call write_gro(unt,molec)
-            case("pdb")
-             call write_pdb(unt,molec)
-            case("pdb-c")
-             call write_pdb_connect(unt,molec)
-            case("g96")
-             call write_g96(unt,molec)
-            case("xyz")
-             call write_xyz(unt,molec)
-            case("fchk")
-             call element2AtNum(molec)
-             call write_fchk_geom(unt,molec)
-            case("fcc")
-             call write_fcc(unt,molec)
-            case default
-             call alert_msg("fatal","File type not supported: "//filetype)
-        end select
-
-        return
-
-    end subroutine generic_strfile_write 
 
 
 end program fchk2gro

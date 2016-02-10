@@ -216,7 +216,7 @@ module generic_io
 
     end subroutine generic_structure_reader
 
-    subroutine generic_structure_writer(unt,filetype,Nat,X,Y,Z,Mass,AtName,error_flag)
+    subroutine generic_structure_writer(unt,filetype,Nat,X,Y,Z,Mass,AtName,error_flag,title)
 
         !==============================================================
         ! This code is part of FCC_TOOLS
@@ -231,6 +231,7 @@ module generic_io
         ! X,Y,Z   (out)  real/vectors  Coordinates
         ! error_flag (out) flag        0: Success
         !                              1: 
+        ! title   (inp,opt) char/scalar title of the file
         !
         !==============================================================
 
@@ -241,6 +242,7 @@ module generic_io
         real(8),dimension(:),intent(in) :: Mass
         character(len=*),dimension(Nat),intent(in) :: AtName
         integer,intent(out),optional    :: error_flag
+        character(len=*),intent(in),optional :: title
 
         !Local
         !Variables for read_fchk
@@ -256,6 +258,35 @@ module generic_io
         select case (adjustl(filetype))
             case("pdb")
              call write_pdb_geom(unt,Nat,AtName,X,Y,Z)
+            case("fchk")
+             if (present(title)) then
+                 write(unt,'(A)') trim(adjustl(title))
+             else
+                 write(unt,'(A)') "FCHK generated with generic_io module"
+             endif
+             call write_fchk(unt,"Number of atoms","I",0,A,(/Nat/),error_local)
+             ! Get atom number from atom names 
+             allocate(IA(1:Nat))
+             do i=1,Nat
+                 IA(i) = atnum_from_atname(AtName(i))
+             enddo
+             call write_fchk(unt,"Atomic numbers","I",Nat,A,IA,error_local)
+             call write_fchk(unt,"Nuclear charges","R",Nat,dfloat(IA),IA,error_local)
+             deallocate(IA)
+             call write_fchk(unt,"Real atomic weights","R",Nat,Mass,IA,error_local)
+             ! Get coordinates as a vector
+             allocate(A(1:3*Nat))
+             j=0
+             do i=1,Nat
+                 j=j+1
+                 A(j)=X(i)/BOHRtoANGS
+                 j=j+1
+                 A(j)=Y(i)/BOHRtoANGS
+                 j=j+1
+                 A(j)=Z(i)/BOHRtoANGS
+             enddo   
+             call write_fchk(unt,"Current cartesian coordinates","R",3*Nat,A,IA,error_local)
+             deallocate(A)
             case default
              call alert_msg("fatal","Unsupported filetype:"//trim(adjustl(filetype)))
 !              call supported_filetype_list('freq')

@@ -62,7 +62,7 @@ module generic_io_molec
                                                        molec%atom(:)%z,   &
                                                        molec%atom(:)%mass,&
                                                        molec%atom(:)%name,&
-                                          error_local)
+                                          error_flag=error_local)
         endif
 
         call atname2element(molec)
@@ -118,9 +118,14 @@ module generic_io_molec
         current_units=molec%units
         call set_geom_units(molec,"Angs")
 
-        ! Readers still unsupported by generic_io module
+        ! Initialize error local (old readers don't use it)
+        error_local=0
+
+        ! Readers still unsupported by generic_io module (more that in the case of readers)
         if (adjustl(filetype)=="gro") then
             call write_gro(unt,molec)
+        elseif (adjustl(filetype)=="g96") then
+            call write_g96(unt,molec)
         elseif (adjustl(filetype)=="xyz") then
             call write_xyz(unt,molec)
 
@@ -137,7 +142,7 @@ module generic_io_molec
 
         ! Error handling
         if (error_local /= 0) then
-            write(msg,'(A,I0)') "ERROR writting structure to file. Error code: ", error_local
+            write(msg,'(A,I0)') "writting structure to file. Error code: ", error_local
             call alert_msg("fatal",msg)
         endif
 

@@ -253,7 +253,7 @@ module vibrational_analysis
 
         !Diagonalize
         call diagonalize_full(H(1:Nvib,1:Nvib),Nvib,L(1:Nvib,1:Nvib),Freq(1:Nvib),"lapack")
-        !Transform L from internal frame (Nvib x Nvib) into Cartesian (3Nat x Nvib) using Mass and D(3Nat x Nvib)
+        !Transform L from internal frame (Nvib x Nvib) into MWCartesian (3Nat x Nvib) using D(3Nat x Nvib)
         ! Lq = D L
         L(1:3*Nat,1:Nvib) = matmul(D(1:3*Nat,Nrt+1:3*Nat),L(1:Nvib,1:Nvib))
 
