@@ -206,6 +206,7 @@ program normal_modes_cartesian
                      cnx_file,                                             &
                      ! (hidden)
                      analytic_Bder)
+    call set_word_upper_case(def_internal)
 
  
     ! 1. READ DATA

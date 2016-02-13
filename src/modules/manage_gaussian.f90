@@ -160,8 +160,8 @@ module gaussian_manage
                         else
                             call alert_msg("fatal",trim(msg))
                         endif
-                    else
-                        call alert_msg("note",trim(msg))
+!                     else
+!                         call alert_msg("note",trim(msg))
                     endif
                     section=section(len_trim(line)+1:len(section))
                 endif
