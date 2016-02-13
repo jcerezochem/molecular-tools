@@ -379,8 +379,8 @@ program cartesian_duschinsky
 
     ! From now on in atomic units
     call set_geom_units(state1,"Bohr")
-    call set_geom_units(state2,"Bohr")
-    
+    call set_geom_units(state2,"Bohr") 
+
     ! If Adiabatic, need to rotate State2 to State1 orientation
     if (.not.vertical) then
         ! Move to com (this does not change Hess nor Grad nor vibrations_Cart
@@ -393,19 +393,20 @@ program cartesian_duschinsky
         state2%atom(1:Nat)%y = state2%atom(1:Nat)%y-state2%comY
         state2%atom(1:Nat)%z = state2%atom(1:Nat)%z-state2%comZ
         ! Rotate to same orientation (can be done with Tswithch or ROTATA)
-        call ROTATA1(state2,state1,T)
-        print*, "Rotate State2 to minimize RMSD with State1"
+        call ROTATA1(state1,state2,T)
+        print*, "Rotate State1 to minimize RMSD with State2"
         call MAT0(6,T,3,3,"Rotation matrix")
-        call rotate_molec(state2,T)
-        ! Rotate L2 modes
-        L2(1:3*Nat,1:Nvib) = rotate3D_matrix(3*Nat,Nvib,L2,T)
-        ! Rotate Hess (to properly compute the Er):
-        ! Rot Hess Rot^t
-        Hess(1:3*Nat,1:3*Nat) = rotate3D_matrix(3*Nat,3*Nat,Hess,T)
-        ! The other part is done as
-        ! A Rot^t = (Rot A^t)^t
-        Hess(1:3*Nat,1:3*Nat) = rotate3D_matrix(3*Nat,3*Nat,Hess,T,tA=.true.)
-        ! Ne need to transpose again, since Hess is symmetric
+        call rotate_molec(state1,T)
+        ! Rotate L1 modes
+        L1(1:3*Nat,1:Nvib) = rotate3D_matrix(3*Nat,Nvib,L1,T)
+! NOW THE HESSIAN IN STATE2 GEOM IS RIGHT 
+!         ! Rotate Hess (to properly compute the Er):
+!         ! Rot Hess Rot^t
+!         Hess(1:3*Nat,1:3*Nat) = rotate3D_matrix(3*Nat,3*Nat,Hess,T)
+!         ! The other part is done as
+!         ! A Rot^t = (Rot A^t)^t
+!         Hess(1:3*Nat,1:3*Nat) = rotate3D_matrix(3*Nat,3*Nat,Hess,T,tA=.true.)
+!         ! Ne need to transpose again, since Hess is symmetric
     endif
 
 
@@ -809,7 +810,7 @@ program cartesian_duschinsky
         ! * Delta: DeltaX
         ! * Hess: Hessian in Cartesian
         !
-        ! Fisrt, compute DeltaS^t * Hs * DeltaS
+        ! Fisrt, compute DeltaX^t * Hx * DeltaX
         Theta=0.d0
         do j=1,3*Nat
         do k=1,3*Nat
@@ -842,7 +843,13 @@ program cartesian_duschinsky
     !====================
     ! Print state files
     !====================
+    ! First, compute L2 for vertical (where it was never computed)
+    if (vertical) then
+        ! L2 = L1 * J
+        L2(1:3*Nat,1:Nvib) = matrix_product(3*Nat,Nvib,Nvib,L1,G1)
+    endif
     ! State1
+    call Lmwc_to_Lcart(Nat,Nvib,state1%atom(:)%mass,L1,L1,error)
     call Lcart_to_LcartNrm(Nat,Nvib,L1,Aux,error)
     !Print state
     open(O_STAT,file="state_file_1")
@@ -867,8 +874,7 @@ program cartesian_duschinsky
     enddo
     close(O_STAT)
     ! State2
-    ! L2 = L1 * J
-    L2(1:3*Nat,1:Nvib) = matrix_product(3*Nat,Nvib,Nvib,L1,G1)
+    call Lmwc_to_Lcart(Nat,Nvib,state2%atom(:)%mass,L2,L2,error)
     call Lcart_to_LcartNrm(Nat,Nvib,L2,Aux,error)
     !Print state
     ! Note that the geometry is that of state1 (not displaced for vertical)

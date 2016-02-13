@@ -898,7 +898,7 @@ module molecular_structure
     end subroutine inertia
 
 
-    SUBROUTINE ROTATA1(molec,molecRef,Rot)
+    SUBROUTINE ROTATA1(molec,molecRef,Rot,use_mwc)
 
         !============================================================
         ! Description
@@ -908,6 +908,11 @@ module molecular_structure
         !
         ! This version is addapted from FCclasses2, interfaced 
         ! with structure_types (v4)
+        !
+        ! NOTES:
+        ! The rotation is computed by default in mwc coordinates (use_mwc=.true.)
+        ! This variable can be used to change to Cartesian coordinates
+        !
         !============================================================
 
         use matrix
@@ -917,6 +922,7 @@ module molecular_structure
         type(str_resmol),intent(in)            :: molec
         type(str_resmol),intent(in)            :: molecRef
         real(8),dimension(1:3,1:3),intent(out) :: rot
+        logical,intent(in),optional            :: use_mwc
         !Local
         ! scalar
         integer :: i, j, k, ii, jj, kk, l, m, kin, imax, jmax, kmax, ivm
@@ -943,17 +949,30 @@ module molecular_structure
        
         ! geo1 -> molec
         ! geo2 -> molecRef
-        do i=1,3*N,3
-            j = (i-1)/3 + 1
-            geo1(i  ) = molec%atom(j)%x
-            geo1(i+1) = molec%atom(j)%y
-            geo1(i+2) = molec%atom(j)%z
-            geo2(i  ) = molecRef%atom(j)%x
-            geo2(i+1) = molecRef%atom(j)%y
-            geo2(i+2) = molecRef%atom(j)%z
-        enddo
+        if (present(use_mwc) .and. .not.use_mwc) then
+            do i=1,3*N,3
+                j = (i-1)/3 + 1
+                geo1(i  ) = molec%atom(j)%x   
+                geo1(i+1) = molec%atom(j)%y   
+                geo1(i+2) = molec%atom(j)%z   
+                geo2(i  ) = molecRef%atom(j)%x
+                geo2(i+1) = molecRef%atom(j)%y
+                geo2(i+2) = molecRef%atom(j)%z
+            enddo
+        else
+            do i=1,3*N,3
+                j = (i-1)/3 + 1
+                geo1(i  ) = molec%atom(j)%x    * dsqrt(molec%atom(j)%mass * AMUtoAU)
+                geo1(i+1) = molec%atom(j)%y    * dsqrt(molec%atom(j)%mass * AMUtoAU)
+                geo1(i+2) = molec%atom(j)%z    * dsqrt(molec%atom(j)%mass * AMUtoAU)
+                geo2(i  ) = molecRef%atom(j)%x * dsqrt(molec%atom(j)%mass * AMUtoAU)
+                geo2(i+1) = molecRef%atom(j)%y * dsqrt(molec%atom(j)%mass * AMUtoAU)
+                geo2(i+2) = molecRef%atom(j)%z * dsqrt(molec%atom(j)%mass * AMUtoAU)
+            enddo
+        endif
 
 
+        ! ATOMIC DISTANCES FOR STATE1
         do k=1,n
             disvet(k)=0.d0
             kk=3*(k-1)
@@ -966,6 +985,7 @@ module molecular_structure
                 dist1(i,k)=dsqrt(aa)
             enddo
         enddo
+        ! ATOMIC DISTANCES FOR STATE2
         do k=1,n
             kk=3*(k-1)
             do i=1,n
@@ -986,64 +1006,68 @@ module molecular_structure
             dist=dist+(geo1(k)-geo2(k))**2
         enddo
         enddo
+        if (verbose>2) then
+            write(6,*) ' ACTUAL DISTANCE BETWEEN THE 1 and 2' &
+                       , 'STRUCTURES', dist 
+        endif 
 
-            dist0=dist
-            do k=1,4
-            do kk=1,k
-            aaq(kk,k)=0.d0
-            enddo
-            enddo
-            do i=1,n
-                k=3*(i-1)
-                ar1(1,1)=0.d0
-                ar1(2,1)=geo1(k+1)
-                ar1(3,1)=geo1(k+2)
-                ar1(4,1)=geo1(k+3)
-                ar1(1,2)=-geo1(k+1)
-                ar1(2,2)=0.d0
-                ar1(3,2)=-geo1(k+3)
-                ar1(4,2)=geo1(k+2)
-                ar1(1,3)=-geo1(k+2)
-                ar1(2,3)=geo1(k+3)
-                ar1(3,3)=0.d0
-                ar1(4,3)=-geo1(k+1)
-                ar1(1,4)=-geo1(k+3)
-                ar1(2,4)=-geo1(k+2)
-                ar1(3,4)=geo1(k+1)
-                ar1(4,4)=0.d0
+        dist0=dist
+        do k=1,4
+        do kk=1,4
+        aaq(kk,k)=0.d0
+        enddo
+        enddo
+        do i=1,n
+            k=3*(i-1)
+            ar1(1,1)=0.d0
+            ar1(2,1)=geo1(k+1)
+            ar1(3,1)=geo1(k+2)
+            ar1(4,1)=geo1(k+3)
+            ar1(1,2)=-geo1(k+1)
+            ar1(2,2)=0.d0
+            ar1(3,2)=-geo1(k+3)
+            ar1(4,2)=geo1(k+2)
+            ar1(1,3)=-geo1(k+2)
+            ar1(2,3)=geo1(k+3)
+            ar1(3,3)=0.d0
+            ar1(4,3)=-geo1(k+1)
+            ar1(1,4)=-geo1(k+3)
+            ar1(2,4)=-geo1(k+2)
+            ar1(3,4)=geo1(k+1)
+            ar1(4,4)=0.d0
 ! c     
-                al2(1,1)=0.d0
-                al2(2,1)=geo2(k+1)
-                al2(3,1)=geo2(k+2)
-                al2(4,1)=geo2(k+3)
-                al2(1,2)=-geo2(k+1)
-                al2(2,2)=0.d0
-                al2(3,2)=geo2(k+3)
-                al2(4,2)=-geo2(k+2)
-                al2(1,3)=-geo2(k+2)
-                al2(2,3)=-geo2(k+3)
-                al2(3,3)=0.d0
-                al2(4,3)=geo2(k+1)
-                al2(1,4)=-geo2(k+3)
-                al2(2,4)=geo2(k+2)
-                al2(3,4)=-geo2(k+1)
-                al2(4,4)=0.d0
+            al2(1,1)=0.d0
+            al2(2,1)=geo2(k+1)
+            al2(3,1)=geo2(k+2)
+            al2(4,1)=geo2(k+3)
+            al2(1,2)=-geo2(k+1)
+            al2(2,2)=0.d0
+            al2(3,2)=geo2(k+3)
+            al2(4,2)=-geo2(k+2)
+            al2(1,3)=-geo2(k+2)
+            al2(2,3)=-geo2(k+3)
+            al2(3,3)=0.d0
+            al2(4,3)=geo2(k+1)
+            al2(1,4)=-geo2(k+3)
+            al2(2,4)=geo2(k+2)
+            al2(3,4)=-geo2(k+1)
+            al2(4,4)=0.d0
 ! c     
-                do kk=1,4
-                do l=1,4
-                do m=1,4
-                aaq(kk,l)=aaq(kk,l)+al2(kk,m)*ar1(m,l)
-                enddo
-                enddo
-                enddo 
-! c     
-            enddo
             do kk=1,4
             do l=1,4
-            aaq(kk,l)=-aaq(kk,l)
-            aaqs(kk,l)=aaq(kk,l)*1.d-6
+            do m=1,4
+            aaq(kk,l)=aaq(kk,l)+al2(kk,m)*ar1(m,l)
             enddo
             enddo
+            enddo 
+! c     
+        enddo
+        do kk=1,4
+        do l=1,4
+        aaq(kk,l)=-aaq(kk,l)
+        aaqs(kk,l)=aaq(kk,l)*1.d-6
+        enddo
+        enddo
 
         if (verbose>2) then
             write(6,*) 'Quaternion matrix to be diagonalized'
@@ -1078,7 +1102,7 @@ module molecular_structure
         
         distmin=distmin0-2.d0*e(4)  
         if (verbose>2) &  
-         write(0,*) 'minimal distance =',distmin        
+         write(6,*) 'minimal distance =',distmin        
         if (-e(1)-e(4).gt.1.d-6) then
             distmin1=distmin0+2.d0*e(1)
             if (verbose>1) then
