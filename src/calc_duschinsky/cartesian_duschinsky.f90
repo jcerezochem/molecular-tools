@@ -51,7 +51,6 @@ program cartesian_duschinsky
                vertical=.true.      ,&
                verticalQspace1=.true.,&
                verticalQspace2=.false.,&
-               do_correct_num=.false., &
                gradcorrectS2=.false., &
                gradcorrectS1=.false., &
                check_symmetry=.true., &
@@ -174,7 +173,7 @@ program cartesian_duschinsky
 !                               filetype,"-ft","c",&
 !                               )
     call parse_input(inpfile,ft,gradfile,ftg,hessfile,fth,inpfile2,ft2,gradfile2,ftg2,hessfile2,fth2,&
-                     cnx_file,intfile,rmzfile,def_internal,use_symmetry,derfile,do_correct_num,gradcorrectS2,&
+                     cnx_file,intfile,rmzfile,def_internal,use_symmetry,derfile,gradcorrectS2,&
                      gradcorrectS1,vertical,verticalQspace1,verticalQspace2,force_real)
     call set_word_upper_case(def_internal)
 
@@ -483,46 +482,6 @@ program cartesian_duschinsky
                 enddo
                 print'(X,A,/)', "---------------------------------------"
             endif
-        
-        elseif (do_correct_num) then ! DEPRECATED
-            print'(X,A,/)', "Apply correction for vertical case based on numerical derivates (not-tested)..."
-            ! Correct with numerical derivatives of Lcart matrix
-            ! The derivatives are computed externally and fed through
-            ! files. This is not working for the moment.
-            !
-            !Compute H_Q = L1^t Hess L1  +  gx LLL^x
-            Hess2(1:Nvib,1:Nvib) = matrix_basisrot(Nvib,3*Nat,L1,Hess,counter=.true.)
-            ! Fill Lder tensor
-            derfile_base=derfile
-            do j=1,Nvib
-                write(derfile,'(A,I0,A)') trim(adjustl(derfile_base)), j, ".dat"
-                open(I_DER,file=derfile,status='old',iostat=IOstatus)
-                if (IOstatus /= 0) call alert_msg( "fatal","Unable to open "//trim(adjustl(derfile)) )
-                do i=1,3*Nat
-                    ! Use the symbol Bder, but it is Lder!
-                    read(I_DER,*) Bder(i,j,1:Nvib)
-                enddo
-                close(I_DER)
-            enddo
-        
-            if (verbose>2) then
-                do i=1,3*Nat
-                    write(tmpfile,'(A,I0,A)') "Lder *10^6, Cart=",i
-                    call MAT0(6,Bder(i,:,:)*1.e6,Nvib,Nvib,trim(tmpfile))
-                enddo
-            endif
-        
-            do i=1,Nvib
-            do j=1,Nvib
-                Aux(i,j) = 0.d0
-                do l=1,3*Nat
-                    Aux(i,j) = Aux(i,j) + Grad(l) * Bder(l,j,i) 
-                enddo
-                Hess2(i,j) = Hess2(i,j) + Aux(i,j)
-            enddo
-            enddo
-        
-            ! We need gQ...
         
         else
             print'(X,A,/)', "Uncorrected vertical approach (Q1-space)"
@@ -950,7 +909,7 @@ program cartesian_duschinsky
     !=============================================
 
     subroutine parse_input(inpfile,ft,gradfile,ftg,hessfile,fth,inpfile2,ft2,gradfile2,ftg2,hessfile2,fth2,&
-                           cnx_file,intfile,rmzfile,def_internal,use_symmetry,derfile,do_correct_num,gradcorrectS2,&
+                           cnx_file,intfile,rmzfile,def_internal,use_symmetry,derfile,gradcorrectS2,&
                            gradcorrectS1,vertical,verticalQspace1,verticalQspace2,force_real)
     !==================================================
     ! My input parser (gromacs style)
@@ -959,7 +918,7 @@ program cartesian_duschinsky
 
         character(len=*),intent(inout) :: inpfile,ft,gradfile,ftg,hessfile,fth,gradfile2,ftg2,hessfile2,fth2,&
                                           cnx_file,intfile,rmzfile,def_internal,derfile,inpfile2,ft2
-        logical,intent(inout)          :: use_symmetry,do_correct_num,gradcorrectS2,gradcorrectS1,vertical,&
+        logical,intent(inout)          :: use_symmetry,gradcorrectS2,gradcorrectS1,vertical,&
                                           verticalQspace1,verticalQspace2, force_real
         ! Local
         logical :: argument_retrieved,  &
@@ -1103,15 +1062,6 @@ program cartesian_duschinsky
                     gradcorrectS2=.false.
                     gradcorrectS2_default=.false.
 
-                ! Deprecated options (numerical ders)
-                case ("-correct-num")
-                    do_correct_num=.true.
-                case ("-nocorrect-num")
-                    do_correct_num=.false.
-                case ("-fder") 
-                    call get_input(i+1, derfile,input_command)
-                    argument_retrieved=.true.
-
                 case ("-h")
                     need_help=.true.
 
@@ -1226,12 +1176,7 @@ program cartesian_duschinsky
         write(6,*) '-intfile     File with internal set def.   ', trim(adjustl(intfile))
         write(6,*) '             (-correct-int -intmode sel)   '
 !         write(6,*) '-rmzfile        ', trim(adjustl(rmzfile))
-        write(6,*) '-[no]sym     Use symmetry to form Zmat    ',  use_symmetry
-        write(6,*) '·· Correct with Numeric Lder [deprecated] ··'
-        write(6,*) '-[no]correct-num Correction with numerical ', do_correct_num
-        write(6,*) '             derivatives of L1 (Cart)      '
-        write(6,*) '-fder        Numerical derivative file     ', trim(adjustl(derfile))
-        write(6,*) '             basename (-correct-num)       '
+        write(6,*) '-[no]sym     Use symmetry to form Zmat    ',  use_symmetry      
         write(6,*) ''
         write(6,*) '-h               ',  need_help
         write(6,'(A)') '-------------------------------------------------------------------'
