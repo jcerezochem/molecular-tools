@@ -116,8 +116,9 @@ module gmx_manage
         integer::i, natoms, ii, ios
         character(len=260) :: line
         character :: dummy_char
-        logical :: have_read_structure=.false.
+        logical :: have_read_structure
 
+        have_read_structure=.false.
         !The file is organized in sections. Each begining with a given name
         !We need to stop the cycle when the structure is already read. Otherwise
         !we read only the last structure from an animation file. We try to make it
@@ -126,6 +127,12 @@ module gmx_manage
 
             read(unt,'(A)',iostat=ios) line
             if (ios /= 0) exit
+
+            ! Detect new frame in a trajectory, and exit
+            if (adjustl(line) == "TITLE" .and. have_read_structure) then
+                backspace(unt)
+                return
+            endif
 
             if (adjustl(line) == "POSITION" ) then
                 if (have_read_structure) exit
@@ -149,9 +156,9 @@ module gmx_manage
                 Nat = i
                 have_read_structure=.true.
             elseif (adjustl(line) == "POSITIONRED" ) then
-            if (have_read_structure) exit
-            !this section only has info about coordinates (no atom info!)
-            write(0,*) "NOTE: No Atom Names in g96. Masses will not be assigned."
+                if (have_read_structure) exit
+                !this section only has info about coordinates (no atom info!)
+                write(0,*) "NOTE: No Atom Names in g96. Masses will not be assigned."
                 i=0
                 do 
                      read(unt,'(A)') line
