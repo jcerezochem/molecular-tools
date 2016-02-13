@@ -911,6 +911,7 @@ module molecular_structure
         !============================================================
 
         use matrix
+        use matrix_print
         use structure_types
         
         type(str_resmol),intent(in)            :: molec
@@ -1044,6 +1045,11 @@ module molecular_structure
             enddo
             enddo
 
+        if (verbose>2) then
+            write(6,*) 'Quaternion matrix to be diagonalized'
+            CALL MAT0(6,aaq*1.d-6,4,4)
+        endif
+
         ! Diagonalize (original eigen call chaged to:)
         call diagonalize_full(aaq,4,cvec,e,"lapack")
 
@@ -1089,6 +1095,11 @@ module molecular_structure
         rot(1,3)=2.d0*(cvec(2,4)*cvec(4,4)+cvec(1,4)*cvec(3,4))
         rot(2,3)=2.d0*(cvec(3,4)*cvec(4,4)-cvec(1,4)*cvec(2,4))
         rot(3,3)=cvec(1,4)**2-cvec(2,4)**2-cvec(3,4)**2+cvec(4,4)**2
+
+        if (verbose>2) then
+            write(6,*) 'Rotation matrix'
+            CALL MAT0(6,rot,3,3)
+        endif
              
         return
       end subroutine ROTATA1
