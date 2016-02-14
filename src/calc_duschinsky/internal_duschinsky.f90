@@ -96,10 +96,10 @@ program internal_duschinski
     !INTERNAL VIBRATIONAL ANALYSIS
     !MATRICES
     !B and G matrices
-    real(8),dimension(NDIM,NDIM) :: B
+    real(8),dimension(NDIM,NDIM) :: B1, B2
     !Other arrays
     real(8),dimension(1:NDIM) :: Grad
-    real(8),dimension(1:NDIM,1:NDIM) :: Hess, X, X1inv,X2inv, L1,L2, &
+    real(8),dimension(1:NDIM,1:NDIM) :: Hess, X, X1inv,X2inv, L1,L2,L1inv, &
                                         Asel1,Asel2,Asel1inv,Asel2inv
     real(8),dimension(1:NDIM,1:NDIM,1:NDIM) :: Bder
     !Duschisky
@@ -305,8 +305,8 @@ program internal_duschinski
     ! INTERNAL COORDINATES
 
     !SOLVE GF METHOD TO GET NM AND FREQ
-    call internal_Wilson(state1,Ns,S1,B,ModeDef)
-    call internal_Gmetric(Nat,Ns,state1%atom(:)%mass,B,G1)
+    call internal_Wilson(state1,Ns,S1,B1,ModeDef)
+    call internal_Gmetric(Nat,Ns,state1%atom(:)%mass,B1,G1)
     if (gradcorrectS1) then
 !         call NumBder(state1,Ns,Bder)
         call calc_BDer(state1,Ns,Bder,analytic_Bder)
@@ -345,7 +345,7 @@ program internal_duschinski
             Asel1inv(1:Nvib,1:Ns) = transpose(Asel1(1:Ns,1:Nvib))
         endif
         ! Rotate Bmatrix
-        B(1:Nvib,1:3*Nat) = matrix_product(Nvib,3*Nat,Ns,Asel1inv,B)
+        B1(1:Nvib,1:3*Nat) = matrix_product(Nvib,3*Nat,Ns,Asel1inv,B1)
         ! Rotate Bders
         if (gradcorrectS1) then
             do j=1,3*Nat
@@ -355,7 +355,7 @@ program internal_duschinski
     endif
 
     if (gradcorrectS1) then
-        call HessianCart2int(Nat,Nvib,Hess,state1%atom(:)%mass,B,G1,Grad,Bder)
+        call HessianCart2int(Nat,Nvib,Hess,state1%atom(:)%mass,B1,G1,Grad,Bder)
         if (check_symmetry) then
             print'(/,X,A)', "---------------------------------------"
             print'(X,A  )', " Check effect of symmetry operations"
@@ -396,9 +396,9 @@ program internal_duschinski
             print'(X,A,/)', "---------------------------------------"
         endif
     else
-        call HessianCart2int(Nat,Nvib,Hess,state1%atom(:)%mass,B,G1)
+        call HessianCart2int(Nat,Nvib,Hess,state1%atom(:)%mass,B1,G1)
         ! We need Grad in internal coordinates as well (ONLY IF HessianCart2int DOES NOT INCLUDE IT)
-        call Gradcart2int(Nat,Nvib,Grad,state1%atom(:)%mass,B,G1)
+        call Gradcart2int(Nat,Nvib,Grad,state1%atom(:)%mass,B1,G1)
     endif
     call gf_method(Nvib,G1,Hess,L1,Freq1,X,X1inv)
     if (verbose>0) then
@@ -415,33 +415,6 @@ program internal_duschinski
             call analyze_internal(Nvib,Ns,Aux,Freq1,ModeDef)
         endif
     endif
-
-    ! Compute new state_file
-    ! T1(g09) = mu^1/2 m B^t G1^-1 L1
-    call Ls_to_Lcart(Nat,Nvib,state1%atom(:)%mass,B,G1,L1,Aux,error)
-    call Lcart_to_LcartNrm(Nat,Nvib,Aux,Aux2,error)
-    !Print state
-    open(O_STAT,file="state_file_1")
-    call set_geom_units(state1,"Angs")
-    do i=1,Nat
-        write(O_STAT,*) state1%atom(i)%x
-        write(O_STAT,*) state1%atom(i)%y
-        write(O_STAT,*) state1%atom(i)%z
-    enddo
-    do i=1,3*Nat
-    do j=1,Nvib
-        write(O_STAT,*) Aux2(i,j)
-    enddo
-    enddo
-    do j=1,Nvib
-        if (force_real.and.Freq1(j)<0) then
-            print*, Freq1(j)
-            call alert_msg("warning","An imagainary frequency turned real (state1)")
-            Freq1(j) = abs(Freq1(j))
-        endif
-        write(O_STAT,'(F12.5)') Freq1(j)
-    enddo
-    close(O_STAT)
 
     ! If only one state is give, exit now
     if (adjustl(inpfile2) == "none") stop
@@ -575,8 +548,8 @@ program internal_duschinski
     ! INTERNAL COORDINATES
 
     !SOLVE GF METHOD TO GET NM AND FREQ
-    call internal_Wilson(state2,Ns,S2,B,ModeDef)
-    call internal_Gmetric(Nat,Ns,state2%atom(:)%mass,B,G2)
+    call internal_Wilson(state2,Ns,S2,B2,ModeDef)
+    call internal_Gmetric(Nat,Ns,state2%atom(:)%mass,B2,G2)
     if (gradcorrectS2) then
 !         call NumBder(state2,Ns,Bder)
         call calc_BDer(state2,Ns,Bder,analytic_Bder)
@@ -622,7 +595,7 @@ program internal_duschinski
             endif
         endif
         ! Rotate Bmatrix
-        B(1:Nvib,1:3*Nat) = matrix_product(Nvib,3*Nat,Ns,Asel2inv,B)
+        B2(1:Nvib,1:3*Nat) = matrix_product(Nvib,3*Nat,Ns,Asel2inv,B2)
         ! Rotate Bders
         if (gradcorrectS2) then
             do j=1,3*Nat
@@ -632,7 +605,7 @@ program internal_duschinski
     endif
 
     if (gradcorrectS2) then
-        call HessianCart2int(Nat,Nvib,Hess,state2%atom(:)%mass,B,G2,Grad,Bder)
+        call HessianCart2int(Nat,Nvib,Hess,state2%atom(:)%mass,B2,G2,Grad,Bder)
         if (check_symmetry) then
             print'(/,X,A)', "---------------------------------------"
             print'(X,A  )', " Check effect of symmetry operations"
@@ -673,9 +646,9 @@ program internal_duschinski
             print'(X,A,/)', "---------------------------------------"
         endif
     else
-        call HessianCart2int(Nat,Nvib,Hess,state2%atom(:)%mass,B,G2)
+        call HessianCart2int(Nat,Nvib,Hess,state2%atom(:)%mass,B2,G2)
         ! We need Grad in internal coordinates as well (ONLY IF HessianCart2int DOES NOT INCLUDE IT)
-        call Gradcart2int(Nat,Nvib,Grad,state2%atom(:)%mass,B,G2)
+        call Gradcart2int(Nat,Nvib,Grad,state2%atom(:)%mass,B2,G2)
     endif
     call gf_method(Nvib,G2,Hess,L2,Freq2,X,X2inv)
     if (verbose>0) then
@@ -692,40 +665,6 @@ program internal_duschinski
             call analyze_internal(Nvib,Ns,Aux,Freq2,ModeDef)
         endif
     endif
-
-    ! Compute new state_file
-    if (vertical) then
-        ! Deactivate state2 coords to avoid confusion
-        state2%atom(1:Nat)%x=0.d0
-        state2%atom(1:Nat)%y=0.d0
-        state2%atom(1:Nat)%z=0.d0
-    endif
-    call Ls_to_Lcart(Nat,Nvib,state2%atom(:)%mass,B,G2,L2,Aux,error)
-    call Lcart_to_LcartNrm(Nat,Nvib,Aux,Aux2,error)
-    !Print state
-    open(O_STAT,file="state_file_2")
-    call set_geom_units(state2,"Angs")
-    ! Note that the geometry is the input one (not displaced for vertical)
-    ! But it is ok for FCclasses (it is not using it AFIK) What about HT??
-    do i=1,Nat
-        write(O_STAT,*) state2%atom(i)%x
-        write(O_STAT,*) state2%atom(i)%y
-        write(O_STAT,*) state2%atom(i)%z
-    enddo
-    do i=1,3*Nat
-    do j=1,Nvib
-        write(O_STAT,*) Aux2(i,j)
-    enddo
-    enddo
-    do j=1,Nvib
-        if (force_real.and.Freq2(j)<0) then
-            print*, Freq2(j)
-            call alert_msg("warning","An imagainary frequency turned real (state2)")
-            Freq2(j) = abs(Freq2(j))
-        endif
-        write(O_STAT,'(F12.5)') Freq2(j)
-    enddo
-    close(O_STAT)
 
 
     !==========================================
@@ -807,16 +746,16 @@ program internal_duschinski
     ! Get orthogonal modes:  L' = G^-1/2 L
     Aux(1:Nvib,1:Nvib)  = matrix_product(Nvib,Nvib,Nvib,X1inv,L1)
     Aux2(1:Nvib,1:Nvib) = matrix_product(Nvib,Nvib,Nvib,X2inv,L2)
-    ! Duschinsky matrix (orth) stored in G2 = L1'^t L2'
-    G2(1:Nvib,1:Nvib) = matrix_product(Nvib,Nvib,Nvib,Aux,Aux2,tA=.true.)
+    ! Duschinsky matrix (orth) stored in JdusO = L1'^t L2'
+!     JdusO(1:Nvib,1:Nvib) = matrix_product(Nvib,Nvib,Nvib,Aux,Aux2,tA=.true.)
     !Store L1' in Aux2 to later be used to get the displacement
     Aux2(1:Nvib,1:Nvib)=Aux(1:Nvib,1:Nvib)
 
     ! Non-Orthogonal Duschinski (the one we use)
     if (verbose>0) &
      print*, "Calculating Duschisky..."
-    !Inverse of L1 (and store in L1)
-    L1(1:Nvib,1:Nvib) = inverse_realgen(Nvib,L1(1:Nvib,1:Nvib))
+    !Inverse of L1 (and store in L1inv)
+    L1inv(1:Nvib,1:Nvib) = inverse_realgen(Nvib,L1(1:Nvib,1:Nvib))
     ! Account for different rotations to non-redundant set 
     ! but preserve the inverse L1 matrix in L1
 ! always do redundant2nonredundant
@@ -827,9 +766,9 @@ program internal_duschinski
         ! J = L1^-1 A1^-1 A2 L2
         ! so store in Aux the following part: [L1^-1 A1^-1 A2]
         Aux(1:Nvib,1:Nvib) = matrix_product(Nvib,Nvib,Ns,Asel1inv,Asel2)
-        Aux(1:Nvib,1:Nvib) = matrix_product(Nvib,Nvib,Nvib,L1,Aux)
+        Aux(1:Nvib,1:Nvib) = matrix_product(Nvib,Nvib,Nvib,L1inv,Aux)
     else
-        Aux(1:Nvib,1:Nvib) = L1(1:Nvib,1:Nvib)
+        Aux(1:Nvib,1:Nvib) = L1inv(1:Nvib,1:Nvib)
     endif
     !J = L1^-1 [A1^t A2] L2 (stored in J).
     Jdus(1:Nvib,1:Nvib) = matrix_product(Nvib,Nvib,Nvib,Aux,L2)
@@ -1002,9 +941,8 @@ program internal_duschinski
         ! HESIAN
         !  H_Q' = L^t Hs L (also H_Q' = L^-1 G Hs L)
         ! Note:
-        !  * L1 contains the inverse => Aux2 contains the normal L1
-        Aux2(1:Nvib,1:Nvib) = inverse_realgen(Nvib,L1)
-        Hess(1:Nvib,1:Nvib) = matrix_basisrot(Nvib,Nvib,Aux2,Hess,counter=.true.)
+        !  * L1 contains the normal matrix (now the inverse is in L1inv)
+        Hess(1:Nvib,1:Nvib) = matrix_basisrot(Nvib,Nvib,L1,Hess,counter=.true.)
         !
         ! GRADIENT
         !  g_Q' = L^t gs
@@ -1046,12 +984,12 @@ program internal_duschinski
     else
         ! K = L1^-1 DeltaS (this is State 1 respect to state 2) . 
         ! Notes
-        !   * L1 already stores the inverse
+        !   * L1inv stores the inverse
         !   * Delta in non-redundant IC set
         do i=1,Nvib
             Vec1(i) = 0.d0
             do k=1,Nvib
-                Vec1(i) = Vec1(i) + L1(i,k)*Delta(k)
+                Vec1(i) = Vec1(i) + L1inv(i,k)*Delta(k)
             enddo
         enddo
 !         !Orthogonal: K=L1'^t DeltaS'
@@ -1152,6 +1090,85 @@ program internal_duschinski
     print'(X,A,F12.6,/)', "Reorganization energy (eV) = ", Er*HtoeV
 
 
+    ! ====================
+    ! Print state files (better compute the dipole derivs directly in the Q-space) This also requires a change in FCclasses
+    ! otherwise, the result will be approx, because FCclasses will first orthogonalize L1 and L2...
+    ! ====================
+    ! First generate L matrices consistent with either HTi or HTf
+!     if (HTmode="I") then
+        ! HTi
+        !  * L1: from Ls_to_Lcart
+        call Ls_to_Lcart(Nat,Nvib,state1%atom(:)%mass,B1,G1,L1,L1,error)
+        !  * L2: from rotation (Duschinski) of L1,   L2 = L1*J
+        L2(1:3*Nat,1:Nvib) = matrix_product(3*Nat,Nvib,Nvib,L1,Jdus)
+!     else ! HTmode='F'
+!         ! HTf
+!         !  * L2: from Ls_to_Lcart
+!         call Ls_to_Lcart(Nat,Nvib,state2%atom(:)%mass,B2,G2,L2,Aux2,error)
+!         !  * L1: from rotation (Duschinski) of L2   L1 = L2*J^-1
+!         ! Need inverse of J
+!         Aux(1:Nvib,1:Nvib) = inverse_realgen(Nvib,Jdus)
+!         L1(1:3*Nat,1:Nvib) = matrix_product(3*Nat,Nvib,Nvib,L2,Aux)
+!     endif
+    ! STATE1
+    ! Compute new state_file
+    ! T1(g09) = mu^1/2 m B^t G1^-1 L1
+    !Print state
+    open(O_STAT,file="state_file_1")
+    call set_geom_units(state1,"Angs")
+    do i=1,Nat
+        write(O_STAT,*) state1%atom(i)%x
+        write(O_STAT,*) state1%atom(i)%y
+        write(O_STAT,*) state1%atom(i)%z
+    enddo
+    call Lcart_to_LcartNrm(Nat,Nvib,L1,Aux,error)
+    do i=1,3*Nat
+    do j=1,Nvib
+        write(O_STAT,*) Aux(i,j)
+    enddo
+    enddo
+    do j=1,Nvib
+        if (force_real.and.Freq1(j)<0) then
+            print*, Freq1(j)
+            call alert_msg("warning","An imagainary frequency turned real (state1)")
+            Freq1(j) = abs(Freq1(j))
+        endif
+        write(O_STAT,'(F12.5)') Freq1(j)
+    enddo
+    close(O_STAT)
+    ! STATE2
+    if (vertical) then
+        ! Deactivate state2 coords to avoid confusion
+        state2%atom(1:Nat)%x=0.d0
+        state2%atom(1:Nat)%y=0.d0
+        state2%atom(1:Nat)%z=0.d0
+    endif
+    !Print state
+    open(O_STAT,file="state_file_2")
+    call set_geom_units(state2,"Angs")
+    ! Note that the geometry is the input one (not displaced for vertical)
+    ! But it is ok for FCclasses (it is not using it AFIK) What about HT??
+    do i=1,Nat
+        write(O_STAT,*) state2%atom(i)%x
+        write(O_STAT,*) state2%atom(i)%y
+        write(O_STAT,*) state2%atom(i)%z
+    enddo
+    call Lcart_to_LcartNrm(Nat,Nvib,L2,Aux,error)
+    do i=1,3*Nat
+    do j=1,Nvib
+        write(O_STAT,*) Aux(i,j)
+    enddo
+    enddo
+    do j=1,Nvib
+        if (force_real.and.Freq2(j)<0) then
+            print*, Freq2(j)
+            call alert_msg("warning","An imagainary frequency turned real (state2)")
+            Freq2(j) = abs(Freq2(j))
+        endif
+        write(O_STAT,'(F12.5)') Freq2(j)
+    enddo
+    close(O_STAT)
+
     !============================================
     ! PRINT DUSCHINSKI AND DISPLACEMENT TO FILES
     !============================================
@@ -1164,7 +1181,7 @@ program internal_duschinski
     do i=1,Nvib
     do j=1,Nvib
         write(O_DUS,*)  Jdus(i,j)
-!         write(O_DUS2,*) G2(i,j)
+!         write(O_DUS2,*) JdusO(i,j)
     enddo 
         write(O_DIS,*)  Vec1(i)
 !         write(O_DIS2,*) Vec2(i)
