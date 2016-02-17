@@ -225,11 +225,11 @@ module vibrational_analysis
 
         else
             Nrt = 6
-            D(1:3*Nat,1:3*Nat+6) = Din(1:3*Nat,1:3*Nat+6)
+            D(1:3*Nat,1:3*Nat) = Din(1:3*Nat,1:3*Nat)
         endif
         ! At this point, also get it if requested
         if (present(Dout)) then
-            Dout(1:3*Nat,1:3*Nat+6) = D(1:3*Nat,1:3*Nat+6)
+            Dout(1:3*Nat,1:3*Nat) = D(1:3*Nat,1:3*Nat)
         endif
 
         !Massweight the Hessian
@@ -245,17 +245,13 @@ module vibrational_analysis
         enddo
 
         !Rotate Hessian to the internal frame (3Nat-6/5 coordinates)
-        H(1:3*Nat,1:Nvib) = matmul(H(1:3*Nat,1:3*Nat),D(1:3*Nat,Nrt+1:3*Nat))
-        D = transpose(D)
-        H(1:Nvib,1:Nvib)  = matmul(D(Nrt+1:3*Nat,1:3*Nat),H(1:3*Nat,1:Nvib))
-        !Restore D
-        D = transpose(D)
+        H(1:Nvib,1:Nvib) = matrix_basisrot(Nvib,3*Nat,D(1:3*Nat,Nrt+1:3*Nat),H,counter=.true.)
 
         !Diagonalize
         call diagonalize_full(H(1:Nvib,1:Nvib),Nvib,L(1:Nvib,1:Nvib),Freq(1:Nvib),"lapack")
         !Transform L from internal frame (Nvib x Nvib) into MWCartesian (3Nat x Nvib) using D(3Nat x Nvib)
         ! Lq = D L
-        L(1:3*Nat,1:Nvib) = matmul(D(1:3*Nat,Nrt+1:3*Nat),L(1:Nvib,1:Nvib))
+        L(1:3*Nat,1:Nvib) = matrix_product(3*Nat,Nvib,Nvib,D(1:3*Nat,Nrt+1:3*Nat),L(1:Nvib,1:Nvib))
 
         !Check FC
         if (verbose>1) &
@@ -343,6 +339,7 @@ module vibrational_analysis
         !==============================================================
         !Description
         ! Tranform the Lmwc into the Lcart.
+        !  Lcart = M^-1/2 Lmwc
         !
         !Arguments
         ! Nat     (inp) int /scalar   Number of atoms
@@ -390,6 +387,7 @@ module vibrational_analysis
         !==============================================================
         !Description
         ! Tranform the Lcart into the Lmwc.
+        !  Lmwc = M^1/2 Lcart 
         !
         !Arguments
         ! Nat     (inp) int /scalar   Number of atoms
@@ -674,6 +672,11 @@ module vibrational_analysis
     end function Freq2FC
 
     function Hess_to_Hlt(N,Hess) result(Hlt)
+
+        ! Convert from Hessian to lower triangular form
+        ! Note that:
+        !  * N is size of the square matrix, N=3*Nat 
+        !  * Hlt has size N*(N+1)/2 = 3*Nat*(3*Nat+1)/2
 
         integer,intent(in) :: N
         real(8),dimension(:,:),intent(in) :: Hess
