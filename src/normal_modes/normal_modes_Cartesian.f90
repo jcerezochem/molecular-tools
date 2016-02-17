@@ -23,6 +23,7 @@ program normal_modes_cartesian
     use verbosity
     use matrix
     use matrix_print
+    use io !printing
     !============================================
     !   Structure types module
     !============================================
@@ -93,6 +94,7 @@ program normal_modes_cartesian
     integer :: verbose_current
     ! Auxiliar real arrays/scalars
     real(8),dimension(1:NDIM,1:NDIM) :: Aux, Aux2
+    real(8),dimension(1:NDIM)        :: Vec
     real(8),dimension(:),allocatable :: Vec_alloc
     real(8) :: Theta, Theta2
     !====================== 
@@ -209,7 +211,9 @@ program normal_modes_cartesian
     call set_word_upper_case(def_internal)
 
  
+    ! ---------------------------------
     ! 1. READ DATA
+    call heading(6,"INPUT DATA")
     ! ---------------------------------
     !Guess filetypes
     if (ft == "guess") &
@@ -251,7 +255,7 @@ program normal_modes_cartesian
     endif
         
     ! STRUCTURE FILE
-    print'(X,A)', "READING STATE1 FILE (STRUCTURE)..."
+    call statement(6,"READING STATE1 FILE (STRUCTURE)...")
     open(I_INP,file=inpfile,status='old',iostat=IOstatus)
     if (IOstatus /= 0) call alert_msg( "fatal","Unable to open "//trim(adjustl(inpfile)) )
     call generic_strmol_reader(I_INP,ft,molecule,error)
@@ -270,25 +274,11 @@ program normal_modes_cartesian
     close(I_INP)
     ! Shortcuts
     Nat = molecule%natoms
-    print'(X,A,/)', "Done"
-
-
-    ! MANAGE INTERNAL COORDS
-    ! ---------------------------------
-    ! Get connectivity 
-    if (cnx_file == "guess") then
-        call guess_connect(molecule)
-    else
-        print'(/,A,/)', "Reading connectivity from file: "//trim(adjustl(cnx_file))
-        open(I_CNX,file=cnx_file,status='old')
-        call read_connect(I_CNX,molecule)
-        close(I_CNX)
-    endif
 
 
     ! VIBRATIONAL ANALYSIS: either read from file or from diagonalization of Hessian
     if (adjustl(nmfile) /= "none") then
-        print'(X,A)', "READING NORMAL MODES FROM FILE..."
+        call statement(6,"READING NORMAL MODES FROM FILE...")
         open(I_INP,file=nmfile,status='old',iostat=IOstatus)
         if (IOstatus /= 0) call alert_msg( "fatal","Unable to open "//trim(adjustl(nmfile)) )
         call generic_nm_reader(I_INP,ftn,Nat,Nvib,Freq,LL)
@@ -299,40 +289,57 @@ program normal_modes_cartesian
         call LcartNrm_to_Lmwc(Nat,Nvib,molecule%atom(:)%mass,LL,LL)
         call Lmwc_to_Lcart(Nat,Nvib,molecule%atom(:)%mass,LL,LL,error)
         close(I_INP)
-        print'(X,A,/)', "Done"
 
     else
         ! ACTUALLY PERFORM THE ANALYSIS
         ! HESSIAN FILE
-        print'(X,A)', "READING HESSIAN FILE..."
+        call statement(6,"READING HESSIAN FILE...")
         open(I_INP,file=hessfile,status='old',iostat=IOstatus)
         if (IOstatus /= 0) call alert_msg( "fatal","Unable to open "//trim(adjustl(hessfile)) )
         call generic_Hessian_reader(I_INP,fth,Nat,Hlt,error)
         if (error /= 0) call alert_msg("fatal","Error reading Hessian (State1)")
         close(I_INP)
-        print'(X,A,/)', "Done"
         
         ! GRADIENT FILE
         if (vertical) then
-            print'(X,A)', "READING GRADIENT FILE..."
+            call statement(6,"READING GRADIENT FILE...")
             open(I_INP,file=gradfile,status='old',iostat=IOstatus)
             if (IOstatus /= 0) call alert_msg( "fatal","Unable to open "//trim(adjustl(gradfile)) )
             call generic_gradient_reader(I_INP,ftg,Nat,Grad,error)
             close(I_INP)
-            print'(X,A,/)', "Done"
         endif
 
 
-        print'(/,X,A,/)', "VIBRATIONAL ANALYSIS"
+        call heading(6,"PREPARING VIBRATIONAL ANALYSIS")
+        if (vertical) then
+            call statement(6,"At non-stationary point.")
+        else
+            call statement(6,"At stationary point.")
+        endif
 
         ! Run vibrations_Cart to get the number of Nvib (to detect linear molecules)
-        print*, "Preliminary vibrational analysis (Cartesian)"
+        call subheading(6,"Preliminary vibrational analysis (Cartesian)")
         call vibrations_Cart(Nat,molecule%atom(:)%X,molecule%atom(:)%Y,molecule%atom(:)%Z,molecule%atom(:)%Mass,Hlt,&
-                        Nvib,LL,Freq,error_flag=error,Dout=D)
+                             Nvib,LL,Freq,error_flag=error,Dout=D)
 
         if (vertical) then
-            print'(/,X,A)', "Managing internal coordinates"
-            print'(X,A,/)', "-----------------------------"
+            call statement(6,"CORRECTIONS FOR NON-STATIONARY POINTS ACTIVATED",keep_case=.true.)
+       
+            ! MANAGE INTERNAL COORDS
+            ! --------------------------------
+            call subheading(6,"GETTING CONNECTIVITY")
+            ! Get connectivity 
+            if (cnx_file == "guess") then
+                call statement(6,"Guess connectivity based on distance criteria")
+                call guess_connect(molecule)
+            else
+                call statement(6,"Reading connectivity from file: "//trim(adjustl(cnx_file)))
+                open(I_CNX,file=cnx_file,status='old')
+                call read_connect(I_CNX,molecule)
+                close(I_CNX)
+            endif
+
+            call subheading(6,"Managing internal coordinates")
             ! Manage symmetry
             if (.not.use_symmetry) then
                 molecule%PG="C1"
@@ -360,7 +367,7 @@ program normal_modes_cartesian
             if (def_internal=="SEL".or.def_internal=="ALL".or.(def_internal=="ZMAT".and.rmzfile/="none")) then 
                 !Only if def_internal="all", we can print the animation mapping the Zmat
                 !but NOT for "sel"
-                print*, "Preliminary Zmat analysis"
+                call statement(6,"Preliminary Zmat analysis")
                 ! Get Zmat first
                 def_internal_aux="ZMAT"
                 call define_internal_set(molecule,def_internal_aux,"none","none",use_symmetry,isym,S_sym,Ns)
@@ -376,6 +383,8 @@ program normal_modes_cartesian
                 ! And reset bonded parameters
                 call gen_bonded(molecule)
             endif
+            ! Get the set of internal coordinates
+            call subheading(6,"Generating internal set for analysis")
             call define_internal_set(molecule,def_internal,intfile,rmzfile,use_symmetry,isym,S_sym,Ns)
             if (Ns > Nvib) then
                 call internals_mapping(molecule%geom,zmatgeom,Zmap)
@@ -383,7 +392,7 @@ program normal_modes_cartesian
                 ! We also get a Zmap
                 call internals_mapping(molecule%geom,zmatgeom,Zmap)
                 Nvib=Ns
-            elseif (Ns < Nvib) then
+!             elseif (Ns < Nvib) then
                 print*, "Ns", Ns
                 print*, "Nvib", Nvib
                 call alert_msg("warning","Reduced coordinates only produce animations with rmzfiles")
@@ -393,6 +402,7 @@ program normal_modes_cartesian
             ! If we use uncorrected modes as linear combinations for internals
             ! we now compute them
             if (modes_as_internals) then
+                ! Get Hess matrix from H(lowertriangular)
                 allocate (Hess(1:NDIM,1:NDIM))
                 Hess(1:3*Nat,1:3*Nat) = Hlt_to_Hess(3*Nat,Hlt)
                 verbose_current=verbose
@@ -406,11 +416,11 @@ program normal_modes_cartesian
                 B(1:Nvib,1:3*Nat) = matrix_product(Nvib,3*Nat,Ns,Aselinv,B)
                 call HessianCart2int(Nat,Nvib,Hess,molecule%atom(:)%mass,B,G)
                 call gf_method(Nvib,G,Hess,LL,Freq,X,Xinv)
-                deallocate(Hess)
                 ! Save L(in LL) and Linv(in Aux)
                 Aux(1:Nvib,1:Nvib) = inverse_realgen(Nvib,LL)
                 Aux(1:Nvib,1:Ns)   = matrix_product(Nvib,Ns,Nvib,Aux,Asel,tB=.true.)
                 LL(1:Ns,1:Nvib)    = matrix_product(Ns,Nvib,Nvib,Asel,LL)
+                deallocate(Hess)
             endif
 
             !------------------------------------------------
@@ -421,6 +431,7 @@ program normal_modes_cartesian
             call internal_Gmetric(Nat,Ns,molecule%atom(:)%mass,B,G)
             call calc_Bder(molecule,Ns,Bder,analytic_Bder)
             ! Select internal linear combinations
+            call subheading(6,"Construct linear combination of original internal coordinates")
             if (modes_as_internals) then
                 print*, "Using internal defined as uncorrected modes"
                 Asel(1:Ns,1:Nvib) = LL(1:Ns,1:Nvib)
@@ -433,7 +444,7 @@ program normal_modes_cartesian
                 enddo
                 Aselinv(1:Nvib,1:Ns) = Asel(1:Ns,1:Nvib)
             else
-                print*, "Getting internals from eigevector of G"
+                call statement(6,"Getting internals from eigevector of G")
                 call redundant2nonredundant(Ns,Nvib,G,Asel)
                 Aselinv(1:Nvib,1:Ns) = transpose(Asel(1:Ns,1:Nvib))
             endif
@@ -468,8 +479,7 @@ program normal_modes_cartesian
 
 
         ! VIBRATIONAL ANALYSIS
-        print'(/,X,A)', "Final vibrational analysis"
-        print'(X,A,/)', "-----------------------------"
+        call heading(6,"FINAL VIBRATIONAL ANALYSIS",print_always=.true.)
         !-------------------------------------
         ! Vibrational analysis:
         !-------------------------------------
@@ -482,12 +492,14 @@ program normal_modes_cartesian
         allocate (Hess(1:NDIM,1:NDIM))
         Hess(1:3*Nat,1:3*Nat) = Hlt_to_Hess(3*Nat,Hlt)
         if (vertical) then
+            ! (Hess is already constructed)
             ! Hs (with the correction)
             call HessianCart2int(Nat,Nvib,Hess,molecule%atom(:)%mass,B,G,Grad,Bder)
             ! B^t Hs B [~Hx]
             Hess(1:3*Nat,1:3*Nat) = matrix_basisrot(3*Nat,Nvib,B,Hess,counter=.true.)
         endif
-        ! M^-1/2 [Hx] M^1/2
+
+        ! M^-1/2 [Hx] M^-1/2
         do i=1,3*Nat
         do j=1,i
             ii = (i-1)/3+1
@@ -498,28 +510,66 @@ program normal_modes_cartesian
             Hess(j,i) = Hess(i,j)
         enddo
         enddo
+
         ! Eckart traslation and rotation can be computed for testing
         if (.not.Eckart_frame.and..not.full_diagonalize) then
             call alert_msg("note","With -noEckart -fulldiag is always done")
             full_diagonalize=.true.
         endif
-        if (full_diagonalize) then
-            Nrt = 0
-            Nvib=3*Nat
-        else
+
+        ! Get number of Trans+Rot 
+        Nrt = 3*Nat - Nvib
+
+        ! Get normal modes: 
+        !   1.- T, R and Vib (separated Eckart frames)
+        !   2.- T+R+Vib (same frame)
+        !   3.- Vib (separated Eckart frame)
+        if (full_diagonalize.and.Eckart_frame) then
+            LL(1:3*Nat,1:3*Nat) = 0.d0
+            call statement(6,"Getting T, R and Vib in separated Eckart frames")
+            ! 1a) Get T modes fromt he 3x3 block in the Eckart frame
+            ! D [M^-1/2 [Hx] M^1/2] D^t
+            Nrt = 3
+            Aux(1:Nrt,1:Nrt) = matrix_basisrot(Nrt,3*Nat,D(1:3*Nat,1:Nrt),Hess,counter=.true.)
+            ! Diagonalize and get data
+            call diagonalize_full(Aux(1:Nrt,1:Nrt),Nrt,LL(1:Nrt,1:Nrt),Freq(1:Nrt),"lapack")
+            ! 1b) Get T modes fromt he 3x3 block in the Eckart frame
             Nrt = 3*Nat - Nvib
-        endif
-        if (Eckart_frame) then
+            ! D [M^-1/2 [Hx] M^1/2] D^t
+            Aux(1:Nrt-3,1:Nrt-3) = matrix_basisrot(Nrt-3,3*Nat,D(1:3*Nat,4:Nrt),Hess,counter=.true.)
+            ! Diagonalize and get data
+            call diagonalize_full(Aux(1:Nrt-3,1:Nrt-3),Nrt-3,LL(4:Nrt,4:Nrt),Freq(4:Nrt),"lapack")
+            ! 2) Get Vib modes fromt he NvibxNvib Eckart frame
             ! D [M^-1/2 [Hx] M^1/2] D^t
             Hess(1:Nvib,1:Nvib) = matrix_basisrot(Nvib,3*Nat,D(1:3*Nat,Nrt+1:3*Nat),Hess,counter=.true.)
+            ! Diagonalize and get data
+            call diagonalize_full(Hess(1:Nvib,1:Nvib),Nvib,LL(Nrt+1:3*Nat,Nrt+1:3*Nat),Freq(Nrt+1:3*Nat),"lapack")
+            ! 3) Update "Nvib" to actual number of computed modes
+            Nvib = 3*Nat
+            Nrt  = 0
+        else if (full_diagonalize) then
+            call statement(6,"Getting T+R+Vib in the same frame")
+            ! 1) Get T+R+Vib in the same frame
+            ! D [M^-1/2 [Hx] M^1/2] D^t
+            Hess(1:3*Nat,1:3*Nat) = matrix_basisrot(3*Nat,3*Nat,D(1:3*Nat,1:3*Nat),Hess,counter=.true.)
+            ! Diagonalize and get data
+            call diagonalize_full(Hess(1:3*Nat,1:3*Nat),3*Nat,LL(1:3*Nat,1:3*Nat),Freq(1:3*Nat),"lapack")
+            ! 2) Update "Nvib" to actual number of computed modes
+            Nvib = 3*Nat
+            Nrt  = 0
+        else ! Only vibrations, in the Eckart frame
+            call statement(6,"Getting only Vib in the Eckart frame")
+            ! 1) Get Vib in the Eckart frame
+            !! D [M^-1/2 [Hx] M^1/2] D^t
+            Hess(1:Nvib,1:Nvib) = matrix_basisrot(Nvib,3*Nat,D(1:3*Nat,Nrt+1:3*Nat),Hess,counter=.true.)
+            ! Diagonalize and get data
+            call diagonalize_full(Hess(1:Nvib,1:Nvib),Nvib,LL(1:Nvib,1:Nvib),Freq(1:Nvib),"lapack")
         endif
 
-        ! Diagonalize and get data
-        call diagonalize_full(Hess(1:Nvib,1:Nvib),Nvib,LL(1:Nvib,1:Nvib),Freq(1:Nvib),"lapack")
-        deallocate(Hess)
-        if (Eckart_frame) then
-            LL(1:3*Nat,1:Nvib) = matrix_product(3*Nat,Nvib,Nvib,D(1:3*Nat,Nrt+1:3*Nat),LL(1:Nvib,1:Nvib))
-        endif
+        ! Rotate the modes to the Cartesian frame
+        Nrt = 3*Nat - Nvib
+        LL(1:3*Nat,1:Nvib) = matrix_product(3*Nat,Nvib,Nvib,D(1:3*Nat,Nrt+1:3*Nat),LL(1:Nvib,1:Nvib))
+
         !Check FC
         if (verbose>1) &
          call print_vector(6,Freq*1.d6,Nvib,"FORCE CONSTANTS x 10^6 (A.U.)")
@@ -1077,7 +1127,7 @@ program normal_modes_cartesian
         write(6,'(A)') '-------------------------------------------------------------------'
         write(6,'(X,A,I0)') &
                        'Verbose level:  ', verbose        
-        write(6,'(A)') '-------------------------------------------------------------------'
+        write(6,'(A,/)') '-------------------------------------------------------------------'
         if (need_help) call alert_msg("fatal", 'There is no manual (for the moment)' )
 
         return

@@ -1238,7 +1238,12 @@ program internal_duschinski
                    gradcorrectS2_default=.true.
 
         !Initialize input_command
-        call get_input(0, input_command)
+        call getarg(0,input_command)
+        !Get input flags
+        do i=1,iargc()
+            call getarg(i,arg)
+            input_command = trim(adjustl(input_command))//" "//trim(adjustl(arg))
+        enddo
 
         argument_retrieved=.false.
         do i=1,iargc()
@@ -1246,72 +1251,72 @@ program internal_duschinski
                 argument_retrieved=.false.
                 cycle
             endif
-            call get_input(i, arg,input_command) 
+            call getarg(i, arg) 
             select case (adjustl(arg))
                 case ("-f") 
-                    call get_input(i+1, inpfile,input_command)
+                    call getarg(i+1, inpfile)
                     argument_retrieved=.true.
                 case ("-ft") 
-                    call get_input(i+1, ft,input_command)
+                    call getarg(i+1, ft)
                     argument_retrieved=.true.
 
                 case ("-fhess") 
-                    call get_input(i+1, hessfile,input_command)
+                    call getarg(i+1, hessfile)
                     argument_retrieved=.true.
                 case ("-fth") 
-                    call get_input(i+1, fth,input_command)
+                    call getarg(i+1, fth)
                     argument_retrieved=.true.
 
                 case ("-fgrad") 
-                    call get_input(i+1, gradfile,input_command)
+                    call getarg(i+1, gradfile)
                     argument_retrieved=.true.
                 case ("-ftg") 
-                    call get_input(i+1, ftg,input_command)
+                    call getarg(i+1, ftg)
                     argument_retrieved=.true.
 
                 case ("-f2") 
-                    call get_input(i+1, inpfile2,input_command)
+                    call getarg(i+1, inpfile2)
                     argument_retrieved=.true.
                 case ("-ft2") 
-                    call get_input(i+1, ft2,input_command)
+                    call getarg(i+1, ft2)
                     argument_retrieved=.true.
 
                 case ("-fhess2") 
-                    call get_input(i+1, hessfile2,input_command)
+                    call getarg(i+1, hessfile2)
                     argument_retrieved=.true.
                 case ("-fth2") 
-                    call get_input(i+1, fth2,input_command)
+                    call getarg(i+1, fth2)
                     argument_retrieved=.true.
 
                 case ("-fgrad2") 
-                    call get_input(i+1, gradfile2,input_command)
+                    call getarg(i+1, gradfile2)
                     argument_retrieved=.true.
                 case ("-ftg2") 
-                    call get_input(i+1, ftg2,input_command)
+                    call getarg(i+1, ftg2)
                     argument_retrieved=.true.
 
                 case ("-cnx") 
-                    call get_input(i+1, cnx_file,input_command)
+                    call getarg(i+1, cnx_file)
                     argument_retrieved=.true.
 
                 case ("-intfile") 
-                    call get_input(i+1, intfile,input_command)
+                    call getarg(i+1, intfile)
                     argument_retrieved=.true.
 
                 case ("-rmzfile") 
-                    call get_input(i+1, rmzfile,input_command)
+                    call getarg(i+1, rmzfile)
                     argument_retrieved=.true.
                 ! Kept for backward compatibility (but replaced by -rmzfile)
                 case ("-rmz") 
-                    call get_input(i+1, rmzfile,input_command)
+                    call getarg(i+1, rmzfile)
                     argument_retrieved=.true.
 
                 case ("-intmode")
-                    call get_input(i+1, def_internal,input_command)
+                    call getarg(i+1, def_internal)
                     argument_retrieved=.true.
                 ! Kept for backward compatibility (but replaced by -intmode)
                 case ("-intset")
-                    call get_input(i+1, def_internal,input_command)
+                    call getarg(i+1, def_internal)
                     argument_retrieved=.true.
 
                 case ("-sym")
@@ -1331,7 +1336,7 @@ program internal_duschinski
                 !================================================================
                 ! This is the new (and now standard way to get the model)
                 case ("-model")
-                    call get_input(i+1, model,input_command)
+                    call getarg(i+1, model)
                     argument_retrieved=.true.
                 !The others are kept for backward compatibility
                 case ("-vertQ1")

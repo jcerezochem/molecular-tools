@@ -181,6 +181,18 @@ module internal_module
             enddo
         endif
 
+        if (verbose > 0) then
+            print'(/,X,A)', "----------------------------------------------------------"
+            print*, "Constructed set of valence internal coordianated"
+            print'(X,A,A )', "  Type    = ", def_internal
+            print'(X,A,I0)', "  Ns      = ", Ns
+            print'(X,A,I0)', "  Nbonds  = ", molec%geom%nbonds
+            print'(X,A,I0)', "  Nangles = ", molec%geom%nangles
+            print'(X,A,I0)', "  Ndiheds = ", molec%geom%ndihed
+            print'(X,A,I0)', "  Nimprop = ", molec%geom%nimprop
+            print'(X,A,/)', "----------------------------------------------------------"
+        endif
+            
 
         return
 
@@ -1117,6 +1129,10 @@ module internal_module
         integer :: i_1, i_2, i_3, i_4
         !=============
     
+        if (verbose>0) then
+            write(6,'(/,2X,A)') "Calculating internal coordianates and Wilson B matrix..."
+            write(6,'(X,A)')    "---------------------------------------------------------"
+        endif
     
         !Set bonded
         nbonds  = molec%geom%nbonds
@@ -1963,14 +1979,13 @@ module internal_module
         Nat = molec%natoms
     
         if (verbose>0) then
-            print*, ""
-            print*, "COMPUTING DERIVATIVES FOR B"
+            write(6,'(/,2X,A)') "Computing derivatives of Wilson B matrix..."
+            write(6,'(X,A)')    "---------------------------------------------------------"
             if (do_analytical) then
-                print*, "with analytical derivatives"
+                write(6,'(3X,A)') "with analytical derivatives"
             else   
-                print*, "with numerical derivatives"
+                write(6,'(3X,A)') "with numerical derivatives"
             endif
-            print*, ""
         endif
     
         ! Computing only non-zero elements
