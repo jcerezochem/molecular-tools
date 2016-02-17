@@ -366,7 +366,7 @@ program normal_modes_cartesian
             ! Define internal set
             if (def_internal=="SEL".or.def_internal=="ALL".or.(def_internal=="ZMAT".and.rmzfile/="none")) then 
                 !Only if def_internal="all", we can print the animation mapping the Zmat
-                !but NOT for "sel"
+                !For "sel" is might not work, but we can try
                 call statement(6,"Preliminary Zmat analysis")
                 ! Get Zmat first
                 def_internal_aux="ZMAT"
@@ -386,6 +386,8 @@ program normal_modes_cartesian
             ! Get the set of internal coordinates
             call subheading(6,"Generating internal set for analysis")
             call define_internal_set(molecule,def_internal,intfile,rmzfile,use_symmetry,isym,S_sym,Ns)
+            !From now on, we'll use atomic units
+!             call set_geom_units(molecule,"Bohr")
             if (Ns > Nvib) then
                 call internals_mapping(molecule%geom,zmatgeom,Zmap)
             elseif (def_internal=="ZMAT".and.rmzfile/="none") then

@@ -19,6 +19,11 @@ module zmat_manage
         !Local
         character(len=1) :: int_type
         character(len=100) :: line
+
+        !----------------------------------------------
+        ! UNITS MANAGEMENT
+        ! This subroutine works with no Units
+        !------------------------------------------------
     
         nbonds  = 0
         nangles = 0
@@ -84,6 +89,11 @@ module zmat_manage
         real(8) :: ang, dist, dx, dy, dz, vx, vy, vz
         integer :: i_1, i_2, i_3
         integer :: i,j,ii, natoms, iat_1, iat_2
+
+        !----------------------------------------------
+        ! UNITS MANAGEMENT
+        ! This subroutine works with no Units
+        !------------------------------------------------
     
         is_colinear = .false.
         !Run over angle_s triads
@@ -186,11 +196,13 @@ module zmat_manage
         integer :: i,j,k,m, ii,kk, ibonds, &
                    i_1,i_2,i_3,i_4, ii_1,ii_2,ii_3,ii_4
         logical :: done
-        character(len=4) ::  current_units
 
-        ! Save current_units and ensure Bohr
+        !----------------------------------------------
+        ! UNITS MANAGEMENT
+        ! This subroutine works with Atomic Units 
         current_units=molec%units
         call set_geom_units(molec,"Bohr")
+        !----------------------------------------------
     
         ! BUILD Z-MATRIX on molecule
         ! New numbering is stored in resseq
@@ -500,8 +512,11 @@ module zmat_manage
         molec%geom%nangles = Nat-2
         molec%geom%ndihed  = Nat-3
 
-        ! Reset input units before leaving
+        !----------------------------------------------
+        ! UNITS MANAGEMENT
+        ! Revert original units
         call set_geom_units(molec,adjustl(current_units))
+        !----------------------------------------------
     
         return
     
@@ -543,6 +558,11 @@ module zmat_manage
                    i_1,i_2,i_3,i_4, ii_1,ii_2,ii_3,ii_4
         logical :: done
         character(len=10) :: dummy_char
+
+        !----------------------------------------------
+        ! UNITS MANAGEMENT
+        ! This subroutine works with no Units
+        !------------------------------------------------
     
         !First element
         read(unitZ,*) k, dummy_char, i_1
@@ -617,6 +637,11 @@ module zmat_manage
         integer :: Nat
     
         integer :: i, i_at, i_b,i_a,i_d
+
+        !----------------------------------------------
+        ! UNITS MANAGEMENT
+        ! This subroutine returns data in Atomic Units
+        !------------------------------------------------
     
         ! Setup things 
         Nat = molec%natoms
@@ -780,7 +805,11 @@ module zmat_manage
             molec%atom(i)%z = molec%atom(i)%z/BOHRtoAMS
         enddo
     
+        !----------------------------------------------
+        ! UNITS MANAGEMENT
+        ! This subroutine get data in Atomin Units
         molec%units="Bohr"
+        !----------------------------------------------
     
         return
     
@@ -920,6 +949,11 @@ module zmat_manage
         integer :: i,j, Nat
         real(8) :: xaux, yaux, zaux, x2aux, y2aux, z2aux,&
                    ux,uy,uz, umod, baux, baux2, Theta, costheta, dist
+
+        !----------------------------------------------
+        ! UNITS MANAGEMENT
+        ! This subroutine works with any Units
+        !------------------------------------------------
     
         Nat = molec%natoms
         info=0
@@ -984,6 +1018,11 @@ module zmat_manage
         integer :: iT, iTT, i, Nat
         real(8) :: xaux, yaux, zaux, det, rsum, rcheck, &
                    xrot, yrot, zrot
+
+        !----------------------------------------------
+        ! UNITS MANAGEMENT
+        ! This subroutine works with any Units
+        !------------------------------------------------
     
         if (verbose>0) &
          print*, "Using brute force RMSD fit subroutine"

@@ -47,11 +47,14 @@ module symmetry
         real(8),dimension(3) :: R
         integer :: Nat
         character(len=6) :: sym_thr_local
-        character(len=4) ::  current_units
 
-        ! Save current_units and ensure Angs
+        !----------------------------------------------
+        ! UNITS MANAGEMENT
+        ! This subroutine works with Angstrong 
         current_units=molec%units
         call set_geom_units(molec,"Angs")
+        !----------------------------------------------
+
 
         ! Set THRS according to the sym_thr variable
         sym_thr_local = adjustl(sym_thr)
@@ -347,7 +350,11 @@ module symmetry
 
         if (present(nsym_ops)) nsym_ops = nsym
 
-        call set_geom_units(molec,current_units)
+        !----------------------------------------------
+        ! UNITS MANAGEMENT
+        ! Revert original units
+        call set_geom_units(molec,adjustl(current_units))
+        !----------------------------------------------
 
         return
 

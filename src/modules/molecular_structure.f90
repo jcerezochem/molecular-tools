@@ -27,6 +27,12 @@ module molecular_structure
     use verbosity
     implicit none
 
+    ! Use a global variable to handle the change of units
+    character(len=4) :: current_units
+    ! NOTE: we don't use "save" here since this is a temporary variable
+    ! that will be used inside the same routine, but not outside, so it
+    ! is not a problem if gets undefined out of scope
+
     contains
 
     subroutine set_geom_units(molec,units)
@@ -200,7 +206,6 @@ module molecular_structure
         real :: av_len, dist
         integer :: i,j, i_cnx
         logical :: include_hbond=.false.
-        character(len=4) ::  current_units
 
         ! Save current_units and ensure Angs
         current_units=molec%units
@@ -249,8 +254,11 @@ module molecular_structure
             molec%atom(i)%nbonds=i_cnx
         enddo
 
-        ! Reset input units before leaving
+        !----------------------------------------------
+        ! UNITS MANAGEMENT
+        ! Revert original units
         call set_geom_units(molec,adjustl(current_units))
+        !----------------------------------------------
 
         return
 

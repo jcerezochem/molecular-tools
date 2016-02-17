@@ -1105,7 +1105,7 @@ module internal_module
     
         !====================== 
         !ARGUMENTS
-        type(str_resmol),intent(in)        :: molec    ! Input molecule (but only use geom...) - 
+        type(str_resmol),intent(inout)     :: molec    ! Input molecule (but only use geom...) - 
                                                        !    maybe ic structure used in fcclasses2 might be useful, setting
                                                        !    the values of the IC out of this SR
         integer,intent(in)                 :: Ns       ! Total number of internal coordiantes to use
@@ -1128,6 +1128,13 @@ module internal_module
         integer :: i,j,k
         integer :: i_1, i_2, i_3, i_4
         !=============
+
+        !----------------------------------------------
+        ! UNITS MANAGEMENT
+        ! This subroutine works with Atomic Units 
+        current_units=molec%units
+        call set_geom_units(molec,"Bohr")
+        !----------------------------------------------
     
         if (verbose>0) then
             write(6,'(/,2X,A)') "Calculating internal coordianates and Wilson B matrix..."
@@ -1277,6 +1284,12 @@ module internal_module
             print*, ""
         if (verbose>1) &
             call MAT0(6,B,Ns,3*Nat,"B MATRIX")
+
+        !----------------------------------------------
+        ! UNITS MANAGEMENT
+        ! Revert original units
+        call set_geom_units(molec,adjustl(current_units))
+        !----------------------------------------------
 
         return
     

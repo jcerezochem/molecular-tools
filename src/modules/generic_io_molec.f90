@@ -112,11 +112,13 @@ module generic_io_molec
         !Local
         integer   :: error_local
         character(len=200) :: msg
-        character(len=4) ::  current_units
 
-        ! Save current_units and ensure Angs
+        !----------------------------------------------
+        ! UNITS MANAGEMENT
+        ! This subroutine works with Angstrong
         current_units=molec%units
         call set_geom_units(molec,"Angs")
+        !----------------------------------------------
 
         ! Initialize error local (old readers don't use it)
         error_local=0
@@ -148,8 +150,11 @@ module generic_io_molec
 
         if (present(error_flag)) error_flag=error_local
         
-        ! Reset input units before leaving
+        !----------------------------------------------
+        ! UNITS MANAGEMENT
+        ! Revert original units
         call set_geom_units(molec,adjustl(current_units))
+        !----------------------------------------------
 
         return
 
