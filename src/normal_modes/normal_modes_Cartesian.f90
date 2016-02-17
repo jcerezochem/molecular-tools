@@ -135,7 +135,7 @@ program normal_modes_cartesian
     real(8),dimension(NDIM) :: S, Sref, S0
     integer,dimension(NDIM) :: S_sym
     ! Switches
-    character(len=5) :: def_internal="ZMAT", def_internal_aux
+    character(len=5) :: def_internal="ALL", def_internal_aux
     character(len=2) :: scan_type="NM"
     !Coordinate map
     integer,dimension(NDIM) :: Zmap
