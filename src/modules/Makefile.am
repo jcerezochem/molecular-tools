@@ -21,6 +21,7 @@ libmoleculartools_a_SOURCES =         \
     constants.f90                     \
     verbosity.f90                     \
 \
+    io.f90                            \
     structure_types.f90               \
 \
     metrics.f90                       \

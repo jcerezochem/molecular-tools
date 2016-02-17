@@ -11,12 +11,12 @@ substract_disps_SOURCES = substract_disps.f90
 transpose_dusch_SOURCES = transpose_dusch.f90
 
 
-state2hessian_SOURCES = ../modules/io.f90\
-                        ../modules/version.f90\
+state2hessian_SOURCES = ../modules/version.f90\
                         ../modules/alerts.f90\
                         ../modules/line_preprocess.f90\
                         ../modules/constants.f90\
                         ../modules/verbosity.f90\
+                        ../modules/io.f90\
                         ../modules/matrix.f90\
                         ../modules/matrix_print.f90\
                         ../modules/structure_types.f90\
@@ -44,12 +44,12 @@ state2hessian_SOURCES = ../modules/io.f90\
                         ../modules/vibrational_analysis.f90\
                         state2hessian.f90
 
-vertical2adiabatic_SOURCES = ../modules/io.f90\
-                             ../modules/version.f90\
+vertical2adiabatic_SOURCES = ../modules/version.f90\
                              ../modules/alerts.f90\
                              ../modules/line_preprocess.f90\
                              ../modules/constants.f90\
                              ../modules/verbosity.f90\
+                             ../modules/io.f90\
                              ../modules/matrix.f90\
                              ../modules/matrix_print.f90\
                              ../modules/structure_types.f90\
@@ -77,12 +77,12 @@ vertical2adiabatic_SOURCES = ../modules/io.f90\
                              ../modules/vibrational_analysis.f90\
                              vertical2adiabatic.f90
 
-cartesian_duschinsky_SOURCES = ../modules/io.f90\
-                             ../modules/version.f90\
+cartesian_duschinsky_SOURCES = ../modules/version.f90\
                              ../modules/alerts.f90\
                              ../modules/line_preprocess.f90\
                              ../modules/constants.f90\
                              ../modules/verbosity.f90\
+                             ../modules/io.f90\
                              ../modules/matrix.f90\
                              ../modules/matrix_print.f90\
                              ../modules/structure_types.f90\
@@ -110,12 +110,12 @@ cartesian_duschinsky_SOURCES = ../modules/io.f90\
                              ../modules/vibrational_analysis.f90\
                              cartesian_duschinsky.f90
 
-internal_duschinsky_SOURCES = ../modules/io.f90\
-                             ../modules/version.f90\
+internal_duschinsky_SOURCES = ../modules/version.f90\
                              ../modules/alerts.f90\
                              ../modules/line_preprocess.f90\
                              ../modules/constants.f90\
                              ../modules/verbosity.f90\
+                             ../modules/io.f90\
                              ../modules/matrix.f90\
                              ../modules/matrix_print.f90\
                              ../modules/structure_types.f90\
@@ -143,11 +143,11 @@ internal_duschinsky_SOURCES = ../modules/io.f90\
                              ../modules/vibrational_analysis.f90\
                              internal_duschinsky.f90
 
-generate_internals_SOURCES = ../modules/io.f90\
-                             ../modules/alerts.f90\
+generate_internals_SOURCES = ../modules/alerts.f90\
                              ../modules/line_preprocess.f90\
                              ../modules/constants.f90\
                              ../modules/verbosity.f90\
+                             ../modules/io.f90\
                              ../modules/matrix.f90\
                              ../modules/matrix_print.f90\
                              ../modules/structure_types.f90\
@@ -174,11 +174,11 @@ generate_internals_SOURCES = ../modules/io.f90\
                              ../modules/internal.f90\
                              generate_internals.f90 
 
-generate_connetivity_SOURCES = ../modules/io.f90\
-                             ../modules/alerts.f90\
+generate_connetivity_SOURCES = ../modules/alerts.f90\
                              ../modules/line_preprocess.f90\
                              ../modules/constants.f90\
                              ../modules/verbosity.f90\
+                             ../modules/io.f90\
                              ../modules/matrix.f90\
                              ../modules/matrix_print.f90\
                              ../modules/structure_types.f90\
