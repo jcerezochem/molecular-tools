@@ -48,8 +48,8 @@ program cartesian_duschinsky
                modred=.false.       ,&
                tswitch=.false.      ,&
                symaddapt=.false.    ,&
-               vertical=.true.      ,&
-               verticalQspace1=.true.,&
+               vertical=.false.      ,&
+               verticalQspace1=.false.,&
                verticalQspace2=.false.,&
                gradcorrectS2=.false., &
                gradcorrectS1=.false., &
@@ -64,14 +64,14 @@ program cartesian_duschinsky
     integer,dimension(1:NDIM) :: isym
     integer,dimension(1:4,1:NDIM,1:NDIM) :: Osym
     integer :: Nsym
-    integer :: Nat, Nvib, Ns
+    integer :: Nat, Nvib, Ns, Nrt
     !====================== 
 
     !====================== 
     !INTERNAL VIBRATIONAL ANALYSIS
     !MATRICES
     !B and G matrices
-    real(8),dimension(NDIM,NDIM) :: B, G1
+    real(8),dimension(NDIM,NDIM) :: B, G1, D
     !Other arrays
     real(8),dimension(1:NDIM) :: Grad
     real(8),dimension(1:NDIM,1:NDIM) :: Hess,Hess2, X1,X1inv, L1,L2, Asel1
@@ -176,7 +176,6 @@ program cartesian_duschinsky
                      cnx_file,intfile,rmzfile,def_internal,use_symmetry,derfile,gradcorrectS2,&
                      gradcorrectS1,vertical,verticalQspace1,verticalQspace2,force_real)
     call set_word_upper_case(def_internal)
-
 
     !===========
     !State 1
@@ -358,7 +357,7 @@ program cartesian_duschinsky
     ! Run vibrations_Cart to get the number of Nvib (to detect linear molecules)
     print'(X,A)', "Preliminar vibrational analysis (Cartesian coordinates)..."
     call vibrations_Cart(Nat,state2%atom(:)%X,state2%atom(:)%Y,state2%atom(:)%Z,state2%atom(:)%Mass,Hlt,&
-                         Nvib,L2,Freq2,error_flag=error)
+                         Nvib,L2,Freq2,error_flag=error,Dout=D)
     close(I_INP)
     k=0
     do i=1,3*Nat
@@ -418,6 +417,7 @@ program cartesian_duschinsky
     !  * Grad: Cartesian
     !  * L1  : MWC
     if (vertical.and.verticalQspace1) then
+        print*, "Vertical model in Q1-space"
         call Lmwc_to_Lcart(Nat,Nvib,state1%atom(:)%Mass,L1,L1,error)
         !*****************************************************    
         ! Apply matrix derivative if the option is enabled
@@ -526,6 +526,68 @@ program cartesian_duschinsky
         
         ! Restore L1 in MWC
         call Lcart_to_Lmwc(Nat,Nvib,state1%atom(:)%Mass,L1,L1,error)
+
+    else if (vertical) then ! vertical in X-space
+        print*, "Vertical model in X-space"
+        if (gradcorrectS2) then
+            print*, "The Hessian will be corrected before computing the displacements!"
+            ! Follow the derivation based on x -> s -> t
+            ! already used in nm_cartesian
+            ! (Hess is already constructed)
+            ! Hs (with the correction)
+!             Aux(1:3*Nat,1:3*Nat) = Hess(1:3*Nat,1:3*Nat)
+            Vec1(1:3*Nat) = Grad(1:3*Nat) ! to avoid overwritting the Graddient
+            call HessianCart2int(Nat,Nvib,Hess,state2%atom(:)%mass,B,G1,Vec1,Bder)
+            ! B^t Hs B [~Hx]
+            Hess(1:3*Nat,1:3*Nat) = matrix_basisrot(3*Nat,Nvib,B,Hess,counter=.true.)
+            ! M^-1/2 [Hx] M^-1/2
+            do i=1,3*Nat
+            do j=1,i
+                ii = (i-1)/3+1
+                jj = (j-1)/3+1
+                Aux(i,j) = Hess(i,j) &
+                            /dsqrt(state2%atom(ii)%mass*AMUtoAU) &
+                            /dsqrt(state2%atom(jj)%mass*AMUtoAU)
+                Aux(j,i) = Aux(i,j)
+            enddo
+            enddo
+            ! Get number of Trans+Rot 
+            Nrt = 3*Nat - Nvib
+            ! D [M^-1/2 [Hx] M^1/2] D^t
+            Aux(1:Nvib,1:Nvib) = matrix_basisrot(Nvib,3*Nat,D(1:3*Nat,Nrt+1:3*Nat),Aux,counter=.true.)
+            ! Diagonalize and get data (in Eckart internal frame)
+            call diagonalize_full(Aux(1:Nvib,1:Nvib),Nvib,L2(1:Nvib,1:Nvib),FC(1:Nvib),"lapack")
+            ! Rotate modes back to mwc
+            L2(1:3*Nat,1:Nvib) = matrix_product(3*Nat,Nvib,Nvib,D(1:3*Nat,Nrt+1:3*Nat),L2(1:Nvib,1:Nvib))
+
+            !---------
+            !Check FC
+            !---------
+            if (verbose>1) &
+                call print_vector(6,FC*1.d6,Nvib,"FORCE CONSTANTS x 10^6 (A.U.)")
+            !Transform FC to Freq
+            do i=1,Nvib
+                Freq2(i) = sign(dsqrt(abs(FC(i))*HARTtoJ/BOHRtoM**2/AUtoKG)/2.d0/pi/clight/1.d2,&
+                                 FC(i))
+                if (FC(i)<0) then
+                    print*, i, FC(i), Freq2(i)
+                    if (force_real) then 
+                        FC(i)    = abs(FC(i))
+                        Freq2(i) = abs(Freq2(i))
+                        call alert_msg("warning","Negative FC turned real")
+                    else
+                        call alert_msg("warning","A negative FC found")
+                    endif
+                endif
+            enddo
+            if (verbose>0) &
+                call print_vector(6,Freq2,Nvib,"Frequencies (cm-1)")
+
+        endif
+        ! Otherwise, the vibrational analysis done preliminarily can be used
+
+        ! Direct formula (L1 and L2 in MWC)
+        G1(1:Nvib,1:Nvib) = matrix_product(Nvib,Nvib,3*Nat,L1,L2,tA=.true.)
 
     else ! Adiabati and Vertical uncorrected
         ! Direct formula (L1 and L2 in MWC)
@@ -1197,8 +1259,6 @@ program cartesian_duschinsky
         write(6,'(X,A,I0)') &
                        'Verbose level:  ', verbose        
         write(6,'(A)') '-------------------------------------------------------------------'     
-        if (gradcorrectS2.and.vertical.and..not.verticalQspace1) &
-         call alert_msg("fatal","No correction possible within X-space (-vert). Use Q1-space instead (-vertQ1)")
         if (need_help) call alert_msg("fatal", 'There is no manual (for the moment)' )
 
         return
