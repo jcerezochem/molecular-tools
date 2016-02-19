@@ -255,11 +255,13 @@ program internal_duschinski
     enddo
     deallocate(A)
 
-    ! GRADIENT FILE
-    open(I_INP,file=gradfile,status='old',iostat=IOstatus)
-    if (IOstatus /= 0) call alert_msg( "fatal","Unable to open "//trim(adjustl(gradfile)) )
-    call generic_gradient_reader(I_INP,ftg,Nat,Grad,error)
-    close(I_INP)
+    if (gradcorrectS1) then
+        ! GRADIENT FILE
+        open(I_INP,file=gradfile,status='old',iostat=IOstatus)
+        if (IOstatus /= 0) call alert_msg( "fatal","Unable to open "//trim(adjustl(gradfile)) )
+        call generic_gradient_reader(I_INP,ftg,Nat,Grad,error)
+        close(I_INP)
+    endif
 
 
     ! MANAGE INTERNAL COORDS
@@ -490,12 +492,14 @@ program internal_duschinski
     enddo
     deallocate(A)
 
-    ! GRADIENT FILE
-    open(I_INP,file=gradfile2,status='old',iostat=IOstatus)
-    if (IOstatus /= 0) call alert_msg( "fatal","Unable to open "//trim(adjustl(gradfile2)) )
-    call generic_gradient_reader(I_INP,ftg2,Nat,Grad,error)
-    if (error /= 0) call alert_msg("fatal","Error reading gradient (State2)")
-    close(I_INP)
+    if (vertical.or.gradcorrectS2) then
+        ! GRADIENT FILE
+        open(I_INP,file=gradfile2,status='old',iostat=IOstatus)
+        if (IOstatus /= 0) call alert_msg( "fatal","Unable to open "//trim(adjustl(gradfile2)) )
+        call generic_gradient_reader(I_INP,ftg2,Nat,Grad,error)
+        if (error /= 0) call alert_msg("fatal","Error reading gradient (State2)")
+        close(I_INP)
+    endif
 
 
     ! MANAGE INTERNAL COORDS

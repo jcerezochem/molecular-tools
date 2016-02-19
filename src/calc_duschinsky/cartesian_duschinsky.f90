@@ -369,12 +369,15 @@ program cartesian_duschinsky
     enddo
     deallocate(Hlt)
 
-    ! GRADIENT FILE
-    print'(/,X,A)', "READING STATE2 FILE (GRADIENT)..."
-    open(I_INP,file=gradfile2,status='old',iostat=IOstatus)
-    if (IOstatus /= 0) call alert_msg( "fatal","Unable to open "//trim(adjustl(gradfile2)) )
-    call generic_gradient_reader(I_INP,ftg2,Nat,Grad,error)
-    close(I_INP)
+
+    if (vertical.or.gradcorrectS2) then
+        ! GRADIENT FILE
+        print'(/,X,A)', "READING STATE2 FILE (GRADIENT)..."
+        open(I_INP,file=gradfile2,status='old',iostat=IOstatus)
+        if (IOstatus /= 0) call alert_msg( "fatal","Unable to open "//trim(adjustl(gradfile2)) )
+        call generic_gradient_reader(I_INP,ftg2,Nat,Grad,error)
+        close(I_INP)
+    endif
 
     ! From now on in atomic units
     call set_geom_units(state1,"Bohr")
