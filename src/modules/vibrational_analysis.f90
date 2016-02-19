@@ -499,7 +499,8 @@ module vibrational_analysis
         !
         !Notes
         ! We can use the same matrix as input and as output as there is
-        ! no conflict
+        ! no conflict (NOTE: if they are the same and we change Lcart, Ls
+        ! will be also modified. So to be safe, first do the manipulation with Ls)
         ! Only valid for Ns=Nvib
         !
         !==============================================================
@@ -524,10 +525,12 @@ module vibrational_analysis
         ! Compute G^-1 
         Ginv(1:Nvib,1:Nvib) = inverse_realgen(Nvib,G)
 
-        ! Compute B^t G^-1
-        Lcart(1:3*Nat,1:Nvib)= matrix_product(3*Nat,Nvib,Nvib,B,Ginv,tA=.true.)
-        ! Compute [B^t G^-1] L
-        Lcart(1:3*Nat,1:Nvib) = matrix_product(3*Nat,Nvib,Nvib,Lcart,Ls)
+
+        ! Compute G^-1 Ls <= this MUST be the first step. Otherwise Ls gets corrupted before it is
+        !                    use if the are the same in the arguments!!
+        Lcart(1:Nvib,1:Nvib) = matrix_product(Nvib,Nvib,Nvib,Ginv,Ls)
+        ! Compute B^t [G^-1 Ls]
+        Lcart(1:3*Nat,1:Nvib)= matrix_product(3*Nat,Nvib,Nvib,B,Lcart,tA=.true.)
         ! Compute m^-1 [B^t G^-1 L] 
         do i=1,3*Nat
             ii = (i-1)/3+1
