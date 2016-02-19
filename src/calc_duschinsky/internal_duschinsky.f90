@@ -78,6 +78,7 @@ program internal_duschinski
                original_internal=.false., &
                force_real=.false.
     character(len=4) :: def_internal='all'
+    character(len=1) :: reference_frame='F'
     !======================
 
     !====================== 
@@ -201,8 +202,9 @@ program internal_duschinski
                      symaddapt,same_red2nonred_rotation,analytic_Bder,&
                      vertical,verticalQspace2,verticalQspace1,&
                      gradcorrectS1,gradcorrectS2,&
-                     orthogonalize,original_internal,force_real)
+                     orthogonalize,original_internal,force_real,reference_frame)
     call set_word_upper_case(def_internal)
+    call set_word_upper_case(reference_frame)
 
     ! 1. INTERNAL VIBRATIONAL ANALYSIS ON STATE1 AND STATE2
 
@@ -1098,22 +1100,27 @@ program internal_duschinski
     ! Print state files (better compute the dipole derivs directly in the Q-space) This also requires a change in FCclasses
     ! otherwise, the result will be approx, because FCclasses will first orthogonalize L1 and L2...
     ! ====================
-    ! First generate L matrices consistent with either HTi or HTf
-!     if (HTmode="I") then
-        ! HTi
-        !  * L1: from Ls_to_Lcart
+    ! The L matrix obtained from Ls_to_Lcart is consistent with the  Cartesia geom of the state used. 
+    ! In case the states are rotated, the above transformation should only be done on one of the states
+    ! and the other must be obtained rotating the one transformed. Note that transformed one would be 
+    ! consistent with the input geometries, and therefore, with the dipole derivatives
+    if (reference_frame=="I".or.vertical) then
+        print*, "Reference state to report statefiles: Initial"
+        !HTi
+        ! * L1: from Ls_to_Lcart
         call Ls_to_Lcart(Nat,Nvib,state1%atom(:)%mass,B1,G1,L1,L1,error)
-        !  * L2: from rotation (Duschinski) of L1,   L2 = L1*J
+        ! * L2: from rotation (Duschinski) of L1,   L2 = L1*J
         L2(1:3*Nat,1:Nvib) = matrix_product(3*Nat,Nvib,Nvib,L1,Jdus)
-!     else ! HTmode='F'
-!         ! HTf
-!         !  * L2: from Ls_to_Lcart
-!         call Ls_to_Lcart(Nat,Nvib,state2%atom(:)%mass,B2,G2,L2,Aux2,error)
-!         !  * L1: from rotation (Duschinski) of L2   L1 = L2*J^-1
-!         ! Need inverse of J
-!         Aux(1:Nvib,1:Nvib) = inverse_realgen(Nvib,Jdus)
-!         L1(1:3*Nat,1:Nvib) = matrix_product(3*Nat,Nvib,Nvib,L2,Aux)
-!     endif
+    else ! HTmode='F'
+        print*, "Reference state to report statefiles: Final"
+        ! HTf
+        !  * L2: from Ls_to_Lcart
+        call Ls_to_Lcart(Nat,Nvib,state2%atom(:)%mass,B2,G2,L2,L2,error)
+        !  * L1: from rotation (Duschinski) of L2   L1 = L2*J^-1
+        ! Need inverse of J
+        Aux(1:Nvib,1:Nvib) = inverse_realgen(Nvib,Jdus)
+        L1(1:3*Nat,1:Nvib) = matrix_product(3*Nat,Nvib,Nvib,L2,Aux)
+    endif
     ! STATE1
     ! Compute new state_file
     ! T1(g09) = mu^1/2 m B^t G1^-1 L1
@@ -1213,7 +1220,7 @@ program internal_duschinski
                            symaddapt,same_red2nonred_rotation,analytic_Bder,&
                            vertical,verticalQspace2,verticalQspace1,&
                            gradcorrectS1,gradcorrectS2,&
-                           orthogonalize,original_internal,force_real)
+                           orthogonalize,original_internal,force_real,reference_frame)
     !==================================================
     ! My input parser (gromacs style)
     !==================================================
@@ -1221,7 +1228,7 @@ program internal_duschinski
 
         character(len=*),intent(inout) :: inpfile,ft,hessfile,fth,gradfile,ftg,&
                                           inpfile2,ft2,hessfile2,fth2,gradfile2,ftg2,&
-                                          intfile,rmzfile,def_internal, cnx_file !, symfile
+                                          intfile,rmzfile,def_internal, cnx_file, reference_frame !, symfile
         logical,intent(inout)          :: use_symmetry, vertical, verticalQspace2, &
                                           verticalQspace1, &
                                           gradcorrectS1, gradcorrectS2, symaddapt, &
@@ -1359,6 +1366,10 @@ program internal_duschinski
                     verticalQspace2=.false.
                 !================================================================
 
+                case ("-ref") 
+                    call getarg(i+1, reference_frame)
+                    argument_retrieved=.true.
+
                 case ("-force-real")
                     force_real=.true.
                 case ("-noforce-real")
@@ -1491,8 +1502,12 @@ program internal_duschinski
         write(6,*) '-fgrad2      Gradient(S2) file             ', trim(adjustl(gradfile2))
         write(6,*) '-ftg2        \_ FileType                   ', trim(adjustl(ftg2))
         write(6,*) ''
+        write(6,*) ' ** Options for state_files ** '
+        write(6,*) '-ref         Reference state to output the ', reference_frame
+        write(6,*) '             L matrices in its Cartesian '
+        write(6,*) '             frame [I|F]'
         write(6,*) '-[no]force-real Turn imaginary frequences ', force_real
-        write(6,*) '              to real'
+        write(6,*) '              to real (also affects Er)'
         write(6,*) '               '                       
         write(6,*) ' ** Options Internal Coordinates **           '
         write(6,*) '-cnx         Connectivity [filename|guess] ', trim(adjustl(cnx_file))

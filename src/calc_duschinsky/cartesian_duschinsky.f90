@@ -56,6 +56,7 @@ program cartesian_duschinsky
                check_symmetry=.true., &
                force_real=.false.
     character(len=4) :: def_internal='all'
+    character(len=1) :: reference_frame
     !======================
 
     !====================== 
@@ -174,8 +175,9 @@ program cartesian_duschinsky
 !                               )
     call parse_input(inpfile,ft,gradfile,ftg,hessfile,fth,inpfile2,ft2,gradfile2,ftg2,hessfile2,fth2,&
                      cnx_file,intfile,rmzfile,def_internal,use_symmetry,derfile,gradcorrectS2,&
-                     gradcorrectS1,vertical,verticalQspace1,verticalQspace2,force_real)
+                     gradcorrectS1,vertical,verticalQspace1,verticalQspace2,force_real,reference_frame)
     call set_word_upper_case(def_internal)
+    call set_word_upper_case(reference_frame)
 
     !===========
     !State 1
@@ -383,7 +385,7 @@ program cartesian_duschinsky
     call set_geom_units(state1,"Bohr")
     call set_geom_units(state2,"Bohr") 
 
-    ! If Adiabatic, need to rotate State2 to State1 orientation
+    ! If Adiabatic, need to rotate State2 to State1 orientation or the contrary
     if (.not.vertical) then
         ! Move to com (this does not change Hess nor Grad nor vibrations_Cart
         call get_com(state1)
@@ -395,20 +397,31 @@ program cartesian_duschinsky
         state2%atom(1:Nat)%y = state2%atom(1:Nat)%y-state2%comY
         state2%atom(1:Nat)%z = state2%atom(1:Nat)%z-state2%comZ
         ! Rotate to same orientation (can be done with Tswithch or ROTATA)
-        call ROTATA1(state1,state2,T)
-        print*, "Rotate State1 to minimize RMSD with State2"
-        call MAT0(6,T,3,3,"Rotation matrix")
-        call rotate_molec(state1,T)
-        ! Rotate L1 modes
-        L1(1:3*Nat,1:Nvib) = rotate3D_matrix(3*Nat,Nvib,L1,T)
-! NOW THE HESSIAN IN STATE2 GEOM IS RIGHT 
-!         ! Rotate Hess (to properly compute the Er):
-!         ! Rot Hess Rot^t
-!         Hess(1:3*Nat,1:3*Nat) = rotate3D_matrix(3*Nat,3*Nat,Hess,T)
-!         ! The other part is done as
-!         ! A Rot^t = (Rot A^t)^t
-!         Hess(1:3*Nat,1:3*Nat) = rotate3D_matrix(3*Nat,3*Nat,Hess,T,tA=.true.)
-!         ! Ne need to transpose again, since Hess is symmetric
+        if (reference_frame == "F") then
+            ! Rotate State1 to State2
+            call ROTATA1(state1,state2,T)
+            print*, "Rotate State1 to minimize RMSD with State2"
+            call MAT0(6,T,3,3,"Rotation matrix")
+            call rotate_molec(state1,T)
+            ! Rotate L1 modes
+            L1(1:3*Nat,1:Nvib) = rotate3D_matrix(3*Nat,Nvib,L1,T)
+            ! NOW THE HESSIAN IN STATE2 GEOM, SO IT IS RIGHT TO COMPUTE Er 
+        else
+            ! Rotate State2 to State1
+            call ROTATA1(state2,state1,T)
+            print*, "Rotate State2 to minimize RMSD with State1"
+            call MAT0(6,T,3,3,"Rotation matrix")
+            call rotate_molec(state2,T)
+            ! Rotate L2 modes
+            L2(1:3*Nat,1:Nvib) = rotate3D_matrix(3*Nat,Nvib,L2,T)
+            ! Rotate Hess (to properly compute the Er):
+            ! Rot Hess Rot^t
+            Hess(1:3*Nat,1:3*Nat) = rotate3D_matrix(3*Nat,3*Nat,Hess,T)
+            ! The other part is done as
+            ! A Rot^t = (Rot A^t)^t
+            Hess(1:3*Nat,1:3*Nat) = rotate3D_matrix(3*Nat,3*Nat,Hess,T,tA=.true.)
+            ! Ne need to transpose again, since Hess is symmetric
+        endif
     endif
 
 
@@ -981,14 +994,14 @@ program cartesian_duschinsky
 
     subroutine parse_input(inpfile,ft,gradfile,ftg,hessfile,fth,inpfile2,ft2,gradfile2,ftg2,hessfile2,fth2,&
                            cnx_file,intfile,rmzfile,def_internal,use_symmetry,derfile,gradcorrectS2,&
-                           gradcorrectS1,vertical,verticalQspace1,verticalQspace2,force_real)
+                           gradcorrectS1,vertical,verticalQspace1,verticalQspace2,force_real,reference_frame)
     !==================================================
     ! My input parser (gromacs style)
     !==================================================
         implicit none
 
         character(len=*),intent(inout) :: inpfile,ft,gradfile,ftg,hessfile,fth,gradfile2,ftg2,hessfile2,fth2,&
-                                          cnx_file,intfile,rmzfile,def_internal,derfile,inpfile2,ft2
+                                          cnx_file,intfile,rmzfile,def_internal,derfile,inpfile2,ft2,reference_frame
         logical,intent(inout)          :: use_symmetry,gradcorrectS2,gradcorrectS1,vertical,&
                                           verticalQspace1,verticalQspace2, force_real
         ! Local
@@ -1107,6 +1120,10 @@ program cartesian_duschinsky
                     verticalQspace2=.false.
                     model="adia"
                 !================================================================
+
+                case ("-ref") 
+                    call getarg(i+1, reference_frame)
+                    argument_retrieved=.true.
 
                 case ("-force-real")
                     force_real=.true.
@@ -1236,8 +1253,12 @@ program cartesian_duschinsky
         write(6,*) '-fgrad2      Gradient(S2) file             ', trim(adjustl(gradfile2))
         write(6,*) '-ftg2        \_ FileType                   ', trim(adjustl(ftg2))
         write(6,*) ''
+        write(6,*) ' ** Options for state_files ** '
+        write(6,*) '-ref         Reference state to output the ', reference_frame
+        write(6,*) '             L matrices in its Cartesian '
+        write(6,*) '             frame [I|F]'
         write(6,*) '-[no]force-real Turn imaginary frequences ', force_real
-        write(6,*) '              to real'
+        write(6,*) '              to real (also affects Er)'
         write(6,*) '               '        
         write(6,*) '** Options correction method (vertical) **'
         write(6,*) '-model       Model for harmonic PESs       ', trim(adjustl(model))
