@@ -54,7 +54,8 @@ program cartesian_duschinsky
                gradcorrectS2=.false., &
                gradcorrectS1=.false., &
                check_symmetry=.true., &
-               force_real=.false.
+               force_real=.false., &
+               rm_gradcoord=.false.
     character(len=4) :: def_internal='all'
     character(len=1) :: reference_frame='F'
     !======================
@@ -65,7 +66,7 @@ program cartesian_duschinsky
     integer,dimension(1:NDIM) :: isym
     integer,dimension(1:4,1:NDIM,1:NDIM) :: Osym
     integer :: Nsym
-    integer :: Nat, Nvib, Ns, Nrt
+    integer :: Nat, Nvib, Ns, Nrt, Nvib0
     !====================== 
 
     !====================== 
@@ -74,7 +75,7 @@ program cartesian_duschinsky
     !B and G matrices
     real(8),dimension(NDIM,NDIM) :: B, G1, D
     !Other arrays
-    real(8),dimension(1:NDIM) :: Grad
+    real(8),dimension(1:NDIM) :: Grad, Grad1
     real(8),dimension(1:NDIM,1:NDIM) :: Hess,Hess2, X1,X1inv, L1,L2, Asel1
     real(8),dimension(1:NDIM,1:NDIM,1:NDIM) :: Bder
     !Duschisky
@@ -175,7 +176,8 @@ program cartesian_duschinsky
 !                               )
     call parse_input(inpfile,ft,gradfile,ftg,hessfile,fth,inpfile2,ft2,gradfile2,ftg2,hessfile2,fth2,&
                      cnx_file,intfile,rmzfile,def_internal,use_symmetry,derfile,gradcorrectS2,&
-                     gradcorrectS1,vertical,verticalQspace1,verticalQspace2,force_real,reference_frame)
+                     gradcorrectS1,vertical,verticalQspace1,verticalQspace2,force_real,reference_frame,&
+                     rm_gradcoord)
     call set_word_upper_case(def_internal)
     call set_word_upper_case(reference_frame)
 
@@ -217,14 +219,9 @@ program cartesian_duschinsky
     call generic_Hessian_reader(I_INP,fth,Nat,Hlt,error) 
     close(I_INP)
     print'(X,A,/)', "Done"
-    ! Run vibrations_Cart to get the number of Nvib (to detect linear molecules)
-    print'(X,A)', "Preliminar vibrational analysis (Cartesian coordinates)..."
-    call vibrations_Cart(Nat,state1%atom(:)%X,state1%atom(:)%Y,state1%atom(:)%Z,state1%atom(:)%Mass,Hlt,&
-                         Nvib,L1,Freq1,error_flag=error)
-    deallocate(Hlt)
 
     ! GRADIENT FILE (State1) -- now useless as no vibrational analysis is done in IC at State1
-    if (gradcorrectS1) then
+    if (gradcorrectS1.or.rm_gradcoord) then
         print'(X,A)', "READING STATE1 FILE (GRADIENT)..."
         open(I_INP,file=gradfile,status='old',iostat=IOstatus)
         if (IOstatus /= 0) call alert_msg( "fatal","Unable to open "//trim(adjustl(gradfile)) )
@@ -235,6 +232,24 @@ program cartesian_duschinsky
         print'(X,A,/)', "Assuming gradient for State1 equal to zero"
         Grad(1:3*Nat) = 0.d0
     endif
+
+    if (rm_gradcoord) then
+        call statement(6,"Vibrations on the 3N-7 space")
+        call vibrations_Cart(Nat,state1%atom(:)%X,state1%atom(:)%Y,state1%atom(:)%Z,state1%atom(:)%Mass,Hlt,&
+                        Nvib,L1,Freq1,error_flag=error,Grad=Grad)
+        ! Store the number of vibrational degrees on freedom on Nvib0
+        ! Nvib stores the reduced dimensionality
+        Nvib0 = Nvib+1
+        ! Store Grad for State2 
+        Grad1(1:3*Nat) = Grad(1:3*Nat)
+    else
+        call statement(6,"Vibrations on the 3N-6 space")
+        call vibrations_Cart(Nat,state1%atom(:)%X,state1%atom(:)%Y,state1%atom(:)%Z,state1%atom(:)%Mass,Hlt,&
+                         Nvib,L1,Freq1,error_flag=error)
+        Nvib0=Nvib
+    endif
+
+    deallocate(Hlt)
 
 
     !===========
@@ -334,16 +349,16 @@ program cartesian_duschinsky
     
         ! SET REDUNDANT/SYMETRIZED/CUSTOM INTERNAL SETS
     !     if (symaddapt) then (implement in an analogous way as compared with the transformation from red to non-red
-        if (Ns > Nvib) then ! Redundant
-            call redundant2nonredundant(Ns,Nvib,G1,Asel1)
+        if (Ns > Nvib0) then ! Redundant
+            call redundant2nonredundant(Ns,Nvib0,G1,Asel1)
             ! Rotate Bmatrix
-            B(1:Nvib,1:3*Nat) = matrix_product(Nvib,3*Nat,Ns,Asel1,B,tA=.true.)
+            B(1:Nvib0,1:3*Nat)  = matrix_product(Nvib0,3*Nat,Ns,Asel1,B,tA=.true.)
             ! Rotate Gmatrix
-            G1(1:Nvib,1:Nvib) = matrix_basisrot(Nvib,Ns,Asel1(1:Ns,1:Nvib),G1,counter=.true.)
+            G1(1:Nvib0,1:Nvib0) = matrix_basisrot(Nvib0,Ns,Asel1(1:Ns,1:Nvib0),G1,counter=.true.)
             ! Rotate Bders
             if (vertical) then
                 do j=1,3*Nat
-                    Bder(1:Nvib,j,1:3*Nat) =  matrix_product(Nvib,3*Nat,Ns,Asel1,Bder(1:Ns,j,1:3*Nat),tA=.true.)
+                    Bder(1:Nvib0,j,1:3*Nat) =  matrix_product(Nvib0,3*Nat,Ns,Asel1,Bder(1:Ns,j,1:3*Nat),tA=.true.)
                 enddo
             endif
         endif
@@ -356,10 +371,19 @@ program cartesian_duschinsky
     if (IOstatus /= 0) call alert_msg( "fatal","Unable to open "//trim(adjustl(hessfile2)) )
     allocate(Hlt(1:3*Nat*(3*Nat+1)/2))
     call generic_Hessian_reader(I_INP,fth2,Nat,Hlt,error) 
+
     ! Run vibrations_Cart to get the number of Nvib (to detect linear molecules)
     print'(X,A)', "Preliminar vibrational analysis (Cartesian coordinates)..."
-    call vibrations_Cart(Nat,state2%atom(:)%X,state2%atom(:)%Y,state2%atom(:)%Z,state2%atom(:)%Mass,Hlt,&
-                         Nvib,L2,Freq2,error_flag=error,Dout=D)
+    if (rm_gradcoord) then
+        call statement(6,"Vibrations on the 3N-7 space")
+        call vibrations_Cart(Nat,state2%atom(:)%X,state2%atom(:)%Y,state2%atom(:)%Z,state2%atom(:)%Mass,Hlt,&
+                        Nvib,L2,Freq2,error_flag=error,Grad=Grad1)
+    else
+        call statement(6,"Vibrations on the 3N-6 space")
+        call vibrations_Cart(Nat,state2%atom(:)%X,state2%atom(:)%Y,state2%atom(:)%Z,state2%atom(:)%Mass,Hlt,&
+                         Nvib,L2,Freq2,error_flag=error)
+    endif
+
     close(I_INP)
     k=0
     do i=1,3*Nat
@@ -449,12 +473,12 @@ program cartesian_duschinsky
             ! equivalent in state1 Qspace
             ! Use Vec1 as temporary vector to store Grad (so to have Cartesia Grad)
             Vec1(1:3*Nat) = Grad(1:3*Nat)
-            call Gradcart2int(Nat,Nvib,Vec1,state1%atom(:)%mass,B,G1)
-            ! Compute gs^t * Lder
+            call Gradcart2int(Nat,Nvib0,Vec1,state1%atom(:)%mass,B,G1)
+            ! Compute gs^t * Bder
             do i=1,3*Nat
             do j=1,3*Nat
                 Aux(i,j) = 0.d0
-                do k=1,Nvib
+                do k=1,Nvib0
                     Aux(i,j) = Aux(i,j) + Bder(k,i,j)*Vec1(k)
                 enddo
             enddo
@@ -553,9 +577,9 @@ program cartesian_duschinsky
             ! Hs (with the correction)
 !             Aux(1:3*Nat,1:3*Nat) = Hess(1:3*Nat,1:3*Nat)
             Vec1(1:3*Nat) = Grad(1:3*Nat) ! to avoid overwritting the Graddient
-            call HessianCart2int(Nat,Nvib,Hess,state2%atom(:)%mass,B,G1,Vec1,Bder)
+            call HessianCart2int(Nat,Nvib0,Hess,state2%atom(:)%mass,B,G1,Vec1,Bder)
             ! B^t Hs B [~Hx]
-            Hess(1:3*Nat,1:3*Nat) = matrix_basisrot(3*Nat,Nvib,B,Hess,counter=.true.)
+            Hess(1:3*Nat,1:3*Nat) = matrix_basisrot(3*Nat,Nvib0,B,Hess,counter=.true.)
             ! M^-1/2 [Hx] M^-1/2
             do i=1,3*Nat
             do j=1,i
@@ -1013,7 +1037,8 @@ program cartesian_duschinsky
 
     subroutine parse_input(inpfile,ft,gradfile,ftg,hessfile,fth,inpfile2,ft2,gradfile2,ftg2,hessfile2,fth2,&
                            cnx_file,intfile,rmzfile,def_internal,use_symmetry,derfile,gradcorrectS2,&
-                           gradcorrectS1,vertical,verticalQspace1,verticalQspace2,force_real,reference_frame)
+                           gradcorrectS1,vertical,verticalQspace1,verticalQspace2,force_real,reference_frame,&
+                           rm_gradcoord)
     !==================================================
     ! My input parser (gromacs style)
     !==================================================
@@ -1022,7 +1047,7 @@ program cartesian_duschinsky
         character(len=*),intent(inout) :: inpfile,ft,gradfile,ftg,hessfile,fth,gradfile2,ftg2,hessfile2,fth2,&
                                           cnx_file,intfile,rmzfile,def_internal,derfile,inpfile2,ft2,reference_frame
         logical,intent(inout)          :: use_symmetry,gradcorrectS2,gradcorrectS1,vertical,&
-                                          verticalQspace1,verticalQspace2, force_real
+                                          verticalQspace1,verticalQspace2,force_real,rm_gradcoord
         ! Local
         logical :: argument_retrieved,  &
                    need_help = .false.
@@ -1143,6 +1168,11 @@ program cartesian_duschinsky
                 case ("-ref") 
                     call getarg(i+1, reference_frame)
                     argument_retrieved=.true.
+
+                case ("-rmgrad")
+                    rm_gradcoord=.true.
+                case ("-normgrad")
+                    rm_gradcoord=.false.
 
                 case ("-force-real")
                     force_real=.true.
@@ -1278,6 +1308,10 @@ program cartesian_duschinsky
         write(6,*) '             frame [I|F]'
         write(6,*) '-[no]force-real Turn imaginary frequences ', force_real
         write(6,*) '              to real (also affects Er)'
+        write(6,*) ''
+        write(6,*) ' ** Options to tune the vibrational analysis ** '
+        write(6,*) '-[no]rmgrad    Remove coordinate along the ', rm_gradcoord
+        write(6,*) '               grandient                  '
         write(6,*) '               '        
         write(6,*) '** Options correction method (vertical) **'
         write(6,*) '-model       Model for harmonic PESs       ', trim(adjustl(model))
