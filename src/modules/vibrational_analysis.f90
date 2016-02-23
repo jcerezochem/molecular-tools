@@ -21,7 +21,7 @@ module vibrational_analysis
 
     contains
 
-    subroutine vibrations_Cart(Nat,X,Y,Z,Mass,Hlt,Nvib,L,Freq,error_flag,Din,Dout)
+    subroutine vibrations_Cart(Nat,X,Y,Z,Mass,Hlt,Nvib,L,Freq,error_flag,Din,Dout,Grad)
 
         !==============================================================
         ! This code is part of MOLECULAR_TOOLS
@@ -44,6 +44,7 @@ module vibrational_analysis
         !                        2 : Wrong number of independent vectors
         ! Dout    (out) real/matrix   Rotation matrix to Eckart frame (get as output)
         ! Din     (out) real/matrix   Rotation matrix to Eckart frame (provide as input)
+        ! Grad    (in ) real/vector   Gradient to remove the gradient coordinate
         !
         !          
         !Notes
@@ -70,6 +71,7 @@ module vibrational_analysis
         ! Rotation to Ekart frame
         real(kind=8),dimension(:,:),intent(out),optional  :: Dout
         real(kind=8),dimension(:,:),intent(in),optional   :: Din
+        real(kind=8),dimension(:),intent(in),optional     :: Grad
 
         !Local
         ! Counters
@@ -190,6 +192,41 @@ module vibrational_analysis
                 error_local = 1
                 if (present(error_flag)) error_flag = error_local
                 return
+            endif
+
+            if (present(Grad)) then
+                !Get vector parallel to gradient
+                if (verbose>0) print*, "Removing coordinate parallel to gradient"
+                ! D7(k) = m^1/2 * gx(k); k=1,3*Nat
+                ii = ii + 1
+                do k=1,3*Nat
+                    j = (k-1)/3+1
+                    D(k,ii) = Grad(k) / dsqrt(Mass_local(j)) * 1.d5
+                enddo
+                ! Normalize the vector
+                pes = dot_product(D(1:3*Nat,ii),D(1:3*Nat,ii))
+                if (abs(pes) < ZERO) then
+                    print*, "The vector along the gradient is null"
+                    stop
+                else 
+                    D(1:3*Nat,ii) = D(1:3*Nat,ii)/sqrt(pes)
+                endif
+                !Grand-Schmdit orthogonalization step. (we use H(:,1) as work vector)
+                H(1:3*Nat,1) = D(1:3*Nat,ii)
+                do j=1,ii-1
+                    H(1:3*Nat,1) = H(1:3*Nat,1) - dot_product(D(1:3*Nat,ii),D(1:3*Nat,j))*D(1:3*Nat,j)
+                enddo
+                D(1:3*Nat,ii) = H(1:3*Nat,1)
+                !Check if the new vector was linearly independent, if so, normalize it
+                pes = dot_product(D(1:3*Nat,ii),D(1:3*Nat,ii))
+                if (abs(pes) < ZERO) then
+                    print*, "The vector along the gradient is not independent wrt Rot+Tras"
+                    stop
+                else 
+                    D(1:3*Nat,ii) = D(1:3*Nat,ii)/sqrt(pes)
+                endif
+                ! Update Nrt
+                Nrt = ii
             endif
             
             !Get remaining vectors (vibration) by G-S orthogonalization

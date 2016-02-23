@@ -65,7 +65,8 @@ program normal_modes_cartesian
                orthogonalize=.false.,   &
                Eckart_frame=.true.,     &
                modes_as_internals=.false., &
-               original_internal=.false.
+               original_internal=.false., &
+               rm_gradcoord=.false.
     !======================
 
     !====================== 
@@ -76,7 +77,7 @@ program normal_modes_cartesian
     integer,dimension(1:NDIM) :: isym
     integer,dimension(4,1:NDIM,1:NDIM) :: Osym
     integer :: nsym
-    integer :: Nat, Nvib, Ns, Nrt
+    integer :: Nat, Nvib0, Nvib, Ns, Nrt
     character(len=5) :: PG
     !Job info
     character(len=20) :: calc, method, basis
@@ -198,6 +199,8 @@ program normal_modes_cartesian
                      Amplitude,call_vmd,include_hbonds,selection,vertical, &
                      ! Options (Cartesian)
                      full_diagonalize,                                     &
+                     ! Remove coordinate along gradient
+                     rm_gradcoord,                                         &
                      ! Animation and Movie
                      animate,movie_vmd, movie_cycles ,                     &   
                      ! Options (internal)
@@ -301,7 +304,7 @@ program normal_modes_cartesian
         close(I_INP)
         
         ! GRADIENT FILE
-        if (vertical) then
+        if (vertical .or. rm_gradcoord) then
             call statement(6,"READING GRADIENT FILE...")
             open(I_INP,file=gradfile,status='old',iostat=IOstatus)
             if (IOstatus /= 0) call alert_msg( "fatal","Unable to open "//trim(adjustl(gradfile)) )
@@ -319,8 +322,19 @@ program normal_modes_cartesian
 
         ! Run vibrations_Cart to get the number of Nvib (to detect linear molecules)
         call subheading(6,"Preliminary vibrational analysis (Cartesian)")
-        call vibrations_Cart(Nat,molecule%atom(:)%X,molecule%atom(:)%Y,molecule%atom(:)%Z,molecule%atom(:)%Mass,Hlt,&
+        if (rm_gradcoord) then
+            call statement(6,"Vibrations on the 3N-7 space")
+            call vibrations_Cart(Nat,molecule%atom(:)%X,molecule%atom(:)%Y,molecule%atom(:)%Z,molecule%atom(:)%Mass,&
+                             Hlt,Nvib,LL,Freq,error_flag=error,Dout=D,Grad=Grad)
+            ! Store the number of vibrational degrees on freedom on Nvib0
+            ! Nvib stores the reduced dimensionality
+            Nvib0=Nvib+1
+        else
+            call statement(6,"Vibrations on the 3N-6 space")
+            call vibrations_Cart(Nat,molecule%atom(:)%X,molecule%atom(:)%Y,molecule%atom(:)%Z,molecule%atom(:)%Mass,Hlt,&
                              Nvib,LL,Freq,error_flag=error,Dout=D)
+            Nvib0=Nvib
+        endif
 
         if (vertical) then
             call statement(6,"CORRECTIONS FOR NON-STATIONARY POINTS ACTIVATED",keep_case=.true.)
@@ -388,15 +402,15 @@ program normal_modes_cartesian
             call define_internal_set(molecule,def_internal,intfile,rmzfile,use_symmetry,isym,S_sym,Ns)
             !From now on, we'll use atomic units
 !             call set_geom_units(molecule,"Bohr")
-            if (Ns > Nvib) then
+            if (Ns > Nvib0) then
                 call internals_mapping(molecule%geom,zmatgeom,Zmap)
             elseif (def_internal=="ZMAT".and.rmzfile/="none") then
                 ! We also get a Zmap
                 call internals_mapping(molecule%geom,zmatgeom,Zmap)
-                Nvib=Ns
+                Nvib0=Ns
 !             elseif (Ns < Nvib) then
                 print*, "Ns", Ns
-                print*, "Nvib", Nvib
+                print*, "Nvib0", Nvib0
                 call alert_msg("warning","Reduced coordinates only produce animations with rmzfiles")
                 ! Need to freeze unused coords to its input values
             endif
@@ -411,17 +425,17 @@ program normal_modes_cartesian
                 verbose=0
                 call internal_Wilson(molecule,Ns,S,B,ModeDef)
                 call internal_Gmetric(Nat,Ns,molecule%atom(:)%mass,B,G)
-                call redundant2nonredundant(Ns,Nvib,G,Asel)
+                call redundant2nonredundant(Ns,Nvib0,G,Asel)
                 verbose=verbose_current
-                G(1:Nvib,1:Nvib) = matrix_basisrot(Nvib,Ns,Asel(1:Ns,1:Nvib),G,&
+                G(1:Nvib0,1:Nvib0) = matrix_basisrot(Nvib0,Ns,Asel(1:Ns,1:Nvib0),G,&
                                                    counter=.true.)
-                B(1:Nvib,1:3*Nat) = matrix_product(Nvib,3*Nat,Ns,Aselinv,B)
-                call HessianCart2int(Nat,Nvib,Hess,molecule%atom(:)%mass,B,G)
-                call gf_method(Nvib,G,Hess,LL,Freq,X,Xinv)
+                B(1:Nvib0,1:3*Nat) = matrix_product(Nvib0,3*Nat,Ns,Aselinv,B)
+                call HessianCart2int(Nat,Nvib0,Hess,molecule%atom(:)%mass,B,G)
+                call gf_method(Nvib0,G,Hess,LL,Freq,X,Xinv)
                 ! Save L(in LL) and Linv(in Aux)
-                Aux(1:Nvib,1:Nvib) = inverse_realgen(Nvib,LL)
-                Aux(1:Nvib,1:Ns)   = matrix_product(Nvib,Ns,Nvib,Aux,Asel,tB=.true.)
-                LL(1:Ns,1:Nvib)    = matrix_product(Ns,Nvib,Nvib,Asel,LL)
+                Aux(1:Nvib0,1:Nvib0)= inverse_realgen(Nvib0,LL)
+                Aux(1:Nvib0,1:Ns)   = matrix_product(Nvib0,Ns,Nvib0,Aux,Asel,tB=.true.)
+                LL(1:Ns,1:Nvib0)    = matrix_product(Ns,Nvib0,Nvib0,Asel,LL)
                 deallocate(Hess)
             endif
 
@@ -436,42 +450,42 @@ program normal_modes_cartesian
             call subheading(6,"Construct linear combination of original internal coordinates")
             if (modes_as_internals) then
                 print*, "Using internal defined as uncorrected modes"
-                Asel(1:Ns,1:Nvib) = LL(1:Ns,1:Nvib)
-                Aselinv(1:Nvib,1:Ns) = Aux(1:Nvib,1:Ns)
-            elseif (original_internal.and.Nvib==Ns) then
+                Asel(1:Ns,1:Nvib0) = LL(1:Ns,1:Nvib0)
+                Aselinv(1:Nvib0,1:Ns) = Aux(1:Nvib0,1:Ns)
+            elseif (original_internal.and.Nvib0==Ns) then
                 print*, "Using internal without linear combination"
-                Asel(1:Ns,1:Nvib) = 0.d0
-                do i=1,Nvib
+                Asel(1:Ns,1:Nvib0) = 0.d0
+                do i=1,Nvib0
                     Asel(i,i) = 1.d0 
                 enddo
-                Aselinv(1:Nvib,1:Ns) = Asel(1:Ns,1:Nvib)
+                Aselinv(1:Nvib0,1:Ns) = Asel(1:Ns,1:Nvib0)
             else
                 call statement(6,"Getting internals from eigevector of G")
-                call redundant2nonredundant(Ns,Nvib,G,Asel)
-                Aselinv(1:Nvib,1:Ns) = transpose(Asel(1:Ns,1:Nvib))
+                call redundant2nonredundant(Ns,Nvib0,G,Asel)
+                Aselinv(1:Nvib0,1:Ns) = transpose(Asel(1:Ns,1:Nvib0))
             endif
             ! Rotate Gmatrix
-            G(1:Nvib,1:Nvib) = matrix_basisrot(Nvib,Ns,Aselinv(1:Nvib,1:Ns),G)
+            G(1:Nvib0,1:Nvib0) = matrix_basisrot(Nvib0,Ns,Aselinv(1:Nvib0,1:Ns),G)
             ! Check if we want orthogonalization
             if (orthogonalize) then
                 print*, "Orthogonalyzing internals..."
-                Xinv(1:Nvib,1:Nvib) = 0.d0
-                X(1:Nvib,1:Nvib)     = 0.d0
-                do i=1,Nvib
+                Xinv(1:Nvib0,1:Nvib0) = 0.d0
+                X(1:Nvib0,1:Nvib0)     = 0.d0
+                do i=1,Nvib0
                     Xinv(i,i) = 1.d0/dsqrt(G(i,i))
                     X(i,i)     = dsqrt(G(i,i))
                 enddo
                 ! Rotate Gmatrix (again)
-                G(1:Nvib,1:Nvib) = matrix_basisrot(Nvib,Nvib,Xinv(1:Nvib,1:Nvib),G)
+                G(1:Nvib0,1:Nvib0) = matrix_basisrot(Nvib0,Nvib0,Xinv(1:Nvib0,1:Nvib0),G)
                 ! Update Asel(inv)
-                Aselinv(1:Nvib,1:Ns) = matrix_product(Nvib,Ns,Nvib,Xinv,Aselinv)
-                Asel(1:Ns,1:Nvib)    = matrix_product(Ns,Nvib,Nvib,Asel,X)
+                Aselinv(1:Nvib0,1:Ns) = matrix_product(Nvib0,Ns,Nvib0,Xinv,Aselinv)
+                Asel(1:Ns,1:Nvib0)    = matrix_product(Ns,Nvib0,Nvib0,Asel,X)
             endif
             ! Rotate Bmatrix
-            B(1:Nvib,1:3*Nat) = matrix_product(Nvib,3*Nat,Ns,Aselinv,B)
+            B(1:Nvib0,1:3*Nat) = matrix_product(Nvib0,3*Nat,Ns,Aselinv,B)
             ! Rotate Bders
             do j=1,3*Nat
-                Bder(1:Nvib,j,1:3*Nat) =  matrix_product(Nvib,3*Nat,Ns,Aselinv,Bder(1:Ns,j,1:3*Nat))
+                Bder(1:Nvib0,j,1:3*Nat) =  matrix_product(Nvib0,3*Nat,Ns,Aselinv,Bder(1:Ns,j,1:3*Nat))
             enddo
 
             !Reset Angs
@@ -496,9 +510,10 @@ program normal_modes_cartesian
         if (vertical) then
             ! (Hess is already constructed)
             ! Hs (with the correction)
-            call HessianCart2int(Nat,Nvib,Hess,molecule%atom(:)%mass,B,G,Grad,Bder)
+            Vec(1:3*Nat) = Grad(1:3*Nat)
+            call HessianCart2int(Nat,Nvib0,Hess,molecule%atom(:)%mass,B,G,Vec,Bder)
             ! B^t Hs B [~Hx]
-            Hess(1:3*Nat,1:3*Nat) = matrix_basisrot(3*Nat,Nvib,B,Hess,counter=.true.)
+            Hess(1:3*Nat,1:3*Nat) = matrix_basisrot(3*Nat,Nvib0,B,Hess,counter=.true.)
         endif
 
         ! M^-1/2 [Hx] M^-1/2
@@ -587,6 +602,21 @@ program normal_modes_cartesian
         call Lmwc_to_Lcart(Nat,Nvib,molecule%atom(1:Nat)%mass,LL,LL)
 
     endif ! Read normal modes OR do vibrationa analisis
+
+    ! Get extra data (g_Q...)
+    if (verbose>1) then
+        if (vertical) then
+            ! Gradient
+            ! gQ = L^t gx
+            do i=1,Nvib
+                Vec(i) = 0.d0
+                do k=1,3*Nat
+                    Vec(i) = Vec(i) + LL(k,i) * Grad(k)
+                enddo
+            enddo
+            call print_vector(6,Vec*1e5,Nvib,"Grad_Q (a.u.) x10^5")
+        endif
+    endif
 
     !Define the Factor to convert shift into addimensional displacements
     ! from the shift in SI units:
@@ -873,6 +903,8 @@ program normal_modes_cartesian
                            Amplitude,call_vmd,include_hbonds,selection,vertical, &
                            ! Options (Cartesian)
                            full_diagonalize,                                     &
+                           ! Remove coordinate along gradient
+                           rm_gradcoord,                                         &
                            ! Movie
                            animate,movie_vmd, movie_cycles,                      &
                            ! Options (internal)
@@ -893,6 +925,7 @@ program normal_modes_cartesian
                                           def_internal,intfile,rmzfile,cnx_file
         real(8),intent(inout)          :: Amplitude
         logical,intent(inout)          :: call_vmd, include_hbonds,vertical,movie_vmd,full_diagonalize,animate,&
+                                          rm_gradcoord, &
                                           ! Internal
                                           use_symmetry,analytic_Bder, &
                                           ! Other
@@ -940,6 +973,11 @@ program normal_modes_cartesian
                 case ("-ftn") 
                     call getarg(i+1, ftn)
                     argument_retrieved=.true.
+
+                case ("-rmgrad")
+                    rm_gradcoord=.true.
+                case ("-normgrad")
+                    rm_gradcoord=.false.
 
                 case ("-Eckart")
                     Eckart_frame=.true.
@@ -1093,6 +1131,8 @@ program normal_modes_cartesian
         write(6,*)       '-ftn           \_ FileType                     ', trim(adjustl(ftn))
         write(6,*)       ''
         write(6,*)       ' ** Options for vibration analysis **'
+        write(6,*)       '-[no]rmgrad    Remove coordinate along the    ', rm_gradcoord
+        write(6,*)       '               grandient                      '
         write(6,*)       '-[no]fulldiag  Diagonalize the 3Nx3N matrix   ',  full_diagonalize
         write(6,*)       '-[no]Eckart    Include translation & rotation ',  Eckart_frame
         write(6,*)       '               in the Eckart frame            '
