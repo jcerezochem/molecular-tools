@@ -56,7 +56,7 @@ program cartesian_duschinsky
                check_symmetry=.true., &
                force_real=.false.
     character(len=4) :: def_internal='all'
-    character(len=1) :: reference_frame
+    character(len=1) :: reference_frame='F'
     !======================
 
     !====================== 
@@ -526,16 +526,16 @@ program cartesian_duschinsky
         do i=1,Nvib
             Freq2(i) = sign(dsqrt(abs(FC(i))*HARTtoJ/BOHRtoM**2/AUtoKG)/2.d0/pi/clight/1.d2,&
                              FC(i))
-            if (FC(i)<0) then
-                print*, i, FC(i), Freq2(i)
-                if (force_real) then 
-                    FC(i)    = abs(FC(i))
-                    Freq2(i) = abs(Freq2(i))
-                    call alert_msg("warning","Negative FC turned real")
-                else
-                    call alert_msg("warning","A negative FC found")
-                endif
-            endif
+!             if (FC(i)<0) then
+!                 print*, i, FC(i), Freq2(i)
+!                 if (force_real) then 
+!                     FC(i)    = abs(FC(i))
+!                     Freq2(i) = abs(Freq2(i))
+!                     call alert_msg("warning","Negative FC turned real (Gradient is also changed)")
+!                 else
+!                     call alert_msg("warning","A negative FC found")
+!                 endif
+!             endif
         enddo
         if (verbose>0) &
             call print_vector(6,Freq2,Nvib,"Frequencies (cm-1)")
@@ -737,8 +737,23 @@ program cartesian_duschinsky
         do i=1,Nvib
             Q0(i) = 0.d0
             do k=1,Nvib
-                Q0(i) = Q0(i) - G1(k,i) * Grad(k) / FC(i)
+                Q0(i) = Q0(i) - G1(k,i) * Grad(k)
             enddo
+            Q0(i) = Q0(i) / FC(i)
+            ! Change imag to real if requested. This is done now, once the shift was computed
+            ! So the displacement is anyway computed towards the stationary point of the quadratic PES
+            ! It would be equivalent to also change the gradient if we did the change imag to real before 
+            ! this point (hence the warning message)
+            if (FC(i)<0) then
+                print*, i, FC(i), Freq2(i)
+                if (force_real) then 
+                    FC(i)    = abs(FC(i))
+                    Freq2(i) = abs(Freq2(i))
+                    call alert_msg("warning","Negative FC turned real (Gradient also changed)")
+                else
+                    call alert_msg("warning","A negative FC found")
+                endif
+             endif
         enddo
         
         if (verbose>2) then
@@ -769,15 +784,6 @@ program cartesian_duschinsky
         ! Convert Freq into FC. Store in FC for future use
         do i=1,Nvib
             FC(i) = sign((Freq2(i)*2.d0*pi*clight*1.d2)**2/HARTtoJ*BOHRtoM**2*AUtoKG,Freq2(i))
-            if (FC(i)<0) then
-                print*, i, FC(i)
-                if (force_real) then 
-                    FC(i)=abs(FC(i))
-                    call alert_msg("warning","Negative FC turned real")
-                else
-                    call alert_msg("warning","A negative FC found")
-                endif
-            endif
         enddo
         ! Lambda_f^-1 * L2^t
         do i=1,Nvib
@@ -792,8 +798,21 @@ program cartesian_duschinsky
             do k=1,3*Nat
                 Q0(i) = Q0(i) - Aux(i,k) * Grad(k)
             enddo
+            ! Change imag to real if requested. This is done now, once the shift was computed
+            ! So the displacement is anyway computed towards the stationary point of the quadratic PES
+            ! It would be equivalent to also change the gradient if we did the change imag to real before 
+            ! this point (hence the warning message)
+            if (FC(i)<0) then
+                print*, i, FC(i)
+                if (force_real) then 
+                    FC(i)=abs(FC(i))
+                    call alert_msg("warning","Negative FC turned real (Gradient also changed)")
+                else
+                    call alert_msg("warning","A negative FC found")
+                endif
+            endif
         enddo
-        ! J * [-Lambda_f^-1 * L2^t * gs]
+        ! J * [-Lambda_f^-1 * L2^t * gx]
         do i=1,Nvib
             Vec1(i)=0.d0
             do k=1,Nvib

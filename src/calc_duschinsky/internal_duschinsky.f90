@@ -906,16 +906,6 @@ program internal_duschinski
         ! Convert Freq into FC. Store in FC for future use
         do i=1,Nvib
             FC(i) = sign((Freq2(i)*2.d0*pi*clight*1.d2)**2/HARTtoJ*BOHRtoM**2*AUtoKG,Freq2(i))
-            if (FC(i)<0) then
-                print*, i, FC(i), Freq2(i)
-                if (force_real) then 
-                    FC(i)    = abs(FC(i))
-                    Freq2(i) = abs(Freq2(i))
-                    call alert_msg("warning","Negative FC turned real")
-                else
-                    call alert_msg("warning","A negative FC found")
-                endif
-            endif
         enddo
         ! Lambda_f^-1 * L2^t
         do i=1,Nvib
@@ -927,6 +917,20 @@ program internal_duschinski
             do k=1,Nvib
                 Q0(i) = Q0(i) - Aux(i,k) * Grad(k)
             enddo
+            ! Change imag to real if requested. This is done now, once the shift was computed
+            ! So the displacement is anyway computed towards the stationary point of the quadratic PES
+            ! It would be equivalent to also change the gradient if we did the change imag to real before 
+            ! this point (hence the warning message)
+            if (FC(i)<0) then
+                print*, i, FC(i), Freq2(i)
+                if (force_real) then 
+                    FC(i)    = abs(FC(i))
+                    Freq2(i) = abs(Freq2(i))
+                    call alert_msg("warning","Negative FC turned real (Gradient also changed)")
+                else
+                    call alert_msg("warning","A negative FC found")
+                endif
+            endif
         enddo
         ! J * [-Lambda_f^-1 * L2^t * gs]
         do i=1,Nvib
@@ -971,8 +975,23 @@ program internal_duschinski
         do i=1,Nvib
             Q0(i) = 0.d0
             do k=1,Nvib
-                Q0(i) = Q0(i) - Jdus(k,i) * Grad(k) / FC(i)
+                Q0(i) = Q0(i) - Jdus(k,i) * Grad(k)
             enddo
+            Q0(i) = Q0(i) / FC(i)
+            ! Change imag to real if requested. This is done now, once the shift was computed
+            ! So the displacement is anyway computed towards the stationary point of the quadratic PES
+            ! It would be equivalent to also change the gradient if we did the change imag to real before 
+            ! this point (hence the warning message)
+            if (FC(i)<0) then
+                print*, i, FC(i), Freq2(i)
+                if (force_real) then 
+                    FC(i)    = abs(FC(i))
+                    Freq2(i) = abs(Freq2(i))
+                    call alert_msg("warning","Negative FC turned real (Gradient also changed)")
+                else
+                    call alert_msg("warning","A negative FC found")
+                endif
+             endif
         enddo
         if (verbose>2) then
             call print_vector(6,FC*1e5,Nvib,"FC - int")
