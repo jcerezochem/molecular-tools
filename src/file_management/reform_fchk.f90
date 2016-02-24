@@ -380,31 +380,32 @@ program reorder_fchk
     call write_fchk(O_FCHK,"Charge","I",0,A,(/charge/),error)
     call write_fchk(O_FCHK,"Multiplicity","I",0,A,(/mult/),error)
 
-    !If fchk, copy first lines
-    if (adjustl(filetype) == "fchk") then
-        open(I_INP,file=inpfile,status='old',iostat=IOstatus)
-        !Copy lines till "Atomic Numbers" if this is a fchk
-        ! skipping the following lines:
-        read (I_INP,'(A)') line ! Title is changed
-        read (I_INP,'(A)') line ! Job info
-        read (I_INP,'(A)') line ! Number of atoms
-        !--
-        ! Info1-1 will be in a different place wrt original
-        read (I_INP,'(A)') line ! Info1-9 (1/2)
-        write(O_FCHK,'(A)') trim(adjustl(line))
-        read (I_INP,'(A)') line ! Info1-9 (2/2)
-        write(O_FCHK,'(A)') trim(adjustl(line))
-        ! skipping the following lines:
-        read (I_INP,'(A)') line ! Charge
-        read (I_INP,'(A)') line ! Multiplicity
-        !--
-        read(I_INP,'(A)',iostat=IOstatus) line
-        do while (index(line,"Atomic numbers")==0)
-            write(O_FCHK,'(A)') trim(adjustl(line))
-            read(I_INP,'(A)',iostat=IOstatus) line
-        enddo
-        close(I_INP)
-    endif
+!   THIS IS NOT SAFE. IF THE STARTING FCHK IS NOT STANDARD, IT MAY NEVER REACH "Atomic numbers" SECTION
+!     !If fchk, copy first lines
+!     if (adjustl(filetype) == "fchk") then
+!         open(I_INP,file=inpfile,status='old',iostat=IOstatus)
+!         !Copy lines till "Atomic Numbers" if this is a fchk
+!         ! skipping the following lines:
+!         read (I_INP,'(A)') line ! Title is changed
+!         read (I_INP,'(A)') line ! Job info
+!         read (I_INP,'(A)') line ! Number of atoms
+!         !--
+!         ! Info1-1 will be in a different place wrt original
+!         read (I_INP,'(A)') line ! Info1-9 (1/2)
+!         write(O_FCHK,'(A)') trim(adjustl(line))
+!         read (I_INP,'(A)') line ! Info1-9 (2/2)
+!         write(O_FCHK,'(A)') trim(adjustl(line))
+!         ! skipping the following lines:
+!         read (I_INP,'(A)') line ! Charge
+!         read (I_INP,'(A)') line ! Multiplicity
+!         !--
+!         read(I_INP,'(A)',iostat=IOstatus) line
+!         do while (index(line,"Atomic numbers")==0)
+!             write(O_FCHK,'(A)') trim(adjustl(line))
+!             read(I_INP,'(A)',iostat=IOstatus) line
+!         enddo
+!         close(I_INP)
+!     endif
 
     !Atomic Numbers and Nuclear charges
     N=molecule%natoms

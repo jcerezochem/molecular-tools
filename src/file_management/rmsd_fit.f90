@@ -209,10 +209,10 @@ program rmsd_fit
 
     ! 3. FITTING
     ! ---------------------------------
-    call ROTATA1(molec_filt,molecRef_filt,Rot)
+    call ROTATA1(molec_filt,molecRef_filt,Rot) !,use_mwc=.false.)
     print*, "Rotation matrix: "
     do i=1,3
-        print'(3F11.4)', Rot(i,1:3)
+        print'(3F15.6)', Rot(i,1:3)
     enddo
     print*, ""
     ! Place the whole molec according to COM mol
