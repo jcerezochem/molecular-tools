@@ -679,6 +679,23 @@ module matrix
     !-----------------------------------------
     ! WRAPPER FUNCTION TO BLAS MATRIX PRODUCTS
     !-----------------------------------------
+    function vector_dot_product(N,V1,V2) result(pes)
+        ! A Wrapper to ddot to perform the dot product 
+        ! Pof vectors V1(N) and V2(N)
+   
+        integer,intent(in)                   :: N
+        real(8),dimension(:),intent(in)      :: V1,V2
+        real(8)                              :: pes
+
+        !Needs BLAS !as weird as it is, we need to define it as a real
+        real(8) :: ddot
+        external :: ddot
+    
+        pes = ddot(N,V1,1,V2,1)
+
+        return
+
+    end function
 
     function matrix_product(NA,NB,NK,A,B,tA,tB) result(P)
 
@@ -687,6 +704,14 @@ module matrix
         ! P(NA,NB) = A(NA,K) * B(K,NB)
         ! P(NA,NB) = A^t(K,NA) * B(K,NB)
         ! and modificaitions alike
+
+
+        INTERFACE 
+           function ddot(N,Dx,INCX,DY,INCY)
+             integer :: N, INCX, INCY
+             real(8),dimension(:) :: Dx, Dy
+           END FUNCTION ddot
+        END INTERFACE
 
         integer,intent(in)                   :: NA,NB,NK
         real(8),dimension(:,:),intent(in)    :: A,B

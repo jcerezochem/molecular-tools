@@ -48,8 +48,8 @@ module vibrational_analysis
         !
         !          
         !Notes
-        ! Uses built-in matrix manipulation functions in fortran (dot_product,matmul,transpose)
-        ! We assume the compiler would recognise them (true for gfortran, ifort)  
+        ! Built-in dot_product changed by BLAS routing (interfaced in matrix module)
+        ! Still need to replace matmul(vector,matrix) and transpose  
         !
         ! General note: better not to "reuse" output arrays as work arrays if the output
         ! size is not as large as the work to do. E.g., Freq can simply be (1:Nvib), so 
@@ -79,7 +79,7 @@ module vibrational_analysis
         integer :: Nrt
         integer :: error_local
         ! Auxiliar scalars and arrays
-        real(kind=8)                :: pes, MassTot
+        real(kind=8)                :: pes, MassTot, angle
         real(kind=8),dimension(3)   :: R, RCOM
         real(kind=8),dimension(3,3) :: MI, Xrot
         real(kind=8),dimension(1:3*Nat,1:3*Nat+6) :: D
@@ -148,9 +148,9 @@ module vibrational_analysis
                 D(i+2,3) = dsqrt(Mass_local(j)) 
             enddo
             !Normalize
-            D(1:3*Nat,1) = D(1:3*Nat,1)/sqrt(dot_product(D(1:3*Nat,1),D(1:3*Nat,1)))
-            D(1:3*Nat,2) = D(1:3*Nat,2)/sqrt(dot_product(D(1:3*Nat,2),D(1:3*Nat,2)))
-            D(1:3*Nat,3) = D(1:3*Nat,3)/sqrt(dot_product(D(1:3*Nat,3),D(1:3*Nat,3)))
+            D(1:3*Nat,1) = D(1:3*Nat,1)/dsqrt(vector_dot_product(3*Nat,D(1:3*Nat,1),D(1:3*Nat,1)))
+            D(1:3*Nat,2) = D(1:3*Nat,2)/dsqrt(vector_dot_product(3*Nat,D(1:3*Nat,2),D(1:3*Nat,2)))
+            D(1:3*Nat,3) = D(1:3*Nat,3)/dsqrt(vector_dot_product(3*Nat,D(1:3*Nat,3),D(1:3*Nat,3)))
             
             !Rotation
             do i=1,3*Nat,3
@@ -175,7 +175,7 @@ module vibrational_analysis
             ii = 3
             do i=4,6 
                 ii = ii + 1
-                pes=dot_product(D(1:3*Nat,ii),D(1:3*Nat,ii))
+                pes=vector_dot_product(3*Nat,D(1:3*Nat,ii),D(1:3*Nat,ii))
                 if (abs(pes) < ZERO) then
                     print*, "NOTE: linear molecule detected"
                     !Shift comlumns
@@ -184,7 +184,7 @@ module vibrational_analysis
                     enddo
                     ii = ii - 1
                 else
-                    D(1:3*Nat,ii) = D(1:3*Nat,ii)/sqrt(pes)
+                    D(1:3*Nat,ii) = D(1:3*Nat,ii)/dsqrt(pes)
                 endif
             enddo
             Nrt = ii
@@ -192,6 +192,20 @@ module vibrational_analysis
                 error_local = 1
                 if (present(error_flag)) error_flag = error_local
                 return
+            endif
+
+            if (verbose>1) then
+                print'(/,A,X)', "Checking the orthogonality of Rotation and Translation"
+                !Check the orthogonalily wrt traslation and rotation
+                print*, "Coords      DotProd    Angle"
+                do j=1,Nrt
+                do i=j+1,Nrt
+                    pes=vector_dot_product(3*Nat,D(1:3*Nat,j),D(1:3*Nat,i))
+                    angle=dacos(pes)*180.d0/pi
+                    print'(2I4,2F11.3)', j, i, pes, angle
+                enddo
+                enddo
+                print*, ""
             endif
 
             if (present(Grad)) then
@@ -204,21 +218,30 @@ module vibrational_analysis
                     D(k,ii) = Grad(k) / dsqrt(Mass_local(j)) * 1.d5
                 enddo
                 ! Normalize the vector
-                pes = dot_product(D(1:3*Nat,ii),D(1:3*Nat,ii))
+                pes = vector_dot_product(3*Nat,D(1:3*Nat,ii),D(1:3*Nat,ii))
                 if (abs(pes) < ZERO) then
                     print*, "The vector along the gradient is null"
                     stop
                 else 
                     D(1:3*Nat,ii) = D(1:3*Nat,ii)/sqrt(pes)
                 endif
+                !Check the orthogonalily wrt traslation and rotation
+                print'(/,A,X)', "Checking the orthogonality with Rot/Trans before G-S"
+                print*, "Coord   DotProd    Angle"
+                do j=1,Nrt
+                    pes=vector_dot_product(3*Nat,D(1:3*Nat,j),D(1:3*Nat,ii))
+                    angle=dacos(pes)*180.d0/pi
+                    print'(I4,2F11.3)', j, pes, angle
+                enddo
+                print*, "Applying Gram-Schmdit orthogonalizaton"
                 !Grand-Schmdit orthogonalization step. (we use H(:,1) as work vector)
                 H(1:3*Nat,1) = D(1:3*Nat,ii)
                 do j=1,ii-1
-                    H(1:3*Nat,1) = H(1:3*Nat,1) - dot_product(D(1:3*Nat,ii),D(1:3*Nat,j))*D(1:3*Nat,j)
+                    H(1:3*Nat,1) = H(1:3*Nat,1) - vector_dot_product(3*Nat,D(1:3*Nat,ii),D(1:3*Nat,j))*D(1:3*Nat,j)
                 enddo
                 D(1:3*Nat,ii) = H(1:3*Nat,1)
                 !Check if the new vector was linearly independent, if so, normalize it
-                pes = dot_product(D(1:3*Nat,ii),D(1:3*Nat,ii))
+                pes = vector_dot_product(3*Nat,D(1:3*Nat,ii),D(1:3*Nat,ii))
                 if (abs(pes) < ZERO) then
                     print*, "The vector along the gradient is not independent wrt Rot+Tras"
                     stop
@@ -239,11 +262,11 @@ module vibrational_analysis
                 !Grand-Schmdit orthogonalization step. (we use H(:,1) as work vector)
                 H(1:3*Nat,1) = D(1:3*Nat,ii)
                 do j=1,ii-1
-                    H(1:3*Nat,1) = H(1:3*Nat,1) - dot_product(D(1:3*Nat,ii),D(1:3*Nat,j))*D(1:3*Nat,j)
+                    H(1:3*Nat,1) = H(1:3*Nat,1) - vector_dot_product(3*Nat,D(1:3*Nat,ii),D(1:3*Nat,j))*D(1:3*Nat,j)
                 enddo
                 D(1:3*Nat,ii) = H(1:3*Nat,1)
                 !Check if the new vector was linearly independent, if so, normalize it
-                pes = dot_product(D(1:3*Nat,ii),D(1:3*Nat,ii))
+                pes = vector_dot_product(3*Nat,D(1:3*Nat,ii),D(1:3*Nat,ii))
                 if (abs(pes) < ZERO) then
                     !If not linear independent, shift columns
                     ii = ii - 1
