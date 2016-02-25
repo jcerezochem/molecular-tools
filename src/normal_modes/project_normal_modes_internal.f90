@@ -92,6 +92,11 @@ program projection_normal_modes_int
     real(8)                   :: Delta_p
     !====================== 
 
+    !======================
+    ! Auxiliar
+    real(8),dimension(NDIM,NDIM) :: Aux2
+    !======================
+
     !====================== 
     !INTERNAL CODE THINGS
     real(8),dimension(1:NDIM,1:NDIM) :: B,G
@@ -236,16 +241,30 @@ program projection_normal_modes_int
     !From now on, we'll use atomic units
     call set_geom_units(molecule,"Bohr")
 
-
     !SOLVE GF METHOD TO GET NM AND FREQ
     call internal_Wilson(molecule,Nvib,S1,B,ModeDef)
     call internal_Gmetric(Nat,Nvib,molecule%atom(:)%mass,B,G)
     if (vertical) then
         call calc_Bder(molecule,Nvib,Bder)
-        call HessianCart2int(Nat,Nvib,Hess,molecule%atom(:)%mass,B,G,Grad=Grad,Bder=Bder)
-    else
-        call HessianCart2int(Nat,Nvib,Hess,molecule%atom(:)%mass,B,G)
+        ! (Hess is already constructed)
+        ! Hs (with the correction)
+        ! First get: Hx' = Hx - gs^t\beta
+        ! 1. Get gs from gx
+        call Gradcart2int(Nat,Nvib,Grad,molecule%atom(:)%mass,B,G)
+        ! 2. Multiply gs^t\beta and
+        ! 3. Apply the correction
+        ! Bder(i,j,K)^t * gq(K)
+        do i=1,3*Nat
+        do j=1,3*Nat
+            Aux2(i,j) = 0.d0
+            do k=1,Nvib
+                Aux2(i,j) = Aux2(i,j) + Bder(k,i,j)*Grad(k)
+            enddo
+            Hess(i,j) = Hess(i,j) - Aux2(i,j)
+        enddo
+        enddo
     endif
+    call HessianCart2int(Nat,Nvib,Hess,molecule%atom(:)%mass,B,G)
     call gf_method(Nvib,G,Hess,LL,Freq,X,Xinv)
     if (verbose>0) then
         ! Analyze normal modes

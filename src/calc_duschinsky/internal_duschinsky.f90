@@ -78,16 +78,18 @@ program internal_duschinski
                original_internal=.false., &
                force_real=.false.
     character(len=4) :: def_internal='all'
+    character(len=4) :: def_internal0='all'
     character(len=1) :: reference_frame='F'
     !======================
 
     !====================== 
     !System variables
     type(str_resmol) :: state1, state2
+    type(str_bonded) :: geomS, geom0
     integer,dimension(1:NDIM) :: isym
     integer,dimension(4,1:NDIM,1:NDIM) :: Osym
     integer :: Nsym
-    integer :: Nat, Nvib, Ns, NNvib
+    integer :: Nat, Nvib, Ns, NNvib, Nvib0
     character(len=5) :: PG
     !Bonded info
     integer,dimension(1:NDIM,1:4) :: bond_s, angle_s, dihed_s
@@ -101,7 +103,8 @@ program internal_duschinski
     !Other arrays
     real(8),dimension(1:NDIM) :: Grad
     real(8),dimension(1:NDIM,1:NDIM) :: Hess, X, X1inv,X2inv, L1,L2,L1inv, &
-                                        Asel1,Asel2,Asel1inv,Asel2inv
+                                        Asel1,Asel2,Asel1inv,Asel2inv, gBder, &
+                                        G0, B0
     real(8),dimension(1:NDIM,1:NDIM,1:NDIM) :: Bder
     !Duschisky
     real(8),dimension(NDIM,NDIM) :: G1, G2, Jdus
@@ -124,6 +127,7 @@ program internal_duschinski
     real(8),dimension(:),allocatable :: A
     integer :: error
     character(len=200) :: msg
+    character(len=5)   :: current_symm
     !====================== 
 
     !====================== 
@@ -197,7 +201,7 @@ program internal_duschinski
     ! 0. GET COMMAND LINE ARGUMENTS
     call parse_input(inpfile,ft,hessfile,fth,gradfile,ftg,&
                      inpfile2,ft2,hessfile2,fth2,gradfile2,ftg2,&
-                     intfile,rmzfile,def_internal,use_symmetry,cnx_file, &
+                     intfile,rmzfile,def_internal,def_internal0,use_symmetry,cnx_file, &
 !                    tswitch,
                      symaddapt,same_red2nonred_rotation,analytic_Bder,&
                      vertical,verticalQspace2,verticalQspace1,&
@@ -247,6 +251,8 @@ program internal_duschinski
     ! Run vibrations_Cart to get the number of Nvib (to detect linear molecules)
     call vibrations_Cart(Nat,state1%atom(:)%X,state1%atom(:)%Y,state1%atom(:)%Z,state1%atom(:)%Mass,A,&
                          Nvib,L1,Freq1,error_flag=error)
+    ! And also initialize Nvib0
+    Nvib0 = Nvib
     k=0
     do i=1,3*Nat
     do j=1,i
@@ -296,11 +302,110 @@ program internal_duschinski
         call symm_atoms(state1,isym)
     endif
 
-    !Generate bonded info
+    !Specific actions (for Nvib and Nvib0 sets)
+    !*****************
+    if (gradcorrectS1) then
+        ! Nvib0 SET
+        !-----------
+        print'(/,X,A)', "COMPUTING CORRECTION FOR NON-STATIONARY   "
+        print*, "------------------------------------------"
+        ! The internal set for the correction does not need to be the same 
+        ! as the one to represent the normal modes
+        !Generate bonded info
+        call gen_bonded(state1)
+
+        !---------------------------------------
+        ! NOW, GET THE ACTUAL WORKING INTERNAL SET
+        call define_internal_set(state1,def_internal0,intfile,rmzfile,use_symmetry,isym,S_sym,Ns)
+        !---------------------------------------
+        ! Save the geom for the state2
+        geom0=state1%geom
+
+        ! Get G, B, and Bder 
+        call internal_Wilson(state1,Ns,S1,B0,ModeDef)
+        call internal_Gmetric(Nat,Ns,state1%atom(:)%mass,B0,G0)
+        call calc_Bder(state1,Ns,Bder,analytic_Bder)
+
+        ! The diagonalization of the G matrix can be donne with all sets
+        ! (either redundant or non-redundant), and it is the best way to 
+        ! set the number of vibrations. The following call also set Nvib0
+        call redundant2nonredundant(Ns,Nvib0,G0,Asel1)
+        ! Rotate Bmatrix
+        B0(1:Nvib0,1:3*Nat) = matrix_product(Nvib0,3*Nat,Ns,Asel1,B0,tA=.true.)
+        ! Rotate Gmatrix
+        G0(1:Nvib0,1:Nvib0) = matrix_basisrot(Nvib0,Ns,Asel1(1:Ns,1:Nvib0),G0,counter=.true.)
+        ! Rotate Bders
+        do j=1,3*Nat
+            Bder(1:Nvib0,j,1:3*Nat) =  matrix_product(Nvib0,3*Nat,Ns,Asel1,Bder(1:Ns,j,1:3*Nat),tA=.true.)
+        enddo
+
+        ! Get the Correction now
+        print*, " Getting the correction term: gs^t\beta"
+        ! The correction is applied with the Nvib0 SET
+        ! Correct Hessian as
+        ! Hx' = Hx - gs^t\beta
+        ! 1. Get gs from gx
+        Vec1(1:3*Nat) = Grad(1:3*Nat)
+        call Gradcart2int(Nat,Nvib0,Vec1,state1%atom(:)%mass,B0,G0)
+        ! 2. Multiply gs^t\beta and
+        ! 3. Apply the correction
+        ! Bder(i,j,K)^t * gq(K)
+        do i=1,3*Nat
+        do j=1,3*Nat
+            gBder(i,j) = 0.d0
+            do k=1,Nvib0
+                gBder(i,j) = gBder(i,j) + Bder(k,i,j)*Vec1(k)
+            enddo
+        enddo
+        enddo
+        if (verbose>2) then
+            print*, "Correction matrix to be applied on Hx:"
+            call MAT0(6,gBder,3*Nat,3*Nat,"gs*Bder matrix")
+        endif
+
+        if (check_symmetry) then
+            print'(/,X,A)', "---------------------------------------"
+            print'(X,A  )', " Check effect of symmetry operations"
+            print'(X,A  )', " on the correction term gs^t\beta"
+            print'(X,A  )', "---------------------------------------"
+            current_symm=state1%PG
+            state1%PG="XX"
+            call symm_atoms(state1,isym,Osym,rotate=.false.,nsym_ops=nsym)
+            ! Check the symmetry of the correction term
+            ! Check all detected symmetry ops
+            do iop=1,Nsym
+                Aux(1:3*Nat,1:3*Nat) = dfloat(Osym(iop,1:3*Nat,1:3*Nat))
+                Aux(1:3*Nat,1:3*Nat) = matrix_basisrot(3*Nat,3*Nat,Aux,gBder,counter=.true.)
+                Theta=0.d0
+                do i=1,3*Nat 
+                do j=1,3*Nat 
+                    if (Theta < abs(Aux(i,j)-gBder(i,j))) then
+                        Theta = abs(Aux(i,j)-gBder(i,j))
+                        Theta2=gBder(i,j)
+                    endif
+                enddo
+                enddo
+                print'(X,A,I0)', "Symmetry operation :   ", iop
+                print'(X,A,F10.6)',   " Max abs difference : ", Theta
+                print'(X,A,F10.6,/)', " Value before sym op: ", Theta2
+            enddo
+            print'(X,A,/)', "---------------------------------------"
+            state1%PG=current_symm
+        endif
+    endif
+
+
+    !Nvib SET
+    !---------
+    print'(/,X,A)', "GETTING INTERNAL SET TO DESCRIBE MODES   "
+    print*, "------------------------------------------"
+    ! Refress connectivity
     call gen_bonded(state1)
 
     ! Define internal set
     call define_internal_set(state1,def_internal,intfile,rmzfile,use_symmetry,isym, S_sym,Ns)
+    ! Save the geom for the state2
+    geomS=state1%geom
 
     !From now on, we'll use atomic units
     call set_geom_units(state1,"Bohr")
@@ -311,10 +416,6 @@ program internal_duschinski
     !SOLVE GF METHOD TO GET NM AND FREQ
     call internal_Wilson(state1,Ns,S1,B1,ModeDef)
     call internal_Gmetric(Nat,Ns,state1%atom(:)%mass,B1,G1)
-    if (gradcorrectS1) then
-!         call NumBder(state1,Ns,Bder)
-        call calc_BDer(state1,Ns,Bder,analytic_Bder)
-    endif
 
     ! SET REDUNDANT/SYMETRIZED/CUSTOM INTERNAL SETS
 !     if (symaddapt) then (implement in an analogous way as compared with the transformation from red to non-red
@@ -350,60 +451,18 @@ program internal_duschinski
         endif
         ! Rotate Bmatrix
         B1(1:Nvib,1:3*Nat) = matrix_product(Nvib,3*Nat,Ns,Asel1inv,B1)
-        ! Rotate Bders
-        if (gradcorrectS1) then
-            do j=1,3*Nat
-                Bder(1:Nvib,j,1:3*Nat) =  matrix_product(Nvib,3*Nat,Ns,Asel1inv,Bder(1:Ns,j,1:3*Nat))
-            enddo
-        endif
     endif
 
     if (gradcorrectS1) then
-        call HessianCart2int(Nat,Nvib,Hess,state1%atom(:)%mass,B1,G1,Grad,Bder)
-        if (check_symmetry) then
-            print'(/,X,A)', "---------------------------------------"
-            print'(X,A  )', " Check effect of symmetry operations"
-            print'(X,A  )', " on the correction term gs^t\beta"
-            print'(X,A  )', "---------------------------------------"
-            state1%PG="XX"
-            call symm_atoms(state1,isym,Osym,rotate=.false.,nsym_ops=nsym)
-            ! Check the symmetry of the correction term
-            ! First compute the correction term
-            do i=1,3*Nat
-            do j=1,3*Nat
-                Aux2(i,j) = 0.d0
-                do k=1,Nvib
-                    Aux2(i,j) = Aux2(i,j) + Bder(k,i,j)*Grad(k)
-                enddo
-            enddo
-            enddo
-            ! Print if verbose level is high
-            if (verbose>2) &
-                call MAT0(6,Aux2,3*Nat,3*Nat,"gs*Bder matrix")
-            ! Check all detected symmetry ops
-            do iop=1,Nsym
-                Aux(1:3*Nat,1:3*Nat) = dfloat(Osym(iop,1:3*Nat,1:3*Nat))
-                Aux(1:3*Nat,1:3*Nat) = matrix_basisrot(3*Nat,3*Nat,Aux,Aux2,counter=.true.)
-                Theta=0.d0
-                do i=1,3*Nat 
-                do j=1,3*Nat 
-                    if (Theta < abs(Aux(i,j)-Aux2(i,j))) then
-                        Theta = abs(Aux(i,j)-Aux2(i,j))
-                        Theta2=Aux2(i,j)
-                    endif
-                enddo
-                enddo
-                print'(X,A,I0)', "Symmetry operation :   ", iop
-                print'(X,A,F10.6)',   " Max abs difference : ", Theta
-                print'(X,A,F10.6,/)', " Value before sym op: ", Theta2
-            enddo
-            print'(X,A,/)', "---------------------------------------"
-        endif
-    else
-        call HessianCart2int(Nat,Nvib,Hess,state1%atom(:)%mass,B1,G1)
-        ! We need Grad in internal coordinates as well (ONLY IF HessianCart2int DOES NOT INCLUDE IT)
-        call Gradcart2int(Nat,Nvib,Grad,state1%atom(:)%mass,B1,G1)
+        do i=1,3*Nat
+        do j=1,3*Nat
+            ! Apply correction to the Hessian term
+            Hess(i,j) = Hess(i,j) - gBder(i,j)
+        enddo
+        enddo
     endif
+
+    call HessianCart2int(Nat,Nvib,Hess,state1%atom(:)%mass,B1,G1)
     call gf_method(Nvib,G1,Hess,L1,Freq1,X,X1inv)
     if (verbose>0) then
         ! Analyze normal modes in terms of the redundant set
@@ -477,7 +536,9 @@ program internal_duschinski
     call generic_Hessian_reader(I_INP,fth2,Nat,A,error) 
     if (error /= 0) call alert_msg("fatal","Error reading Hessian (State2)")
     close(I_INP)
+
     ! Run vibrations_Cart to get the number of Nvib (to detect linear molecules)
+    ! This is also used to check if the symmetry changed from the other state
     call vibrations_Cart(Nat,state2%atom(:)%X,state2%atom(:)%Y,state2%atom(:)%Z,state2%atom(:)%Mass,A,&
                          NNvib,L2,Freq2,error_flag=error)
     if (NNvib /= 3*Nat-6) call alert_msg("warning","Linear molecule (at state2). Things can go very bad.")
@@ -534,6 +595,8 @@ program internal_duschinski
         call symm_atoms(state2,isym)
     endif
     if (state1%PG /= state2%PG) then
+        print*, "PG(State1): ", state1%PG
+        print*, "PG(State2): ", state2%PG
         if (.not.use_symmetry) then
             call alert_msg("note","Initial and final state have different symmetry")
         else
@@ -541,11 +604,110 @@ program internal_duschinski
         endif
     endif
 
-    !Generate bonded info
+    !Specific actions (for Nvib and Nvib0 sets)
+    !*****************
+    if (gradcorrectS2) then
+        ! Nvib0 SET
+        !-----------
+        print'(/,X,A)', "COMPUTING CORRECTION FOR NON-STATIONARY   "
+        print*, "------------------------------------------"
+        ! The internal set for the correction does not need to be the same 
+        ! as the one to represent the normal modes
+        !Generate bonded info
+        call gen_bonded(state2)
+
+        !---------------------------------------
+        ! NOW, GET THE ACTUAL WORKING INTERNAL SET (from that of state1)
+        if (gradcorrectS1) then
+            state2%geom = geom0
+        else
+            call define_internal_set(state2,def_internal0,intfile,rmzfile,use_symmetry,isym,S_sym,Ns)
+        endif
+        !---------------------------------------
+
+        ! Get G, B, and Bder 
+        call internal_Wilson(state2,Ns,S2,B0,ModeDef)
+        call internal_Gmetric(Nat,Ns,state2%atom(:)%mass,B0,G0)
+        call calc_Bder(state2,Ns,Bder,analytic_Bder)
+
+        ! The diagonalization of the G matrix can be donne with all sets
+        ! (either redundant or non-redundant), and it is the best way to 
+        ! set the number of vibrations. The following call also set Nvib0
+        ! Nvib0=Nvib <-- we need to use Nvib0 as is. Nvib might have changed to a reduced space
+        call redundant2nonredundant(Ns,Nvib0,G0,Asel2)
+        ! Rotate Bmatrix
+        B0(1:Nvib0,1:3*Nat) = matrix_product(Nvib0,3*Nat,Ns,Asel2,B0,tA=.true.)
+        ! Rotate Gmatrix
+        G0(1:Nvib0,1:Nvib0) = matrix_basisrot(Nvib0,Ns,Asel2(1:Ns,1:Nvib0),G0,counter=.true.)
+        ! Rotate Bders
+        do j=1,3*Nat
+            Bder(1:Nvib0,j,1:3*Nat) =  matrix_product(Nvib0,3*Nat,Ns,Asel2,Bder(1:Ns,j,1:3*Nat),tA=.true.)
+        enddo
+
+        ! Get the Correction now
+        print*, " Getting the correction term: gs^t\beta"
+        ! The correction is applied with the Nvib0 SET
+        ! Correct Hessian as
+        ! Hx' = Hx - gs^t\beta
+        ! 1. Get gs from gx 
+        Vec1(1:3*Nat) = Grad(1:3*Nat)
+        call Gradcart2int(Nat,Nvib0,Vec1,state2%atom(:)%mass,B0,G0)
+        ! 2. Multiply gs^t\beta and
+        ! 3. Apply the correction
+        ! Bder(i,j,K)^t * gq(K)
+        do i=1,3*Nat
+        do j=1,3*Nat
+            gBder(i,j) = 0.d0
+            do k=1,Nvib0
+                gBder(i,j) = gBder(i,j) + Bder(k,i,j)*Vec1(k)
+            enddo
+        enddo
+        enddo
+        if (verbose>2) then
+            print*, "Correction matrix to be applied on Hx:"
+            call MAT0(6,gBder,3*Nat,3*Nat,"gs*Bder matrix")
+        endif
+
+        if (check_symmetry) then
+            print'(/,X,A)', "---------------------------------------"
+            print'(X,A  )', " Check effect of symmetry operations"
+            print'(X,A  )', " on the correction term gs^t\beta"
+            print'(X,A  )', "---------------------------------------"
+            current_symm=state1%PG
+            state1%PG="XX"
+            call symm_atoms(state1,isym,Osym,rotate=.false.,nsym_ops=nsym)
+            ! Check the symmetry of the correction term
+            ! Check all detected symmetry ops
+            do iop=1,Nsym
+                Aux(1:3*Nat,1:3*Nat) = dfloat(Osym(iop,1:3*Nat,1:3*Nat))
+                Aux(1:3*Nat,1:3*Nat) = matrix_basisrot(3*Nat,3*Nat,Aux,gBder,counter=.true.)
+                Theta=0.d0
+                do i=1,3*Nat 
+                do j=1,3*Nat 
+                    if (Theta < abs(Aux(i,j)-gBder(i,j))) then
+                        Theta = abs(Aux(i,j)-gBder(i,j))
+                        Theta2=gBder(i,j)
+                    endif
+                enddo
+                enddo
+                print'(X,A,I0)', "Symmetry operation :   ", iop
+                print'(X,A,F10.6)',   " Max abs difference : ", Theta
+                print'(X,A,F10.6,/)', " Value before sym op: ", Theta2
+            enddo
+            print'(X,A,/)', "---------------------------------------"
+            state1%PG=current_symm
+        endif
+    endif
+
+    !Nvib SET
+    !---------
+    print'(/,X,A)', "GETTING INTERNAL SET TO DESCRIBE MODES   "
+    print*, "------------------------------------------"
+    ! Refress connectivity
     call gen_bonded(state2)
 
     ! Define internal set => taken from state1
-    state2%geom = state1%geom
+    state2%geom = geomS
 
     !From now on, we'll use atomic units
     call set_geom_units(state2,"Bohr")
@@ -556,10 +718,6 @@ program internal_duschinski
     !SOLVE GF METHOD TO GET NM AND FREQ
     call internal_Wilson(state2,Ns,S2,B2,ModeDef)
     call internal_Gmetric(Nat,Ns,state2%atom(:)%mass,B2,G2)
-    if (gradcorrectS2) then
-!         call NumBder(state2,Ns,Bder)
-        call calc_BDer(state2,Ns,Bder,analytic_Bder)
-    endif
     ! Handle redundant/symtrized sets
 !     if (symaddapt) then (implement in an analogous way as compared with the transformation from red to non-red
     if (original_internal.and.Nvib==Ns) then
@@ -602,60 +760,20 @@ program internal_duschinski
         endif
         ! Rotate Bmatrix
         B2(1:Nvib,1:3*Nat) = matrix_product(Nvib,3*Nat,Ns,Asel2inv,B2)
-        ! Rotate Bders
-        if (gradcorrectS2) then
-            do j=1,3*Nat
-                Bder(1:Nvib,j,1:3*Nat) =  matrix_product(Nvib,3*Nat,Ns,Asel2inv,Bder(1:Ns,j,1:3*Nat))
-            enddo
-        endif
     endif
 
     if (gradcorrectS2) then
-        call HessianCart2int(Nat,Nvib,Hess,state2%atom(:)%mass,B2,G2,Grad,Bder)
-        if (check_symmetry) then
-            print'(/,X,A)', "---------------------------------------"
-            print'(X,A  )', " Check effect of symmetry operations"
-            print'(X,A  )', " on the correction term gs^t\beta"
-            print'(X,A  )', "---------------------------------------"
-            state2%PG="XX"
-            call symm_atoms(state2,isym,Osym,rotate=.false.,nsym_ops=nsym)
-            ! Check the symmetry of the correction term
-            ! First compute the correction term
-            do i=1,3*Nat
-            do j=1,3*Nat
-                Aux2(i,j) = 0.d0
-                do k=1,Nvib
-                    Aux2(i,j) = Aux2(i,j) + Bder(k,i,j)*Grad(k)
-                enddo
-            enddo
-            enddo
-            ! Print if verbose level is high
-            if (verbose>2) &
-                call MAT0(6,Aux2,3*Nat,3*Nat,"gs*Bder matrix")
-            ! Check all detected symmetry ops
-            do iop=1,Nsym
-                Aux(1:3*Nat,1:3*Nat) = dfloat(Osym(iop,1:3*Nat,1:3*Nat))
-                Aux(1:3*Nat,1:3*Nat) = matrix_basisrot(3*Nat,3*Nat,Aux,Aux2,counter=.true.)
-                Theta=0.d0
-                do i=1,3*Nat 
-                do j=1,3*Nat 
-                    if (Theta < abs(Aux(i,j)-Aux2(i,j))) then
-                        Theta = abs(Aux(i,j)-Aux2(i,j))
-                        Theta2=Aux2(i,j)
-                    endif
-                enddo
-                enddo
-                print'(X,A,I0)', "Symmetry operation :   ", iop
-                print'(X,A,F10.6)',   " Max abs difference : ", Theta
-                print'(X,A,F10.6,/)', " Value before sym op: ", Theta2
-            enddo
-            print'(X,A,/)', "---------------------------------------"
-        endif
-    else
-        call HessianCart2int(Nat,Nvib,Hess,state2%atom(:)%mass,B2,G2)
-        ! We need Grad in internal coordinates as well (ONLY IF HessianCart2int DOES NOT INCLUDE IT)
-        call Gradcart2int(Nat,Nvib,Grad,state2%atom(:)%mass,B2,G2)
+        do i=1,3*Nat
+        do j=1,3*Nat
+            ! Apply correction to the Hessian term
+            Hess(i,j) = Hess(i,j) - gBder(i,j)
+        enddo
+        enddo
     endif
+
+    ! Convert also the gradient to internal (for future use)
+    call Gradcart2int(Nat,Nvib,Grad,state2%atom(:)%mass,B2,G2)
+    call HessianCart2int(Nat,Nvib,Hess,state1%atom(:)%mass,B2,G2)
     call gf_method(Nvib,G2,Hess,L2,Freq2,X,X2inv)
     if (verbose>0) then
         ! Analyze normal modes in terms of the redundant set
@@ -1234,7 +1352,7 @@ program internal_duschinski
 
     subroutine parse_input(inpfile,ft,hessfile,fth,gradfile,ftg,&
                            inpfile2,ft2,hessfile2,fth2,gradfile2,ftg2,&
-                           intfile,rmzfile,def_internal,use_symmetry,cnx_file,&
+                           intfile,rmzfile,def_internal,def_internal0,use_symmetry,cnx_file,&
 !                          tswitch,
                            symaddapt,same_red2nonred_rotation,analytic_Bder,&
                            vertical,verticalQspace2,verticalQspace1,&
@@ -1247,7 +1365,7 @@ program internal_duschinski
 
         character(len=*),intent(inout) :: inpfile,ft,hessfile,fth,gradfile,ftg,&
                                           inpfile2,ft2,hessfile2,fth2,gradfile2,ftg2,&
-                                          intfile,rmzfile,def_internal, cnx_file, reference_frame !, symfile
+                                          intfile,rmzfile,def_internal,def_internal0, cnx_file, reference_frame !, symfile
         logical,intent(inout)          :: use_symmetry, vertical, verticalQspace2, &
                                           verticalQspace1, &
                                           gradcorrectS1, gradcorrectS2, symaddapt, &
@@ -1339,6 +1457,10 @@ program internal_duschinski
                 ! Kept for backward compatibility (but replaced by -rmzfile)
                 case ("-rmz") 
                     call getarg(i+1, rmzfile)
+                    argument_retrieved=.true.
+
+                case ("-intmode0")
+                    call getarg(i+1, def_internal0)
                     argument_retrieved=.true.
 
                 case ("-intmode")
@@ -1530,6 +1652,7 @@ program internal_duschinski
         write(6,*) '               '                       
         write(6,*) ' ** Options Internal Coordinates **           '
         write(6,*) '-cnx         Connectivity [filename|guess] ', trim(adjustl(cnx_file))
+        write(6,*) '-intmode0    Internal set:[zmat|sel|all]   ', trim(adjustl(def_internal0))
         write(6,*) '-intmode     Internal set:[zmat|sel|all]   ', trim(adjustl(def_internal))
         write(6,*) '-intfile     File with ICs (for "sel")     ', trim(adjustl(intfile))
         write(6,*) '-rmzfile     File deleting ICs from Zmat   ', trim(adjustl(rmzfile))

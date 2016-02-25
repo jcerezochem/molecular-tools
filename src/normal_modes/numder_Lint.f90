@@ -100,6 +100,12 @@ program numder_fc
     integer :: i,j,k, istep, iread, IOstatus
 
     !================
+
+    !======================
+    ! Auxiliar
+    real(8),dimension(NDIM,NDIM) :: Aux2
+    !======================
+
     !================
     !I/O stuff 
     !units
@@ -214,7 +220,24 @@ program numder_fc
         !SOLVE GF METHOD TO GET NM AND FREQ
         call internal_Gmetric(Nat,Nvib,molecule%atom(:)%mass,B,G)
         call calc_Bder(molecule,Nvib,Bder,.true.)
-        call HessianCart2int(Nat,Nvib,Hess,molecule%atom(:)%mass,B,G,Grad=Grad,Bder=Bder)
+        ! (Hess is already constructed)
+        ! Hs (with the correction)
+        ! First get: Hx' = Hx - gs^t\beta
+        ! 1. Get gs from gx
+        call Gradcart2int(Nat,Nvib,Grad,molecule%atom(:)%mass,B,G)
+        ! 2. Multiply gs^t\beta and
+        ! 3. Apply the correction
+        ! Bder(i,j,K)^t * gq(K)
+        do i=1,3*Nat
+        do j=1,3*Nat
+            Aux2(i,j) = 0.d0
+            do k=1,Nvib
+                Aux2(i,j) = Aux2(i,j) + Bder(k,i,j)*Grad(k)
+            enddo
+            Hess(i,j) = Hess(i,j) - Aux2(i,j)
+        enddo
+        enddo
+        call HessianCart2int(Nat,Nvib,Hess,molecule%atom(:)%mass,B,G)
         call gf_method(Nvib,G,Hess,LL(istep,:,:),Freq,X,Xinv)
 !         call analyze_internal(Nvib,Ns,LL(istep,:,:),Freq,ModeDef)
         LL(istep,1:Nvib,1:Nvib) = inverse_realgen(Nvib,LL(istep,:,:))

@@ -570,14 +570,59 @@ program cartesian_duschinsky
     else if (vertical) then ! vertical in X-space
         print*, "Vertical model in X-space"
         if (gradcorrectS2) then
-            print*, "The Hessian will be corrected before computing the displacements!"
-            ! Follow the derivation based on x -> s -> t
-            ! already used in nm_cartesian
+            print*, "The Hessian will be corrected before computing the displacements"
             ! (Hess is already constructed)
             ! Hs (with the correction)
-!             Aux(1:3*Nat,1:3*Nat) = Hess(1:3*Nat,1:3*Nat)
-            Vec1(1:3*Nat) = Grad(1:3*Nat) ! to avoid overwritting the Graddient
-            call HessianCart2int(Nat,Nvib0,Hess,state2%atom(:)%mass,B,G1,Vec1,Bder)
+            ! First get: Hx' = Hx - gs^t\beta
+            ! 1. Get gs from gx
+            Vec(1:3*Nat) = Grad(1:3*Nat)
+            call Gradcart2int(Nat,Nvib0,Vec,state2%atom(:)%mass,B,G)
+            ! 2. Multiply gs^t\beta and
+            ! 3. Apply the correction
+            ! Bder(i,j,K)^t * gq(K)
+            do i=1,3*Nat
+            do j=1,3*Nat
+                Aux2(i,j) = 0.d0
+                do k=1,Nvib0
+                    Aux2(i,j) = Aux2(i,j) + Bder(k,i,j)*Vec(k)
+                enddo
+                Hess(i,j) = Hess(i,j) - Aux2(i,j)
+            enddo
+            enddo
+            if (verbose>2) then
+                print*, "Correction matrix to be applied on Hx:"
+                call MAT0(6,Aux2,3*Nat,3*Nat,"gs*Bder matrix")
+            endif
+            
+            if (check_symmetry) then
+                print'(/,X,A)', "---------------------------------------"
+                print'(X,A  )', " Check effect of symmetry operations"
+                print'(X,A  )', " on the correction term gs^t\beta"
+                print'(X,A  )', "---------------------------------------"
+                state2%PG="XX"
+                call symm_atoms(state2,isym,Osym,rotate=.false.,nsym_ops=nsym)
+                ! Check the symmetry of the correction term
+                ! Check all detected symmetry ops
+                do iop=1,Nsym
+                    Aux(1:3*Nat,1:3*Nat) = dfloat(Osym(iop,1:3*Nat,1:3*Nat))
+                    Aux(1:3*Nat,1:3*Nat) = matrix_basisrot(3*Nat,3*Nat,Aux,Aux2,counter=.true.)
+                    Theta=0.d0
+                    do i=1,3*Nat 
+                    do j=1,3*Nat 
+                        if (Theta < abs(Aux(i,j)-Aux2(i,j))) then
+                            Theta = abs(Aux(i,j)-Aux2(i,j))
+                            Theta2=Aux2(i,j)
+                        endif
+                    enddo
+                    enddo
+                    print'(X,A,I0)', "Symmetry operation :   ", iop
+                    print'(X,A,F10.6)',   " Max abs difference : ", Theta
+                    print'(X,A,F10.6,/)', " Value before sym op: ", Theta2
+                enddo
+                print'(X,A,/)', "---------------------------------------"
+            endif
+            ! Get Hs
+            call HessianCart2int(Nat,Nvib0,Hess,state2%atom(:)%mass,B,G)
             ! B^t Hs B [~Hx]
             Hess(1:3*Nat,1:3*Nat) = matrix_basisrot(3*Nat,Nvib0,B,Hess,counter=.true.)
             ! M^-1/2 [Hx] M^-1/2

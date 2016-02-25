@@ -72,7 +72,7 @@ program normal_modes_animation
     integer,dimension(1:NDIM) :: isym
     integer,dimension(4,1:NDIM,1:NDIM) :: Osym
     integer :: Nsym
-    integer :: Nat, Nvib, Ns
+    integer :: Nat, Nvib, Ns, Nvib0
     integer :: Ns_zmat, Ns_all, Nvib_all
     character(len=5) :: PG
     !Job info
@@ -100,7 +100,7 @@ program normal_modes_animation
     !====================== 
     ! PES topology and normal mode things
     real(8),dimension(:),allocatable :: Hlt
-    real(8),dimension(1:NDIM,1:NDIM) :: Hess, Hess_all, LL, LL_all
+    real(8),dimension(1:NDIM,1:NDIM) :: Hess, Hess_all, LL, LL_all, gBder
     real(8),dimension(NDIM) :: Freq, Freq_all, Factor, Grad, Grad_all
     !Moving normal modes
     character(len=50) :: selection="none"
@@ -118,9 +118,8 @@ program normal_modes_animation
 
     !====================== 
     !INTERNAL CODE THINGS
-    real(8),dimension(1:NDIM,1:NDIM) :: B, G, Asel, Asel_all
+    real(8),dimension(1:NDIM,1:NDIM) :: B, G, Asel, Asel_all, B0, G0, Asel0
     real(8),dimension(1:NDIM,1:NDIM,1:NDIM) :: Bder
-    real(8),dimension(1:24,1:30,1:30) :: Bder1, Bder2, Bder3
     real(8),dimension(1:NDIM,1:NDIM) :: X,Xinv
     !Save definitio of the modes in character
     character(len=100),dimension(NDIM) :: ModeDef
@@ -128,7 +127,9 @@ program normal_modes_animation
     real(8),dimension(NDIM) :: S, Sref, Szmat, Sall
     integer,dimension(NDIM) :: S_sym
     ! Switches
-    character(len=5) :: def_internal="ALL", def_internal_aux
+    character(len=5) :: def_internal="ALL",  & ! To do the vibrational analysis
+                        def_internal0="ALL", & ! To do the correction for vertical
+                        def_internal_aux
     character(len=2) :: scan_type="NM"
     !Coordinate map
     integer,dimension(NDIM) :: Zmap, IntMap
@@ -140,6 +141,7 @@ program normal_modes_animation
     !Auxiliar
     real(8),dimension(1:NDIM,1:NDIM) :: Aux, Aux2, Aux3
     real(8) :: Theta, Theta2
+    character(len=5) :: current_symm
     !====================== 
 
     !================
@@ -199,7 +201,7 @@ program normal_modes_animation
                      ! Movie
                      animate,movie_vmd, movie_cycles,                      &
                      ! Options (internal)
-                     use_symmetry,def_internal,intfile,rmzfile,scan_type,  &
+                     use_symmetry,def_internal,def_internal0,intfile,rmzfile,scan_type,  &
                      project_on_all,                                       &
                      ! connectivity file
                      cnx_file,                                             &
@@ -320,9 +322,13 @@ program normal_modes_animation
         Nvib = 3*Nat-6
         Nvib_all=Nvib
     endif
+    
 
+    !----------------------------------
     ! MANAGE INTERNAL COORDS
     ! ---------------------------------
+    ! General Actions:
+    !******************
     ! Get connectivity 
     if (cnx_file == "guess") then
         call guess_connect(molecule)
@@ -350,9 +356,104 @@ program normal_modes_animation
         call symm_atoms(molecule,isym)
     endif
 
-    !Generate bonded info
-    call gen_bonded(molecule)
+    !Specific actions (for Nvib and Nvib0 sets)
+    !*****************
+    if (vertical) then
+        ! Nvib0 SET
+        !-----------
+        print'(/,X,A)', "=========================================="
+        print*, "COMPUTING CORRECTION FOR NON-STATIONARY   "
+        print*, "=========================================="
+        ! The internal set for the correction does not need to be the same 
+        ! as the one to represent the normal modes
+        !Generate bonded info
+        call gen_bonded(molecule)
 
+        !---------------------------------------
+        ! NOW, GET THE ACTUAL WORKING INTERNAL SET
+        call define_internal_set(molecule,def_internal0,intfile,rmzfile,use_symmetry,isym,S_sym,Ns)
+        !---------------------------------------
+
+        ! Get G, B, and Bder 
+        call internal_Wilson(molecule,Ns,S,B0,ModeDef)
+        call internal_Gmetric(Nat,Ns,molecule%atom(:)%mass,B0,G0)
+        call calc_Bder(molecule,Ns,Bder,analytic_Bder)
+
+        ! The diagonalization of the G matrix can be donne with all sets
+        ! (either redundant or non-redundant), and it is the best way to 
+        ! set the number of vibrations. The following call also set Nvib0
+        Nvib0=Nvib !An input value is needed for checking
+        call redundant2nonredundant(Ns,Nvib0,G0,Asel)
+        ! Rotate Bmatrix
+        B0(1:Nvib0,1:3*Nat) = matrix_product(Nvib0,3*Nat,Ns,Asel,B0,tA=.true.)
+        ! Rotate Gmatrix
+        G0(1:Nvib0,1:Nvib0) = matrix_basisrot(Nvib0,Ns,Asel(1:Ns,1:Nvib0),G0,counter=.true.)
+        ! Rotate Bders
+        do j=1,3*Nat
+            Bder(1:Nvib0,j,1:3*Nat) =  matrix_product(Nvib0,3*Nat,Ns,Asel,Bder(1:Ns,j,1:3*Nat),tA=.true.)
+        enddo
+
+        ! Get the Correction now
+        print*, " Getting the correction term: gs^t\beta"
+        ! The correction is applied with the Nvib0 SET
+        ! Correct Hessian as
+        ! Hx' = Hx - gs^t\beta
+        ! 1. Get gs from gx
+        call Gradcart2int(Nat,Nvib,Grad,molecule%atom(:)%mass,B0,G0)
+        ! 2. Multiply gs^t\beta and
+        ! 3. Apply the correction
+        ! Bder(i,j,K)^t * gq(K)
+        do i=1,3*Nat
+        do j=1,3*Nat
+            gBder(i,j) = 0.d0
+            do k=1,Nvib0
+                gBder(i,j) = gBder(i,j) + Bder(k,i,j)*Grad(k)
+            enddo
+        enddo
+        enddo
+        if (verbose>2) then
+            print*, "Correction matrix to be applied on Hx:"
+            call MAT0(6,gBder,3*Nat,3*Nat,"gs*Bder matrix")
+        endif
+
+        if (check_symmetry) then
+            print'(/,X,A)', "---------------------------------------"
+            print'(X,A  )', " Check effect of symmetry operations"
+            print'(X,A  )', " on the correction term gs^t\beta"
+            print'(X,A  )', "---------------------------------------"
+            current_symm=molecule%PG
+            molecule%PG="XX"
+            call symm_atoms(molecule,isym,Osym,rotate=.false.,nsym_ops=nsym)
+            ! Check the symmetry of the correction term
+            ! Check all detected symmetry ops
+            do iop=1,Nsym
+                Aux(1:3*Nat,1:3*Nat) = dfloat(Osym(iop,1:3*Nat,1:3*Nat))
+                Aux(1:3*Nat,1:3*Nat) = matrix_basisrot(3*Nat,3*Nat,Aux,gBder,counter=.true.)
+                Theta=0.d0
+                do i=1,3*Nat 
+                do j=1,3*Nat 
+                    if (Theta < abs(Aux(i,j)-gBder(i,j))) then
+                        Theta = abs(Aux(i,j)-gBder(i,j))
+                        Theta2=gBder(i,j)
+                    endif
+                enddo
+                enddo
+                print'(X,A,I0)', "Symmetry operation :   ", iop
+                print'(X,A,F10.6)',   " Max abs difference : ", Theta
+                print'(X,A,F10.6,/)', " Value before sym op: ", Theta2
+            enddo
+            print'(X,A,/)', "---------------------------------------"
+            molecule%PG=current_symm
+        endif
+    endif
+
+    !Nvib SET
+    !---------
+    print'(/,X,A)', "=========================================="
+    print*, "GETTING INTERNAL SET TO DESCRIBE MODES   "
+    print*, "=========================================="
+    ! Refress connectivity
+    call gen_bonded(molecule)
     ! Define internal set
     Ns_zmat=0
     ! Shortcut logical: whether or not do zmap 
@@ -360,7 +461,7 @@ program normal_modes_animation
     do_zmap = def_internal=="ZMAT".and.rmzfile/="none"
     !  2/ If -intmode not equal zmat
     do_zmap = do_zmap.or.def_internal/="ZMAT"
-    ! 3/ But only do it if we want the animation
+    !  3/ But only do it if we want the animation
     do_zmap = do_zmap.and.animate
     if (do_zmap) then 
         print*, "Preliminary Zmat analysis"
@@ -398,8 +499,11 @@ program normal_modes_animation
         call alert_msg("note","The projection on the 'all' set is not done with -intmode all")
         project_on_all=.false.
     endif
+
+    !---------------------------------------
     ! NOW, GET THE ACTUAL WORKING INTERNAL SET
     call define_internal_set(molecule,def_internal,intfile,rmzfile,use_symmetry,isym,S_sym,Ns)
+    !---------------------------------------
 
     ! Set variables based on the working internal set 
     if (molecule%geom%nimprop/=0) then
@@ -447,6 +551,7 @@ program normal_modes_animation
         ! 2. Normal Mode SCAN
         !--------------------------------------
         ! If requested, get the vibrations with the 'all' set
+        ! In this case, Nvib0=Nvib, and we evaluate here the correction terms
         if (project_on_all) then
             print'(/,X,A)', "Vibrational anlysis with 'all' set"
             ! First get the geom for current state
@@ -479,57 +584,34 @@ program normal_modes_animation
             if (vertical) then
                 ! We save the original gradient
                 Grad_all(1:3*Nat) = Grad(1:3*Nat)
-                call HessianCart2int(Nat,Nvib_all,Hess_all,molecule%atom(:)%mass,B,G,Grad_all,Bder)
+                ! Correct Hessian as
+                ! Hx' = Hx - gs^t\beta
+                ! 1. Get gs from gx
+                call Gradcart2int(Nat,Ns,Grad_all,molecule%atom(1:Nat)%mass,B,G)
+                ! 2. Multiply gs^t\beta and
+                ! 3. Apply the correction
+                ! Bder(i,j,K)^t * gq(K)
+                do i=1,3*Nat
+                do j=1,3*Nat
+                    Aux(i,j) = 0.d0
+                    do k=1,Nvib0
+                        Aux(i,j) = Aux(i,j) + Bder(k,i,j)*Grad_all(k)
+                    enddo
+                    ! Apply correction to the Hessian term
+                    Hess_all(i,j) = Hess_all(i,j) - Aux(i,j)
+                enddo
+                enddo
+
                 if (verbose>2) then
                     do i=1,Nvib_all
                         write(tmpfile,'(A,I0,A)') "Bder, ic=",i
                         call MAT0(6,Bder(i,:,:),3*Nat,3*Nat,trim(tmpfile))
                     enddo
                 endif
-
-                if (check_symmetry) then
-                    print'(/,X,A)', "---------------------------------------"
-                    print'(X,A  )', " Check effect of symmetry operations"
-                    print'(X,A  )', " on the correction term gs^t\beta"
-                    print'(X,A  )', "---------------------------------------"
-                    molecule%PG="XX"
-                    call symm_atoms(molecule,isym,Osym,rotate=.false.,nsym_ops=nsym)
-                    ! Check the symmetry of the correction term
-                    ! First compute the correction term
-                    do i=1,3*Nat
-                    do j=1,3*Nat
-                        Aux2(i,j) = 0.d0
-                        do k=1,Nvib_all
-                            Aux2(i,j) = Aux2(i,j) + Bder(k,i,j)*Grad_all(k)
-                        enddo
-                    enddo
-                    enddo
-                    ! Print if verbose level is high
-                    if (verbose>2) &
-                        call MAT0(6,Aux2,3*Nat,3*Nat,"gs*Bder matrix")
-                    ! Check all detected symmetry ops
-                    do iop=1,Nsym
-                        Aux(1:3*Nat,1:3*Nat) = dfloat(Osym(iop,1:3*Nat,1:3*Nat))
-                        Aux(1:3*Nat,1:3*Nat) = matrix_basisrot(3*Nat,3*Nat,Aux,Aux2,counter=.true.)
-                        Theta=0.d0
-                        do i=1,3*Nat 
-                        do j=1,3*Nat 
-                            if (Theta < abs(Aux(i,j)-Aux2(i,j))) then
-                                Theta = abs(Aux(i,j)-Aux2(i,j))
-                                Theta2=Aux2(i,j)
-                            endif
-                        enddo
-                        enddo
-                        print'(X,A,I0)', "Symmetry operation :   ", iop
-                        print'(X,A,F10.6)',   " Max abs difference : ", Theta
-                        print'(X,A,F10.6,/)', " Value before sym op: ", Theta2
-                    enddo
-                    print'(X,A,/)', "---------------------------------------"
-                endif
-
-            else
-                call HessianCart2int(Nat,Nvib_all,Hess_all,molecule%atom(:)%mass,B,G)
             endif
+            ! Get Hessian in internal
+            call HessianCart2int(Nat,Nvib_all,Hess_all,molecule%atom(:)%mass,B,G)
+            ! Di vibrational analysis
             call gf_method(Nvib_all,G,Hess_all,LL_all,Freq_all,X,Xinv)
 
            ! Restore original geom
@@ -542,11 +624,7 @@ program normal_modes_animation
         call internal_Wilson(molecule,Ns,S,B,ModeDef)
         if (nmfile == "none") then
             !SOLVE GF METHOD TO GET NM AND FREQ
-            call internal_Gmetric(Nat,Ns,molecule%atom(:)%mass,B,G)
-
-            if (vertical) then
-                call calc_Bder(molecule,Ns,Bder,analytic_Bder)
-            endif
+            call internal_Gmetric(Nat,Ns,molecule%atom(1:Nat)%mass,B,G)
 
             ! The diagonalization of the G matrix can be donne with all sets
             ! (either redundant or non-redundant), and it is the best way to 
@@ -556,65 +634,19 @@ program normal_modes_animation
             B(1:Nvib,1:3*Nat) = matrix_product(Nvib,3*Nat,Ns,Asel,B,tA=.true.)
             ! Rotate Gmatrix
             G(1:Nvib,1:Nvib) = matrix_basisrot(Nvib,Ns,Asel(1:Ns,1:Nvib),G,counter=.true.)
-            ! Rotate Bders
+
             if (vertical) then
+                do i=1,3*Nat
                 do j=1,3*Nat
-                    Bder(1:Nvib,j,1:3*Nat) =  matrix_product(Nvib,3*Nat,Ns,Asel,Bder(1:Ns,j,1:3*Nat),tA=.true.)
+                    ! Apply correction to the Hessian term
+                    Hess(i,j) = Hess(i,j) - gBder(i,j)
+                enddo
                 enddo
             endif
 
-            if (vertical) then
-                call HessianCart2int(Nat,Nvib,Hess,molecule%atom(:)%mass,B,G,Grad,Bder)
-                if (verbose>2) then
-                    do i=1,Nvib
-                        write(tmpfile,'(A,I0,A)') "Bder, ic=",i
-                        call MAT0(6,Bder(i,:,:),3*Nat,3*Nat,trim(tmpfile))
-                    enddo
-                endif
-
-                if (check_symmetry) then
-                    print'(/,X,A)', "---------------------------------------"
-                    print'(X,A  )', " Check effect of symmetry operations"
-                    print'(X,A  )', " on the correction term gs^t\beta"
-                    print'(X,A  )', "---------------------------------------"
-                    molecule%PG="XX"
-                    call symm_atoms(molecule,isym,Osym,rotate=.false.,nsym_ops=nsym)
-                    ! Check the symmetry of the correction term
-                    ! First compute the correction term
-                    do i=1,3*Nat
-                    do j=1,3*Nat
-                        Aux2(i,j) = 0.d0
-                        do k=1,Nvib
-                            Aux2(i,j) = Aux2(i,j) + Bder(k,i,j)*Grad(k)
-                        enddo
-                    enddo
-                    enddo
-                    ! Print if verbose level is high
-                    if (verbose>2) &
-                        call MAT0(6,Aux2,3*Nat,3*Nat,"gs*Bder matrix")
-                    ! Check all detected symmetry ops
-                    do iop=1,Nsym
-                        Aux(1:3*Nat,1:3*Nat) = dfloat(Osym(iop,1:3*Nat,1:3*Nat))
-                        Aux(1:3*Nat,1:3*Nat) = matrix_basisrot(3*Nat,3*Nat,Aux,Aux2,counter=.true.)
-                        Theta=0.d0
-                        do i=1,3*Nat 
-                        do j=1,3*Nat 
-                            if (Theta < abs(Aux(i,j)-Aux2(i,j))) then
-                                Theta = abs(Aux(i,j)-Aux2(i,j))
-                                Theta2=Aux2(i,j)
-                            endif
-                        enddo
-                        enddo
-                        print'(X,A,I0)', "Symmetry operation :   ", iop
-                        print'(X,A,F10.6)',   " Max abs difference : ", Theta
-                        print'(X,A,F10.6,/)', " Value before sym op: ", Theta2
-                    enddo
-                    print'(X,A,/)', "---------------------------------------"
-                endif
-
-            else
-                call HessianCart2int(Nat,Nvib,Hess,molecule%atom(:)%mass,B,G)
-            endif
+            ! Get Hessian in initernal coordinates
+            call HessianCart2int(Nat,Nvib,Hess,molecule%atom(:)%mass,B,G)
+            ! Perform vibrational analysis (GF)
             call gf_method(Nvib,G,Hess,LL,Freq,X,Xinv)
             if (verbose>1) then
                 ! Analyze normal modes in terms of the redundant set
@@ -1057,7 +1089,7 @@ program normal_modes_animation
                            ! Movie
                            animate,movie_vmd, movie_cycles,                      &
                            ! Options (internal)
-                           use_symmetry,def_internal,intfile,rmzfile,scan_type,  &
+                           use_symmetry,def_internal,def_internal0,intfile,rmzfile,scan_type,  &
                            project_on_all,                                       &
                            ! connectivity file
                            cnx_file,                                             &
@@ -1070,7 +1102,7 @@ program normal_modes_animation
 
         character(len=*),intent(inout) :: inpfile,ft,hessfile,fth,gradfile,ftg,nmfile,ftn, &
                                           intfile,rmzfile,scan_type,def_internal,selection, &
-                                          cnx_file
+                                          cnx_file,def_internal0
         real(8),intent(inout)          :: Amplitude
         logical,intent(inout)          :: call_vmd, include_hbonds,vertical, use_symmetry,movie_vmd,animate,&
                                           analytic_Bder,project_on_all
@@ -1133,6 +1165,10 @@ program normal_modes_animation
 
                 case ("-intmode")
                     call getarg(i+1, def_internal)
+                    argument_retrieved=.true.
+
+                case ("-intmode0")
+                    call getarg(i+1, def_internal0)
                     argument_retrieved=.true.
 
                 case ("-sym")
@@ -1265,6 +1301,7 @@ program normal_modes_animation
         write(6,*)       '-cnx           Connectivity [filename|guess]   ', trim(adjustl(cnx_file))
 !         write(6,*)       '-fnm           Gradient file                   ', trim(adjustl(nmfile))
 !         write(6,*)       '-ftn           \_ FileType                     ', trim(adjustl(ftn))
+        write(6,*)       '-intmode0      Internal set:[zmat|sel|all]     ', trim(adjustl(def_internal0))
         write(6,*)       '-intmode       Internal set:[zmat|sel|all]     ', trim(adjustl(def_internal))
         write(6,*)       '-intfile       File with ICs (for "sel")       ', trim(adjustl(intfile))
         write(6,*)       '-rmzfile       File deleting ICs from Zmat     ', trim(adjustl(rmzfile))

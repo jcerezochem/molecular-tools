@@ -304,12 +304,14 @@ program normal_modes_cartesian
         close(I_INP)
         
         ! GRADIENT FILE
-        if (vertical .or. rm_gradcoord) then
-            call statement(6,"READING GRADIENT FILE...")
-            open(I_INP,file=gradfile,status='old',iostat=IOstatus)
-            if (IOstatus /= 0) call alert_msg( "fatal","Unable to open "//trim(adjustl(gradfile)) )
-            call generic_gradient_reader(I_INP,ftg,Nat,Grad,error)
-            close(I_INP)
+        call statement(6,"READING GRADIENT FILE...")
+        open(I_INP,file=gradfile,status='old',iostat=IOstatus)
+        if (IOstatus /= 0) call alert_msg( "fatal","Unable to open "//trim(adjustl(gradfile)) )
+        call generic_gradient_reader(I_INP,ftg,Nat,Grad,error)
+        close(I_INP)
+        if (error /= 0) then
+            print*, "Error reading the Gradient. It will be set to zero"
+            Grad(1:3*Nat) = 0.d0
         endif
 
 
@@ -416,7 +418,8 @@ program normal_modes_cartesian
             endif
 
             ! If we use uncorrected modes as linear combinations for internals
-            ! we now compute them
+            ! we now compute them. 
+            ! This means using linearised internals (should be equivalent to Cart)
             if (modes_as_internals) then
                 ! Get Hess matrix from H(lowertriangular)
                 allocate (Hess(1:NDIM,1:NDIM))
@@ -510,8 +513,56 @@ program normal_modes_cartesian
         if (vertical) then
             ! (Hess is already constructed)
             ! Hs (with the correction)
+            ! First get: Hx' = Hx - gs^t\beta
+            ! 1. Get gs from gx
             Vec(1:3*Nat) = Grad(1:3*Nat)
-            call HessianCart2int(Nat,Nvib0,Hess,molecule%atom(:)%mass,B,G,Vec,Bder)
+            call Gradcart2int(Nat,Nvib0,Vec,molecule%atom(:)%mass,B,G)
+            ! 2. Multiply gs^t\beta and
+            ! 3. Apply the correction
+            ! Bder(i,j,K)^t * gq(K)
+            do i=1,3*Nat
+            do j=1,3*Nat
+                Aux2(i,j) = 0.d0
+                do k=1,Nvib0
+                    Aux2(i,j) = Aux2(i,j) + Bder(k,i,j)*Vec(k)
+                enddo
+                Hess(i,j) = Hess(i,j) - Aux2(i,j)
+            enddo
+            enddo
+            if (verbose>2) then
+                print*, "Correction matrix to be applied on Hx:"
+                call MAT0(6,Aux2,3*Nat,3*Nat,"gs*Bder matrix")
+            endif
+            
+            if (check_symmetry) then
+                print'(/,X,A)', "---------------------------------------"
+                print'(X,A  )', " Check effect of symmetry operations"
+                print'(X,A  )', " on the correction term gs^t\beta"
+                print'(X,A  )', "---------------------------------------"
+                molecule%PG="XX"
+                call symm_atoms(molecule,isym,Osym,rotate=.false.,nsym_ops=nsym)
+                ! Check the symmetry of the correction term
+                ! Check all detected symmetry ops
+                do iop=1,Nsym
+                    Aux(1:3*Nat,1:3*Nat) = dfloat(Osym(iop,1:3*Nat,1:3*Nat))
+                    Aux(1:3*Nat,1:3*Nat) = matrix_basisrot(3*Nat,3*Nat,Aux,Aux2,counter=.true.)
+                    Theta=0.d0
+                    do i=1,3*Nat 
+                    do j=1,3*Nat 
+                        if (Theta < abs(Aux(i,j)-Aux2(i,j))) then
+                            Theta = abs(Aux(i,j)-Aux2(i,j))
+                            Theta2=Aux2(i,j)
+                        endif
+                    enddo
+                    enddo
+                    print'(X,A,I0)', "Symmetry operation :   ", iop
+                    print'(X,A,F10.6)',   " Max abs difference : ", Theta
+                    print'(X,A,F10.6,/)', " Value before sym op: ", Theta2
+                enddo
+                print'(X,A,/)', "---------------------------------------"
+            endif
+            ! Get Hs
+            call HessianCart2int(Nat,Nvib0,Hess,molecule%atom(:)%mass,B,G)
             ! B^t Hs B [~Hx]
             Hess(1:3*Nat,1:3*Nat) = matrix_basisrot(3*Nat,Nvib0,B,Hess,counter=.true.)
         endif
@@ -605,17 +656,15 @@ program normal_modes_cartesian
 
     ! Get extra data (g_Q...)
     if (verbose>1) then
-        if (vertical) then
-            ! Gradient
-            ! gQ = L^t gx
-            do i=1,Nvib
-                Vec(i) = 0.d0
-                do k=1,3*Nat
-                    Vec(i) = Vec(i) + LL(k,i) * Grad(k)
-                enddo
+        ! Gradient
+        ! gQ = L^t gx
+        do i=1,Nvib
+            Vec(i) = 0.d0
+            do k=1,3*Nat
+                Vec(i) = Vec(i) + LL(k,i) * Grad(k)
             enddo
-            call print_vector(6,Vec*1e5,Nvib,"Grad_Q (a.u.) x10^5")
-        endif
+        enddo
+        call print_vector(6,Vec*1e5,Nvib,"Grad_Q (a.u.) x10^5")
     endif
 
     !Define the Factor to convert shift into addimensional displacements

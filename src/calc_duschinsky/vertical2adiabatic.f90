@@ -446,12 +446,25 @@ program vertical2adiabatic
     endif
 
     if (vertical) then
-        call HessianCart2int(Nat,Nvib,Hess,state1%atom(:)%mass,B1,G1,Grad=Grad,Bder=Bder)
-    else
-        call HessianCart2int(Nat,Nvib,Hess,state1%atom(:)%mass,B1,G1)
-        ! We need Grad in internal coordinates as well (ONLY IF HessianCart2int DOES NOT INCLUDE IT)
+        ! (Hess is already constructed)
+        ! Hs (with the correction)
+        ! First get: Hx' = Hx - gs^t\beta
+        ! 1. Get gs from gx
         call Gradcart2int(Nat,Nvib,Grad,state1%atom(:)%mass,B1,G1)
+        ! 2. Multiply gs^t\beta and
+        ! 3. Apply the correction
+        ! Bder(i,j,K)^t * gq(K)
+        do i=1,3*Nat
+        do j=1,3*Nat
+            Aux2(i,j) = 0.d0
+            do k=1,Nvib
+                Aux2(i,j) = Aux2(i,j) + Bder(k,i,j)*Grad(k)
+            enddo
+            Hess(i,j) = Hess(i,j) - Aux2(i,j)
+        enddo
+        enddo
     endif
+    call HessianCart2int(Nat,Nvib,Hess,state1%atom(:)%mass,B1,G1)
     call gf_method(Nvib,G1,Hess,L1,Freq,X1,X1inv)
 
     ! Get minimum in internal coordinates

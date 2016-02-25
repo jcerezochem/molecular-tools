@@ -1435,9 +1435,7 @@ module internal_module
 
 
 
-    subroutine HessianCart2int(Nat,Ns,Hess,Mass,B,G, &
-                                                 !Optional:
-                                                 Grad,Bder)
+    subroutine HessianCart2int(Nat,Ns,Hess,Mass,B,G)
 
         !==============================================================
         ! This code is part of MOLECULAR_TOOLS 
@@ -1448,6 +1446,14 @@ module internal_module
         !   g_q is the gradient, so g_q=0 in a minimum
         !   G^- is the generalized inverse (for redundant internal) or simply the
         !   inverse for nonredundant
+        !
+        ! Arguments
+        !  Nat    Int /Scalar    Number of atoms
+        !  Ns     Int /Scalar    Number of internal coordianates
+        !  Hess   Real/Matrix    Hessian in Cartesian (corrected or not)
+        !  Mass   Real/Vector    Mass vector (Nat)
+        !  B      Real/Matrix    B matrix
+        !  G      Real/Matrix    Metric matrix
         !------------------------------------------------------------------
 
         use structure_types
@@ -1468,9 +1474,7 @@ module internal_module
         integer,intent(in)                          :: Ns     ! Number of internal coordinates (in)
         real(8),dimension(1:NDIM),intent(in)        :: Mass   ! Wilson matrices (in)
         real(8),dimension(1:NDIM,1:NDIM),intent(in) :: G,B    ! Wilson matrices (in)
-        real(8),dimension(1:NDIM,1:NDIM,1:NDIM),intent(in),optional :: Bder ! Bmatrxi derivatives
         real(8),dimension(1:NDIM,1:NDIM),intent(inout) :: Hess   !Hessian: cart(in)-intern(out)
-        real(8),dimension(1:NDIM),intent(inout),optional :: Grad !Gradient 
         !====================== 
     
         !====================== 
@@ -1501,35 +1505,8 @@ module internal_module
             ii = (i-1)/3+1
             Aux(1:Ns,i) = Aux(1:Ns,i)/Mass(ii)/UMAtoAU
         enddo
-    
-        if (present(Grad)) then
-            if (.not.present(Bder)) call alert_msg("fatal","API Error: Bder needed with Grad present")
-            if (verbose>0) &
-            print*, "Getting Hessian in internal using Gradient correction"
-            ! Get the gradient in internal coords first: gq = G^-1Bu(gx)
-            do i=1,Nvib
-                Vec(i) = 0.d0
-                do j=1,3*Nat
-                    Vec(i) = Vec(i) + Aux(i,j) * Grad(j)
-                enddo
-            enddo
-            ! Update the gradient on output
-            Grad(1:3*Nat) = 0.d0
-            Grad(1:Nvib) = Vec(1:Nvib)
-            ! .. and multiply: Bder(i,j,K)^t * gq(K)
-            do i=1,3*Nat
-            do j=1,3*Nat
-                AuxT(i,j) = 0.d0
-                do k=1,Nvib
-                    AuxT(i,j) = AuxT(i,j) + Bder(k,i,j)*Vec(k)
-                enddo
-                ! Apply correction to the Hessian term
-                Hess(i,j) = Hess(i,j) - AuxT(i,j)
-            enddo
-            enddo
-        endif ! gradient correction
-    
-        ! Hint = Aux (Hcart-Bder*gq) Aux^T (this is "matrix_basisrot")
+        
+        ! Hint = Aux ([~Hx]) Aux^T (this is "matrix_basisrot")
         Hess(1:Ns,1:3*Nat) = matrix_product(Ns,3*Nat,3*Nat,Aux,Hess)
         Hess(1:Ns,1:Ns)    = matrix_product(Ns,3*Nat,3*Nat,Hess,Aux,tB=.true.)
     
@@ -1539,7 +1516,6 @@ module internal_module
         endif
         if (verbose>2) &
          call MAT0(6,Hess,Ns,Ns,"F MATRIX")
-
 
         return
 
