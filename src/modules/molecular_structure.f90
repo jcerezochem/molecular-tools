@@ -1134,10 +1134,10 @@ module molecular_structure
         endif
              
         return
-      end subroutine ROTATA1
+    end subroutine ROTATA1
 
 
-      subroutine rotate_molec(molec,Rot)
+    subroutine rotate_molec(molec,Rot)
 
         ! X' = R * X
         ! (from FClasses code)
@@ -1185,6 +1185,26 @@ module molecular_structure
 
           return
 
-      end subroutine rotate_molec
+    end subroutine rotate_molec
+
+    subroutine translate_molec(molec,Tr)
+
+        ! X' = X + Tr
+
+        type(str_resmol),intent(inout)     :: molec
+        real(8),dimension(1:3),intent(in)  :: Tr
+        !Local
+        ! scalar
+        integer :: i
+
+        do i=1,molec%natoms
+            molec%atom(i)%x = molec%atom(i)%x + Tr(1)
+            molec%atom(i)%y = molec%atom(i)%y + Tr(2)
+            molec%atom(i)%z = molec%atom(i)%z + Tr(3)
+        enddo
+
+        return
+
+    end subroutine translate_molec
 
 end module molecular_structure

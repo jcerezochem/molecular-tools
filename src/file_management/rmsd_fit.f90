@@ -215,6 +215,9 @@ program rmsd_fit
         print'(3F15.6)', Rot(i,1:3)
     enddo
     print*, ""
+    print*, "Shifts of centers (COM/COG): "
+    print'(3F15.6)', Xref-Xmol, Yref-Ymol, Zref-Zmol
+    print*, ""
     ! Place the whole molec according to COM mol
     do i=1,molec%natoms
         molec%atom(i)%x = molec%atom(i)%x - Xmol

@@ -77,6 +77,7 @@ program reorder_fchk
 
     !====================== 
     !Options 
+    logical :: overwrite=.false.
     !======================
 
     !====================== 
@@ -108,6 +109,7 @@ program reorder_fchk
     real(8),dimension(NDIM) :: Grad, Grad_aux
     ! Rotation matrix 
     real(8),dimension(3,3) :: R
+    real(8),dimension(3)   :: Tr
     !====================== 
 
     !====================== 
@@ -144,13 +146,15 @@ program reorder_fchk
     integer :: I_INP=10,  &
                I_ORD=11,  &
                I_ROT=12,  &
+               I_TRA=13,  &
                O_FCHK=20
     !files
     character(len=10) :: filetype="guess"
-    character(len=200):: inpfile ="input.fchk",  &
-                         orderfile = "none", &
+    character(len=200):: inpfile ="input.fchk", &
+                         orderfile = "none",    &
                          outfile="output.fchk", &
-                         rotfile="none"
+                         rotfile="none",        &
+                         trasfile="none"
     !status
     integer :: IOstatus
     !===================
@@ -165,7 +169,7 @@ program reorder_fchk
     call cpu_time(ti)
 
     ! 0. GET COMMAND LINE ARGUMENTS
-    call parse_input(inpfile,filetype,orderfile,rotfile,outfile)
+    call parse_input(inpfile,filetype,orderfile,rotfile,trasfile,outfile,overwrite)
  
     !================
     ! READ DATA
@@ -345,7 +349,12 @@ program reorder_fchk
         enddo
         close(I_ROT)
         print'(X,A)', "  STRUCTURE..."
+        print'(X,A)', "  (from the Center of Mass)"
+        call get_com(molecule)
+        Tr = (/molecule%comX,molecule%comY,molecule%comZ/)
+        call translate_molec(molecule,-Tr)
         call rotate_molec(molecule,R)
+        call translate_molec(molecule,Tr)
 
         ! Reorder Gradient and Hessian if present
         if (have_gradient) then
@@ -366,13 +375,33 @@ program reorder_fchk
         print'(X,A,/)', "Done"
     endif
 
+    !================
+    !TRANSLATING (if needed)
+    !================
+    if (adjustl(trasfile)/="none") then
+        print'(X,A)', "TRANSLATING:"
+        open(I_TRA,file=trasfile,status="old")
+        ! Read translation vector (AA)
+        read(I_TRA,*) Tr(1:3)
+        close(I_TRA)
+        print'(X,A)', "  STRUCTURE..."
+        ! At this point the molecule in AA (it comes from generic readers)
+        call translate_molec(molecule,Tr)
+        print'(X,A,/)', "Done"
+    endif
 
     !================
     !REWRITE FCHK
     !================
     print'(X,A)', "WRITTING FCHK..."
     print'(X,A)', "  Output file: "//trim(adjustl(outfile))
-    open(O_FCHK,file=outfile)
+    if (overwrite) then
+        open(O_FCHK,file=outfile,status="replace",iostat=IOstatus)
+    else
+        open(O_FCHK,file=outfile,status="new",iostat=IOstatus)
+        if (IOstatus /= 0) &
+         call alert_msg("fatal","Cannot open output for writting. Use -ow to force overwrite")
+    endif
     ! Title and job info
     write(O_FCHK,'(A)') "FCHK created with reform_fchk from "//trim(adjustl(inpfile))
     write(O_FCHK,'(A10,A60,A10)') adjustl(calc_type), adjustl(method), adjustl(basis)
@@ -462,13 +491,14 @@ program reorder_fchk
     contains
     !=============================================
 
-    subroutine parse_input(inpfile,filetype,orderfile,rotfile,outfile)
+    subroutine parse_input(inpfile,filetype,orderfile,rotfile,trasfile,outfile,overwrite)
     !==================================================
     ! My input parser (gromacs style)
     !==================================================
         implicit none
 
-        character(len=*),intent(inout) :: inpfile,filetype,orderfile,outfile,rotfile
+        character(len=*),intent(inout) :: inpfile,filetype,orderfile,outfile,rotfile,trasfile
+        logical,intent(inout)          :: overwrite
         ! Local
         logical :: argument_retrieved,  &
                    need_help = .false.
@@ -494,10 +524,15 @@ program reorder_fchk
                     argument_retrieved=.true.      
                 case ("-rot") 
                     call getarg(i+1, rotfile)
-                    argument_retrieved=.true.      
+                    argument_retrieved=.true.     
+                case ("-tr") 
+                    call getarg(i+1, trasfile)
+                    argument_retrieved=.true.    
                 case("-o")
                     call getarg(i+1, outfile)
                     argument_retrieved=.true.
+                case("-ow")
+                    overwrite=.true.
                 case ("-h")
                     need_help=.true.
 
@@ -521,7 +556,10 @@ program reorder_fchk
         write(0,*)       '-ft          \_ FileTyep                      ', trim(adjustl(filetype))
         write(0,*)       '-reor        File with reordering instruction ', trim(adjustl(orderfile))
         write(0,*)       '-rot         File with 3x3 rotation matrix    ', trim(adjustl(rotfile))
-        write(0,*)       '-f           Output file (fchk)               ', trim(adjustl(outfile))
+        write(0,*)       '-tr          File translation vector (AA)     ', trim(adjustl(trasfile))
+        write(0,*)       '             (the molecule is rotated FIRST)'
+        write(0,*)       '-o           Output file (fchk)               ', trim(adjustl(outfile))
+        write(0,*)       '-ow          Force overwrite output          ',  overwrite
         write(0,*)       '-h           This help                       ',  need_help
         write(0,*)       '-------------------------------------------------------------------'
         if (need_help) call alert_msg("fatal", 'There is no manual (for the moment)' )
