@@ -167,6 +167,7 @@ program normal_modes_animation
                          hessfile ="same", &
                          nmfile   ="none", &
                          intfile  ="none", &
+                         intfile0 ="none", &
                          rmzfile  ="none", &
                          symm_file="none", &
                          cnx_file="guess"
@@ -201,7 +202,8 @@ program normal_modes_animation
                      ! Movie
                      animate,movie_vmd, movie_cycles,                      &
                      ! Options (internal)
-                     use_symmetry,def_internal,def_internal0,intfile,rmzfile,scan_type,  &
+                     use_symmetry,def_internal,def_internal0,intfile,intfile0,&
+                     rmzfile,scan_type,  &
                      project_on_all,                                       &
                      ! connectivity file
                      cnx_file,                                             &
@@ -371,7 +373,7 @@ program normal_modes_animation
 
         !---------------------------------------
         ! NOW, GET THE ACTUAL WORKING INTERNAL SET
-        call define_internal_set(molecule,def_internal0,intfile,rmzfile,use_symmetry,isym,S_sym,Ns)
+        call define_internal_set(molecule,def_internal0,intfile0,rmzfile,use_symmetry,isym,S_sym,Ns)
         !---------------------------------------
 
         ! Get G, B, and Bder 
@@ -1089,7 +1091,8 @@ program normal_modes_animation
                            ! Movie
                            animate,movie_vmd, movie_cycles,                      &
                            ! Options (internal)
-                           use_symmetry,def_internal,def_internal0,intfile,rmzfile,scan_type,  &
+                           use_symmetry,def_internal,def_internal0,intfile,intfile0,&
+                           rmzfile,scan_type,  &
                            project_on_all,                                       &
                            ! connectivity file
                            cnx_file,                                             &
@@ -1101,8 +1104,8 @@ program normal_modes_animation
         implicit none
 
         character(len=*),intent(inout) :: inpfile,ft,hessfile,fth,gradfile,ftg,nmfile,ftn, &
-                                          intfile,rmzfile,scan_type,def_internal,selection, &
-                                          cnx_file,def_internal0
+                                          intfile,intfile0,rmzfile,scan_type,def_internal, &
+                                          selection,cnx_file,def_internal0
         real(8),intent(inout)          :: Amplitude
         logical,intent(inout)          :: call_vmd, include_hbonds,vertical, use_symmetry,movie_vmd,animate,&
                                           analytic_Bder,project_on_all
@@ -1157,6 +1160,10 @@ program normal_modes_animation
 
                 case ("-intfile") 
                     call getarg(i+1, intfile)
+                    argument_retrieved=.true.
+
+                case ("-intfile0") 
+                    call getarg(i+1, intfile0)
                     argument_retrieved=.true.
 
                 case ("-rmzfile") 
@@ -1301,7 +1308,8 @@ program normal_modes_animation
         write(6,*)       '-cnx           Connectivity [filename|guess]   ', trim(adjustl(cnx_file))
 !         write(6,*)       '-fnm           Gradient file                   ', trim(adjustl(nmfile))
 !         write(6,*)       '-ftn           \_ FileType                     ', trim(adjustl(ftn))
-        write(6,*)       '-intmode0      Internal set:[zmat|sel|all]     ', trim(adjustl(def_internal0))
+        write(6,*)       '-intmode0      Internal set:[zmat|sel|all] cor ', trim(adjustl(def_internal0))
+        write(6,*)       '-intfile0      File with ICs (for "sel")[corr] ', trim(adjustl(intfile0))
         write(6,*)       '-intmode       Internal set:[zmat|sel|all]     ', trim(adjustl(def_internal))
         write(6,*)       '-intfile       File with ICs (for "sel")       ', trim(adjustl(intfile))
         write(6,*)       '-rmzfile       File deleting ICs from Zmat     ', trim(adjustl(rmzfile))

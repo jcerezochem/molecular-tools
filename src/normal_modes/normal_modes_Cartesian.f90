@@ -380,25 +380,6 @@ program normal_modes_cartesian
             call set_geom_units(molecule,"Bohr")
 
             ! Define internal set
-            if (def_internal=="SEL".or.def_internal=="ALL".or.(def_internal=="ZMAT".and.rmzfile/="none")) then 
-                !Only if def_internal="all", we can print the animation mapping the Zmat
-                !For "sel" is might not work, but we can try
-                call statement(6,"Preliminary Zmat analysis")
-                ! Get Zmat first
-                def_internal_aux="ZMAT"
-                call define_internal_set(molecule,def_internal_aux,"none","none",use_symmetry,isym,S_sym,Ns)
-                ! Get only the geom, and reuse molecule
-                zmatgeom=molecule%geom
-                ! Compute S values (to get initial values for frozen (rmzfile) ICs)
-                verbose_current=verbose
-!                 verbose=0
-                call set_geom_units(molecule,"Bohr")
-                call internal_Wilson(molecule,Ns,S0,B)
-                call set_geom_units(molecule,"Angs")
-                verbose=verbose_current
-                ! And reset bonded parameters
-                call gen_bonded(molecule)
-            endif
             ! Get the set of internal coordinates
             call subheading(6,"Generating internal set for analysis")
             call define_internal_set(molecule,def_internal,intfile,rmzfile,use_symmetry,isym,S_sym,Ns)

@@ -174,6 +174,7 @@ program internal_duschinski
                          gradfile2="same", &
                          hessfile2="same", &
                          intfile  ="none", &
+                         intfile0 ="none", &
                          rmzfile  ="none", &
                          symm_file="none", &
                          cnx_file="guess"
@@ -201,7 +202,8 @@ program internal_duschinski
     ! 0. GET COMMAND LINE ARGUMENTS
     call parse_input(inpfile,ft,hessfile,fth,gradfile,ftg,&
                      inpfile2,ft2,hessfile2,fth2,gradfile2,ftg2,&
-                     intfile,rmzfile,def_internal,def_internal0,use_symmetry,cnx_file, &
+                     intfile,intfile0,rmzfile,def_internal,def_internal0,&
+                     use_symmetry,cnx_file, &
 !                    tswitch,
                      symaddapt,same_red2nonred_rotation,analytic_Bder,&
                      vertical,verticalQspace2,verticalQspace1,&
@@ -316,7 +318,7 @@ program internal_duschinski
 
         !---------------------------------------
         ! NOW, GET THE ACTUAL WORKING INTERNAL SET
-        call define_internal_set(state1,def_internal0,intfile,rmzfile,use_symmetry,isym,S_sym,Ns)
+        call define_internal_set(state1,def_internal0,intfile0,rmzfile,use_symmetry,isym,S_sym,Ns)
         !---------------------------------------
         ! Save the geom for the state2
         geom0=state1%geom
@@ -621,7 +623,7 @@ program internal_duschinski
         if (gradcorrectS1) then
             state2%geom = geom0
         else
-            call define_internal_set(state2,def_internal0,intfile,rmzfile,use_symmetry,isym,S_sym,Ns)
+            call define_internal_set(state2,def_internal0,intfile0,rmzfile,use_symmetry,isym,S_sym,Ns)
         endif
         !---------------------------------------
 
@@ -746,8 +748,8 @@ program internal_duschinski
                 X2inv(1:Nvib,1:Nvib) = 0.d0
                 X(1:Nvib,1:Nvib)     = 0.d0
                 do i=1,Nvib
-                    X2inv(i,i) = 1.d0/dsqrt(G2(i,i))
                     X(i,i)     = dsqrt(G2(i,i))
+                    X2inv(i,i) = 1.d0/X(i,i)
                 enddo
                 ! Rotate Gmatrix (again)
                 G2(1:Nvib,1:Nvib) = matrix_basisrot(Nvib,Nvib,X2inv(1:Nvib,1:Nvib),G2)
@@ -799,9 +801,21 @@ program internal_duschinski
      print'(2/,X,A)', "============================================"
      print*,          " Internal Coordinates Orthogonality Checks  "
      print*,          "============================================"
-     print*,          "Analysing: D = G1^1/2 G2^1/2"
+     print*,          "Analysing: D = G1^-1/2 (A1^-1 A2) G2^1/2"
     endif
-    Aux(1:Nvib,1:Nvib) = matrix_product(Nvib,Nvib,Nvib,X1inv,X)
+
+    if (.not.same_red2nonred_rotation) then
+        ! We need to include the fact that Asel1 /= Asel2, i.e.,
+        ! rotate to the same redundant space L(red) = Asel * L(non-red)
+        ! J = L1^-1 A1^-1 A2 L2
+        ! so store in Aux the following part: [L1^-1 A1^-1 A2]
+        Aux(1:Nvib,1:Nvib) = matrix_product(Nvib,Nvib,Ns,Asel1inv,Asel2)
+        Aux(1:Nvib,1:Nvib) = matrix_product(Nvib,Nvib,Nvib,X1inv,Aux)
+    else
+        Aux(1:Nvib,1:Nvib) = X1inv(1:Nvib,1:Nvib)
+    endif
+
+    Aux(1:Nvib,1:Nvib) = matrix_product(Nvib,Nvib,Nvib,Aux,X)
     open (O_DMAT,file="D_matrix_abs.dat",status="replace")
     do i=1,Nvib
         write(O_DMAT,'(600f8.2)') dabs(Aux(i,1:Nvib))
@@ -885,6 +899,7 @@ program internal_duschinski
 ! always do redundant2nonredundant
 !     if (Nvib<Ns .and. .not.same_red2nonred_rotation) then
     if (.not.same_red2nonred_rotation) then
+        print*, "  Using different A rotations"
         ! We need to include the fact that Asel1 /= Asel2, i.e.,
         ! rotate to the same redundant space L(red) = Asel * L(non-red)
         ! J = L1^-1 A1^-1 A2 L2
@@ -892,6 +907,7 @@ program internal_duschinski
         Aux(1:Nvib,1:Nvib) = matrix_product(Nvib,Nvib,Ns,Asel1inv,Asel2)
         Aux(1:Nvib,1:Nvib) = matrix_product(Nvib,Nvib,Nvib,L1inv,Aux)
     else
+        print*, "  Using the same A rotation for both states"
         Aux(1:Nvib,1:Nvib) = L1inv(1:Nvib,1:Nvib)
     endif
     !J = L1^-1 [A1^t A2] L2 (stored in J).
@@ -1352,7 +1368,8 @@ program internal_duschinski
 
     subroutine parse_input(inpfile,ft,hessfile,fth,gradfile,ftg,&
                            inpfile2,ft2,hessfile2,fth2,gradfile2,ftg2,&
-                           intfile,rmzfile,def_internal,def_internal0,use_symmetry,cnx_file,&
+                           intfile,intfile0,rmzfile,def_internal,def_internal0,&
+                           use_symmetry,cnx_file,&
 !                          tswitch,
                            symaddapt,same_red2nonred_rotation,analytic_Bder,&
                            vertical,verticalQspace2,verticalQspace1,&
@@ -1365,7 +1382,8 @@ program internal_duschinski
 
         character(len=*),intent(inout) :: inpfile,ft,hessfile,fth,gradfile,ftg,&
                                           inpfile2,ft2,hessfile2,fth2,gradfile2,ftg2,&
-                                          intfile,rmzfile,def_internal,def_internal0, cnx_file, reference_frame !, symfile
+                                          intfile,intfile0,rmzfile,def_internal,def_internal0,&
+                                          cnx_file,reference_frame !, symfile
         logical,intent(inout)          :: use_symmetry, vertical, verticalQspace2, &
                                           verticalQspace1, &
                                           gradcorrectS1, gradcorrectS2, symaddapt, &
@@ -1449,6 +1467,10 @@ program internal_duschinski
 
                 case ("-intfile") 
                     call getarg(i+1, intfile)
+                    argument_retrieved=.true.
+
+                case ("-intfile0") 
+                    call getarg(i+1, intfile0)
                     argument_retrieved=.true.
 
                 case ("-rmzfile") 
@@ -1624,7 +1646,7 @@ program internal_duschinski
         write(6,'(/,A)') '========================================================'
         write(6,'(/,A)') '        I N T E R N A L   D U S C H I N S K Y '    
         write(6,'(/,A)') '         Duschinski analysis for Adiabatic and    '
-        write(6,'(A,/)') '        Vertical model in Cartesian coordinates          '   
+        write(6,'(A,/)') '        Vertical model in internal coordinates          '   
         call print_version()
         write(6,'(/,A)') '========================================================'
         write(6,'(/,A)') '-------------------------------------------------------------------'
@@ -1653,6 +1675,7 @@ program internal_duschinski
         write(6,*) ' ** Options Internal Coordinates **           '
         write(6,*) '-cnx         Connectivity [filename|guess] ', trim(adjustl(cnx_file))
         write(6,*) '-intmode0    Internal set:[zmat|sel|all]   ', trim(adjustl(def_internal0))
+        write(6,*) '-intfile0    File with ICs (for "sel")     ', trim(adjustl(intfile0))
         write(6,*) '-intmode     Internal set:[zmat|sel|all]   ', trim(adjustl(def_internal))
         write(6,*) '-intfile     File with ICs (for "sel")     ', trim(adjustl(intfile))
         write(6,*) '-rmzfile     File deleting ICs from Zmat   ', trim(adjustl(rmzfile))
