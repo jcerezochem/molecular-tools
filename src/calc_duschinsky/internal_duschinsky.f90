@@ -89,7 +89,7 @@ program internal_duschinski
     integer,dimension(1:NDIM) :: isym
     integer,dimension(4,1:NDIM,1:NDIM) :: Osym
     integer :: Nsym
-    integer :: Nat, Nvib, Ns, NNvib, Nvib0
+    integer :: Nat, Nvib, Ns, NNvib, Nvib0, Ns0, NsS
     character(len=5) :: PG
     !Bonded info
     integer,dimension(1:NDIM,1:4) :: bond_s, angle_s, dihed_s
@@ -322,6 +322,7 @@ program internal_duschinski
         !---------------------------------------
         ! Save the geom for the state2
         geom0=state1%geom
+        Ns0=Ns
 
         ! Get G, B, and Bder 
         call internal_Wilson(state1,Ns,S1,B0,ModeDef)
@@ -408,6 +409,7 @@ program internal_duschinski
     call define_internal_set(state1,def_internal,intfile,rmzfile,use_symmetry,isym, S_sym,Ns)
     ! Save the geom for the state2
     geomS=state1%geom
+    NsS=Ns
 
     !From now on, we'll use atomic units
     call set_geom_units(state1,"Bohr")
@@ -622,6 +624,7 @@ program internal_duschinski
         ! NOW, GET THE ACTUAL WORKING INTERNAL SET (from that of state1)
         if (gradcorrectS1) then
             state2%geom = geom0
+            Ns=Ns0
         else
             call define_internal_set(state2,def_internal0,intfile0,rmzfile,use_symmetry,isym,S_sym,Ns)
         endif
@@ -710,6 +713,7 @@ program internal_duschinski
 
     ! Define internal set => taken from state1
     state2%geom = geomS
+    Ns = NsS
 
     !From now on, we'll use atomic units
     call set_geom_units(state2,"Bohr")
@@ -1690,6 +1694,8 @@ program internal_duschinski
         write(6,*) ' ** Options Vertical Model **'
         write(6,*) '-model       Model for harmonic PESs       ', trim(adjustl(model))
         write(6,*) '             [vert|vertQ1|vertQ2|adia]     '
+        write(6,*) '-[no]corrS1  Correct S1 for non-stationary ', gradcorrectS1
+        write(6,*) '-[no]corrS2  Correct S2 for non-stationary ', gradcorrectS2
         write(6,*) '               '
         write(6,*) '-h           Display this help            ',  need_help
         write(6,'(A)') '-------------------------------------------------------------------'
