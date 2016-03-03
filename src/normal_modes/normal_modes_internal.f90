@@ -310,6 +310,7 @@ program normal_modes_animation
             enddo 
             enddo
             deallocate(Hlt)
+            if (project_on_all) Hess_all(1:3*Nat,1:3*Nat) = Hess(1:3*Nat,1:3*Nat)
            
             ! GRADIENT FILE
             if (vertical) then
@@ -317,6 +318,7 @@ program normal_modes_animation
                 if (IOstatus /= 0) call alert_msg( "fatal","Unable to open "//trim(adjustl(gradfile)))
                 call generic_gradient_reader(I_INP,ftg,Nat,Grad,error)
                 close(I_INP)
+                if (project_on_all) Grad_all(1:3*Nat) = Grad(1:3*Nat)
             endif
         endif
     else
@@ -561,7 +563,6 @@ program normal_modes_animation
             
             ! Then make the whole analysis for 'All' set
             molecule%geom=allgeom
-            Hess_all(1:3*Nat,1:3*Nat) = Hess(1:3*Nat,1:3*Nat)
             call internal_Wilson(molecule,Ns_all,Sall,B,ModeDef)
             !SOLVE GF METHOD TO GET NM AND FREQ
             call internal_Gmetric(Nat,Ns_all,molecule%atom(:)%mass,B,G)
@@ -584,19 +585,18 @@ program normal_modes_animation
             endif
 
             if (vertical) then
-                ! We save the original gradient
-                Grad_all(1:3*Nat) = Grad(1:3*Nat)
+                ! We saved the original gradient and Hessian on *_all
                 ! Correct Hessian as
                 ! Hx' = Hx - gs^t\beta
                 ! 1. Get gs from gx
-                call Gradcart2int(Nat,Ns,Grad_all,molecule%atom(1:Nat)%mass,B,G)
+                call Gradcart2int(Nat,Nvib_all,Grad_all,molecule%atom(1:Nat)%mass,B,G)
                 ! 2. Multiply gs^t\beta and
                 ! 3. Apply the correction
                 ! Bder(i,j,K)^t * gq(K)
                 do i=1,3*Nat
                 do j=1,3*Nat
                     Aux(i,j) = 0.d0
-                    do k=1,Nvib0
+                    do k=1,Nvib_all
                         Aux(i,j) = Aux(i,j) + Bder(k,i,j)*Grad_all(k)
                     enddo
                     ! Apply correction to the Hessian term
