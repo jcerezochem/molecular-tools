@@ -37,6 +37,7 @@ module constants
                            UMAtoKG   = 1.66053873d-27,  &
                            UMAtoAU   = 1.82288839d3,    & ! deprecated (keep for comopatibility)
                            AMUtoAU   = 1.82288839d3,    &
+                           AMUtoKG   = 1.66053873d-27,  &
                            AUtoKG    = 9.10938291d-31,  &
                            BOHRtoM   = 5.291772083d-11, &
                            BOHRtoNM  = 5.291772083d-2,  &

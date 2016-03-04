@@ -49,6 +49,7 @@ program normal_modes_cartesian
     use internal_module
     use zmat_manage 
     use vibrational_analysis
+    use thermochemistry
     implicit none
 
     integer,parameter :: NDIM = 600
@@ -79,6 +80,7 @@ program normal_modes_cartesian
     integer :: nsym
     integer :: Nat, Nvib0, Nvib, Ns, Nrt
     character(len=5) :: PG
+    real(8) :: Tthermo=0.d0
     !Job info
     character(len=20) :: calc, method, basis
     character(len=150):: title
@@ -209,6 +211,8 @@ program normal_modes_cartesian
                      Eckart_frame,orthogonalize,modes_as_internals,original_internal, &
                      ! connectivity file
                      cnx_file,                                             &
+                     ! thermochemical analysis
+                     Tthermo,                                              &
                      ! (hidden)
                      analytic_Bder)
     call set_word_upper_case(def_internal)
@@ -671,9 +675,16 @@ program normal_modes_cartesian
         call selection2intlist(selection,nm,Nsel)
     endif
 
+    if (Tthermo /= 0.d0) then
+        ! Do thermochemical analysis
+        call thermo(Nat,Nvib,molecule%atom(:)%X,molecule%atom(:)%Y,molecule%atom(:)%Z,molecule%atom(:)%Mass,Freq,Tthermo)
+    endif
+
+
     !==========================================================0
     !  Normal mode displacements
     !==========================================================0
+    call set_geom_units(molecule,"Angs")
     ! Initialization
     X0(1:Nat) = molecule%atom(1:Nat)%x
     Y0(1:Nat) = molecule%atom(1:Nat)%y
@@ -943,6 +954,8 @@ program normal_modes_cartesian
                            Eckart_frame,orthogonalize,modes_as_internals,original_internal,&
                            ! connectivity file
                            cnx_file,                                             &
+                           ! thermochemical analysis
+                           Tthermo,                                              &
                            ! (hidden)
                            analytic_Bder)
     !==================================================
@@ -953,7 +966,7 @@ program normal_modes_cartesian
         character(len=*),intent(inout) :: inpfile,ft,hessfile,fth,gradfile,ftg,nmfile,ftn,selection, &
                                           !Internal
                                           def_internal,intfile,rmzfile,cnx_file
-        real(8),intent(inout)          :: Amplitude
+        real(8),intent(inout)          :: Amplitude, Tthermo
         logical,intent(inout)          :: call_vmd, include_hbonds,vertical,movie_vmd,full_diagonalize,animate,&
                                           rm_gradcoord, &
                                           ! Internal
@@ -1089,6 +1102,11 @@ program normal_modes_cartesian
                     call getarg(i+1, def_internal)
                     argument_retrieved=.true.
 
+                case ("-thermo")
+                    call getarg(i+1, arg)
+                    argument_retrieved=.true.
+                    read(arg,*) Tthermo
+
                 ! (HIDDEN FLAG)
                 case ("-anaBder")
                     analytic_Bder=.true.
@@ -1172,6 +1190,10 @@ program normal_modes_cartesian
         write(6,*)       '-[no]origint   Use originally defined inter-  ',  original_internal
         write(6,*)       '               nal w\o linear combinations    '
         write(6,*)       '               (valid for non-redundant sets) '
+        write(6,*)       ''
+        write(6,*)       ' ** Options for themochemistry **'
+        write(6,*)       '-thermo        Temp (K) for thermochemistry   ', Tthermo
+        write(6,*)       '               (0.0 means no analysis)'
         write(6,*)       ''
         write(6,*)       ' ** Options for animation **'
         write(6,*)       '-[no]animate   Generate animation files       ',  animate

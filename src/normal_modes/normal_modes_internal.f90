@@ -48,6 +48,7 @@ program normal_modes_animation
     use internal_module
     use zmat_manage 
     use vibrational_analysis
+    use thermochemistry
 
     implicit none
 
@@ -75,6 +76,7 @@ program normal_modes_animation
     integer :: Nat, Nvib, Ns, Nvib0
     integer :: Ns_zmat, Ns_all, Nvib_all
     character(len=5) :: PG
+    real(8) :: Tthermo=0.d0
     !Job info
     character(len=20) :: calc, method, basis
     character(len=150):: title
@@ -207,6 +209,8 @@ program normal_modes_animation
                      project_on_all,                                       &
                      ! connectivity file
                      cnx_file,                                             &
+                     ! thermochemical analysis
+                     Tthermo,                                              &
                      ! (hidden)
                      analytic_Bder)
     call set_word_upper_case(def_internal)
@@ -750,6 +754,11 @@ program normal_modes_animation
         LL(1:Ns,1:Nvib) = matrix_product(Ns,Nvib,Nvib,Asel,LL)
 !     endif
 
+    if (Tthermo /= 0.d0) then
+        ! Do thermochemical analysis
+        call thermo(Nat,Nvib,molecule%atom(:)%X,molecule%atom(:)%Y,molecule%atom(:)%Z,molecule%atom(:)%Mass,Freq,Tthermo)
+    endif
+
 
     !==========================================================0
     !  Normal mode displacements
@@ -1096,6 +1105,8 @@ program normal_modes_animation
                            project_on_all,                                       &
                            ! connectivity file
                            cnx_file,                                             &
+                           ! thermochemical analysis
+                           Tthermo,                                              &
                            ! (hidden)
                            analytic_Bder)
     !==================================================
@@ -1106,7 +1117,7 @@ program normal_modes_animation
         character(len=*),intent(inout) :: inpfile,ft,hessfile,fth,gradfile,ftg,nmfile,ftn, &
                                           intfile,intfile0,rmzfile,scan_type,def_internal, &
                                           selection,cnx_file,def_internal0
-        real(8),intent(inout)          :: Amplitude
+        real(8),intent(inout)          :: Amplitude,Tthermo
         logical,intent(inout)          :: call_vmd, include_hbonds,vertical, use_symmetry,movie_vmd,animate,&
                                           analytic_Bder,project_on_all
         integer,intent(inout)          :: movie_cycles
@@ -1227,6 +1238,11 @@ program normal_modes_animation
 
                 case ("-include_hb")
                     include_hbonds=.true.
+
+                case ("-thermo")
+                    call getarg(i+1, arg)
+                    argument_retrieved=.true.
+                    read(arg,*) Tthermo
         
                 case ("-h")
                     need_help=.true.
@@ -1318,7 +1334,10 @@ program normal_modes_animation
         write(6,*)       '               non-stationary points'
         write(6,*)       '-[no]prjall    Project modes with current     ', project_on_all
         write(6,*)       '               internal set on those computed '
-        write(6,*)       '               with the "-intmode all" set    ' 
+        write(6,*)       '               with the "-intmode all" set    '
+        write(6,*)       ''
+        write(6,*)       ' ** Options for themochemistry **'
+        write(6,*)       '-thermo        Temp (K) for thermochemistry   ', Tthermo 
         write(6,*)       ''
         write(6,*)       ' ** Options for animation **'
         write(6,*)       '-[no]animate   Generate animation files       ',  animate
