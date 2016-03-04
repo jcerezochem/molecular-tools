@@ -49,7 +49,16 @@ module molecular_structure
         call set_word_upper_case(units_local)
         call set_word_upper_case(molec%units)
 
-        if (molec%units == units_local) return
+        if (verbose>1) then
+            print*, "UNIT CONVERSOR"
+        endif
+
+        if (molec%units == units_local) then
+            if (verbose>1) then
+                print*, "Input and output units are identical: ",units_local
+            endif
+            return
+        endif
 
         Nat = molec%natoms
 

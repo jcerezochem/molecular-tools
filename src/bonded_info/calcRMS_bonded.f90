@@ -47,19 +47,27 @@ program calcRMS_bonded
     !============================================
     use molecular_structure
     use ff_build
+    use metrics
     use atomic_geom
     use symmetry
 
     implicit none
 
+    integer,parameter :: NDIM=600
+
     !====================== 
     !Options 
-    logical :: debug=.false., nonH=.false., include_hbonds=.false.
+    logical :: debug=.false., &
+               nonH=.false.,  &
+               include_hbonds=.false., &
+               mwc=.false.
     !======================
 
     !====================== 
     !System variables
     type(str_resmol) :: molec, ref_molec
+    real(8) :: X0mwc, Y0mwc, Z0mwc
+    real(8) :: XRmwc, YRmwc, ZRmwc
     !====================== 
 
     !====================== 
@@ -91,10 +99,10 @@ program calcRMS_bonded
     !New things for bonds
     integer,dimension(500,2) :: bond
     integer :: nbonds
-    real :: calc, ref, dev, rmsd, dif
+    real(8) :: calc, ref, dev, rmsd, dif
 
     ! 0. GET COMMAND LINE ARGUMENTS
-    call parse_input(inpfile,reffile,ft,ft_ref,debug,nonH,include_hbonds)
+    call parse_input(inpfile,reffile,ft,ft_ref,debug,nonH,include_hbonds,mwc)
 
     ! 1. READ DATA
     ! ---------------------------------
@@ -240,6 +248,37 @@ program calcRMS_bonded
     print'(A,/)', '---------------------' 
 
     print'(X,A,X,F8.3,/)', "RMSD_struct (AA):", rmsd
+
+    if (mwc) then
+        dev = 0.0
+        k = 0
+        if (debug) print*, "LIST OF ATOMIC DISPLACEMENTS (MWC)"
+        do i=1,ref_molec%natoms
+            if (nonH) then
+                if (adjustl(ref_molec%atom(i)%name) == "H") cycle
+            endif
+            !Using an external counter in case nonH is used
+            k=k+1
+            ! Transform to mwc
+            X0mwc = molec%atom(i)%x*dsqrt(molec%atom(i)%mass) 
+            Y0mwc = molec%atom(i)%y*dsqrt(molec%atom(i)%mass) 
+            Z0mwc = molec%atom(i)%z*dsqrt(molec%atom(i)%mass) 
+            XRmwc = ref_molec%atom(i)%x*dsqrt(molec%atom(i)%mass) 
+            YRmwc = ref_molec%atom(i)%y*dsqrt(molec%atom(i)%mass) 
+            ZRmwc = ref_molec%atom(i)%z*dsqrt(molec%atom(i)%mass)
+            ! And calc with metric tools 
+            dif = calc_dist(X0mwc,Y0mwc,Z0mwc,&
+                            XRmwc,YRmwc,ZRmwc)
+            if (debug) &
+            print'(A2,A1,I2,A1,X,F11.6)', &
+                  ref_molec%atom(i)%name, "(", i, ")", dif
+            dev = dev + (dif)**2
+        enddo
+        rmsd = sqrt(dev/k)
+        print'(A,/)', '---------------------' 
+        
+        print'(X,A,X,G12.4,/)', "RMSD_struct (AA AMU^1/2):", rmsd
+    endif
    
 
     ! 9999. CHECK ERROR/NOTES
@@ -262,14 +301,14 @@ program calcRMS_bonded
     contains
     !=============================================
 
-    subroutine parse_input(inpfile,reffile,ft,ft_ref,debug,nonH,include_hbonds)
+    subroutine parse_input(inpfile,reffile,ft,ft_ref,debug,nonH,include_hbonds,mwc)
     !==================================================
     ! My input parser (gromacs style)
     !==================================================
         implicit none
 
         character(len=*),intent(inout) :: inpfile,ft,ft_ref,reffile
-        logical,intent(inout) :: debug, nonH, include_hbonds
+        logical,intent(inout) :: debug, nonH, include_hbonds, mwc
         ! Local
         logical :: argument_retrieved,  &
                    need_help = .false.
@@ -310,11 +349,26 @@ program calcRMS_bonded
                 case ("-nonH")
                     nonH=.true.
 
+                case ("-mwc")
+                    mwc=.true.
+                case ("-nomwc")
+                    mwc=.false.
+
                 case ("-include_hb")
                     include_hbonds=.true.
         
                 case ("-h")
                     need_help=.true.
+
+                ! Control verbosity
+                case ("-quiet")
+                    verbose=0
+                case ("-concise")
+                    verbose=1
+                case ("-v")
+                    verbose=2
+                case ("-vv")
+                    verbose=3
 
                 case default
                     call alert_msg("fatal","Unkown command line argument: "//adjustl(arg))
@@ -342,6 +396,7 @@ program calcRMS_bonded
         write(0,*)       '-dbg         Debug mode:include all values   ',  debug
         write(0,*)       '-nonH        Ignore Hydrgens                 ',  nonH
         write(0,*)       '-include_hb  Include H-bonds in connectivity ',  include_hbonds
+        write(0,*)       '-[no]mwc     Calculate RMSD also in MWC      ',  mwc
         write(0,*)       '-h           This help                       ',  need_help
         write(0,*)       '-------------------------------------------------------------------'
         if (need_help) call alert_msg("fatal", 'There is no manual (for the moment)' )
