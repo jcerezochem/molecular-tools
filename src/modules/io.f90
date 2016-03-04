@@ -66,11 +66,12 @@ module io
 
     end subroutine heading
 
-    subroutine subheading(unt,title,keep_case)
+    subroutine subheading(unt,title,keep_case,upper_case)
 
         integer,intent(in)          :: unt
         character(len=*),intent(in) :: title
         logical,intent(in),optional :: keep_case
+        logical,intent(in),optional :: upper_case
         ! local
         character(len=len_trim(title)) :: line
         integer :: i
@@ -80,6 +81,9 @@ module io
 
         if (present(keep_case) .and. keep_case) then
             line=adjustl(title)
+        elseif (present(upper_case) .and. upper_case) then
+            line=adjustl(title)
+            call set_word_upper_case(line)
         else
             line=adjustl(title)
             first_letter = .true.
@@ -104,11 +108,12 @@ module io
 
     end subroutine subheading
 
-    subroutine statement(unt,title,keep_case)
+    subroutine statement(unt,title,keep_case,upper_case)
 
         integer,intent(in)          :: unt
         character(len=*),intent(in) :: title
         logical,intent(in),optional :: keep_case
+        logical,intent(in),optional :: upper_case
         ! local
         character(len=len_trim(title)) :: line
         integer :: i
@@ -118,6 +123,9 @@ module io
 
         if (present(keep_case) .and. keep_case) then
             line=adjustl(title)
+        elseif (present(upper_case) .and. upper_case) then
+            line=adjustl(title)
+            call set_word_upper_case(line)
         else
             line=adjustl(title)
             first_letter = .true.

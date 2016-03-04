@@ -37,6 +37,7 @@ program cartesian_duschinsky
     use internal_module
     use zmat_manage 
     use vibrational_analysis
+    use vertical_model
 
     implicit none
 
@@ -55,7 +56,8 @@ program cartesian_duschinsky
                gradcorrectS1=.false., &
                check_symmetry=.true., &
                force_real=.false., &
-               rm_gradcoord=.false.
+               rm_gradcoord=.false., &
+               int_space=.false.
     character(len=4) :: def_internal='all'
     character(len=1) :: reference_frame='F'
     !======================
@@ -64,8 +66,6 @@ program cartesian_duschinsky
     !System variables
     type(str_resmol) :: state1,state2
     integer,dimension(1:NDIM) :: isym
-    integer,dimension(1:4,1:NDIM,1:NDIM) :: Osym
-    integer :: Nsym
     integer :: Nat, Nvib, Ns, Nrt, Nvib0
     !====================== 
 
@@ -177,7 +177,7 @@ program cartesian_duschinsky
     call parse_input(inpfile,ft,gradfile,ftg,hessfile,fth,inpfile2,ft2,gradfile2,ftg2,hessfile2,fth2,&
                      cnx_file,intfile,rmzfile,def_internal,use_symmetry,derfile,gradcorrectS2,&
                      gradcorrectS1,vertical,verticalQspace1,verticalQspace2,force_real,reference_frame,&
-                     rm_gradcoord)
+                     rm_gradcoord,int_space)
     call set_word_upper_case(def_internal)
     call set_word_upper_case(reference_frame)
 
@@ -211,6 +211,73 @@ program cartesian_duschinsky
     Nat = state1%natoms
     print'(X,A,/)', "Done"
 
+
+    if (gradcorrectS1.or.int_space) then
+        !***************************************************************
+        ! The whole vibrational analysis is not needed, only the Bder
+        print'(/,X,A)', "Preparing internal space..."
+    
+        ! Manage symmetry
+        if (.not.use_symmetry) then
+            state1%PG="C1"
+        else if (trim(adjustl(symm_file)) /= "none") then
+            msg = "Using custom symmetry file: "//trim(adjustl(symm_file)) 
+            call alert_msg("note",msg)
+            open(I_SYM,file=symm_file)
+            do i=1,state1%natoms
+                read(I_SYM,*) j, isym(j)
+            enddo
+            close(I_SYM)
+            !Set PG to CUStom
+            state1%PG="CUS"
+        else
+            state1%PG="XX"
+            call symm_atoms(state1,isym)
+        endif
+
+        !Generate bonded info
+        if (cnx_file == "guess") then
+            call guess_connect(state1)
+        else
+            print'(/,A,/)', "Reading connectivity from file: "//trim(adjustl(cnx_file))
+            open(I_CNX,file=cnx_file,status='old')
+            call read_connect(I_CNX,state1)
+            close(I_CNX)
+        endif
+        call gen_bonded(state1)
+    
+        ! Define internal set
+        call define_internal_set(state1,def_internal,intfile,rmzfile,use_symmetry,isym, S_sym,Ns)
+    
+        !From now on, we'll use atomic units
+        call set_geom_units(state1,"Bohr")
+    
+        ! INTERNAL COORDINATES
+    
+        !SOLVE GF METHOD TO GET NM AND FREQ
+        call internal_Wilson(state1,Ns,S1,B,ModeDef)
+        call internal_Gmetric(Nat,Ns,state1%atom(:)%mass,B,G1)
+        if (gradcorrectS1) then
+            call calc_BDer(state1,Ns,Bder)
+        endif
+    
+        ! SET REDUNDANT/SYMETRIZED/CUSTOM INTERNAL SETS
+        print'(/,2X,A)', "Estimating Nvib as 6N-6"
+        Nvib0 = 3*Nat-6
+    !     if (symaddapt) then (implement in an analogous way as compared with the transformation from red to non-red
+        call redundant2nonredundant(Ns,Nvib0,G1,Asel1)
+        ! Rotate Bmatrix
+        B(1:Nvib0,1:3*Nat)  = matrix_product(Nvib0,3*Nat,Ns,Asel1,B,tA=.true.)
+        ! Rotate Gmatrix
+        G1(1:Nvib0,1:Nvib0) = matrix_basisrot(Nvib0,Ns,Asel1(1:Ns,1:Nvib0),G1,counter=.true.)
+        ! Rotate Bders
+        if (gradcorrectS1) then
+            do j=1,3*Nat
+                Bder(1:Nvib0,j,1:3*Nat) =  matrix_product(Nvib0,3*Nat,Ns,Asel1,Bder(1:Ns,j,1:3*Nat),tA=.true.)
+            enddo
+        endif
+    endif
+
     ! HESSIAN FILE (State1)
     print'(X,A)', "READING STATE1 FILE (HESSIAN)..."
     open(I_INP,file=hessfile,status='old',iostat=IOstatus)
@@ -218,6 +285,8 @@ program cartesian_duschinsky
     allocate(Hlt(1:3*Nat*(3*Nat+1)/2))
     call generic_Hessian_reader(I_INP,fth,Nat,Hlt,error) 
     close(I_INP)
+    ! Hx 
+    Hess(1:3*Nat,1:3*Nat) = Hlt_to_Hess(3*Nat,Hlt(1:3*Nat*(3*Nat+1)/2))
     print'(X,A,/)', "Done"
 
     ! GRADIENT FILE (State1) -- now useless as no vibrational analysis is done in IC at State1
@@ -234,7 +303,8 @@ program cartesian_duschinsky
     endif
 
     if (rm_gradcoord) then
-        call statement(6,"Vibrations on the 3N-7 space")
+        call subheading(6,"Vibrations on the 3N-7 space",upper_case=.true.)
+        call subheading(6,"Vibrational analysis removing grad coordinate")
         call vibrations_Cart(Nat,state1%atom(:)%X,state1%atom(:)%Y,state1%atom(:)%Z,state1%atom(:)%Mass,Hlt,&
                         Nvib,L1,Freq1,error_flag=error,Grad=Grad)
         ! Store the number of vibrational degrees on freedom on Nvib0
@@ -242,8 +312,80 @@ program cartesian_duschinsky
         Nvib0 = Nvib+1
         ! Store Grad for State2 
         Grad1(1:3*Nat) = Grad(1:3*Nat)
+
+    elseif (int_space) then
+        call subheading(6,"Vibrations on the space spanned by internal set",upper_case=.true.)
+        call subheading(6,"Preliminary vibraional analysis")
+        call vibrations_Cart(Nat,state1%atom(:)%X,state1%atom(:)%Y,state1%atom(:)%Z,state1%atom(:)%Mass,Hlt,&
+                        Nvib,L1,Freq1,error_flag=error)
+        ! Compare the dimesionality of the reduced space with that of the complete vibrational space
+        if (Nvib0 < Nvib) then
+            call alert_msg("note","The chosen internal space is a reduced one")
+        elseif (Nvib0 > Nvib) then
+            call alert_msg("fatal","The chosen internal is not consistent")
+        endif
+
+        !***************************************************************
+        if (gradcorrectS1) then
+            print*, "The Hessian will be corrected for non-stationary points"
+            ! (Hess is already constructed)
+            ! Hs (with the correction)
+            ! First get: Hx' = Hx - gs^t\beta
+            ! 1. Get gs from gx
+            Vec(1:3*Nat) = Grad(1:3*Nat)
+            call Gradcart2int(Nat,Nvib0,Vec,state1%atom(:)%mass,B,G1)
+            ! 2. Multiply gs^t\beta and
+            ! 3. Apply the correction
+            ! Bder(i,j,K)^t * gq(K)
+            do i=1,3*Nat
+            do j=1,3*Nat
+                Aux2(i,j) = 0.d0
+                do k=1,Nvib0
+                    Aux2(i,j) = Aux2(i,j) + Bder(k,i,j)*Vec(k)
+                enddo
+                Hess(i,j) = Hess(i,j) - Aux2(i,j)
+            enddo
+            enddo
+            if (verbose>2) then
+                print*, "Correction matrix to be applied on Hx:"
+                call MAT0(6,Aux2,3*Nat,3*Nat,"gs*Bder matrix")
+            endif
+            
+            if (check_symmetry) then
+                call check_symm_gsBder(state1,Aux2)
+            endif
+        endif
+        
+        ! Get Hs
+        call HessianCart2int(Nat,Nvib0,Hess,state1%atom(:)%mass,B,G1)
+        ! B^t Hs B [~Hx]
+        Hess(1:3*Nat,1:3*Nat) = matrix_basisrot(3*Nat,Nvib0,B,Hess,counter=.true.)
+        Hlt(1:3*Nat*(3*Nat+1)/2) = Hess_to_Hlt(3*Nat,Hess)
+        call subheading(6,"Vibrational analysis with the internal Hessian rotated back to Cartesian")
+        call vibrations_Cart(Nat,state1%atom(:)%X,state1%atom(:)%Y,state1%atom(:)%Z,state1%atom(:)%Mass,Hlt,&
+                        Nvib,L1,Freq1,error_flag=error)
+
+        if (Nvib>Nvib0) then
+            call statement(6,"Removing modes with Freq<0.1cm-1",upper_case=.true.)
+            j=0
+            do i=1,Nvib
+                if (abs(Freq1(i)) > 0.1d0) then
+                    j=j+1
+                    Aux(1:3*Nat,j) = L1(1:3*Nat,i)
+                    Vec(j) = Freq1(i)
+                else
+                    print'(2X,A,I0,A,F8.2)', "Removed mode ",i," with frequency (cm-1): ", Freq1(i)
+                endif
+            enddo
+            if (j/=Nvib0) call alert_msg("fatal","Internal space cannot be applied properly")
+            L1(1:3*Nat,1:Nvib0) = Aux(1:3*Nat,1:Nvib0)
+            Freq1(1:Nvib0) = Vec(1:Nvib0)
+!             Nvib=Nvib0 ! this assigment is done in State2
+        endif
+
     else
-        call statement(6,"Vibrations on the 3N-6 space")
+        call subheading(6,"Vibrations on the 3N-6 space",upper_case=.true.)
+        call subheading(6,"Preliminary vibraional analysis")
         call vibrations_Cart(Nat,state1%atom(:)%X,state1%atom(:)%Y,state1%atom(:)%Z,state1%atom(:)%Mass,Hlt,&
                          Nvib,L1,Freq1,error_flag=error)
         Nvib0=Nvib
@@ -300,10 +442,10 @@ program cartesian_duschinsky
     Nat = state2%natoms
     print'(X,A,/)', "Done"
 
-    if (gradcorrectS2) then
+    if (gradcorrectS2.or.int_space) then
         !***************************************************************
         ! The whole vibrational analysis is not needed, only the Bder
-        print'(/,X,A)', "Preparing to compute Bder for correction terms..."
+        print'(/,X,A)', "Preparing internal space..."
     
         ! Manage symmetry
         if (.not.use_symmetry) then
@@ -345,9 +487,13 @@ program cartesian_duschinsky
         !SOLVE GF METHOD TO GET NM AND FREQ
         call internal_Wilson(state2,Ns,S1,B,ModeDef)
         call internal_Gmetric(Nat,Ns,state2%atom(:)%mass,B,G1)
-        call calc_BDer(state2,Ns,Bder)
+        if (gradcorrectS2) then
+            call calc_BDer(state2,Ns,Bder)
+        endif
     
         ! SET REDUNDANT/SYMETRIZED/CUSTOM INTERNAL SETS
+        print'(/,2X,A)', "Estimating Nvib as 6N-6"
+        Nvib0 = 3*Nat-6
     !     if (symaddapt) then (implement in an analogous way as compared with the transformation from red to non-red
         if (Ns > Nvib0) then ! Redundant
             call redundant2nonredundant(Ns,Nvib0,G1,Asel1)
@@ -356,7 +502,7 @@ program cartesian_duschinsky
             ! Rotate Gmatrix
             G1(1:Nvib0,1:Nvib0) = matrix_basisrot(Nvib0,Ns,Asel1(1:Ns,1:Nvib0),G1,counter=.true.)
             ! Rotate Bders
-            if (vertical) then
+            if (gradcorrectS2) then
                 do j=1,3*Nat
                     Bder(1:Nvib0,j,1:3*Nat) =  matrix_product(Nvib0,3*Nat,Ns,Asel1,Bder(1:Ns,j,1:3*Nat),tA=.true.)
                 enddo
@@ -371,30 +517,10 @@ program cartesian_duschinsky
     if (IOstatus /= 0) call alert_msg( "fatal","Unable to open "//trim(adjustl(hessfile2)) )
     allocate(Hlt(1:3*Nat*(3*Nat+1)/2))
     call generic_Hessian_reader(I_INP,fth2,Nat,Hlt,error) 
-
-    ! Run vibrations_Cart to get the number of Nvib (to detect linear molecules)
-    print'(X,A)', "Preliminar vibrational analysis (Cartesian coordinates)..."
-    if (rm_gradcoord) then
-        call statement(6,"Vibrations on the 3N-7 space")
-        call vibrations_Cart(Nat,state2%atom(:)%X,state2%atom(:)%Y,state2%atom(:)%Z,state2%atom(:)%Mass,Hlt,&
-                        Nvib,L2,Freq2,error_flag=error,Grad=Grad1)
-    else
-        call statement(6,"Vibrations on the 3N-6 space")
-        call vibrations_Cart(Nat,state2%atom(:)%X,state2%atom(:)%Y,state2%atom(:)%Z,state2%atom(:)%Mass,Hlt,&
-                         Nvib,L2,Freq2,error_flag=error)
-    endif
-
     close(I_INP)
-    k=0
-    do i=1,3*Nat
-    do j=1,i
-        k=k+1
-        Hess(i,j) = Hlt(k)
-        Hess(j,i) = Hlt(k)
-    enddo 
-    enddo
-    deallocate(Hlt)
-
+    ! Hx 
+    Hess(1:3*Nat,1:3*Nat) = Hlt_to_Hess(3*Nat,Hlt(1:3*Nat*(3*Nat+1)/2))
+    print'(X,A,/)', "Done"
 
     if (vertical.or.gradcorrectS2) then
         ! GRADIENT FILE
@@ -403,6 +529,96 @@ program cartesian_duschinsky
         if (IOstatus /= 0) call alert_msg( "fatal","Unable to open "//trim(adjustl(gradfile2)) )
         call generic_gradient_reader(I_INP,ftg2,Nat,Grad,error)
         close(I_INP)
+    else
+        print'(X,A,/)', "Assuming gradient for State2 equal to zero"
+        Grad(1:3*Nat) = 0.d0
+    endif
+
+    ! Run vibrations_Cart to get the number of Nvib (to detect linear molecules)
+    if (rm_gradcoord) then
+        call subheading(6,"Vibrations on the 3N-7 space",upper_case=.true.)
+        call subheading(6,"Vibrational analysis removing grad coordinate")
+        call vibrations_Cart(Nat,state2%atom(:)%X,state2%atom(:)%Y,state2%atom(:)%Z,state2%atom(:)%Mass,Hlt,&
+                        Nvib,L2,Freq2,error_flag=error,Grad=Grad1)
+
+    elseif (int_space) then
+        call subheading(6,"Vibrations on the space spanned by internal set",upper_case=.true.)
+        call subheading(6,"Preliminary vibraional analysis")
+        call vibrations_Cart(Nat,state2%atom(:)%X,state2%atom(:)%Y,state2%atom(:)%Z,state2%atom(:)%Mass,Hlt,&
+                        Nvib,L2,Freq2,error_flag=error)
+        ! Compare the dimesionality of the reduced space with that of the complete vibrational space
+        if (Nvib0 < Nvib) then
+            call alert_msg("note","The chosen internal space is a reduced one")
+        elseif (Nvib0 > Nvib) then
+            call alert_msg("fatal","The chosen internal is not consistent")
+        endif
+
+        !***************************************************************
+        if (gradcorrectS2) then
+            print*, "The Hessian will be corrected before computing the displacements"
+            ! (Hess is already constructed)
+            ! Hs (with the correction)
+            ! First get: Hx' = Hx - gs^t\beta
+            ! 1. Get gs from gx
+            Vec(1:3*Nat) = Grad(1:3*Nat)
+            call Gradcart2int(Nat,Nvib0,Vec,state2%atom(:)%mass,B,G1)
+            ! 2. Multiply gs^t\beta and
+            ! 3. Apply the correction
+            ! Bder(i,j,K)^t * gq(K)
+            do i=1,3*Nat
+            do j=1,3*Nat
+                Aux2(i,j) = 0.d0
+                do k=1,Nvib0
+                    Aux2(i,j) = Aux2(i,j) + Bder(k,i,j)*Vec(k)
+                enddo
+                Hess(i,j) = Hess(i,j) - Aux2(i,j)
+            enddo
+            enddo
+            if (verbose>2) then
+                print*, "Correction matrix to be applied on Hx:"
+                call MAT0(6,Aux2,3*Nat,3*Nat,"gs*Bder matrix")
+            endif
+            
+            if (check_symmetry) then
+                call check_symm_gsBder(state2,Aux2)
+            endif
+        endif
+        
+        ! Get Hs
+        call HessianCart2int(Nat,Nvib0,Hess,state2%atom(:)%mass,B,G1)
+        ! B^t Hs B [~Hx]
+        Hess(1:3*Nat,1:3*Nat) = matrix_basisrot(3*Nat,Nvib0,B,Hess,counter=.true.)
+        ! Compute vibraional analysis with the new Hx
+        Hlt(1:3*Nat*(3*Nat+1)/2) = Hess_to_Hlt(3*Nat,Hess)
+        call subheading(6,"Vibrational analysis with the internal Hessian rotated back to Cartesian")
+        call vibrations_Cart(Nat,state2%atom(:)%X,state2%atom(:)%Y,state2%atom(:)%Z,state2%atom(:)%Mass,Hlt,&
+                    Nvib,L2,Freq2,error_flag=error)
+
+        !Check the new vibrational space
+        if (Nvib>Nvib0) then
+            call statement(6,"Removing modes with Freq<0.1cm-1",upper_case=.true.)
+            j=0
+            do i=1,Nvib
+                if (abs(Freq2(i)) > 0.1d0) then
+                    j=j+1
+                    Aux(1:3*Nat,j) = L2(1:3*Nat,i)
+                    Vec(j) = Freq2(i)
+                else
+                    print'(2X,A,I0,A,F8.2)', "Removed mode ",i," with frequency (cm-1): ", Freq2(i)
+                endif
+            enddo
+            if (j/=Nvib0) call alert_msg("fatal","Internal space cannot be applied properly")
+            L2(1:3*Nat,1:Nvib0) = Aux(1:3*Nat,1:Nvib0)
+            Freq2(1:Nvib0) = Vec(1:Nvib0)
+            Nvib=Nvib0
+        endif
+
+
+    else
+        call subheading(6,"Vibrations on the 3N-6 space",upper_case=.true.)
+        call subheading(6,"Preliminary vibraional analysis")
+        call vibrations_Cart(Nat,state2%atom(:)%X,state2%atom(:)%Y,state2%atom(:)%Z,state2%atom(:)%Mass,Hlt,&
+                         Nvib,L2,Freq2,error_flag=error)
     endif
 
     ! From now on in atomic units
@@ -448,6 +664,7 @@ program cartesian_duschinsky
         endif
     endif
 
+    deallocate(Hlt)
 
     !==============
     ! DUSCHINSKI
@@ -492,36 +709,7 @@ program cartesian_duschinsky
 
             ! Also check the symmetry of the correction term
             if (check_symmetry) then
-                print'(/,X,A)', "---------------------------------------"
-                print'(X,A  )', " Check effect of symmetry operations"
-                print'(X,A  )', " on the correction term gs^t\beta"
-                print'(X,A  )', "---------------------------------------"
-                state1%PG="XX"
-                call symm_atoms(state1,isym,Osym,rotate=.false.,nsym_ops=nsym)
-                ! Check the symmetry of the correction term
-                ! First compute the correction term (was already computed)
-                Aux2(1:3*Nat,1:3*Nat) = Aux(1:3*Nat,1:3*Nat)
-                ! Print if verbose level is high
-                if (verbose>2) &
-                    call MAT0(6,Aux2,3*Nat,3*Nat,"gs*Bder matrix")
-                ! Check all detected symmetry ops
-                do iop=1,Nsym
-                    Aux(1:3*Nat,1:3*Nat) = dfloat(Osym(iop,1:3*Nat,1:3*Nat))
-                    Aux(1:3*Nat,1:3*Nat) = matrix_basisrot(3*Nat,3*Nat,Aux,Aux2,counter=.true.)
-                    Theta=0.d0
-                    do i=1,3*Nat 
-                    do j=1,3*Nat
-                        if (Theta < abs(Aux(i,j)-Aux2(i,j))) then
-                            Theta = abs(Aux(i,j)-Aux2(i,j))
-                            Theta2=Aux2(i,j)
-                        endif
-                    enddo
-                    enddo
-                    print'(X,A,I0)', "Symmetry operation :   ", iop
-                    print'(X,A,F10.6)',   " Max abs difference : ", Theta
-                    print'(X,A,F10.6,/)', " Value before sym op: ", Theta2
-                enddo
-                print'(X,A,/)', "---------------------------------------"
+                call check_symm_gsBder(state2,Aux2)
             endif
         
         else
@@ -576,7 +764,7 @@ program cartesian_duschinsky
             ! First get: Hx' = Hx - gs^t\beta
             ! 1. Get gs from gx
             Vec(1:3*Nat) = Grad(1:3*Nat)
-            call Gradcart2int(Nat,Nvib0,Vec,state2%atom(:)%mass,B,G)
+            call Gradcart2int(Nat,Nvib0,Vec,state2%atom(:)%mass,B,G1)
             ! 2. Multiply gs^t\beta and
             ! 3. Apply the correction
             ! Bder(i,j,K)^t * gq(K)
@@ -595,34 +783,10 @@ program cartesian_duschinsky
             endif
             
             if (check_symmetry) then
-                print'(/,X,A)', "---------------------------------------"
-                print'(X,A  )', " Check effect of symmetry operations"
-                print'(X,A  )', " on the correction term gs^t\beta"
-                print'(X,A  )', "---------------------------------------"
-                state2%PG="XX"
-                call symm_atoms(state2,isym,Osym,rotate=.false.,nsym_ops=nsym)
-                ! Check the symmetry of the correction term
-                ! Check all detected symmetry ops
-                do iop=1,Nsym
-                    Aux(1:3*Nat,1:3*Nat) = dfloat(Osym(iop,1:3*Nat,1:3*Nat))
-                    Aux(1:3*Nat,1:3*Nat) = matrix_basisrot(3*Nat,3*Nat,Aux,Aux2,counter=.true.)
-                    Theta=0.d0
-                    do i=1,3*Nat 
-                    do j=1,3*Nat 
-                        if (Theta < abs(Aux(i,j)-Aux2(i,j))) then
-                            Theta = abs(Aux(i,j)-Aux2(i,j))
-                            Theta2=Aux2(i,j)
-                        endif
-                    enddo
-                    enddo
-                    print'(X,A,I0)', "Symmetry operation :   ", iop
-                    print'(X,A,F10.6)',   " Max abs difference : ", Theta
-                    print'(X,A,F10.6,/)', " Value before sym op: ", Theta2
-                enddo
-                print'(X,A,/)', "---------------------------------------"
+                call check_symm_gsBder(state2,Aux2)
             endif
             ! Get Hs
-            call HessianCart2int(Nat,Nvib0,Hess,state2%atom(:)%mass,B,G)
+            call HessianCart2int(Nat,Nvib0,Hess,state2%atom(:)%mass,B,G1)
             ! B^t Hs B [~Hx]
             Hess(1:3*Nat,1:3*Nat) = matrix_basisrot(3*Nat,Nvib0,B,Hess,counter=.true.)
             ! M^-1/2 [Hx] M^-1/2
@@ -1083,7 +1247,7 @@ program cartesian_duschinsky
     subroutine parse_input(inpfile,ft,gradfile,ftg,hessfile,fth,inpfile2,ft2,gradfile2,ftg2,hessfile2,fth2,&
                            cnx_file,intfile,rmzfile,def_internal,use_symmetry,derfile,gradcorrectS2,&
                            gradcorrectS1,vertical,verticalQspace1,verticalQspace2,force_real,reference_frame,&
-                           rm_gradcoord)
+                           rm_gradcoord,int_space)
     !==================================================
     ! My input parser (gromacs style)
     !==================================================
@@ -1092,7 +1256,7 @@ program cartesian_duschinsky
         character(len=*),intent(inout) :: inpfile,ft,gradfile,ftg,hessfile,fth,gradfile2,ftg2,hessfile2,fth2,&
                                           cnx_file,intfile,rmzfile,def_internal,derfile,inpfile2,ft2,reference_frame
         logical,intent(inout)          :: use_symmetry,gradcorrectS2,gradcorrectS1,vertical,&
-                                          verticalQspace1,verticalQspace2,force_real,rm_gradcoord
+                                          verticalQspace1,verticalQspace2,force_real,rm_gradcoord,int_space
         ! Local
         logical :: argument_retrieved,  &
                    need_help = .false.
@@ -1218,6 +1382,11 @@ program cartesian_duschinsky
                     rm_gradcoord=.true.
                 case ("-normgrad")
                     rm_gradcoord=.false.
+
+                case ("-Sspace")
+                    int_space=.true.
+                case ("-noSspace")
+                    int_space=.false.
 
                 case ("-force-real")
                     force_real=.true.
@@ -1357,6 +1526,8 @@ program cartesian_duschinsky
         write(6,*) ' ** Options to tune the vibrational analysis ** '
         write(6,*) '-[no]rmgrad    Remove coordinate along the ', rm_gradcoord
         write(6,*) '               grandient                  '
+        write(6,*) '-[no]Sspace    Get internal space spanned ', int_space
+        write(6,*) '               by the internal set        '
         write(6,*) '               '        
         write(6,*) '** Options correction method (vertical) **'
         write(6,*) '-model       Model for harmonic PESs       ', trim(adjustl(model))

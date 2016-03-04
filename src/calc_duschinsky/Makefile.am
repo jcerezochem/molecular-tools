@@ -42,6 +42,7 @@ state2hessian_SOURCES = ../modules/version.f90\
                         ../modules/symmetry.f90\
                         ../modules/internal.f90\
                         ../modules/vibrational_analysis.f90\
+                        ../modules/vertical_model.f90\
                         state2hessian.f90
 
 vertical2adiabatic_SOURCES = ../modules/version.f90\
@@ -75,6 +76,7 @@ vertical2adiabatic_SOURCES = ../modules/version.f90\
                              ../modules/symmetry.f90\
                              ../modules/internal.f90\
                              ../modules/vibrational_analysis.f90\
+                             ../modules/vertical_model.f90\
                              vertical2adiabatic.f90
 
 cartesian_duschinsky_SOURCES = ../modules/version.f90\
@@ -108,6 +110,7 @@ cartesian_duschinsky_SOURCES = ../modules/version.f90\
                              ../modules/symmetry.f90\
                              ../modules/internal.f90\
                              ../modules/vibrational_analysis.f90\
+                             ../modules/vertical_model.f90\
                              cartesian_duschinsky.f90
 
 internal_duschinsky_SOURCES = ../modules/version.f90\
@@ -141,6 +144,7 @@ internal_duschinsky_SOURCES = ../modules/version.f90\
                              ../modules/symmetry.f90\
                              ../modules/internal.f90\
                              ../modules/vibrational_analysis.f90\
+                             ../modules/vertical_model.f90\
                              internal_duschinsky.f90
 
 generate_internals_SOURCES = ../modules/alerts.f90\

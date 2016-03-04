@@ -52,7 +52,8 @@ libmoleculartools_a_SOURCES =         \
     ff_build.f90                      \
     internal.f90                      \
     thermochemistry.f90               \
-    vibrational_analysis.f90      
+    vibrational_analysis.f90          \
+    vertical_model.f90
 
 
 CLEANFILES =*.mod 
