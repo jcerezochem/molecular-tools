@@ -72,12 +72,13 @@ module generic_io_molec
         molec%units = "Angs"
 
         ! Error handling
-        if (error_local /= 0) then
-            write(msg,'(A,I0)') "ERROR readig structure from file. Error code: ", error_local
+        ! Catch it if error_flag is present. Otherwise stop if error/=0
+        if (present(error_flag)) then
+            error_flag=error_local
+        else if (error_local /= 0) then
+            write(msg,'(A,I0)') "reading structure from file. Error code: ", error_local
             call alert_msg("fatal",msg)
         endif
-
-        if (present(error_flag)) error_flag=error_local
         
 
         return
@@ -85,7 +86,7 @@ module generic_io_molec
     end subroutine generic_strmol_reader
 
 
-    subroutine generic_strmol_writer(unt,filetype,molec,error_flag)
+    subroutine generic_strmol_writer(unt,filetype,molec,error_flag,title)
 
         !==============================================================
         ! This code is part of FCC_TOOLS
@@ -108,10 +109,11 @@ module generic_io_molec
         character(len=*),intent(in)     :: filetype
         type(str_resmol),intent(inout)  :: molec
         integer,intent(out),optional    :: error_flag
+        character(len=*),intent(in),optional :: title
 
         !Local
         integer   :: error_local
-        character(len=200) :: msg
+        character(len=200) :: msg, title_local
 
         !----------------------------------------------
         ! UNITS MANAGEMENT
@@ -123,12 +125,21 @@ module generic_io_molec
         ! Initialize error local (old readers don't use it)
         error_local=0
 
+        if (present(title)) then
+            title_local = adjustl(title)
+        else
+            title_local = "Structure written with generic_io_molec"
+        endif
+
         ! Readers still unsupported by generic_io module (more that in the case of readers)
         if (adjustl(filetype)=="gro") then
+            molec%title=title_local
             call write_gro(unt,molec)
         elseif (adjustl(filetype)=="g96") then
+            molec%title=title_local
             call write_g96(unt,molec)
         elseif (adjustl(filetype)=="xyz") then
+            molec%title=title_local
             call write_xyz(unt,molec)
 
         ! any other format is assumed to be supported
@@ -139,16 +150,18 @@ module generic_io_molec
                                                        molec%atom(:)%z,   &
                                                        molec%atom(:)%mass,&
                                                        molec%atom(:)%name,&
-                                          error_local)
+                                          error_flag=error_local,         &
+                                          title=title_local)
         endif
 
         ! Error handling
-        if (error_local /= 0) then
+        ! Catch it if error_flag is present. Otherwise stop if error/=0
+        if (present(error_flag)) then
+            error_flag=error_local
+        else if (error_local /= 0) then
             write(msg,'(A,I0)') "writting structure to file. Error code: ", error_local
             call alert_msg("fatal",msg)
         endif
-
-        if (present(error_flag)) error_flag=error_local
         
         !----------------------------------------------
         ! UNITS MANAGEMENT
