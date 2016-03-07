@@ -110,6 +110,7 @@ module gaussian_manage
         integer :: IOstatus
         character(len=240) :: line, msg
         integer :: error_local, error_handler_local
+        character(len=10) :: alert_type
 
         error_handler_local=0 ! this means the standard behaviour
         if (present(error_handler)) error_handler_local=error_handler
@@ -122,15 +123,26 @@ module gaussian_manage
             read(unt,'(X,A)',IOSTAT=IOstatus) line
             if ( IOstatus == -1 ) then
                 error_local = IOstatus
-                if (present(error_flag)) error_flag=error_local
                 write(line,'(A,I0)') "End of file while reading g09 file."
-                call alert_msg("note",line)
+                if (present(error_flag)) then
+                    error_flag=error_local
+                    alert_type="note"
+                else
+                    alert_type="fatal"
+                endif
+                call alert_msg(alert_type,line)
                 return
             elseif ( IOstatus < 0 ) then
                 error_local = i+10
-                if (present(error_flag)) error_flag=error_local
                 write(line,'(A,I0)') "Error reading g09 file. Last line read: ", i
-                call alert_msg("warning",line)
+                if (present(error_flag)) then
+                    error_flag=error_flag
+                    alert_type="warning"
+                else
+                    alert_type="fatal"
+                endif
+                call alert_msg(alert_type,line)
+                return
             endif
             if ( INDEX(line,"GINC") /= 0 ) exit
         enddo
@@ -151,14 +163,21 @@ module gaussian_manage
                         ! If error_handler=0, we exit here (used to get only the first part)
                         ! otherwise follow the Standard behaviour (fatal error)
                         if (error_handler_local==1) then
-                            write(msg,'(A,I0,A)') "Only part of section ",isection, " is read"
-                            call alert_msg("note",trim(msg))
+                            ! This note is not relevant and make outputs too verbose
+!                             write(msg,'(A,I0,A)') "Only part of section ",isection, " is read"
+!                             call alert_msg("note",trim(msg))
                             ! Set the error flag to 0 is present, so as to pass the error check
                             error_local=0
                             if (present(error_flag)) error_flag=error_local
                             return
                         else
-                            call alert_msg("fatal",trim(msg))
+                            if (present(error_flag)) then
+                                error_flag=1
+                                alert_type="warning"
+                            else
+                                alert_type="fatal"
+                            endif
+                            call alert_msg(alert_type,trim(msg))
                         endif
 !                     else
 !                         call alert_msg("note",trim(msg))
@@ -177,7 +196,13 @@ module gaussian_manage
                 if ( IOstatus < 0 ) then
                     error_local = i+10
                     write(msg,'(A,I0)') "Error reading summary line: ",i
-                    call alert_msg("fatal",msg)
+                    if (present(error_flag)) then
+                        error_flag=error_local
+                        alert_type="note"
+                    else
+                        alert_type="fatal"
+                    endif
+                    call alert_msg(alert_type,msg)
                     return
                 endif
             enddo
@@ -188,7 +213,13 @@ module gaussian_manage
             if (line == "@") then
                 error_local = 1
                 write(section,'(I0)') isection
-                call alert_msg("fatal","End of summary while reading section "//trim(adjustl(section)))
+                if (present(error_flag)) then
+                    error_flag=error_local
+                    alert_type="note"
+                else
+                    alert_type="fatal"
+                endif
+                call alert_msg(alert_type,"End of summary while reading section "//trim(adjustl(section)))
                 return
             endif
         enddo
@@ -512,26 +543,28 @@ module gaussian_manage
         integer :: i, j, nitems
         character(len=100000) :: string 
         character(len=200)    :: geom_char 
-        character,dimension(4) :: dummy_char
+        character,dimension(5) :: dummy_char
+        character(len=10) :: alert_type
+        integer :: error_local
 
         ! Get Natoms and rewind section 
-        call read_gausslog_natoms(unt,Nat,error_flag)
+        call read_gausslog_natoms(unt,Nat,error_local)
         call rewind_summary(unt)
-        if (error_flag < 0) then
-            error_flag = error_flag - 100000
+        if (error_local < 0) then
+            if (present(error_flag)) error_flag = error_flag - 100000
             return
-        elseif (error_flag > 0) then
-            error_flag = error_flag + 100000
+        elseif (error_local > 0) then
+            if (present(error_flag)) error_flag = error_flag + 100000
             return
         endif
 
         !Geom
-        call summary_parser(unt,4,string,error_flag)
-        if (error_flag < 0) then
-            error_flag = error_flag - 200000
+        call summary_parser(unt,4,string,error_local)
+        if (error_local < 0) then
+            if (present(error_flag)) error_flag = error_flag - 200000
             return
-        elseif (error_flag > 0) then
-            error_flag = error_flag + 200000
+        elseif (error_local > 0) then
+            if (present(error_flag)) error_flag = error_flag + 200000
             return
         endif
         !Throw "charge mult" away
@@ -573,14 +606,26 @@ module gaussian_manage
             enddo
         elseif (nitems == 1) then
             !Read Z-mat...
-            error_flag=1
-            call alert_msg("fatal","Z-mat reading from G09 summary not yet implemented")
+            if (present(error_flag)) then
+                error_flag=1
+                alert_type="warning"
+            else
+                alert_type="fatal"
+            endif
+            call alert_msg(alert_type,"Z-mat reading from G09 summary not yet implemented")
             return
-        else 
-            error_flag=2
-            call alert_msg("fatal","Unexpected structure format in G09 summary section")
+        else
+            if (present(error_flag)) then
+                error_flag=2
+                alert_type="warning"
+            else
+                alert_type="fatal"
+            endif
+            call alert_msg(alert_type,"Unexpected structure format in G09 summary section")
             return
         endif
+
+        if (present(error_flag)) error_flag=0
 
         return
 
@@ -637,6 +682,7 @@ module gaussian_manage
         character(len=30)  :: dummy_char
         integer            :: dummy_int, error_local
         character(len=100) :: orientation_local
+        character(len=10)  :: alert_type 
 
         !Counters
         integer :: i,j
@@ -664,8 +710,14 @@ module gaussian_manage
             read(unt,'(X,A)',IOSTAT=IOstatus) line
             ! Two possible scenarios while reading:
             ! 1) End of file
-            if ( IOstatus < 0 ) then
-                if (error_local == 1) call alert_msg("fatal","Exit without finding "&
+            if ( IOstatus < 0 .and. error_local == 1) then
+                if (present(error_flag)) then
+                    error_flag=error_local
+                    alert_type="note"
+                else
+                    alert_type="fatal"
+                endif
+                call alert_msg(adjustl(alert_type),"Exit without finding "&
                                                    //trim(adjustl(orientation_local)))
                 return
             endif 
@@ -683,14 +735,24 @@ module gaussian_manage
             read(unt,'(X,A)',IOSTAT=IOstatus) line
             ! Three possible scenarios while reading:
             ! 1) End of file
-            if ( IOstatus < 0 ) call alert_msg("fatal","Unexpected end of file while scanning "&
+            if ( IOstatus < 0 ) then 
+                if (present(error_flag)) then
+                    error_flag=1
+                    alert_type="note"
+                else
+                    alert_type="fatal"
+                endif
+                call alert_msg(adjustl(alert_type),"Unexpected end of file while scanning "&
                                                //trim(adjustl(orientation_local)))
+            endif
             ! 2) End of table
             if ( INDEX(line,trim(adjustl(end_of_section))) /= 0 ) exit    
             ! 3) Table entry
             read(line,*) i, AtNum(i), dummy_int, X(i), Y(i), Z(i)
         enddo
         Nat = i
+
+        if (present(error_flag)) error_flag=0
 
         return
 
@@ -738,6 +800,7 @@ module gaussian_manage
         character(len=30)  :: dummy_char
         integer            :: dummy_int, error_local
         character(len=100) :: keyphrase
+        character(len=10)  :: alert_type
 
         !Counters
         integer :: i,j
@@ -755,7 +818,13 @@ module gaussian_manage
             ! Two possible scenarios while reading:
             ! 1) End of file
             if ( IOstatus < 0 ) then
-                call alert_msg("fatal","Unexpected end of file while looking for TD energy.")
+                if (present(error_flag)) then
+                    error_flag=error_local
+                    alert_type="note"
+                else
+                    alert_type="fatal"
+                endif
+                call alert_msg(adjustl(alert_type),"Unexpected end of file while looking for TD energy.")
                 return
             endif 
             ! 2) End of job
@@ -773,6 +842,8 @@ module gaussian_manage
         line=adjustl(line)
         call split_line(line," ",line,dummy_char)
         read(line,*) E_td
+
+        if (present(error_flag)) error_flag=error_local
 
         return
 
@@ -974,6 +1045,7 @@ module gaussian_manage
         ! Local error flag
         integer :: error_local
         character(len=3) :: dummy_char
+        character(len=10) :: alert_type
 
         ! Number of excited states computed
         call read_fchk(unt,"ETran scalars",data_type,N,A,IA,error_local)
@@ -991,8 +1063,13 @@ module gaussian_manage
         if (Sf == -1) Sf = Ntarget
         if (Si /= 0) then
             write(dummy_char,'(I0)') Si
-            call alert_msg("fatal","TD-DFT calcs in G09 only provide trdip from/to GS, but requested S="//dummy_char)
-            if (present(error_flag)) error_flag=-1
+            if (present(error_flag)) then
+                error_flag=-1
+                alert_type="warning"
+            else
+                alert_type="fatal"
+            endif
+            call alert_msg(adjustl(alert_type),"TD-DFT calcs in G09 only provide trdip from/to GS, but requested S="//dummy_char)
             return
         endif
         if (Sf /= Ntarget) then
