@@ -55,6 +55,7 @@ program internal_duschinski
     use internal_module
     use zmat_manage 
     use vibrational_analysis
+    use vertical_model
 
     implicit none
 
@@ -76,7 +77,8 @@ program internal_duschinski
                check_symmetry=.true., &
                orthogonalize=.false., &
                original_internal=.false., &
-               force_real=.false.
+               force_real=.false., &
+               apply_projection_matrix=.false.
     character(len=4) :: def_internal='all'
     character(len=4) :: def_internal0='all'
     character(len=1) :: reference_frame='F'
@@ -104,7 +106,7 @@ program internal_duschinski
     real(8),dimension(1:NDIM) :: Grad
     real(8),dimension(1:NDIM,1:NDIM) :: Hess, X, X1inv,X2inv, L1,L2,L1inv, &
                                         Asel1,Asel2,Asel1inv,Asel2inv, gBder, &
-                                        G0, B0
+                                        G0, B0, P
     real(8),dimension(1:NDIM,1:NDIM,1:NDIM) :: Bder
     !Duschisky
     real(8),dimension(NDIM,NDIM) :: G1, G2, Jdus
@@ -208,7 +210,8 @@ program internal_duschinski
                      symaddapt,same_red2nonred_rotation,analytic_Bder,&
                      vertical,verticalQspace2,verticalQspace1,&
                      gradcorrectS1,gradcorrectS2,&
-                     orthogonalize,original_internal,force_real,reference_frame)
+                     orthogonalize,original_internal,force_real,reference_frame,&
+                     apply_projection_matrix)
     call set_word_upper_case(def_internal)
     call set_word_upper_case(reference_frame)
 
@@ -342,6 +345,19 @@ program internal_duschinski
             Bder(1:Nvib0,j,1:3*Nat) =  matrix_product(Nvib0,3*Nat,Ns,Asel1,Bder(1:Ns,j,1:3*Nat),tA=.true.)
         enddo
 
+        if (apply_projection_matrix) then
+            ! Get projection matrix
+            P(1:3*Nat,1:3*Nat) = projection_matrix(Nat,Nvib0,B0)
+            ! And rotate gradient
+            do i=1,3*Nat
+                Vec1(i) = 0.d0
+                do k=1,Nvib0
+                    Vec1(i) = Vec1(i) + P(i,k)*Grad(k)
+                enddo
+            enddo
+            Grad(1:3*Nat) = Vec1(1:3*Nat)
+        endif
+
         ! Get the Correction now
         print*, " Getting the correction term: gs^t\beta"
         ! The correction is applied with the Nvib0 SET
@@ -457,6 +473,11 @@ program internal_duschinski
         B1(1:Nvib,1:3*Nat) = matrix_product(Nvib,3*Nat,Ns,Asel1inv,B1)
     endif
 
+    if (apply_projection_matrix) then
+        ! Get projection matrix (again...)
+        P(1:3*Nat,1:3*Nat) = projection_matrix(Nat,Nvib,B1)
+    endif
+
     if (gradcorrectS1) then
         do i=1,3*Nat
         do j=1,3*Nat
@@ -464,6 +485,11 @@ program internal_duschinski
             Hess(i,j) = Hess(i,j) - gBder(i,j)
         enddo
         enddo
+    endif
+
+    if (apply_projection_matrix) then
+        ! Project out rotation and translation
+        Hess(1:3*Nat,1:3*Nat) = matrix_basisrot(3*Nat,3*Nat,P,Hess)
     endif
 
     call HessianCart2int(Nat,Nvib,Hess,state1%atom(:)%mass,B1,G1)
@@ -649,6 +675,19 @@ program internal_duschinski
             Bder(1:Nvib0,j,1:3*Nat) =  matrix_product(Nvib0,3*Nat,Ns,Asel2,Bder(1:Ns,j,1:3*Nat),tA=.true.)
         enddo
 
+        if (apply_projection_matrix) then
+            ! Get projection matrix (again...)
+            P(1:3*Nat,1:3*Nat) = projection_matrix(Nat,Nvib0,B0)
+            ! And rotate gradient
+            do i=1,3*Nat
+                Vec1(i) = 0.d0
+                do k=1,Nvib0
+                    Vec1(i) = Vec1(i) + P(i,k)*Grad(k)
+                enddo
+            enddo
+            Grad(1:3*Nat) = Vec1(1:3*Nat)
+        endif
+
         ! Get the Correction now
         print*, " Getting the correction term: gs^t\beta"
         ! The correction is applied with the Nvib0 SET
@@ -768,6 +807,11 @@ program internal_duschinski
         B2(1:Nvib,1:3*Nat) = matrix_product(Nvib,3*Nat,Ns,Asel2inv,B2)
     endif
 
+    if (apply_projection_matrix) then
+        ! Get projection matrix (again...)
+        P(1:3*Nat,1:3*Nat) = projection_matrix(Nat,Nvib,B2)
+    endif
+
     if (gradcorrectS2) then
         do i=1,3*Nat
         do j=1,3*Nat
@@ -775,6 +819,11 @@ program internal_duschinski
             Hess(i,j) = Hess(i,j) - gBder(i,j)
         enddo
         enddo
+    endif
+
+    if (apply_projection_matrix) then
+        ! Project out rotation and translation
+        Hess(1:3*Nat,1:3*Nat) = matrix_basisrot(3*Nat,3*Nat,P,Hess)
     endif
 
     ! Convert also the gradient to internal (for future use)
@@ -1378,7 +1427,8 @@ program internal_duschinski
                            symaddapt,same_red2nonred_rotation,analytic_Bder,&
                            vertical,verticalQspace2,verticalQspace1,&
                            gradcorrectS1,gradcorrectS2,&
-                           orthogonalize,original_internal,force_real,reference_frame)
+                           orthogonalize,original_internal,force_real,reference_frame,&
+                           apply_projection_matrix)
     !==================================================
     ! My input parser (gromacs style)
     !==================================================
@@ -1392,7 +1442,8 @@ program internal_duschinski
                                           verticalQspace1, &
                                           gradcorrectS1, gradcorrectS2, symaddapt, &
                                           same_red2nonred_rotation,analytic_Bder, &
-                                          orthogonalize,original_internal,force_real
+                                          orthogonalize,original_internal,force_real, &
+                                          apply_projection_matrix
 !         logical,intent(inout) :: tswitch
 
         ! Local
@@ -1542,6 +1593,11 @@ program internal_duschinski
                 case ("-noforce-real")
                     force_real=.false.
 
+                case ("-prj-tr")
+                    force_real=.true.
+                case ("-noprj-tr")
+                    force_real=.false.
+
                 case ("-orth")
                     orthogonalize=.true.
                 case ("-noorth")
@@ -1677,6 +1733,8 @@ program internal_duschinski
         write(6,*) '              to real (also affects Er)'
         write(6,*) '               '                       
         write(6,*) ' ** Options Internal Coordinates **           '
+        write(6,*) '-[no]prj-tr  Apply projection matrix to   ', apply_projection_matrix
+        write(6,*) '             rotate Grad and Hess'
         write(6,*) '-cnx         Connectivity [filename|guess] ', trim(adjustl(cnx_file))
         write(6,*) '-intmode0    Internal set:[zmat|sel|all]   ', trim(adjustl(def_internal0))
         write(6,*) '-intfile0    File with ICs (for "sel")     ', trim(adjustl(intfile0))

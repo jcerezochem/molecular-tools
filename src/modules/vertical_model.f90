@@ -94,5 +94,38 @@ module vertical_model
 
     end subroutine check_symm_gsBder
 
+    function projection_matrix(Nat,Ns,B) result(P)
+
+        !==============================================================
+        ! This code is part of MOLECULAR_TOOLS
+        !==============================================================
+        !Description
+        ! Diagonalizes a Hessian after mass-weighing and translation to 
+        ! the internal frame defined by satifying the Eckart-Saytvez conditions.
+        !
+        !Arguments
+        ! Nat     (inp) int /scalar   Number of atoms
+        ! Ns      (inp) int /scalar   Number of internal coordinates
+        !
+        !
+        !==============================================================
+
+        integer,intent(in)                 :: Nat, Ns
+        real(8),dimension(:,:),intent(in)  :: B
+        real(8),dimension(3*Nat,3*Nat)     :: P
+
+        !Local
+        integer,parameter :: NDIM = 600
+
+        real(8),dimension(NDIM,NDIM) :: Aux
+
+        Aux(1:Ns,1:Ns)     = matrix_product(Ns,Ns,3*Nat,B,B,tB=.true.)
+        Aux(1:Ns,1:Ns)     = inverse_realgen(Ns,Aux)
+        Aux(1:3*Nat,1:Ns)  = matrix_product(3*Nat,Ns,Ns,B,Aux,tA=.true.)
+        P(1:3*Nat,1:3*Nat) = matrix_product(3*Nat,3*Nat,Ns,Aux,B)
+
+        return
+
+    end function projection_matrix
 
 end module vertical_model

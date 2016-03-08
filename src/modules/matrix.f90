@@ -682,6 +682,15 @@ module matrix
     function vector_dot_product(N,V1,V2) result(pes)
         ! A Wrapper to ddot to perform the dot product 
         ! Pof vectors V1(N) and V2(N)
+
+         
+        ! this definition does not work
+!         INTERFACE 
+!            function ddot(N,Dx,INCX,DY,INCY)
+!              integer :: N, INCX, INCY
+!              real(8),dimension(:) :: Dx, Dy
+!            END FUNCTION ddot
+!         END INTERFACE
    
         integer,intent(in)                   :: N
         real(8),dimension(:),intent(in)      :: V1,V2
@@ -695,7 +704,46 @@ module matrix
 
         return
 
-    end function
+    end function vector_dot_product
+
+    function matrix_vector_product(M,N,A,v,tA) result(p)
+
+        !-----------------------------------
+        !Multiply A array by v vector
+        ! A(M,N) (in any case)
+        ! v(N) (if tA=.false.)
+        ! v(M) (if tA=.true.)
+        !-----------------------------------
+
+        integer,intent(in)                   :: M,N
+        real(8),dimension(:,:),intent(in)    :: A
+        real(8),dimension(:),intent(in)      :: v
+        logical,intent(in),optional          :: tA
+        real(8),dimension(:),allocatable     :: p
+        !Local
+        character :: TRANS
+        integer :: LDA
+
+        !Needs BLAS
+        external dgemv
+
+        !First dimension as specified in the calling program
+        LDA = size(A,1)
+
+        if (present(tA).and.tA) then
+            TRANS="T"
+            allocate(p(1:M))
+        else
+            TRANS="N"
+            allocate(p(1:N))
+        endif
+
+        call dgemv (TRANS, M, N, 1.d0, A, LDA, v, 1, 0.d0, p, 1)
+
+        return
+
+    end function matrix_vector_product
+
 
     function matrix_product(NA,NB,NK,A,B,tA,tB) result(P)
 
@@ -704,14 +752,6 @@ module matrix
         ! P(NA,NB) = A(NA,K) * B(K,NB)
         ! P(NA,NB) = A^t(K,NA) * B(K,NB)
         ! and modificaitions alike
-
-
-        INTERFACE 
-           function ddot(N,Dx,INCX,DY,INCY)
-             integer :: N, INCX, INCY
-             real(8),dimension(:) :: Dx, Dy
-           END FUNCTION ddot
-        END INTERFACE
 
         integer,intent(in)                   :: NA,NB,NK
         real(8),dimension(:,:),intent(in)    :: A,B
