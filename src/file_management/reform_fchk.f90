@@ -152,7 +152,7 @@ program reorder_fchk
     character(len=10) :: filetype="guess"
     character(len=200):: inpfile ="input.fchk", &
                          orderfile = "none",    &
-                         outfile="output.fchk", &
+                         outfile="default", &
                          rotfile="none",        &
                          trasfile="none"
     !status
@@ -540,6 +540,12 @@ program reorder_fchk
                     call alert_msg("fatal","Unkown command line argument: "//adjustl(arg))
             end select
         enddo 
+
+        !The default output is now xyz
+        if (adjustl(outfile) == "default") then
+            call split_line_back(inpfile,".",outfile,null)
+            outfile=trim(adjustl(outfile))//"_R.fchk"
+        endif
 
        !Print options (to stdx)
         write(0,'(/,A)') '========================================================'
