@@ -57,7 +57,8 @@ program cartesian_duschinsky
                check_symmetry=.true., &
                force_real=.false., &
                rm_gradcoord=.false., &
-               int_space=.false.
+               int_space=.false.,&
+               apply_projection_matrix=.false.
     character(len=4) :: def_internal='all'
     character(len=1) :: reference_frame='F'
     !======================
@@ -76,8 +77,9 @@ program cartesian_duschinsky
     real(8),dimension(NDIM,NDIM) :: B, G1, D
     !Other arrays
     real(8),dimension(1:NDIM) :: Grad, Grad1
-    real(8),dimension(1:NDIM,1:NDIM) :: Hess,Hess2, X1,X1inv, L1,L2, Asel1
+    real(8),dimension(1:NDIM,1:NDIM) :: Hess,Hess2, X1,X1inv, L1,L2, Asel1, P
     real(8),dimension(1:NDIM,1:NDIM,1:NDIM) :: Bder
+!     real(8),dimension(1:200,1:200,1:200) :: Gder
     !Duschisky
     real(8),dimension(NDIM,NDIM) :: G
     !T0 - switching effects
@@ -177,7 +179,7 @@ program cartesian_duschinsky
     call parse_input(inpfile,ft,gradfile,ftg,hessfile,fth,inpfile2,ft2,gradfile2,ftg2,hessfile2,fth2,&
                      cnx_file,intfile,rmzfile,def_internal,use_symmetry,derfile,gradcorrectS2,&
                      gradcorrectS1,vertical,verticalQspace1,verticalQspace2,force_real,reference_frame,&
-                     rm_gradcoord,int_space)
+                     rm_gradcoord,int_space,apply_projection_matrix)
     call set_word_upper_case(def_internal)
     call set_word_upper_case(reference_frame)
 
@@ -212,7 +214,7 @@ program cartesian_duschinsky
     print'(X,A,/)', "Done"
 
 
-    if (gradcorrectS1.or.int_space) then
+    if (gradcorrectS1.or.int_space.or.apply_projection_matrix) then
         !***************************************************************
         ! The whole vibrational analysis is not needed, only the Bder
         print'(/,X,A)', "Preparing internal space..."
@@ -262,7 +264,7 @@ program cartesian_duschinsky
         endif
     
         ! SET REDUNDANT/SYMETRIZED/CUSTOM INTERNAL SETS
-        print'(/,2X,A)', "Estimating Nvib as 6N-6"
+        print'(/,2X,A)', "Estimating Nvib as 3N-6"
         Nvib0 = 3*Nat-6
     !     if (symaddapt) then (implement in an analogous way as compared with the transformation from red to non-red
         call redundant2nonredundant(Ns,Nvib0,G1,Asel1)
@@ -275,7 +277,26 @@ program cartesian_duschinsky
             do j=1,3*Nat
                 Bder(1:Nvib0,j,1:3*Nat) =  matrix_product(Nvib0,3*Nat,Ns,Asel1,Bder(1:Ns,j,1:3*Nat),tA=.true.)
             enddo
+!             ! Gder
+!             do i=1,Nvib0
+!             do j=1,Nvib0
+!             do l=1,3*Nat
+!                 Gder(i,j,l) = 0.d0
+!                 do k=1,3*Nat
+!                     kk = (k-1)/3+1
+!                     Gder(i,j,l) = Gder(i,j,l) + &
+!                                   B(i,k)/state1%atom(kk)%mass/AMUtoAU*Bder(j,k,l) 
+!                 enddo 
+!             enddo
+!             enddo
+!             enddo
+! 
+!             do l=1,3*Nat
+!                 print*, l, determinant_realsym(Nvib0,Gder(1:Nvib0,1:Nvib0,l))
+!             enddo
+
         endif
+
     endif
 
     ! HESSIAN FILE (State1)
@@ -300,6 +321,25 @@ program cartesian_duschinsky
     else
         print'(X,A,/)', "Assuming gradient for State1 equal to zero"
         Grad(1:3*Nat) = 0.d0
+    endif
+
+    if (apply_projection_matrix) then
+        ! Get projection matrix
+        P(1:3*Nat,1:3*Nat) = projection_matrix(Nat,Nvib0,B)
+!         call MAT0(6,P,3*Nat,3*Nat,"P matrix (1)")
+!         P(1:3*Nat,1:3*Nat) = projection_matrix2(Nat,molecule%atom(1:Nat)%X, &
+!                                                     molecule%atom(1:Nat)%Y, &
+!                                                     molecule%atom(1:Nat)%Z, &
+!                                                     molecule%atom(1:Nat)%Mass)
+!         call MAT0(6,P,3*Nat,3*Nat,"P matrix (2)")
+        ! And rotate gradient
+        do i=1,3*Nat
+            Vec1(i) = 0.d0
+            do k=1,Nvib0
+                Vec1(i) = Vec1(i) + P(i,k)*Grad(k)
+            enddo
+        enddo
+        Grad(1:3*Nat) = Vec1(1:3*Nat)
     endif
 
     if (rm_gradcoord) then
@@ -354,6 +394,11 @@ program cartesian_duschinsky
             if (check_symmetry) then
                 call check_symm_gsBder(state1,Aux2)
             endif
+        endif
+        ! Apply projection matrix if required
+        if (apply_projection_matrix) then
+            ! Project out rotation and translation
+            Hess(1:3*Nat,1:3*Nat) = matrix_basisrot(3*Nat,3*Nat,P,Hess)
         endif
         
         ! Get Hs
@@ -442,7 +487,7 @@ program cartesian_duschinsky
     Nat = state2%natoms
     print'(X,A,/)', "Done"
 
-    if (gradcorrectS2.or.int_space) then
+    if (gradcorrectS2.or.int_space.or.apply_projection_matrix) then
         !***************************************************************
         ! The whole vibrational analysis is not needed, only the Bder
         print'(/,X,A)', "Preparing internal space..."
@@ -534,6 +579,25 @@ program cartesian_duschinsky
         Grad(1:3*Nat) = 0.d0
     endif
 
+    if (apply_projection_matrix) then
+        ! Get projection matrix
+        P(1:3*Nat,1:3*Nat) = projection_matrix(Nat,Nvib0,B)
+!         call MAT0(6,P,3*Nat,3*Nat,"P matrix (1)")
+!         P(1:3*Nat,1:3*Nat) = projection_matrix2(Nat,molecule%atom(1:Nat)%X, &
+!                                                     molecule%atom(1:Nat)%Y, &
+!                                                     molecule%atom(1:Nat)%Z, &
+!                                                     molecule%atom(1:Nat)%Mass)
+!         call MAT0(6,P,3*Nat,3*Nat,"P matrix (2)")
+        ! And rotate gradient
+        do i=1,3*Nat
+            Vec1(i) = 0.d0
+            do k=1,Nvib0
+                Vec1(i) = Vec1(i) + P(i,k)*Grad(k)
+            enddo
+        enddo
+        Grad(1:3*Nat) = Vec1(1:3*Nat)
+    endif
+
     ! Run vibrations_Cart to get the number of Nvib (to detect linear molecules)
     if (rm_gradcoord) then
         call subheading(6,"Vibrations on the 3N-7 space",upper_case=.true.)
@@ -582,6 +646,11 @@ program cartesian_duschinsky
             if (check_symmetry) then
                 call check_symm_gsBder(state2,Aux2)
             endif
+        endif
+        ! Apply projection matrix if required
+        if (apply_projection_matrix) then
+            ! Project out rotation and translation
+            Hess(1:3*Nat,1:3*Nat) = matrix_basisrot(3*Nat,3*Nat,P,Hess)
         endif
         
         ! Get Hs
@@ -1247,7 +1316,7 @@ program cartesian_duschinsky
     subroutine parse_input(inpfile,ft,gradfile,ftg,hessfile,fth,inpfile2,ft2,gradfile2,ftg2,hessfile2,fth2,&
                            cnx_file,intfile,rmzfile,def_internal,use_symmetry,derfile,gradcorrectS2,&
                            gradcorrectS1,vertical,verticalQspace1,verticalQspace2,force_real,reference_frame,&
-                           rm_gradcoord,int_space)
+                           rm_gradcoord,int_space,apply_projection_matrix)
     !==================================================
     ! My input parser (gromacs style)
     !==================================================
@@ -1256,7 +1325,7 @@ program cartesian_duschinsky
         character(len=*),intent(inout) :: inpfile,ft,gradfile,ftg,hessfile,fth,gradfile2,ftg2,hessfile2,fth2,&
                                           cnx_file,intfile,rmzfile,def_internal,derfile,inpfile2,ft2,reference_frame
         logical,intent(inout)          :: use_symmetry,gradcorrectS2,gradcorrectS1,vertical,&
-                                          verticalQspace1,verticalQspace2,force_real,rm_gradcoord,int_space
+                                          verticalQspace1,verticalQspace2,force_real,rm_gradcoord,int_space,apply_projection_matrix
         ! Local
         logical :: argument_retrieved,  &
                    need_help = .false.
@@ -1353,25 +1422,25 @@ program cartesian_duschinsky
                 case ("-model")
                     call getarg(i+1, model)
                     argument_retrieved=.true.
-                !The others are kept for backward compatibility
-                case ("-vertQ1")
-                    vertical=.true.
-                    verticalQspace2=.false.
-                    verticalQspace1=.true.
-                    model="vertQ1"
-                case ("-vertQ2")
-                    vertical=.true.
-                    verticalQspace2=.true.
-                    verticalQspace1=.false.
-                    model="vertQ2"
-                case ("-vert")
-                    vertical=.true.
-                    verticalQspace2=.false.
-                    model="vert"
-                case ("-novert")
-                    vertical=.false.
-                    verticalQspace2=.false.
-                    model="adia"
+!                 !The others are kept for backward compatibility
+!                 case ("-vertQ1")
+!                     vertical=.true.
+!                     verticalQspace2=.false.
+!                     verticalQspace1=.true.
+!                     model="vertQ1"
+!                 case ("-vertQ2")
+!                     vertical=.true.
+!                     verticalQspace2=.true.
+!                     verticalQspace1=.false.
+!                     model="vertQ2"
+!                 case ("-vert")
+!                     vertical=.true.
+!                     verticalQspace2=.false.
+!                     model="vert"
+!                 case ("-novert")
+!                     vertical=.false.
+!                     verticalQspace2=.false.
+!                     model="adia"
                 !================================================================
 
                 case ("-ref") 
@@ -1417,6 +1486,11 @@ program cartesian_duschinsky
                 case ("-nocorrS2")
                     gradcorrectS2=.false.
                     gradcorrectS2_default=.false.
+
+                case ("-prj-tr")
+                    apply_projection_matrix=.true.
+                case ("-noprj-tr")
+                    apply_projection_matrix=.false.
 
                 case ("-h")
                     need_help=.true.
@@ -1524,10 +1598,12 @@ program cartesian_duschinsky
         write(6,*) '              to real (also affects Er)'
         write(6,*) ''
         write(6,*) ' ** Options to tune the vibrational analysis ** '
-        write(6,*) '-[no]rmgrad    Remove coordinate along the ', rm_gradcoord
-        write(6,*) '               grandient                  '
-        write(6,*) '-[no]Sspace    Get internal space spanned ', int_space
-        write(6,*) '               by the internal set        '
+        write(6,*) '-[no]prj-tr  Apply projection matrix to   ', apply_projection_matrix
+        write(6,*) '             rotate Grad and Hess'
+        write(6,*) '-[no]rmgrad  Remove coordinate along the  ', rm_gradcoord
+        write(6,*) '             grandient                    '
+        write(6,*) '-[no]Sspace  Get internal space spanned   ', int_space
+        write(6,*) '             by the internal set          '
         write(6,*) '               '        
         write(6,*) '** Options correction method (vertical) **'
         write(6,*) '-model       Model for harmonic PESs       ', trim(adjustl(model))

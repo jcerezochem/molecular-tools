@@ -1594,9 +1594,9 @@ program internal_duschinski
                     force_real=.false.
 
                 case ("-prj-tr")
-                    force_real=.true.
+                    apply_projection_matrix=.true.
                 case ("-noprj-tr")
-                    force_real=.false.
+                    apply_projection_matrix=.false.
 
                 case ("-orth")
                     orthogonalize=.true.
