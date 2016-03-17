@@ -55,11 +55,15 @@ libmoleculartools_a_SOURCES =         \
     vibrational_analysis.f90          \
     vertical_model.f90
 
+# Generate version file only if needed. To that end the
+# dependency of version.f90 is a non-file-associated 
+# instruction that only changes the file if requiered
+# This avoids recompiling everything every time
+version.f90: get_git_version
+get_git_version:
+	@bash ./get_git_version.sh $(FCFLAGS) $(LIBS) || echo "Reusing version file"
+
 
 CLEANFILES =*.mod 
-
-.PHONY: version.f90
-version.f90:
-	@bash ./get_git_version.sh $(FCFLAGS) $(LIBS) || echo "Reusing version file"
 
  
