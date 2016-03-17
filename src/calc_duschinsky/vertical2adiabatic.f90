@@ -54,7 +54,7 @@ program vertical2adiabatic
     !====================== 
     !System variables
     type(str_resmol) :: state1,state2
-    type(str_bonded) :: zmatgeom
+    type(str_bonded) :: zmatgeom, allgeom
     integer,dimension(1:NDIM) :: isym
     integer :: Nat, Nvib, Ns
     !====================== 
@@ -431,7 +431,7 @@ program vertical2adiabatic
 
     ! SET REDUNDANT/SYMETRIZED/CUSTOM INTERNAL SETS
 !     if (symaddapt) then (implement in an analogous way as compared with the transformation from red to non-red
-    if (Ns > Nvib) then ! Redundant
+!     if (Ns > Nvib) then ! Redundant
         call redundant2nonredundant(Ns,Nvib,G1,Asel1)
         ! Rotate Bmatrix
         B1(1:Nvib,1:3*Nat) = matrix_product(Nvib,3*Nat,Ns,Asel1,B1,tA=.true.)
@@ -443,7 +443,7 @@ program vertical2adiabatic
                 Bder(1:Nvib,j,1:3*Nat) =  matrix_product(Nvib,3*Nat,Ns,Asel1,Bder(1:Ns,j,1:3*Nat),tA=.true.)
             enddo
         endif
-    endif
+!     endif
 
     if (vertical) then
         ! (Hess is already constructed)
@@ -517,6 +517,7 @@ program vertical2adiabatic
     ! Map to Zmat if needed
     if (Ns /= Nvib) then
         ! From now on, we use the zmatgeom 
+        allgeom = state1%geom
         state1%geom = zmatgeom
         S1(1:Nvib) = map_Zmatrix(Nvib,S1,Zmap)
     endif
@@ -527,6 +528,41 @@ program vertical2adiabatic
     call write_xyz(70,state1)
     close(70)
     print*, ""
+    if (Ns /= Nvib) then
+        state1%geom = allgeom
+    endif
+
+
+    ! Compute G matrix at the minimum
+    !=================================
+    ! INTERNAL COORDINATES
+    !=================================
+    print'(/,A)', "=============================="
+    print'(X,A)', " INTERNAL COORDINATES"
+    print'(A)',   "=============================="
+    call set_geom_units(state1,"Bohr")
+    !SOLVE GF METHOD TO GET NM AND FREQ
+    call internal_Wilson(state1,Ns,S1,B1,ModeDef)
+    call internal_Gmetric(Nat,Ns,state1%atom(:)%mass,B1,G2)
+
+    ! SET REDUNDANT/SYMETRIZED/CUSTOM INTERNAL SETS
+!     if (symaddapt) then (implement in an analogous way as compared with the transformation from red to non-red
+!     if (Ns > Nvib) then ! Redundant
+!         call redundant2nonredundant(Ns,Nvib,G2,Asel1)
+        ! Rotate Bmatrix
+!         B1(1:Nvib,1:3*Nat) = matrix_product(Nvib,3*Nat,Ns,Asel1,B1,tA=.true.)
+        ! Rotate Gmatrix
+        G2(1:Nvib,1:Nvib) = matrix_basisrot(Nvib,Ns,Asel1(1:Ns,1:Nvib),G2,counter=.true.)
+!     endif
+
+    ! G1 vs G2
+    Aux(1:Nvib,1:Nvib) = inverse_realgen(Nvib,G2)
+    Aux(1:Nvib,1:Nvib) = matrix_product(Nvib,Nvib,Nvib,G1,Aux)
+    call MAT0(6,Aux,Nvib,Nvib,"G1 G2^-1")
+
+    print*, "Redoing the Freq analysis"
+    call gf_method(Nvib,G2,Hess,L1,Freq,X1,X1inv)
+
 
     !===================================
     ! Reorganization energy
