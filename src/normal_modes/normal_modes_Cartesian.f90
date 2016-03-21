@@ -49,6 +49,7 @@ program normal_modes_cartesian
     use internal_module
     use zmat_manage 
     use vibrational_analysis
+    use vertical_model
     use thermochemistry
     implicit none
 
@@ -67,7 +68,8 @@ program normal_modes_cartesian
                Eckart_frame=.true.,     &
                modes_as_internals=.false., &
                original_internal=.false., &
-               rm_gradcoord=.false.
+               rm_gradcoord=.false., &
+               apply_projection_matrix=.false.
     !======================
 
     !====================== 
@@ -97,7 +99,7 @@ program normal_modes_cartesian
     integer :: verbose_current
     ! Auxiliar real arrays/scalars
     real(8),dimension(1:NDIM,1:NDIM) :: Aux, Aux2
-    real(8),dimension(1:NDIM)        :: Vec
+    real(8),dimension(1:NDIM)        :: Vec, Vec1
     real(8),dimension(:),allocatable :: Vec_alloc
     real(8) :: Theta, Theta2
     !====================== 
@@ -109,7 +111,7 @@ program normal_modes_cartesian
 
     !====================== 
     ! PES topology and normal mode things
-    real(8),dimension(1:NDIM,1:NDIM) :: LL, D
+    real(8),dimension(1:NDIM,1:NDIM) :: LL, D, P
     real(8),dimension(1:NDIM*NDIM)   :: Hlt
     real(8),dimension(:,:),allocatable :: Hess
     real(8),dimension(NDIM) :: Freq, Factor, Grad
@@ -208,7 +210,8 @@ program normal_modes_cartesian
                      ! Options (internal)
                      use_symmetry,def_internal,intfile,rmzfile,            & !except scan_type
                      ! Additional vib options
-                     Eckart_frame,orthogonalize,modes_as_internals,original_internal, &
+                     Eckart_frame,orthogonalize,modes_as_internals,        &
+                     original_internal, apply_projection_matrix,           &
                      ! connectivity file
                      cnx_file,                                             &
                      ! thermochemical analysis
@@ -342,7 +345,7 @@ program normal_modes_cartesian
             Nvib0=Nvib
         endif
 
-        if (vertical) then
+        if (vertical.or.apply_projection_matrix) then
             call statement(6,"CORRECTIONS FOR NON-STATIONARY POINTS ACTIVATED",keep_case=.true.)
        
             ! MANAGE INTERNAL COORDS
@@ -476,6 +479,37 @@ program normal_modes_cartesian
                 Bder(1:Nvib0,j,1:3*Nat) =  matrix_product(Nvib0,3*Nat,Ns,Aselinv,Bder(1:Ns,j,1:3*Nat))
             enddo
 
+            if (apply_projection_matrix) then
+                ! Get projection matrix
+                P(1:3*Nat,1:3*Nat) = projection_matrix(Nat,Nvib0,B,molecule%atom(1:Nat)%Mass)
+                Aux(1:3*Nat,1:3*Nat) = matrix_product(3*Nat,3*Nat,3*Nat,P,P,tA=.true.)
+                call MAT0(6,Aux,3*Nat,3*Nat,"Check prj (1.A)")
+                Aux(1:3*Nat,1:3*Nat) = matrix_product(3*Nat,3*Nat,3*Nat,P,P,tB=.true.)
+                call MAT0(6,Aux,3*Nat,3*Nat,"Check prj (1.B)")
+                call MAT0(6,P,3*Nat,3*Nat,"P matrix (1)")
+
+! print*, "New projection"
+!                 P(1:3*Nat,1:3*Nat) = projection_matrix2(Nat,molecule%atom(1:Nat)%X, &
+!                                                             molecule%atom(1:Nat)%Y, &
+!                                                             molecule%atom(1:Nat)%Z, &
+!                                                             molecule%atom(1:Nat)%Mass)
+! 
+!                 Aux(1:3*Nat,1:3*Nat) = matrix_product(3*Nat,3*Nat,3*Nat,P,P,tA=.true.)
+!                 call MAT0(6,Aux,3*Nat,3*Nat,"Check prj (2.A)")
+!                 Aux(1:3*Nat,1:3*Nat) = matrix_product(3*Nat,3*Nat,3*Nat,P,P,tB=.true.)
+!                 call MAT0(6,Aux,3*Nat,3*Nat,"Check prj (2.B)")
+
+!                 call MAT0(6,P,3*Nat,3*Nat,"P matrix (2)")
+                ! And rotate gradient
+                do i=1,3*Nat
+                    Vec1(i) = 0.d0
+                    do k=1,Nvib0
+                        Vec1(i) = Vec1(i) + P(i,k)*Grad(k)
+                    enddo
+                enddo
+                Grad(1:3*Nat) = Vec1(1:3*Nat)
+            endif
+
             !Reset Angs
             call set_geom_units(molecule,"Angs")
 
@@ -551,6 +585,10 @@ program normal_modes_cartesian
             ! B^t Hs B [~Hx]
             Hess(1:3*Nat,1:3*Nat) = matrix_basisrot(3*Nat,Nvib0,B,Hess,counter=.true.)
         endif
+!         if (apply_projection_matrix) then
+!             ! Project out rotation and translation
+!             Hess(1:3*Nat,1:3*Nat) = matrix_basisrot(3*Nat,3*Nat,P,Hess)
+!         endif
 
         ! M^-1/2 [Hx] M^-1/2
         do i=1,3*Nat
@@ -563,6 +601,11 @@ program normal_modes_cartesian
             Hess(j,i) = Hess(i,j)
         enddo
         enddo
+
+        if (apply_projection_matrix) then
+            ! Project out rotation and translation
+            Hess(1:3*Nat,1:3*Nat) = matrix_basisrot(3*Nat,3*Nat,P,Hess)
+        endif
 
         ! Eckart traslation and rotation can be computed for testing
         if (.not.Eckart_frame.and..not.full_diagonalize) then
@@ -605,6 +648,51 @@ program normal_modes_cartesian
             ! 1) Get T+R+Vib in the same frame
             ! D [M^-1/2 [Hx] M^1/2] D^t
             Hess(1:3*Nat,1:3*Nat) = matrix_basisrot(3*Nat,3*Nat,D(1:3*Nat,1:3*Nat),Hess,counter=.true.)
+            ! Check couplings between internal and external
+            ! Translations
+            Theta = 0.d0
+            Theta2= 0.d0
+            k=0
+            do i=1,3
+            do j=7,3*Nat 
+                Theta =Theta+dabs(Hess(i,j))
+                Theta2=max(Theta2,abs(Hess(i,j)))
+                k=k+1
+            enddo
+            enddo
+            print*, "Translation-Vibration couplings"
+            print*, " Average: ", Theta/k 
+            print*, " Max    : ", Theta2
+            ! Rotations 
+            Theta = 0.d0
+            Theta2= 0.d0
+            k=0
+            do i=4,6
+            do j=7,3*Nat 
+                Theta =Theta+dabs(Hess(i,j))
+                Theta2=max(Theta2,abs(Hess(i,j)))
+                k=k+1
+            enddo
+            enddo
+            print*, "Rotation-Vibration couplings"
+            print*, " Average: ", Theta/k 
+            print*, " Max    : ", Theta2 
+            ! Check t7
+            Theta = 0.d0
+            Theta2= 0.d0
+            k=0
+            do i=7,7
+            do j=8,3*Nat 
+                Theta =Theta+dabs(Hess(i,j))
+                Theta2=max(Theta2,abs(Hess(i,j)))
+                k=k+1
+            enddo
+            enddo
+            print*, "t7-Vibration-t7 couplings"
+            print*, " Average: ", Theta/k 
+            print*, " Max    : ", Theta2 
+            Theta = 0.d0
+            Theta2= 0.d0
             ! Diagonalize and get data
             call diagonalize_full(Hess(1:3*Nat,1:3*Nat),3*Nat,LL(1:3*Nat,1:3*Nat),Freq(1:3*Nat),"lapack")
             ! 2) Update "Nvib" to actual number of computed modes
@@ -951,7 +1039,8 @@ program normal_modes_cartesian
                            ! Options (internal)
                            use_symmetry,def_internal,intfile,rmzfile,            &
                            ! Additional vib options
-                           Eckart_frame,orthogonalize,modes_as_internals,original_internal,&
+                           Eckart_frame,orthogonalize,modes_as_internals,        &
+                           original_internal, apply_projection_matrix,           &
                            ! connectivity file
                            cnx_file,                                             &
                            ! thermochemical analysis
@@ -972,7 +1061,8 @@ program normal_modes_cartesian
                                           ! Internal
                                           use_symmetry,analytic_Bder, &
                                           ! Other
-                                          Eckart_frame, orthogonalize, modes_as_internals, original_internal
+                                          Eckart_frame, orthogonalize, modes_as_internals, original_internal, &
+                                          apply_projection_matrix
         integer,intent(inout)          :: movie_cycles
 
         ! Local
@@ -1107,6 +1197,11 @@ program normal_modes_cartesian
                     argument_retrieved=.true.
                     read(arg,*) Tthermo
 
+                case ("-prj-tr")
+                    apply_projection_matrix=.true.
+                case ("-noprj-tr")
+                    apply_projection_matrix=.false.
+
                 ! (HIDDEN FLAG)
                 case ("-anaBder")
                     analytic_Bder=.true.
@@ -1179,6 +1274,7 @@ program normal_modes_cartesian
         write(6,*)       '-ftn           \_ FileType                     ', trim(adjustl(ftn))
         write(6,*)       ''
         write(6,*)       ' ** Options for vibration analysis **'
+        write(6,*)       '-[no]prj-tr    Project out tras+rot           ', apply_projection_matrix
         write(6,*)       '-[no]rmgrad    Remove coordinate along the    ', rm_gradcoord
         write(6,*)       '               grandient                      '
         write(6,*)       '-[no]fulldiag  Diagonalize the 3Nx3N matrix   ',  full_diagonalize
