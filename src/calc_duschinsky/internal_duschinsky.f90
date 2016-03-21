@@ -78,9 +78,10 @@ program internal_duschinski
                orthogonalize=.false., &
                original_internal=.false., &
                force_real=.false., &
-               apply_projection_matrix=.false.
+               apply_projection_matrix=.false., &
+               move_to_min=.false.
     character(len=4) :: def_internal='all'
-    character(len=4) :: def_internal0='all'
+    character(len=4) :: def_internal0='defa' ! defa(ult) is "the same as working set"
     character(len=1) :: reference_frame='F'
     !======================
 
@@ -89,9 +90,7 @@ program internal_duschinski
     type(str_resmol) :: state1, state2
     type(str_bonded) :: geomS, geom0
     integer,dimension(1:NDIM) :: isym
-    integer,dimension(4,1:NDIM,1:NDIM) :: Osym
-    integer :: Nsym
-    integer :: Nat, Nvib, Ns, NNvib, Nvib0, Ns0, NsS
+    integer :: Nat, Nvib, Ns, NNvib, Nvib0, Ns0, NsS, Nz
     character(len=5) :: PG
     !Bonded info
     integer,dimension(1:NDIM,1:4) :: bond_s, angle_s, dihed_s
@@ -122,6 +121,9 @@ program internal_duschinski
     !Shifts
     real(8),dimension(NDIM) :: Delta
     real(8) :: Delta_p, Er
+    ! Z-mat and redundant geoms
+    integer,dimension(NDIM) :: Zmap
+    type(str_bonded) :: zmatgeom, allgeom
     !====================== 
 
     !====================== 
@@ -176,7 +178,7 @@ program internal_duschinski
                          gradfile2="same", &
                          hessfile2="same", &
                          intfile  ="none", &
-                         intfile0 ="none", &
+                         intfile0 ="default", & ! default is "the same as working set"
                          rmzfile  ="none", &
                          symm_file="none", &
                          cnx_file="guess"
@@ -211,7 +213,7 @@ program internal_duschinski
                      vertical,verticalQspace2,verticalQspace1,&
                      gradcorrectS1,gradcorrectS2,&
                      orthogonalize,original_internal,force_real,reference_frame,&
-                     apply_projection_matrix)
+                     apply_projection_matrix,move_to_min)
     call set_word_upper_case(def_internal)
     call set_word_upper_case(reference_frame)
 
@@ -383,33 +385,7 @@ program internal_duschinski
         endif
 
         if (check_symmetry) then
-            print'(/,X,A)', "---------------------------------------"
-            print'(X,A  )', " Check effect of symmetry operations"
-            print'(X,A  )', " on the correction term gs^t\beta"
-            print'(X,A  )', "---------------------------------------"
-            current_symm=state1%PG
-            state1%PG="XX"
-            call symm_atoms(state1,isym,Osym,rotate=.false.,nsym_ops=nsym)
-            ! Check the symmetry of the correction term
-            ! Check all detected symmetry ops
-            do iop=1,Nsym
-                Aux(1:3*Nat,1:3*Nat) = dfloat(Osym(iop,1:3*Nat,1:3*Nat))
-                Aux(1:3*Nat,1:3*Nat) = matrix_basisrot(3*Nat,3*Nat,Aux,gBder,counter=.true.)
-                Theta=0.d0
-                do i=1,3*Nat 
-                do j=1,3*Nat 
-                    if (Theta < abs(Aux(i,j)-gBder(i,j))) then
-                        Theta = abs(Aux(i,j)-gBder(i,j))
-                        Theta2=gBder(i,j)
-                    endif
-                enddo
-                enddo
-                print'(X,A,I0)', "Symmetry operation :   ", iop
-                print'(X,A,F10.6)',   " Max abs difference : ", Theta
-                print'(X,A,F10.6,/)', " Value before sym op: ", Theta2
-            enddo
-            print'(X,A,/)', "---------------------------------------"
-            state1%PG=current_symm
+            call check_symm_gsBder(state1,gBder)
         endif
     endif
 
@@ -713,33 +689,7 @@ program internal_duschinski
         endif
 
         if (check_symmetry) then
-            print'(/,X,A)', "---------------------------------------"
-            print'(X,A  )', " Check effect of symmetry operations"
-            print'(X,A  )', " on the correction term gs^t\beta"
-            print'(X,A  )', "---------------------------------------"
-            current_symm=state1%PG
-            state1%PG="XX"
-            call symm_atoms(state1,isym,Osym,rotate=.false.,nsym_ops=nsym)
-            ! Check the symmetry of the correction term
-            ! Check all detected symmetry ops
-            do iop=1,Nsym
-                Aux(1:3*Nat,1:3*Nat) = dfloat(Osym(iop,1:3*Nat,1:3*Nat))
-                Aux(1:3*Nat,1:3*Nat) = matrix_basisrot(3*Nat,3*Nat,Aux,gBder,counter=.true.)
-                Theta=0.d0
-                do i=1,3*Nat 
-                do j=1,3*Nat 
-                    if (Theta < abs(Aux(i,j)-gBder(i,j))) then
-                        Theta = abs(Aux(i,j)-gBder(i,j))
-                        Theta2=gBder(i,j)
-                    endif
-                enddo
-                enddo
-                print'(X,A,I0)', "Symmetry operation :   ", iop
-                print'(X,A,F10.6)',   " Max abs difference : ", Theta
-                print'(X,A,F10.6,/)', " Value before sym op: ", Theta2
-            enddo
-            print'(X,A,/)', "---------------------------------------"
-            state1%PG=current_symm
+            call check_symm_gsBder(state1,gBder)
         endif
     endif
 
@@ -829,6 +779,118 @@ program internal_duschinski
     ! Convert also the gradient to internal (for future use)
     call Gradcart2int(Nat,Nvib,Grad,state2%atom(:)%mass,B2,G2)
     call HessianCart2int(Nat,Nvib,Hess,state1%atom(:)%mass,B2,G2)
+
+    if (move_to_min) then
+        print*, "Displace to the minimum"
+        ! GET MINIMUM IN INTERNAL COORDINATES
+        ! At this point
+        !  * Hess has the Hessian  of State2 in internal coords (output from HessianCart2int)
+        !  * Grad has the gradient of State2 in internal coords (output from HessianCart2int)
+        ! Inverse of the Hessian
+        Aux(1:Nvib,1:Nvib) = inverse_realgen(Nvib,Hess)
+        ! DeltaS0 = -Hs^1 * gs
+        do i=1,Nvib
+            Delta(i)=0.d0
+            do k=1,Nvib
+                Delta(i) = Delta(i)-Aux(i,k) * Grad(k)
+            enddo 
+        enddo
+! always do redundant2nonredundant
+!         if (Nvib<Ns) then
+            !Transform Delta' into Delta (for control purposes only)
+            ! Delta = A Delta'
+            do i=1,Ns
+                Vec1(i) = 0.d0
+                do k=1,Nvib
+                    Vec1(i) = Vec1(i) + Asel2(i,k)*Delta(k)
+                enddo
+            enddo
+!         else
+!             Vec1(1:Nvib)=Delta(1:Nvib)
+!         endif
+
+        ! Get coordinates
+        do i=1,Ns
+            S2(i) = S1(i) + Vec1(i)
+        enddo
+
+        ! Get Cartesian coordinates
+        ! 1. Save redundant geom
+        allgeom = state2%geom
+        ! 2. Construct Z-matrix geom
+        call define_internal_set(state2,"ZMAT","none","none",use_symmetry,isym,S_sym,Nz)
+        zmatgeom = state2%geom
+        ! 3. Get mapping Z-matrix <--> redundant set
+        call internals_mapping(allgeom,zmatgeom,Zmap)
+        ! 4. Map redundant set onto the Z-matrix
+        S2(1:Nvib) = map_Zmatrix(Nvib,S2,Zmap)
+        ! 5. Construct structure from Z-matrix
+        state2%geom = zmatgeom
+        call zmat2cart(state2,S2)
+        ! 6. Recover original geometry
+        state2%geom = allgeom
+
+        ! Print the new structure file
+        open(99,file="struct2_displaced.xyz")
+        call generic_strmol_writer(99,'xyz',state2,error)
+        close(99)
+
+        !GET AGAIN THE G VECTOR
+        call internal_Wilson(state2,Ns,S2,B2,ModeDef)
+        call internal_Gmetric(Nat,Ns,state2%atom(:)%mass,B2,G2)
+        ! Handle redundant/symtrized sets
+!         if (symaddapt) then (implement in an analogous way as compared with the transformation from red to non-red
+        if (original_internal.and.Nvib==Ns) then
+            print*, "Using internal without linear combination"
+            Asel2(1:Ns,1:Nvib) = 0.d0
+            do i=1,Nvib
+                Asel2(i,i) = 1.d0 
+            enddo
+            Asel2inv(1:Nvib,1:Ns) = Asel2(1:Ns,1:Nvib)
+        else
+            if (same_red2nonred_rotation) then
+                print*, "Using internal from eigevectors of G (state1)"
+                ! Using Asel1 (from state1)
+                Asel2(1:Ns,1:Nvib) = Asel1(1:Ns,1:Nvib)
+                Asel2inv(1:Nvib,1:Ns) = Asel1inv(1:Nvib,1:Ns)
+                ! Rotate Gmatrix
+                G2(1:Nvib,1:Nvib) = matrix_basisrot(Nvib,Ns,Asel2inv(1:Nvib,1:Ns),G2)
+            else
+                print*, "Using internal from eigevectors of G (state2)"
+                call redundant2nonredundant(Ns,Nvib,G2,Asel2)
+                ! Rotate Gmatrix
+                G2(1:Nvib,1:Nvib) = matrix_basisrot(Nvib,Ns,Asel2(1:Ns,1:Nvib),G2,&
+                                                    counter=.true.)
+                if (orthogonalize) then
+                    print*, "Orthogonalyzing state2 internals..."
+                    X2inv(1:Nvib,1:Nvib) = 0.d0
+                    X(1:Nvib,1:Nvib)     = 0.d0
+                    do i=1,Nvib
+                        X(i,i)     = dsqrt(G2(i,i))
+                        X2inv(i,i) = 1.d0/X(i,i)
+                    enddo
+                    ! Rotate Gmatrix (again)
+                    G2(1:Nvib,1:Nvib) = matrix_basisrot(Nvib,Nvib,X2inv(1:Nvib,1:Nvib),G2)
+                    ! Update Asel(inv)
+                    Asel2inv(1:Nvib,1:Ns) = matrix_product(Nvib,Ns,Nvib,X2inv,Asel2,tB=.true.)
+                    Asel2(1:Ns,1:Nvib)    = matrix_product(Ns,Nvib,Nvib,Asel2,X)
+                else
+                    Asel2inv(1:Nvib,1:Ns) = transpose(Asel2(1:Ns,1:Nvib))
+                endif
+            endif
+            ! Rotate Bmatrix
+            B2(1:Nvib,1:3*Nat) = matrix_product(Nvib,3*Nat,Ns,Asel2inv,B2)
+        endif
+        
+        if (apply_projection_matrix) then
+            ! Get projection matrix (again...)
+            P(1:3*Nat,1:3*Nat) = projection_matrix(Nat,Nvib,B2)
+        endif
+
+        ! From now, it is as if it were a adiabatic calculation
+        vertical = .false.
+    endif
+
     call gf_method(Nvib,G2,Hess,L2,Freq2,X,X2inv)
     if (verbose>0) then
         ! Analyze normal modes in terms of the redundant set
@@ -1428,7 +1490,7 @@ program internal_duschinski
                            vertical,verticalQspace2,verticalQspace1,&
                            gradcorrectS1,gradcorrectS2,&
                            orthogonalize,original_internal,force_real,reference_frame,&
-                           apply_projection_matrix)
+                           apply_projection_matrix,move_to_min)
     !==================================================
     ! My input parser (gromacs style)
     !==================================================
@@ -1443,7 +1505,7 @@ program internal_duschinski
                                           gradcorrectS1, gradcorrectS2, symaddapt, &
                                           same_red2nonred_rotation,analytic_Bder, &
                                           orthogonalize,original_internal,force_real, &
-                                          apply_projection_matrix
+                                          apply_projection_matrix,move_to_min
 !         logical,intent(inout) :: tswitch
 
         ! Local
@@ -1568,20 +1630,20 @@ program internal_duschinski
                     call getarg(i+1, model)
                     argument_retrieved=.true.
                 !The others are kept for backward compatibility
-                case ("-vertQ1")
-                    vertical=.true.
-                    verticalQspace2=.false.
-                    verticalQspace1=.true.
-                case ("-vertQ2")
-                    vertical=.true.
-                    verticalQspace2=.true.
-                    verticalQspace1=.false.
-                case ("-vert")
-                    vertical=.true.
-                    verticalQspace2=.false.
-                case ("-novert")
-                    vertical=.false.
-                    verticalQspace2=.false.
+!                 case ("-vertQ1")
+!                     vertical=.true.
+!                     verticalQspace2=.false.
+!                     verticalQspace1=.true.
+!                 case ("-vertQ2")
+!                     vertical=.true.
+!                     verticalQspace2=.true.
+!                     verticalQspace1=.false.
+!                 case ("-vert")
+!                     vertical=.true.
+!                     verticalQspace2=.false.
+!                 case ("-novert")
+!                     vertical=.false.
+!                     verticalQspace2=.false.
                 !================================================================
 
                 case ("-ref") 
@@ -1677,6 +1739,11 @@ program internal_duschinski
                vertical=.true.
                verticalQspace1=.false.
                verticalQspace2=.false.
+           case ("VERT-A") 
+               vertical=.true.
+               verticalQspace1=.false.
+               verticalQspace2=.false.
+               move_to_min=.true.
            case ("VERTQ1") 
                vertical=.true.
                verticalQspace1=.true.
@@ -1701,6 +1768,10 @@ program internal_duschinski
        if (gradcorrectS1_default) then
            gradcorrectS1=.false.
        endif
+
+       ! Take defaults for the internal set for correction only
+       if (def_internal0 == "defa") def_internal0=def_internal
+       if (adjustl(intfile0)=="default") intfile0=intfile
 
        !Print options (to stdout)
         write(6,'(/,A)') '========================================================'
