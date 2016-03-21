@@ -47,6 +47,7 @@ src/calc_duschinsky/generate_internals
 src/calc_duschinsky/vertical2adiabatic
 src/file_management/get_gscan
 src/file_management/get_symatoms
+src/file_management/read_irc
 src/ad_hoc_utilities/*
 src/gen_oniom/gen_oniom
 src/wf_analysis/contribMO
@@ -71,8 +72,8 @@ src/calc_duschinsky/state2hessian
 src/calc_duschinsky/transpose_dusch
 src/calc_duschinsky/substract_disps
 src/calc_duschinsky/rotate_disp
-src/file_management/read_irc
 src/calc_duschinsky/LHA_optimizer
+src/normal_modes/prj_grad_on_nm_int
 
 # output from test calcs
 *output.?
