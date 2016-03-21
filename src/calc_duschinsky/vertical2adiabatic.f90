@@ -49,6 +49,7 @@ program vertical2adiabatic
                tswitch=.false.      ,&
                symaddapt=.false.    ,&
                vertical=.true.      ,&
+               analytic_Bder=.true. ,&
                apply_projection_matrix=.false.
     character(len=4) :: def_internal='zmat', def_internal_aux
     !======================
@@ -172,7 +173,7 @@ program vertical2adiabatic
 !                               filetype,"-ft","c",&
 !                               )
     call parse_input(inpfile,ft,hessfile,fth,gradfile,ftg,cnx_file,&
-                     intfile,rmzfile,def_internal,use_symmetry,vertical,apply_projection_matrix)
+                     intfile,rmzfile,def_internal,use_symmetry,vertical,apply_projection_matrix,analytic_Bder)
     call set_word_upper_case(def_internal)
 
     ! READ DATA (each element from a different file is possible)
@@ -428,7 +429,7 @@ program vertical2adiabatic
     call internal_Wilson(state1,Ns,S1,B1,ModeDef)
     call internal_Gmetric(Nat,Ns,state1%atom(:)%mass,B1,G1)
     if (vertical) then
-        call calc_Bder(state1,Ns,Bder,.true.)
+        call calc_Bder(state1,Ns,Bder,analytic_Bder)
     endif
 
     ! SET REDUNDANT/SYMETRIZED/CUSTOM INTERNAL SETS
@@ -696,7 +697,7 @@ program vertical2adiabatic
     !=============================================
 
     subroutine parse_input(inpfile,ft,hessfile,fth,gradfile,ftg,cnx_file,& 
-                           intfile,rmzfile,def_internal,use_symmetry,vertical,apply_projection_matrix)
+                           intfile,rmzfile,def_internal,use_symmetry,vertical,apply_projection_matrix,analytic_Bder)
     !==================================================
     ! My input parser (gromacs style)
     !==================================================
@@ -705,6 +706,7 @@ program vertical2adiabatic
         character(len=*),intent(inout) :: inpfile,ft,hessfile,fth,gradfile,ftg,&
                                           intfile,rmzfile,def_internal,cnx_file
         logical,intent(inout)          :: use_symmetry, vertical,apply_projection_matrix
+        logical,intent(inout)          :: analytic_Bder
         ! Local
         logical :: argument_retrieved,  &
                    need_help = .false.
@@ -781,6 +783,13 @@ program vertical2adiabatic
         
                 case ("-h")
                     need_help=.true.
+
+                !HIDDEN
+
+                case ("-anaBder")
+                    analytic_Bder=.true.
+                case ("-noanaBder")
+                    analytic_Bder=.false.
 
                 ! Control verbosity
                 case ("-quiet")

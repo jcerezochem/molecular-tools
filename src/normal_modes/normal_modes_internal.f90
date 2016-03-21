@@ -59,7 +59,7 @@ program normal_modes_animation
     logical :: use_symmetry=.false.,   &
                include_hbonds=.false., &
                vertical=.false.,       &
-               analytic_Bder=.false.,  &
+               analytic_Bder=.true.,  &
                check_symmetry=.true.,  &
                animate=.true.,         &
                project_on_all=.false.,  &
@@ -176,7 +176,7 @@ program normal_modes_animation
     !Structure files to be created
     character(len=100) :: g09file,qfile, tmpfile, g96file, grofile,numfile
     !status
-    integer :: IOstatus, verbose_current
+    integer :: IOstatus
     !===================
 
     !===================
@@ -481,12 +481,11 @@ program normal_modes_animation
         ! Get only the geom, and reuse molecule
         zmatgeom=molecule%geom
         ! Compute S values (to get initial values for frozen (rmzfile) ICs)
-        verbose_current=verbose
-!         verbose=0
+        call verbose_mute()
         call set_geom_units(molecule,"Bohr")
         call internal_Wilson(molecule,Ns,Szmat,B)
         call set_geom_units(molecule,"Angs")
-        verbose=verbose_current
+        call verbose_continue()
         ! And reset bonded parameters
         call gen_bonded(molecule)
     endif

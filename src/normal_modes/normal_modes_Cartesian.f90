@@ -95,8 +95,6 @@ program normal_modes_cartesian
     real(8) :: dist
     !io flags
     integer :: error, info
-    ! other flags
-    integer :: verbose_current
     ! Auxiliar real arrays/scalars
     real(8),dimension(1:NDIM,1:NDIM) :: Aux, Aux2
     real(8),dimension(1:NDIM)        :: Vec, Vec1
@@ -412,12 +410,11 @@ program normal_modes_cartesian
                 ! Get Hess matrix from H(lowertriangular)
                 allocate (Hess(1:NDIM,1:NDIM))
                 Hess(1:3*Nat,1:3*Nat) = Hlt_to_Hess(3*Nat,Hlt)
-                verbose_current=verbose
-                verbose=0
+                call verbose_mute()
                 call internal_Wilson(molecule,Ns,S,B,ModeDef)
                 call internal_Gmetric(Nat,Ns,molecule%atom(:)%mass,B,G)
                 call redundant2nonredundant(Ns,Nvib0,G,Asel)
-                verbose=verbose_current
+                call verbose_continue()
                 G(1:Nvib0,1:Nvib0) = matrix_basisrot(Nvib0,Ns,Asel(1:Ns,1:Nvib0),G,&
                                                    counter=.true.)
                 B(1:Nvib0,1:3*Nat) = matrix_product(Nvib0,3*Nat,Ns,Aselinv,B)

@@ -58,6 +58,7 @@ program cartesian_duschinsky
                force_real=.false., &
                rm_gradcoord=.false., &
                int_space=.false.,&
+               analytic_Bder=.true., &
                apply_projection_matrix=.false.
     character(len=4) :: def_internal='all'
     character(len=1) :: reference_frame='F'
@@ -179,7 +180,7 @@ program cartesian_duschinsky
     call parse_input(inpfile,ft,gradfile,ftg,hessfile,fth,inpfile2,ft2,gradfile2,ftg2,hessfile2,fth2,&
                      cnx_file,intfile,rmzfile,def_internal,use_symmetry,derfile,gradcorrectS2,&
                      gradcorrectS1,vertical,verticalQspace1,verticalQspace2,force_real,reference_frame,&
-                     rm_gradcoord,int_space,apply_projection_matrix)
+                     rm_gradcoord,int_space,apply_projection_matrix,analytic_Bder)
     call set_word_upper_case(def_internal)
     call set_word_upper_case(reference_frame)
 
@@ -260,7 +261,7 @@ program cartesian_duschinsky
         call internal_Wilson(state1,Ns,S1,B,ModeDef)
         call internal_Gmetric(Nat,Ns,state1%atom(:)%mass,B,G1)
         if (gradcorrectS1) then
-            call calc_BDer(state1,Ns,Bder)
+            call calc_BDer(state1,Ns,Bder,analytic_Bder)
         endif
     
         ! SET REDUNDANT/SYMETRIZED/CUSTOM INTERNAL SETS
@@ -1316,7 +1317,7 @@ program cartesian_duschinsky
     subroutine parse_input(inpfile,ft,gradfile,ftg,hessfile,fth,inpfile2,ft2,gradfile2,ftg2,hessfile2,fth2,&
                            cnx_file,intfile,rmzfile,def_internal,use_symmetry,derfile,gradcorrectS2,&
                            gradcorrectS1,vertical,verticalQspace1,verticalQspace2,force_real,reference_frame,&
-                           rm_gradcoord,int_space,apply_projection_matrix)
+                           rm_gradcoord,int_space,apply_projection_matrix,analytic_Bder)
     !==================================================
     ! My input parser (gromacs style)
     !==================================================
@@ -1325,7 +1326,8 @@ program cartesian_duschinsky
         character(len=*),intent(inout) :: inpfile,ft,gradfile,ftg,hessfile,fth,gradfile2,ftg2,hessfile2,fth2,&
                                           cnx_file,intfile,rmzfile,def_internal,derfile,inpfile2,ft2,reference_frame
         logical,intent(inout)          :: use_symmetry,gradcorrectS2,gradcorrectS1,vertical,&
-                                          verticalQspace1,verticalQspace2,force_real,rm_gradcoord,int_space,apply_projection_matrix
+                                          verticalQspace1,verticalQspace2,force_real,rm_gradcoord,int_space,&
+                                          apply_projection_matrix,analytic_Bder
         ! Local
         logical :: argument_retrieved,  &
                    need_help = .false.
@@ -1494,6 +1496,13 @@ program cartesian_duschinsky
 
                 case ("-h")
                     need_help=.true.
+
+                !HIDDEN
+
+                case ("-anaBder")
+                    analytic_Bder=.true.
+                case ("-noanaBder")
+                    analytic_Bder=.false.
 
                 ! Control verbosity
                 case ("-quiet")

@@ -73,7 +73,7 @@ program internal_duschinski
                gradcorrectS1=.false.  ,&  
                gradcorrectS2=.false.  ,&
                same_red2nonred_rotation=.true., &
-               analytic_Bder=.false., &
+               analytic_Bder=.true., &
                check_symmetry=.true., &
                orthogonalize=.false., &
                original_internal=.false., &
