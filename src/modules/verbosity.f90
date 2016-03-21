@@ -15,5 +15,25 @@ module verbosity
     !-----------------------------------------------------
 
     integer, save :: verbose = 1
+    integer, save :: verbose_current
+
+    contains
+
+    subroutine verbose_mute()
+
+        verbose_current = verbose
+        verbose=0
+
+         return
+
+    end subroutine verbose_mute
+
+    subroutine verbose_continue()
+
+         verbose = verbose_current
+
+         return
+
+    end subroutine verbose_continue
 
 end module verbosity

@@ -19,7 +19,7 @@ module io
     use line_preprocess
     use verbosity
 
-    integer,save :: out=6
+    integer,save :: uout=6
 
     contains
 

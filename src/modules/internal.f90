@@ -35,7 +35,7 @@ module internal_module
         !====================== 
         !ARGUMENTS
         type(str_resmol),intent(inout)     :: molec             ! Input molecule (but only use geom...) 
-        character(len=*),intent(inout)     :: def_internal      ! switch with the way internal are selected
+        character(len=*),intent(in)        :: def_internal      ! switch with the way internal are selected
         character(len=*),intent(in)        :: intfile           ! file with the def of internal coords
         character(len=*),intent(in)        :: rmzfile           ! additional file with coordinates to remove from Zmat
         logical,intent(in)                 :: use_symmetry      ! logical to use or not symmetry
@@ -48,6 +48,7 @@ module internal_module
         !LOCAL 
         !System info
         integer :: Nat
+        character(len=len(def_internal)) :: def_internal_local
         !Counters
         integer :: i,j,k, ii
         !Matrices to store/manage internal coordianates
@@ -65,12 +66,13 @@ module internal_module
         !=============
 
         ! Preliminar things
-        call set_word_upper_case(def_internal)
+        def_internal_local=def_internal
+        call set_word_upper_case(def_internal_local)
         Nat = molec%natoms
         PG = molec%PG
 
         !GEN BONDED SET FOR INTERNAL COORD
-        if (adjustl(def_internal) == "SEL") then
+        if (adjustl(def_internal_local) == "SEL") then
             if (verbose>0) &
              print*, "Reading internal coordianates from: "//trim(adjustl(intfile))
             open(I_FILE,file=intfile,iostat=IOstatus,status='old') 
@@ -79,7 +81,7 @@ module internal_module
             call modredundant(I_FILE,molec)
             close(I_FILE)
 
-        elseif (adjustl(def_internal) == "ZMAT") then
+        elseif (adjustl(def_internal_local) == "ZMAT") then
             if (adjustl(intfile) == "none") then
                 call build_Z(molec,bond_s,angle_s,dihed_s,PG,isym,bond_sym,angle_sym,dihed_sym)
             else
@@ -89,7 +91,7 @@ module internal_module
                 close(I_FILE)
             endif
 
-        else if (adjustl(def_internal) == "ALL") then!otherwise all parameters are used
+        else if (adjustl(def_internal_local) == "ALL") then!otherwise all parameters are used
             if (verbose>0) &
              print*, "Using all internal coordinates", molec%geom%nbonds+molec%geom%nangles+molec%geom%ndihed
         else
@@ -104,7 +106,7 @@ module internal_module
 
 
         ! Remove some Zmat elements if required
-        if (def_internal=="ZMAT" .and. rmzfile /= "none") then
+        if (def_internal_local=="ZMAT" .and. rmzfile /= "none") then
             open(I_FILE,file=rmzfile,status='old')
             read(I_FILE,*) Nrm
             ! First, read lines to remove
@@ -184,7 +186,7 @@ module internal_module
         if (verbose > 0) then
             print'(/,X,A)', "----------------------------------------------------------"
             print*, "Constructed set of valence internal coordianated"
-            print'(X,A,A )', "  Type    = ", def_internal
+            print'(X,A,A )', "  Type    = ", def_internal_local
             print'(X,A,I0)', "  Ns      = ", Ns
             print'(X,A,I0)', "  Nbonds  = ", molec%geom%nbonds
             print'(X,A,I0)', "  Nangles = ", molec%geom%nangles
@@ -1434,6 +1436,84 @@ module internal_module
     end subroutine redundant2nonredundant
 
 
+    subroutine generalized_inv(Nred,Nvib,G,Ginv)
+    
+        !IF WE USE ALL BONDED PARAMETERS,WE HAVE REDUNDANCY. WE SELECT A NON-REDUNDANT                                                                  
+        !COMBINATION FROM THE NON-ZERO EIGENVALUES OF G (Reimers 2001, JCP)   
+
+
+        use matrix
+        use matrix_print
+
+        implicit none
+
+        integer,parameter :: NDIM = 600
+        real(8),parameter :: ZEROp=1.d-10
+
+        integer,intent(inout) :: Nred, Nvib
+        real(8),dimension(NDIM,NDIM),intent(in) :: G
+        real(8),dimension(NDIM,NDIM),intent(out):: Ginv
+
+        ! Local
+        real(8),dimension(NDIM,NDIM) :: Aux
+        real(8),dimension(NDIM)      :: Vec, Vec2
+        integer :: i, k,kk,kkk
+
+        !Get a non-redundant set from the non-zero eigenvalues of G
+        call diagonalize_full(G(1:Nred,1:Nred),Nred,Aux(1:Nred,1:Nred),Vec(1:Nred),"lapack")
+
+        if (verbose>2) &
+         call MAT0(6,Aux,Nred,Nred,"A MATRIX (before reordering)")
+        if (verbose>1) &
+         call print_vector(6,Vec,Nred,"A MATRIX Eigenvalues (before reordering)")
+ 
+        ! Inverse the non-zero eigenvalues
+        kk=0 
+        kkk=0
+        do k=1,Nred
+            if (dabs(Vec(k)) > ZEROp) then
+                kk=kk+1
+                Vec2(k)        = 1.d0/Vec(k)
+            else
+                !Redudant eigenvectors
+                kkk=kkk+1
+                Vec2(k)        = 0.d0
+            endif
+        enddo
+
+        if (Nred /= Nvib+kkk) then
+            if (verbose>0) then
+                call sort_vec(Vec,Nred)
+                call print_vector(6,Vec*1e5,Nred,"A MATRIX Eigenvalues (x10^5)")
+                print*, "Zero eigenvalues: ", kkk 
+                print*, "Expected: ", Nred-Nvib
+            endif
+            if (kkk > Nred-Nvib) then
+                if (verbose>0) then
+                    print*, "Internal-space dimension is reduced"
+                    print*, " Initial:", Nvib
+                    print*, " Reduced:", Nred-kkk
+                endif
+                call alert_msg("note","Redundant to non-redundant trasformation"//&
+                                     " resulted in a reduced space")
+                Nvib=Nred-kkk
+            else 
+                call alert_msg("note","Redundant to non-redundant trasformation failed")
+                Nvib=Nred-kkk
+            endif
+        endif
+
+        Ginv(1:Nred,1:Nred) = diag_basisrot(Nred,Nred,Aux,Vec2,counter=.false.)
+
+        if (verbose>1) then
+            call print_vector(6,Vec2(Nvib+1:Nred)*1.d15,Nred-Nvib,"A MATRIX Zero-Eigenvalues (x10^15)")
+            call print_vector(6,Vec2(1:Nvib)*1.d5,Nvib,"A MATRIX NonZero-Eigenvalues (x10^5)")
+        endif
+
+        return
+
+    end subroutine generalized_inv
+
 
     subroutine HessianCart2int(Nat,Ns,Hess,Mass,B,G)
 
@@ -1521,6 +1601,79 @@ module internal_module
 
     end subroutine HessianCart2int
 
+    subroutine HessianCart2intRed(Nat,Ns,Hess,Mass,B,Ginv)
+
+        !==============================================================
+        ! This code is part of MOLECULAR_TOOLS 
+        !==============================================================
+        ! Description
+        !  HESSIAN IN INTERNAL COORDINATES (JCC, 17, 49-56, by Frisch et al)
+        !    Hint = G^- Bu(Hx+B'^Tg_q)u^TB^T G^-
+        !   g_q is the gradient, so g_q=0 in a minimum
+        !   G^- is the generalized inverse (for redundant internal) or simply the
+        !   inverse for nonredundant
+        !
+        ! Arguments
+        !  Nat    Int /Scalar    Number of atoms
+        !  Ns     Int /Scalar    Number of internal coordianates
+        !  Hess   Real/Matrix    Hessian in Cartesian (corrected or not)
+        !  Mass   Real/Vector    Mass vector (Nat)
+        !  B      Real/Matrix    B matrix
+        !  G      Real/Matrix    Metric matrix
+        !------------------------------------------------------------------
+
+        use structure_types
+        use line_preprocess
+        use alerts
+        use constants
+        use atomic_geom
+        use matrix
+        use verbosity
+    
+        implicit none
+    
+        integer,parameter :: NDIM = 600
+    
+        !====================== 
+        !ARGUMENTS
+        integer,intent(in)                          :: Nat    ! Number of atoms (in)
+        integer,intent(in)                          :: Ns     ! Number of internal coordinates (in)
+        real(8),dimension(1:NDIM),intent(in)        :: Mass   ! Wilson matrices (in)
+        real(8),dimension(1:NDIM,1:NDIM),intent(in) :: Ginv,B    ! Wilson matrices (in)
+        real(8),dimension(1:NDIM,1:NDIM),intent(inout) :: Hess   !Hessian: cart(in)-intern(out)
+        !====================== 
+    
+        !====================== 
+        !LOCAL
+        !Auxiliar arrays
+        real(8),dimension(1:NDIM,1:NDIM)    :: AuxT,Aux
+        real(8),dimension(NDIM)             :: Vec
+        !Counters
+        integer :: i,j,k, ii
+        !====================== 
+    
+        !Compute G^-1Bu  (where u is the inverse mass matrix)
+        Aux(1:Ns,1:3*Nat) = matrix_product(Ns,3*Nat,Ns,Ginv,B)
+        do i=1,3*Nat
+            ii = (i-1)/3+1
+            Aux(1:Ns,i) = Aux(1:Ns,i)/Mass(ii)/UMAtoAU
+        enddo
+        
+        ! Hint = Aux ([~Hx]) Aux^T (this is "matrix_basisrot")
+        Hess(1:Ns,1:3*Nat) = matrix_product(Ns,3*Nat,3*Nat,Aux,Hess)
+        Hess(1:Ns,1:Ns)    = matrix_product(Ns,3*Nat,3*Nat,Hess,Aux,tB=.true.)
+    
+        if (verbose>1) then
+            Vec(1:Ns) = (/(Hess(i,i), i=1,Ns)/)
+            call print_vector(6,Vec,Ns,"F MATRIX (diagonal)")
+        endif
+        if (verbose>2) &
+         call MAT0(6,Hess,Ns,Ns,"F MATRIX")
+
+        return
+
+    end subroutine HessianCart2intRed
+
 
     subroutine Gradcart2int(Nat,Ns,Grad,Mass,B,G)
 
@@ -1597,6 +1750,68 @@ module internal_module
 
     end subroutine Gradcart2int
 
+    subroutine Gradcart2intRed(Nat,Ns,Grad,Mass,B,Ginv)
+
+        !==============================================================
+        ! This code is part of MOLECULAR_TOOLS 
+        !==============================================================
+        ! Description
+        ! Convert the Gradient from cartesian to internal 
+        ! useful when the Gradient is not used in HessianCart2int
+        ! (if used there, it is converted there!)
+        !------------------------------------------------------------------
+
+        use structure_types
+        use line_preprocess
+        use alerts
+        use constants
+        use atomic_geom
+        use matrix
+        use verbosity
+    
+        implicit none
+    
+        integer,parameter :: NDIM = 600
+    
+        !====================== 
+        !ARGUMENTS
+        integer,intent(in)                          :: Nat    ! Number of atoms (in)
+        integer,intent(in)                          :: Ns     ! Number of internal coordinates (in)
+        real(8),dimension(1:NDIM),intent(in)        :: Mass   ! Wilson matrices (in)
+        real(8),dimension(1:NDIM,1:NDIM),intent(in) :: Ginv,B    ! Wilson matrices (in)
+        real(8),dimension(1:NDIM),intent(inout)     :: Grad   ! Gradient 
+        !====================== 
+    
+        !====================== 
+        !LOCAL
+        !Auxiliar arrays
+        real(8),dimension(1:NDIM,1:NDIM)    :: Aux
+        real(8),dimension(NDIM)             :: Vec
+        !Counters
+        integer :: i,j,k, ii
+        !====================== 
+    
+        !Compute G^-1Bu  (where u is the inverse mass matrix)
+        Aux(1:Ns,1:3*Nat) = matrix_product(Ns,3*Nat,Ns,Ginv,B)
+        do i=1,3*Nat
+            ii = (i-1)/3+1
+            Aux(1:Ns,i) = Aux(1:Ns,i)/Mass(ii)/UMAtoAU
+        enddo
+
+        ! Get the gradient in internal coords: gq = G^-1Bu(gx)
+        do i=1,Ns
+            Vec(i) = 0.d0
+            do j=1,3*Nat
+                Vec(i) = Vec(i) + Aux(i,j) * Grad(j)
+            enddo
+        enddo
+        ! Update the gradient on output
+        Grad(1:3*Nat) = 0.d0
+        Grad(1:Ns) = Vec(1:Ns)
+
+        return
+
+    end subroutine Gradcart2intRed
     
     subroutine gf_method(Nvib,G,Hess,L,Freq,X,Xinv)
 

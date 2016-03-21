@@ -1,4 +1,4 @@
-program vertical2adiabatic
+program optimizer
 
 
     !*****************
@@ -65,7 +65,7 @@ program vertical2adiabatic
     !INTERNAL VIBRATIONAL ANALYSIS
     !MATRICES
     !B and G matrices
-    real(8),dimension(NDIM,NDIM) :: B1,B2, B, G1,G2
+    real(8),dimension(NDIM,NDIM) :: B1,B2, B, G1,G2,Ginv
     !Other arrays
     real(8),dimension(1:NDIM) :: Grad, FC, Q0
     real(8),dimension(1:NDIM,1:NDIM) :: Hess, X1,X1inv,X2,X2inv, L1,L2, Asel1, Asel2, Asel, P
@@ -81,11 +81,11 @@ program vertical2adiabatic
     !Save definitio of the modes in character
     character(len=100),dimension(NDIM) :: ModeDef
     !VECTORS
-    real(8),dimension(NDIM) :: Freq, S1, S2, Vec, Vec2, mu, Factor, Vec1
+    real(8),dimension(NDIM) :: Freq, S1,S1old, S2, Vec, Vec2, mu, Factor, Vec1
     integer,dimension(NDIM) :: S_sym, bond_sym,angle_sym,dihed_sym
     !Shifts
     real(8),dimension(NDIM) :: Delta
-    real(8) :: Delta_p, Er_int, Er_crt, Er_qcrt, Er_qint
+    real(8) :: Delta_p, Er_int, Er_crt, Er_qcrt, Er_qint, rmsd, dx,dy,dz
     !Coordinate map
     integer,dimension(NDIM) :: Zmap
     !====================== 
@@ -276,147 +276,6 @@ program vertical2adiabatic
     call set_geom_units(state1,"bohr")
 
 
-    !==============================
-    ! CARTESIAN COORDINATES
-    !==============================
-    print'(/,A)', "=============================="
-    print'(X,A)', " CARTESIAN COORDINATES"
-    print'(A)',   "=============================="
-    ! Get minimum in Cartesian coordinates: x0 = - F^-1 grad
-    Aux(1:3*Nat,1:3*Nat) = inverse_realsym(3*Nat,Hess)
-    ! Matrix x vector 
-    do i=1, 3*Nat
-        Vec(i)=0.d0
-        do k=1,3*Nat
-            Vec(i) = Vec(i) - Aux(i,k) * Grad(k)
-        enddo 
-    enddo
-    print*, "DELTA R (x,y,z), Angstrong"
-    do i=1,Nat 
-        j=3*i-2
-        print'(I3,3X, 3F10.3)', i, Vec(j)*BOHRtoANGS, Vec(j+1)*BOHRtoANGS, Vec(j+2)*BOHRtoANGS
-    enddo
-    print*, ""
-
-    state2=state1
-    do i=1,Nat 
-        j=3*i-2
-        state2%atom(i)%x = (state1%atom(i)%x + Vec(j+0))*BOHRtoANGS
-        state2%atom(i)%y = (state1%atom(i)%y + Vec(j+1))*BOHRtoANGS
-        state2%atom(i)%z = (state1%atom(i)%z + Vec(j+2))*BOHRtoANGS
-    enddo
-    open(70,file="minim_harmonic_Cart.xyz")
-    call write_xyz(70,state2)
-    close(70)
-
-    ! Check the rotation of the Ekart frame
-    print'(/,A)', "------------------------------------------------------------"
-    print'(X,A)', "ESTIMATION OF THE MOLECULAR TRASLATION/ROTATION (CARTESIAN) "
-    print'(A)',   "------------------------------------------------------------"
-
-    call set_geom_units(state1,"Angs")
-    call set_geom_units(state2,"Angs")
-
-    !Traslation:
-    call get_com(state1)
-    call get_com(state2)
-    Rtras(1) = state1%comX - state2%comX
-    Rtras(2) = state1%comY - state2%comY
-    Rtras(3) = state1%comZ - state2%comZ
-    call print_vector(6,Rtras,3,"Traslation between Vertical and Adiabatic")
-
-    ! The rotation can be computed from the diagonalization of the matrix
-    ! of moment of inertia for each geometry
-    call inertia(state1,IM)
-    call diagonalize_full(IM(1:3,1:3),3,Xrot1(1:3,1:3),Vec2(1:3),"lapack")
-    if (verbose>1) &
-     call MAT1(6,Xrot1,Vec2,3,3,"Xrot (state1)")
-    call inertia(state2,IM)
-    call diagonalize_full(IM(1:3,1:3),3,Xrot2(1:3,1:3),Vec2(1:3),"lapack")
-    if (verbose>1) &
-     call MAT1(6,Xrot2,Vec2,3,3,"Xrot (state2)")
-    !
-    ! The rotation from one geometry to the other is then:
-    ! Rot = Xrot1^t  Xrot2
-    Xrot1(1:3,1:3) = matrix_product(3,3,3,Xrot1,Xrot2,tA=.true.)
-
-    call MAT0(6,Xrot1,3,3,"Rotation between Vertical and Adiabatic")
-
-    ! Check the vibrational analysis at the state2 estimated geom
-    print'(/,A)', "-------------------------------------------------"
-    print'(X,A)', "VIBRATIONAL ANALYSIS WITH STATE2 GEOM (ESTIMATED)"
-    print'(A)',   "-------------------------------------------------"
-    call vibrations_Cart(Nat,state2%atom(:)%X,state2%atom(:)%Y,state2%atom(:)%Z,state2%atom(:)%Mass,Hlt,&
-                         Nvib,L1,Vec2,error)
-
-    !-------------------------------
-    ! Reorganization energy
-    !-------------------------------
-    ! Cartesian-coordinates space
-    ! Er = -gx * DeltaX - 1/2 DeltaX^t * Hx * DeltaX
-    ! At this point: 
-    ! * Grad: in Cartesian coords
-    ! * Vec: DeltaX 
-    ! * Hess: Hessian in Cartesian coords
-    !
-    ! Fisrt, compute DeltaX^t * Hs * DeltaX
-    Theta=0.d0
-    do j=1,3*Nat
-    do k=1,3*Nat
-        Theta = Theta + Vec(j)*Vec(k)*Hess(j,k)
-    enddo
-    enddo
-    Er_crt = -Theta*0.5d0
-    do i=1,3*Nat
-        Er_crt = Er_crt - Grad(i)*Vec(i)
-    enddo
-
-    ! In Qcart-space
-    ! First convert L to Lcart
-    call Lmwc_to_Lcart(Nat,Nvib,state1%atom(:)%mass,L1,L1,error)
-    ! Minimization
-    ! Q0 = -Lambda^-1 * L^t gx
-    ! 
-    ! Convert Freq into FC. Store in FC for future use
-    do i=1,Nvib
-        FC(i) = sign((Freq(i)*2.d0*pi*clight*1.d2)**2/HARTtoJ*BOHRtoM**2*AUtoKG,Freq(i))
-        if (FC(i)<0) then
-            print*, i, FC(i)
-            call alert_msg("warning","A negative FC found")
-        endif
-    enddo
-    ! Lambda^-1 * L1^t
-    do i=1,Nvib
-        Aux(i,1:3*Nat) = L1(1:3*Nat,i) / FC(i)
-    enddo
-    ! -[Lambda^-1 * L1^t] * gx
-    do i=1,Nvib
-        Q0(i)=0.d0
-        do k=1,3*Nat
-            Q0(i) = Q0(i) - Aux(i,k) * Grad(k)
-        enddo
-    enddo
-    !-------------------------
-    ! Reorganization energy
-    !-------------------------
-    ! Normal-mode space
-    ! Er = -L1^t gx * Q0 - 1/2 * Q0^t * Lambda * Q0
-    ! At this point: 
-    ! * Grad: in Cartesian coords
-    ! * Q0: DeltaQ 
-    ! * FC: diagonal force constants
-    Er_qcrt = 0.d0
-    do i=1,Nvib
-        ! Compute gQ(i) = L1^t * gx
-        Theta = 0.d0
-        do j=1,3*Nat
-            Theta =  Theta + L1(j,i)*Grad(j)
-        enddo
-        Er_qcrt = Er_qcrt - Theta * Q0(i) - 0.5d0 * FC(i) * Q0(i)**2
-    enddo
-
-
-
     !=================================
     ! INTERNAL COORDINATES
     !=================================
@@ -430,87 +289,75 @@ program vertical2adiabatic
     if (vertical) then
         call calc_Bder(state1,Ns,Bder,.true.)
     endif
+    state2=state1
 
-    ! SET REDUNDANT/SYMETRIZED/CUSTOM INTERNAL SETS
-!     if (symaddapt) then (implement in an analogous way as compared with the transformation from red to non-red
-!     if (Ns > Nvib) then ! Redundant
-        call redundant2nonredundant(Ns,Nvib,G1,Asel1)
-        ! Rotate Bmatrix
-        B1(1:Nvib,1:3*Nat) = matrix_product(Nvib,3*Nat,Ns,Asel1,B1,tA=.true.)
-        ! Rotate Gmatrix
-        G1(1:Nvib,1:Nvib) = matrix_basisrot(Nvib,Ns,Asel1(1:Ns,1:Nvib),G1,counter=.true.)
-        ! Rotate Bders
-        if (vertical) then
-            do j=1,3*Nat
-                Bder(1:Nvib,j,1:3*Nat) =  matrix_product(Nvib,3*Nat,Ns,Asel1,Bder(1:Ns,j,1:3*Nat),tA=.true.)
-            enddo
-        endif
-!     endif
-
-    if (apply_projection_matrix) then
-        ! Get projection matrix
-        P(1:3*Nat,1:3*Nat) = projection_matrix(Nat,Nvib,B1)
-        ! And rotate gradient
-        do i=1,3*Nat
-            Vec1(i) = 0.d0
-            do k=1,Nvib
-                Vec1(i) = Vec1(i) + P(i,k)*Grad(k)
-            enddo
-        enddo
-        Grad(1:3*Nat) = Vec1(1:3*Nat)
-    endif
+    ! Get generalized inverse of G
+    print*, "Compute generalized inverse of G"
+    call generalized_inv(Ns,Nvib,G1,Ginv)
+    print*, " Ns  ", Ns
+    print*, " Nvib", Nvib
+    print*, "Done"
+    ! Projection matrix
+    P(1:Ns,1:Ns) = matrix_product(Ns,Ns,Ns,G1,Ginv)
+    if (verbose>1) call MAT0(6,P,Ns,Ns,"P'")
+    print*, "Diag(P')"
+    do i=1,Ns
+        print'(I4,F8.2)', i, P(i,i)
+    enddo
+    print*, ""
 
     if (vertical) then
         ! (Hess is already constructed)
         ! Hs (with the correction)
         ! First get: Hx' = Hx - gs^t\beta
         ! 1. Get gs from gx
-        call Gradcart2int(Nat,Nvib,Grad,state1%atom(:)%mass,B1,G1)
+        print*, "Get gradient in internal coords"
+        call Gradcart2intRed(Nat,Ns,Grad,state1%atom(:)%mass,B1,Ginv)
+        print*, "Done"
+        ! Project 
+        Grad(1:Ns) = matrix_vector_product(Ns,Ns,P,Grad)
         ! 2. Multiply gs^t\beta and
         ! 3. Apply the correction
         ! Bder(i,j,K)^t * gq(K)
         do i=1,3*Nat
         do j=1,3*Nat
             Aux2(i,j) = 0.d0
-            do k=1,Nvib
+            do k=1,Ns
                 Aux2(i,j) = Aux2(i,j) + Bder(k,i,j)*Grad(k)
             enddo
             Hess(i,j) = Hess(i,j) - Aux2(i,j)
         enddo
         enddo
     endif
-    if (apply_projection_matrix) then
-        ! Project out rotation and translation
-        Hess(1:3*Nat,1:3*Nat) = matrix_basisrot(3*Nat,3*Nat,P,Hess)
-    endif
-    call HessianCart2int(Nat,Nvib,Hess,state1%atom(:)%mass,B1,G1)
-    call gf_method(Nvib,G1,Hess,L1,Freq,X1,X1inv)
+    print*, "Get Hessian in internal coords"
+    call HessianCart2intRed(Nat,Ns,Hess,state1%atom(:)%mass,B1,Ginv)
+    ! Project Hessian
+    Hess(1:Ns,1:Ns) = matrix_basisrot(Ns,Ns,P,Hess)
+    print*, "Done"
 
+    print*, "Get minimum in internal coords"
     ! Get minimum in internal coordinates
     ! At this point
     !  * Hess has the Hessian  of State2 in internal coords (output from HessianCart2int)
     !  * Grad has the gradient of State2 in internal coords (output from HessianCart2int)
     ! Inverse of the Hessian
-    Aux(1:Nvib,1:Nvib) = inverse_realgen(Nvib,Hess)
+    print*, "Compute (generalized) inverse of H"
+!     Aux(1:Ns,1:Ns) = inverse_realgen(Ns,Hess)
+    i=Nvib
+    call generalized_inv(Ns,i,Hess,Aux)
+    print*, " Ns  ", Ns
+    print*, " Nvib", i
+    print*, "Done"
+    ! Project inverse Hessian
+    Aux(1:Ns,1:Ns) = matrix_basisrot(Ns,Ns,P,Aux)
     ! DeltaS0 = -Hs^1 * gs
-    do i=1,Nvib
+    do i=1,Ns
         Delta(i)=0.d0
-        do k=1,Nvib
+        do k=1,Ns
             Delta(i) = Delta(i)-Aux(i,k) * Grad(k)
         enddo 
     enddo
-!     if (Nvib<Ns) then
-        !Transform Delta' into Delta 
-        ! Delta = A Delta'
-        do i=1,Ns
-            Vec(i) = 0.d0
-            do k=1,Nvib
-                Vec(i) = Vec(i) + Asel1(i,k)*Delta(k)
-            enddo
-        enddo
-!     else
-!         Vec(1:Nvib)=Delta(1:Nvib)
-!     endif
+    Vec(1:Ns) = Delta(1:Ns)
 
     ! Print
     k=0
@@ -524,7 +371,7 @@ program vertical2adiabatic
         k = k+1
         print'(A,3X,2(F8.3,3X),G10.3)', trim(adjustl(ModeDef(k))), Vec(k), Vec(k)*180.d0/PI
     enddo
-    print*, "DELTA DIHEDRALS"
+    print*, "DELTA DIHEDRALeS"
     do i=1,state1%geom%ndihed
         k = k+1
         print'(A,3X,2(F8.3,3X),G10.3)', trim(adjustl(ModeDef(k))), Vec(k), Vec(k)*180.d0/PI
@@ -535,21 +382,23 @@ program vertical2adiabatic
     S2(1:Ns) = S1(1:Ns)
 
     ! Map to Zmat if needed
-    if (Ns /= Nvib) then
+    if (adjustl(def_internal) /= "ZMAT") then
         ! From now on, we use the zmatgeom 
         allgeom = state1%geom
         state1%geom = zmatgeom
         S1(1:Nvib) = map_Zmatrix(Nvib,S1,Zmap)
     endif
+
+    ! Get Coordinate by using a Z-matrix selection:
     call zmat2cart(state1,S1)
 
     !Transform to AA and export coords and put back into BOHR
     call set_geom_units(state1,"Angs")
-    open(70,file="minim_harmonic_Inter.xyz")
+    open(70,file="minim_harmonic_Inter_LHA.xyz")
     call write_xyz(70,state1)
     close(70)
     print*, ""
-    if (Ns /= Nvib) then
+    if (adjustl(def_internal) /= "ZMAT") then
         state1%geom = allgeom
         call internal_Wilson(state1,Ns,S1,B1,ModeDef)
         print'(/,X,A)', "Check redundant to non-redundant transformation"
@@ -557,19 +406,145 @@ program vertical2adiabatic
         print*, "BONDS", allgeom%nbonds
         do i=1,allgeom%nbonds
             k=k+1
-            print'(3F10.4)', S2(k), S1(k), S2(k)-S1(k)
+            print'(A,X,3F10.4)', trim(adjustl(ModeDef(k))), &
+                                 S2(k), S1(k), S2(k)-S1(k)
         enddo
         print*, "ANGLES", allgeom%nangles
         do i=1,allgeom%nangles
             k=k+1
-            print'(3F10.3)', S2(k)*180.d0/PI, S1(k)*180.d0/PI, (S2(k)-S1(k))*180.d0/PI
+            print'(A,X,3F10.3)', trim(adjustl(ModeDef(k))), & 
+                                 S2(k)*180.d0/PI, S1(k)*180.d0/PI, (S2(k)-S1(k))*180.d0/PI
         enddo
         print*, "DIHEDRALS", allgeom%ndihed
         do i=1,allgeom%ndihed
             k=k+1
-            print'(3F10.3)', S2(k)*180.d0/PI, S1(k)*180.d0/PI, (S2(k)-S1(k))*180.d0/PI
+            print'(A,X,3F10.3)', trim(adjustl(ModeDef(k))), &
+                                 S2(k)*180.d0/PI, S1(k)*180.d0/PI, (S2(k)-S1(k))*180.d0/PI
         enddo
     endif
+
+! stop
+!     if (Ns==Nvib) stop
+
+    ! From internal to Cartesian with the iterative method
+    print'(/,X,A)', "Getting Cartesian with iterative method"
+    call set_geom_units(state2,"Bohr")
+    ! A=M^-1 B^t G^-
+    do i=1,Ns
+    do j=1,3*Nat
+        jj=(j-1)/3+1
+        Aux(i,j) = B1(i,j) / state2%atom(jj)%mass / AMUtoAU
+    enddo
+    enddo
+    Aux2(1:3*Nat,1:Ns) = matrix_product(3*Nat,Ns,Ns,Aux,Ginv,tA=.true.)
+    rmsd=1.d0
+    k=0
+    do while (rmsd > 1.d-6)
+        k=k+1
+        ii=0
+        rmsd=0.d0
+        do i=1,Nat
+            ii=3*(i-1) + 1
+            dx = 0.d0
+            dy = 0.d0
+            dz = 0.d0
+            do j=1,Ns
+                dx = dx + Aux2(ii+0,j) * Vec(j)
+                dy = dy + Aux2(ii+1,j) * Vec(j)
+                dz = dz + Aux2(ii+2,j) * Vec(j)
+            enddo
+            state2%atom(i)%x = state2%atom(i)%x + dx
+            state2%atom(i)%y = state2%atom(i)%y + dy
+            state2%atom(i)%z = state2%atom(i)%z + dz
+            rmsd=rmsd+dx**2+dy**2+dz**2
+        enddo
+        rmsd=dsqrt(rmsd/Nat)
+        print*, k, "rmsd (a.u.) = ", rmsd
+        S1old(1:Ns) = S1(1:Ns)
+        call verbose_mute()
+        call compute_internal(state2,Ns,S1)
+        call verbose_continue()
+        jj=0
+        do j=1,state2%geom%nbonds
+            jj=jj+1
+            Vec1(jj) = S1(jj) - S1old(jj)
+        enddo
+        do j=1,state2%geom%nangles
+            jj=jj+1
+            Vec1(jj) = S1(jj) - S1old(jj)
+            if (Vec1(jj) >= 2*pi) then
+                Vec1(jj)=Vec1(jj)-2*pi
+            elseif (Vec1(jj) <= -2*pi) then
+                Vec1(jj)=Vec1(jj)+2*pi
+            endif
+        enddo
+        do j=1,state2%geom%ndihed
+            jj=jj+1
+            Vec1(jj) = S1(jj) - S1old(jj)
+            if (Vec1(jj) >= 2*pi) then
+                Vec1(jj)=Vec1(jj)-2*pi
+            elseif (Vec1(jj) <= -2*pi) then
+                Vec1(jj)=Vec1(jj)+2*pi
+            endif
+        enddo
+
+
+        jj=0
+        do j=1,state2%geom%nbonds
+            jj=jj+1
+            print*, Vec(jj), Vec1(jj)
+        enddo
+print*, ""
+        do j=1,state2%geom%nangles
+            jj=jj+1
+            print*, Vec(jj)*180.d0/PI, Vec1(jj)*180.d0/PI
+        enddo
+print*, ""
+        do j=1,state2%geom%ndihed
+            jj=jj+1
+            print*, Vec(jj)*180.d0/PI, Vec1(jj)*180.d0/PI
+        enddo
+
+        Vec(1:Ns) = Vec(1:Ns) - Vec1(1:Ns)
+rmsd=0.d0
+
+
+    enddo
+    print'(X,A,I0,A)', "Iterations converged in ", k, " cyles"
+
+    call set_geom_units(state2,"Angs")
+    open(70,file="minim_harmonic_Inter_LHAit.xyz")
+    call write_xyz(70,state2)
+    close(70)
+stop
+
+    print*, ""
+    if (Ns /= Nvib) then
+        state2%geom = allgeom
+        call internal_Wilson(state2,Ns,S1,B1,ModeDef)
+        print'(/,X,A)', "Check redundant to non-redundant transformation"
+        k=0
+        print*, "BONDS", allgeom%nbonds
+        do i=1,allgeom%nbonds
+            k=k+1
+            print'(A,X,3F10.4)', trim(adjustl(ModeDef(k))), &
+                                 S2(k), S1(k), S2(k)-S1(k)
+        enddo
+        print*, "ANGLES", allgeom%nangles
+        do i=1,allgeom%nangles
+            k=k+1
+            print'(A,X,3F10.3)', trim(adjustl(ModeDef(k))), & 
+                                 S2(k)*180.d0/PI, S1(k)*180.d0/PI, (S2(k)-S1(k))*180.d0/PI
+        enddo
+        print*, "DIHEDRALS", allgeom%ndihed
+        do i=1,allgeom%ndihed
+            k=k+1
+            print'(A,X,3F10.3)', trim(adjustl(ModeDef(k))), &
+                                 S2(k)*180.d0/PI, S1(k)*180.d0/PI, (S2(k)-S1(k))*180.d0/PI
+        enddo
+    endif
+
+    stop
 
     ! Compute G matrix at the minimum
     !=================================
@@ -811,7 +786,7 @@ program vertical2adiabatic
 
        !Print options (to stderr)
         write(6,'(/,A)') '========================================================'
-        write(6,'(/,A)') '        V E R T I C A L 2 A D I A B A T I C '    
+        write(6,'(/,A)') '           L H A   o p t i mi z e r '    
         write(6,'(/,A)') '  Displace structure from vertical to adiabatic geoms  '   
         call print_version()
         write(6,'(/,A)') '========================================================'
@@ -841,5 +816,5 @@ program vertical2adiabatic
     end subroutine parse_input
        
 
-end program vertical2adiabatic
+end program optimizer
 

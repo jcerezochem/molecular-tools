@@ -94,7 +94,7 @@ module vertical_model
 
     end subroutine check_symm_gsBder
 
-    function projection_matrix(Nat,Ns,B) result(P)
+    function projection_matrix(Nat,Ns,B,Mass) result(P)
 
         !==============================================================
         ! This code is part of MOLECULAR_TOOLS
@@ -112,17 +112,35 @@ module vertical_model
 
         integer,intent(in)                 :: Nat, Ns
         real(8),dimension(:,:),intent(in)  :: B
+        real(8),dimension(:),intent(in),optional    :: Mass
         real(8),dimension(3*Nat,3*Nat)     :: P
 
         !Local
         integer,parameter :: NDIM = 600
 
-        real(8),dimension(NDIM,NDIM) :: Aux
+        integer :: i,j ,ii, jj
+        real(8),dimension(NDIM,NDIM) :: Aux, Aux2
+        real(kind=8),dimension(1:Nat) :: Mass_local
 
-        Aux(1:Ns,1:Ns)     = matrix_product(Ns,Ns,3*Nat,B,B,tB=.true.)
-        Aux(1:Ns,1:Ns)     = inverse_realgen(Ns,Aux)
-        Aux(1:3*Nat,1:Ns)  = matrix_product(3*Nat,Ns,Ns,B,Aux,tA=.true.)
-        P(1:3*Nat,1:3*Nat) = matrix_product(3*Nat,3*Nat,Ns,Aux,B)
+        if (present(Mass)) then
+            Mass_local(1:Nat) = Mass(1:Nat) * AMUtoAU
+        else
+            Mass_local(1:Nat) = 1.d0
+        endif
+
+        do i=1,Ns
+            do j=1,3*Nat
+                jj = (j-1)/3+1
+                Aux(i,j)  = B(i,j)/Mass_local(jj)
+                Aux2(i,j) = B(i,j)/dsqrt(Mass_local(jj))
+            enddo
+        enddo
+
+        ! Aux=G^-1
+        Aux(1:Ns,1:Ns)    = matrix_product(Ns,Ns,3*Nat,Aux,B,tB=.true.)
+        Aux(1:Ns,1:Ns)    = inverse_realgen(Ns,Aux)
+        ! Now rotate with [B M^-1/2]
+        P(1:3*Nat,1:3*Nat) = matrix_basisrot(3*Nat,Ns,Aux2,Aux,counter=.true.)
 
         return
 
@@ -151,7 +169,7 @@ module vertical_model
 
         integer,intent(in)                      :: Nat
         real(8),dimension(:),intent(in)         :: X,Y,Z
-        real(8),dimension(:),intent(in)         :: Mass
+        real(8),dimension(:),intent(in),optional:: Mass
         real(8),dimension(1:3*Nat,1:3*Nat)      :: P
 
         !Local
@@ -168,8 +186,12 @@ module vertical_model
         real(kind=8),dimension(1:Nat)             :: Mass_local, Freq
 
 
-        !Working in AU: transform mass to AU
-        Mass_local(1:Nat) = Mass(1:Nat) * AMUtoAU
+        if (present(Mass)) then
+            !Working in AU: transform mass to AU
+            Mass_local(1:Nat) = Mass(1:Nat) * AMUtoAU
+        else
+            Mass_local(1:Nat) = 1.d0
+        endif
 
         ! Compute rotation matrix to the Eckart frame
             

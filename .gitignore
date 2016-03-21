@@ -72,6 +72,7 @@ src/calc_duschinsky/transpose_dusch
 src/calc_duschinsky/substract_disps
 src/calc_duschinsky/rotate_disp
 src/file_management/read_irc
+src/calc_duschinsky/LHA_optimizer
 
 # output from test calcs
 *output.?
