@@ -145,8 +145,9 @@ module gaussian_manage
                 !Check if there is space for a line. Otherwise, make 
                 ! space and continue
                 if (len(section)-len_trim(section) <= len_trim(line)) then
-                    error_local = error_local - len_trim(line)
-                    write(msg,'(A,I0)') "String cannot hold section ",isection
+                    error_local = len_trim(line) - (len(section)-len_trim(section))
+                    write(msg,'(A,I0,A,I0)') "String cannot hold section ",isection, &
+                                             ". Need additional chars: ", error_local
                     if (isect == isection) then
                         ! If error_handler=0, we exit here (used to get only the first part)
                         ! otherwise follow the Standard behaviour (fatal error)
@@ -245,7 +246,7 @@ module gaussian_manage
         ! I/O
         integer :: IOstatus
         character          :: cnull
-        character(len=240) :: line
+        character(len=240) :: line, lineold, section
         integer            :: error_local
 
         !Locate summary
@@ -266,15 +267,20 @@ module gaussian_manage
         do isection=1,7
             length     = 0
             error_local = 0
+            lineold=""
             do
+
                 !Update length
                 length=length+len_trim(line)
 
+                section=adjustl(trim(lineold))//adjustl(trim(line))
                 !If we reach a section end "\\", pass to the next section
-                if ( INDEX(line,'\\') /= 0 ) then
-                    call split_line(line,'\\',cnull,line)
+                if ( INDEX(section,'\\') /= 0 ) then
+                    call split_line(section,'\\',cnull,line)
                     exit
                 endif
+
+                lineold=line
 
                 !Read in new line
                 read(unt,'(X,A)',IOSTAT=IOstatus) line
