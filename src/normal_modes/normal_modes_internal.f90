@@ -754,6 +754,7 @@ program normal_modes_animation
 !     endif
 
     if (Tthermo /= 0.d0) then
+        call set_geom_units(molecule,"Angs")
         ! Do thermochemical analysis
         call thermo(Nat,Nvib,molecule%atom(:)%X,molecule%atom(:)%Y,molecule%atom(:)%Z,molecule%atom(:)%Mass,Freq,Tthermo)
     endif
