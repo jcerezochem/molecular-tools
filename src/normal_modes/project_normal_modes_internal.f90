@@ -90,6 +90,10 @@ program projection_normal_modes_int
     !Delta
     real(8),dimension(1:NDIM) :: Delta
     real(8)                   :: Delta_p
+    ! Integral
+    real(8),dimension(1:NDIM) :: FC, Q0, Q0b
+    real(8) :: f0, f1, area, t, dt, ff
+    integer :: Nvib0
     !====================== 
 
     !======================
@@ -347,8 +351,49 @@ program projection_normal_modes_int
         write(O_DIS,'(X,I6,X,2(F12.6,2X))') j,      &
                                             qcoord, &        ! AU
                                             qcoord*Factor(j) ! Dimless
+        Q0(j) = qcoord
     enddo
     close(O_DIS)
+
+    ! Euclidean distance
+    print*, ""
+    dist=0.d0
+    do i=1,Nvib
+        dist = dist + Q0(i)**2
+    enddo
+    dist=dsqrt(dist)
+    print'(X,A,F10.4)', "Euclidean distance in nm space", dist/dsqrt(AMUtoAU)
+
+    ! RC path distance
+    FC(1:Nvib) = Freq2FC(Nvib,Freq)
+    dist=0.d0
+    area=1.d0
+    dt=5.d1
+    t = 0.d0
+    Nvib0=Nvib
+    do while (dabs(area) > 1d-10 .and. Nvib0>0)
+        f0=0.d0
+        f1=0.d0
+        Nvib0=Nvib
+        do i=1,Nvib
+            ff = FC(i)**2*Q0(i)**2*dexp(-2.d0*FC(i)*t)
+            f0 = f0 + ff
+            f1 = f1 + FC(i)**2*Q0(i)**2*dexp(-2.d0*FC(i)*(t+dt))
+            if (ff < 5e-24) then
+                Nvib0=Nvib0-1
+            else
+                Q0b(i) = Q0(i)
+            endif
+        enddo
+        Q0(1:Nvib) = Q0b(1:Nvib)
+        Nvib = Nvib0
+        f0 = dsqrt(f0)
+        f1 = dsqrt(f1)
+        area = 0.5d0*(f0+f1)*dt
+        dist = dist + area
+        t=t+dt
+    enddo
+    print'(X,A,F10.4)', "Contour distance in IRC space ", dist/dsqrt(AMUtoAU)
 
     call cpu_time(tf)
     write(0,'(/,A,X,F12.3,/)') "CPU time (s)", tf-ti

@@ -51,6 +51,7 @@ module molecular_structure
 
         if (verbose>1) then
             print*, "UNIT CONVERSOR"
+            print*, molec%units, "-->", units_local
         endif
 
         if (molec%units == units_local) then
