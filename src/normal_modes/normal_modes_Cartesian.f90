@@ -69,7 +69,8 @@ program normal_modes_cartesian
                modes_as_internals=.false., &
                original_internal=.false., &
                rm_gradcoord=.false., &
-               apply_projection_matrix=.false.
+               apply_projection_matrix=.false., &
+               print_modes=.false.
     !======================
 
     !====================== 
@@ -109,10 +110,10 @@ program normal_modes_cartesian
 
     !====================== 
     ! PES topology and normal mode things
-    real(8),dimension(1:NDIM,1:NDIM) :: LL, D, P
+    real(8),dimension(1:NDIM,1:NDIM) :: LL, D, P, Lcartinv, Lmwc
     real(8),dimension(1:NDIM*NDIM)   :: Hlt
     real(8),dimension(:,:),allocatable :: Hess
-    real(8),dimension(NDIM) :: Freq, Factor, Grad
+    real(8),dimension(NDIM) :: Freq, Factor, Grad, Grad1
     !Moving normal modes
     character(len=50) :: selection="none"
     real(8) :: Amplitude = 2.d0, qcoord
@@ -153,6 +154,7 @@ program normal_modes_cartesian
                I_SYM=12,  &
                I_RMF=16,  &
                I_CNX=17,  &
+               I_RMC=18,  &
                O_GRO=20,  &
                O_G09=21,  &
                O_G96=22,  &
@@ -170,7 +172,8 @@ program normal_modes_cartesian
                          intfile  ="none", &
                          rmzfile  ="none", &
                          symm_file="none", &
-                         cnx_file="guess"
+                         cnx_file="guess", &
+                         rm_custom_file="none"
     !Structure files to be created
     character(len=100) :: g09file,qfile, tmpfile, g96file, grofile,numfile
     !status
@@ -202,9 +205,9 @@ program normal_modes_cartesian
                      ! Options (Cartesian)
                      full_diagonalize,                                     &
                      ! Remove coordinate along gradient
-                     rm_gradcoord,                                         &
+                     rm_gradcoord,rm_custom_file,                          &
                      ! Animation and Movie
-                     animate,movie_vmd, movie_cycles ,                     &   
+                     animate,movie_vmd, movie_cycles,print_modes,          &   
                      ! Options (internal)
                      use_symmetry,def_internal,intfile,rmzfile,            & !except scan_type
                      ! Additional vib options
@@ -336,6 +339,21 @@ program normal_modes_cartesian
             ! Store the number of vibrational degrees on freedom on Nvib0
             ! Nvib stores the reduced dimensionality
             Nvib0=Nvib+1
+        elseif (adjustl(rm_custom_file) /= "none") then
+            call subheading(6,"Vibrations on the 3N-7 space",upper_case=.true.)
+            call subheading(6,"Vibrational analysis removing one custom coordinate")
+            ! Read the custom coordinate. Store in Grad1
+            open(I_RMC,file=rm_custom_file,status="old")
+            do i=1,3*Nat
+                read(I_RMC,*) Grad1(i)
+            enddo
+            ! 
+            call vibrations_Cart(Nat,molecule%atom(:)%X,molecule%atom(:)%Y,molecule%atom(:)%Z,molecule%atom(:)%Mass,&
+                             Hlt,Nvib,LL,Freq,error_flag=error,Dout=D,Grad=Grad1)
+            ! Store the number of vibrational degrees on freedom on Nvib0
+            ! Nvib stores the reduced dimensionality
+            Nvib0 = Nvib+1
+            rm_gradcoord=.true.
         else
             call statement(6,"Vibrations on the 3N-6 space")
             call vibrations_Cart(Nat,molecule%atom(:)%X,molecule%atom(:)%Y,molecule%atom(:)%Z,molecule%atom(:)%Mass,Hlt,&
@@ -719,6 +737,18 @@ program normal_modes_cartesian
         if (verbose>0) &
             call print_vector(6,Freq,Nvib,"Frequencies (cm-1)")
 
+        ! If printing modes, take Lcar^-1
+        if (print_modes) then
+            Lmwc(1:3*Nat,1:Nvib) = LL(1:3*Nat,1:Nvib)
+            do i=1,Nvib
+            do j=1,3*Nat
+                Lcartinv(j,i) = 0.d0
+                jj = (j-1)/3+1
+                Lcartinv(j,i) = Lcartinv(j,i) + LL(j,i) * dsqrt(molecule%atom(jj)%mass)
+            enddo 
+            enddo
+        endif
+
         !Transform L to Cartesian (output in AU(mass) as with internal)
         call Lmwc_to_Lcart(Nat,Nvib,molecule%atom(1:Nat)%mass,LL,LL)
 
@@ -783,8 +813,14 @@ program normal_modes_cartesian
     do jj=1,Nsel 
         k=0 ! equilibrium corresponds to k=0
         j = nm(jj)
-        if (verbose>0) &
+        if (verbose>0.or.print_modes) &
          print'(X,A,I0,A)', "Generating Mode ", j, "..."
+        if (print_modes) then
+            print*, "   Lmwc^t                Lcart^-1"
+            do i=1,3*Nat
+            print'(2ES22.12)', Lmwc(i,j), Lcartinv(i,j) 
+            enddo 
+        endif
 
         ! Set initial values for the scanned coordinate
         qcoord = 0.d0 
@@ -1030,9 +1066,9 @@ program normal_modes_cartesian
                            ! Options (Cartesian)
                            full_diagonalize,                                     &
                            ! Remove coordinate along gradient
-                           rm_gradcoord,                                         &
+                           rm_gradcoord,rm_custom_file,                          &
                            ! Movie
-                           animate,movie_vmd, movie_cycles,                      &
+                           animate,movie_vmd, movie_cycles,print_modes,          &
                            ! Options (internal)
                            use_symmetry,def_internal,intfile,rmzfile,            &
                            ! Additional vib options
@@ -1051,7 +1087,8 @@ program normal_modes_cartesian
 
         character(len=*),intent(inout) :: inpfile,ft,hessfile,fth,gradfile,ftg,nmfile,ftn,selection, &
                                           !Internal
-                                          def_internal,intfile,rmzfile,cnx_file
+                                          def_internal,intfile,rmzfile,cnx_file, &
+                                          rm_custom_file
         real(8),intent(inout)          :: Amplitude, Tthermo
         logical,intent(inout)          :: call_vmd, include_hbonds,vertical,movie_vmd,full_diagonalize,animate,&
                                           rm_gradcoord, &
@@ -1059,7 +1096,7 @@ program normal_modes_cartesian
                                           use_symmetry,analytic_Bder, &
                                           ! Other
                                           Eckart_frame, orthogonalize, modes_as_internals, original_internal, &
-                                          apply_projection_matrix
+                                          apply_projection_matrix, print_modes
         integer,intent(inout)          :: movie_cycles
 
         ! Local
@@ -1108,6 +1145,10 @@ program normal_modes_cartesian
                     rm_gradcoord=.true.
                 case ("-normgrad")
                     rm_gradcoord=.false.
+
+                case ("-rmcoord") 
+                    call getarg(i+1, rm_custom_file)
+                    argument_retrieved=.true.
 
                 case ("-Eckart")
                     Eckart_frame=.true.
@@ -1199,6 +1240,12 @@ program normal_modes_cartesian
                 case ("-noprj-tr")
                     apply_projection_matrix=.false.
 
+                case ("-print")
+                    print_modes=.true.
+                case ("-noprint")
+                    print_modes=.false.
+
+
                 ! (HIDDEN FLAG)
                 case ("-anaBder")
                     analytic_Bder=.true.
@@ -1274,6 +1321,8 @@ program normal_modes_cartesian
         write(6,*)       '-[no]prj-tr    Project out tras+rot           ', apply_projection_matrix
         write(6,*)       '-[no]rmgrad    Remove coordinate along the    ', rm_gradcoord
         write(6,*)       '               grandient                      '
+        write(6,*)       '-[no]rmcoord Remove custom coordinate         ', rm_custom_file
+        write(6,*)       '             (in this file)                      '
         write(6,*)       '-[no]fulldiag  Diagonalize the 3Nx3N matrix   ',  full_diagonalize
         write(6,*)       '-[no]Eckart    Include translation & rotation ',  Eckart_frame
         write(6,*)       '               in the Eckart frame            '
@@ -1300,6 +1349,7 @@ program normal_modes_cartesian
         write(6,'(X,A,I0)') &
                          '-movie         Number of cycles to record on   ',  movie_cycles
         write(6,*)       '               a movie with the animation'
+        write(6,*)       '-[no]print     Print modes in MWC              ',  print_modes
         write(6,*)       ''
         write(6,*)       ' ** Options for correction non-stationary points **'
         write(6,*)       '-[no]vert      Correct with B derivatives for ',  vertical

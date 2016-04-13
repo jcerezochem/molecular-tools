@@ -131,6 +131,7 @@ program cartesian_duschinsky
                I_RMF=16,  &
                I_DER=17,  &
                I_CNX=18,  &
+               I_RMC=19,  &
                O_DUS=20,  &
                O_DIS=21,  &
                O_DMAT=22, &
@@ -149,6 +150,7 @@ program cartesian_duschinsky
                          intfile  ="none",       &
                          rmzfile  ="none",       &
                          symm_file="none", &
+                         rm_custom_file="none", &
                          cnx_file="guess", &
                          derfile="base", derfile_base, &
                          tmpfile
@@ -180,7 +182,8 @@ program cartesian_duschinsky
     call parse_input(inpfile,ft,gradfile,ftg,hessfile,fth,inpfile2,ft2,gradfile2,ftg2,hessfile2,fth2,&
                      cnx_file,intfile,rmzfile,def_internal,use_symmetry,derfile,gradcorrectS2,&
                      gradcorrectS1,vertical,verticalQspace1,verticalQspace2,force_real,reference_frame,&
-                     rm_gradcoord,int_space,apply_projection_matrix,analytic_Bder)
+                     rm_gradcoord,rm_custom_file, &
+                     int_space,apply_projection_matrix,analytic_Bder)
     call set_word_upper_case(def_internal)
     call set_word_upper_case(reference_frame)
 
@@ -353,6 +356,22 @@ program cartesian_duschinsky
         Nvib0 = Nvib+1
         ! Store Grad for State2 
         Grad1(1:3*Nat) = Grad(1:3*Nat)
+
+    elseif (adjustl(rm_custom_file) /= "none") then
+        call subheading(6,"Vibrations on the 3N-7 space",upper_case=.true.)
+        call subheading(6,"Vibrational analysis removing one custom coordinate")
+        ! Read the custom coordinate. Store in Grad1
+        open(I_RMC,file=rm_custom_file,status="old")
+        do i=1,3*Nat
+            read(I_RMC,*) Grad1(i)
+        enddo
+        ! 
+        call vibrations_Cart(Nat,state1%atom(:)%X,state1%atom(:)%Y,state1%atom(:)%Z,state1%atom(:)%Mass,Hlt,&
+                        Nvib,L1,Freq1,error_flag=error,Grad=Grad1)
+        ! Store the number of vibrational degrees on freedom on Nvib0
+        ! Nvib stores the reduced dimensionality
+        Nvib0 = Nvib+1
+        rm_gradcoord=.true.
 
     elseif (int_space) then
         call subheading(6,"Vibrations on the space spanned by internal set",upper_case=.true.)
@@ -1317,14 +1336,16 @@ program cartesian_duschinsky
     subroutine parse_input(inpfile,ft,gradfile,ftg,hessfile,fth,inpfile2,ft2,gradfile2,ftg2,hessfile2,fth2,&
                            cnx_file,intfile,rmzfile,def_internal,use_symmetry,derfile,gradcorrectS2,&
                            gradcorrectS1,vertical,verticalQspace1,verticalQspace2,force_real,reference_frame,&
-                           rm_gradcoord,int_space,apply_projection_matrix,analytic_Bder)
+                           rm_gradcoord,rm_custom_file, &
+                           int_space,apply_projection_matrix,analytic_Bder)
     !==================================================
     ! My input parser (gromacs style)
     !==================================================
         implicit none
 
         character(len=*),intent(inout) :: inpfile,ft,gradfile,ftg,hessfile,fth,gradfile2,ftg2,hessfile2,fth2,&
-                                          cnx_file,intfile,rmzfile,def_internal,derfile,inpfile2,ft2,reference_frame
+                                          cnx_file,intfile,rmzfile,def_internal,derfile,inpfile2,ft2,reference_frame,&
+                                          rm_custom_file
         logical,intent(inout)          :: use_symmetry,gradcorrectS2,gradcorrectS1,vertical,&
                                           verticalQspace1,verticalQspace2,force_real,rm_gradcoord,int_space,&
                                           apply_projection_matrix,analytic_Bder
@@ -1453,6 +1474,10 @@ program cartesian_duschinsky
                     rm_gradcoord=.true.
                 case ("-normgrad")
                     rm_gradcoord=.false.
+
+                case ("-rmcoord") 
+                    call getarg(i+1, rm_custom_file)
+                    argument_retrieved=.true.
 
                 case ("-Sspace")
                     int_space=.true.
@@ -1611,6 +1636,8 @@ program cartesian_duschinsky
         write(6,*) '             rotate Grad and Hess'
         write(6,*) '-[no]rmgrad  Remove coordinate along the  ', rm_gradcoord
         write(6,*) '             grandient                    '
+        write(6,*) '-[no]rmcoord Remove custom coordinate     ', rm_custom_file
+        write(6,*) '             (in this file)                      '
         write(6,*) '-[no]Sspace  Get internal space spanned   ', int_space
         write(6,*) '             by the internal set          '
         write(6,*) '               '        
