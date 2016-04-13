@@ -183,23 +183,58 @@ module molecular_structure
 
     end subroutine write_connect
 
-    subroutine read_connect(unt,molec)
+    subroutine read_connect(unt,molec,ft)
 
         implicit none
         integer,intent(in)             :: unt
         type(str_resmol),intent(inout) :: molec
+        character(len=*),intent(in),optional :: ft
 
         !Local
-        integer :: i,j, N, nbonds
+        integer :: i,j,k, j_cnx,i_cnx, N, nbonds
+        character(len=10) :: ft_local=""
+        character(len=100) :: line
+        integer :: nitems
+        character(len=4),dimension(10) :: line_items
+        integer :: IOstatus
 
-        read(unt,*) N
-        if (N /= molec%natoms) call alert_msg("note","Number of connections "//&
-                                                     "does not match Natoms")
-        molec%atom(1:molec%natoms)%nbonds = 0
-        do i=1,N
-            read(unt,*) j, nbonds, molec%atom(j)%connect(1:nbonds)
-            molec%atom(j)%nbonds = nbonds
-        enddo
+        if (present(ft)) then
+            ft_local = ft
+        endif
+        
+        if (adjustl(ft_local) /= "gview") then
+            read(unt,*) N
+            if (N /= molec%natoms) call alert_msg("note","Number of connections "//&
+                                                         "does not match Natoms")
+            molec%atom(1:molec%natoms)%nbonds = 0
+            do i=1,N
+                read(unt,*) j, nbonds, molec%atom(j)%connect(1:nbonds)
+                molec%atom(j)%nbonds = nbonds
+            enddo
+        else
+            if (verbose>0) then
+                print'(/,X,A,/)', "Reading connectivity from gview format"
+            endif
+            molec%atom(1:molec%natoms)%nbonds=0
+            do
+                read(unt,'(A)',iostat=IOstatus) line 
+                if (IOstatus /= 0) exit
+                call parse_line(line,nitems,line_items)
+                if (nitems == 0) exit
+                N = (nitems-1)/2
+                read(line_items(1),*) j
+                do k=1,N
+                    read(line_items(2*k),*) i
+                    molec%atom(j)%nbonds = molec%atom(j)%nbonds + 1
+                    molec%atom(i)%nbonds = molec%atom(i)%nbonds + 1
+                    j_cnx = molec%atom(j)%nbonds
+                    i_cnx = molec%atom(i)%nbonds
+                    molec%atom(j)%connect(j_cnx) = i
+                    molec%atom(i)%connect(i_cnx) = j
+                enddo
+            enddo
+            molec%natoms=j
+        endif
 
         return
 
@@ -303,7 +338,7 @@ module molecular_structure
         integer :: i,j,k
         logical :: include_hbond
 
-        ! DATABASE GENERATION
+        ! DATABASE GENERATION (https://en.wikipedia.org/wiki/Covalent_radius)
         CovRad(1  ,1:3) = (/0.32, -1., -1./)
         CovRad(2  ,1:3) = (/0.46, -1., -1./)
         CovRad(3  ,1:3) = (/1.33,1.24, -1./)
@@ -432,8 +467,8 @@ module molecular_structure
         if (present(inc_hbond)) include_hbond=inc_hbond
         if (include_hbond) then
             ! Only between H and N/O
-            if (i==1.or.j==1) then
-                k=i+j
+            if (iat1==1.or.iat2==1) then
+                k=iat1+iat2
                 if (k==8.or.k==9) then
                     av_len = av_len + 0.8
                 endif

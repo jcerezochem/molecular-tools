@@ -44,7 +44,9 @@ program vertical2adiabatic
     logical :: use_symmetry=.false. ,&
                modred=.false.       ,&
                tswitch=.false.      ,&
-               symaddapt=.false.    
+               symaddapt=.false.    ,&
+               use_hbonds=.false.   ,&
+               overwrite=.false.
     character(len=4) :: def_internal='zmat'
     !======================
 
@@ -90,7 +92,7 @@ program vertical2adiabatic
                I_ORD=18,  &
                O_ICF=20
     !files
-    character(len=10) :: ft ="guess"
+    character(len=10) :: ft ="guess", stat
     character(len=200):: inpfile  ="input.fchk",     &
                          intfile  ="int_coords.dat", &
                          rmzfile  ="none",           &
@@ -116,7 +118,8 @@ program vertical2adiabatic
 !     call generic_input_parser(inpfile, "-f" ,"c",&
 !                               filetype,"-ft","c",&
 !                               )
-    call parse_input(inpfile,ft,zmatfile,rmzfile,def_internal,use_symmetry,intfile,cnx_file,order_file)
+    call parse_input(inpfile,ft,zmatfile,rmzfile,def_internal,use_symmetry,intfile,cnx_file,order_file,use_hbonds,&
+                     overwrite)
     call set_word_upper_case(def_internal)
 
     ! READ DATA (each element from a different file is possible)
@@ -125,21 +128,33 @@ program vertical2adiabatic
     if (ft == "guess") &
     call split_line_back(inpfile,".",null,ft)
 
-    ! STRUCTURE FILE
-    open(I_INP,file=inpfile,status='old',iostat=IOstatus)
-    if (IOstatus /= 0) call alert_msg( "fatal","Unable to open "//trim(adjustl(inpfile)) )
-    call generic_strmol_reader(I_INP,ft,state1)
-    close(I_INP)
-    ! Shortcuts
-    Nat = state1%natoms
-
-    ! MANAGE INTERNAL COORDS
-    ! ---------------------------------
-    ! Get connectivity 
-    call guess_connect(state1)
+    if (adjustl(ft)/="gview") then
+        ! STRUCTURE FILE
+        open(I_INP,file=inpfile,status='old',iostat=IOstatus)
+        if (IOstatus /= 0) call alert_msg( "fatal","Unable to open "//trim(adjustl(inpfile)) )
+        call generic_strmol_reader(I_INP,ft,state1)
+        close(I_INP)
+        ! Shortcuts
+        Nat = state1%natoms
+        
+        ! MANAGE INTERNAL COORDS
+        ! ---------------------------------
+        ! Get connectivity 
+        call guess_connect(state1,use_hbonds)
+    else
+        ! GVIEW CONNECTIVITY
+        open(I_INP,file=inpfile,status='old',iostat=IOstatus)
+        if (IOstatus /= 0) call alert_msg( "fatal","Unable to open "//trim(adjustl(inpfile)) )
+        call read_connect(I_INP,state1,ft)
+    endif
 
     ! OUTPUT CONNECTIVUTY FILE
-    open(I_CNX,file=cnx_file,status='new',iostat=IOstatus)
+    if (overwrite) then
+        stat="unknown"
+    else
+        stat="new"
+    endif
+    open(I_CNX,file=cnx_file,status=stat,iostat=IOstatus)
     if (IOstatus /= 0) call alert_msg( "fatal","Unable to open "//trim(adjustl(cnx_file))//" for writting. Already exists?" )
     call write_connect(I_CNX,state1)
     close(I_CNX)
@@ -154,7 +169,8 @@ program vertical2adiabatic
     contains
     !=============================================
 
-    subroutine parse_input(inpfile,ft,zmatfile,rmzfile,def_internal,use_symmetry,intfile,cnx_file,order_file)
+    subroutine parse_input(inpfile,ft,zmatfile,rmzfile,def_internal,use_symmetry,intfile,cnx_file,order_file,use_hbonds,&
+                           overwrite)
     !==================================================
     ! My input parser (gromacs style)
     !==================================================
@@ -163,7 +179,7 @@ program vertical2adiabatic
         character(len=*),intent(inout) :: inpfile,ft,zmatfile,&
                                           intfile,rmzfile,def_internal,cnx_file, &
                                           order_file
-        logical,intent(inout)          :: use_symmetry
+        logical,intent(inout)          :: use_symmetry, use_hbonds, overwrite
         ! Local
         logical :: argument_retrieved,  &
                    need_help = .false.
@@ -221,6 +237,16 @@ program vertical2adiabatic
                     use_symmetry=.true.
                 case ("-nosym")
                     use_symmetry=.false.
+
+                case ("-hbonds")
+                    use_hbonds=.true.
+                case ("-nohbonds")
+                    use_hbonds=.false.
+
+                case ("-ow")
+                    overwrite=.true.
+                case ("-noow")
+                    overwrite=.false.
         
                 case ("-h")
                     need_help=.true.
@@ -255,6 +281,8 @@ program vertical2adiabatic
         write(6,*) '-intfile        ', trim(adjustl(intfile))
         write(6,*) '-zmatfile       ', trim(adjustl(zmatfile))
         write(6,*) '-rmzfile        ', trim(adjustl(rmzfile))
+        write(6,*) '-[no]hbonds    ',  use_hbonds
+        write(6,*) '-[no]ow        ',  overwrite
         write(6,*) '-h             ',  need_help
         write(6,*) '--------------------------------------------------'
         if (need_help) call alert_msg("fatal", 'There is no manual (for the moment)' )
