@@ -129,8 +129,8 @@ program normal_modes_animation
     real(8),dimension(NDIM) :: S, Sref, Szmat, Sall
     integer,dimension(NDIM) :: S_sym
     ! Switches
-    character(len=5) :: def_internal="ALL",  & ! To do the vibrational analysis
-                        def_internal0="ALL", & ! To do the correction for vertical
+    character(len=4) :: def_internal="ALL",  & ! To do the vibrational analysis
+                        def_internal0='defa',& ! defa(ult) is "the same as working set"
                         def_internal_aux
     character(len=2) :: scan_type="NM"
     !Coordinate map
@@ -169,7 +169,7 @@ program normal_modes_animation
                          hessfile ="same", &
                          nmfile   ="none", &
                          intfile  ="none", &
-                         intfile0 ="none", &
+                         intfile0 ="default", & ! default is "the same as working set"
                          rmzfile  ="none", &
                          symm_file="none", &
                          cnx_file="guess"
@@ -1303,6 +1303,10 @@ program normal_modes_animation
            nm_selection ="-"
            int_selection=selection
        endif
+
+       ! Take defaults for the internal set for correction only
+       if (def_internal0 == "defa") def_internal0=def_internal
+       if (adjustl(intfile0)=="default") intfile0=intfile
 
 
        !Print options (to stderr)
