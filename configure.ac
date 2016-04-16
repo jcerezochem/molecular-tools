@@ -120,18 +120,9 @@ AM_CONDITIONAL([FFTW],[test x$use_fftw = xyes])
 AC_CONFIG_FILES([Makefile
                  libs/AnalyticalBders/Makefile
                  src/modules/Makefile
-                 src/normal_modes/Makefile          
-                 src/calc_duschinsky/Makefile
-                 src/file_management/Makefile 
-                 src/bonded_info/Makefile    
+                 src/isotopes/Makefile 
 ])        
 AC_OUTPUT    
                
-
-#                 src/vibrations/Makefile           
-#                 src/wf_analysis/Makefile
-#                 src/gen_oniom/Makefile
-#                 src/cube_tools/Makefile                                    
-#                 src/build_top/Makefile    
-#                 src/joyce_tools/Makefile    
+ 
   
