@@ -3,7 +3,7 @@ AUTOMAKE_OPTIONS = subdir-objects
 LDFLAGS = -L$(top_builddir)/libs/AnalyticalBders @LIBS@ 
 
 bin_PROGRAMS = vertical2adiabatic cartesian_duschinsky internal_duschinsky generate_internals generate_connetivity state2hessian \
-               rotate_disp substract_disps transpose_dusch LHA_optimizer
+               rotate_disp substract_disps transpose_dusch NewtonRaphson_step
 
 # Simple tools:
 rotate_disp_SOURCES = rotate_disp.f90
@@ -79,7 +79,7 @@ vertical2adiabatic_SOURCES = ../modules/version.f90\
                              ../modules/vertical_model.f90\
                              vertical2adiabatic.f90
 
-LHA_optimizer_SOURCES = ../modules/version.f90\
+NewtonRaphson_step_SOURCES = ../modules/version.f90\
                              ../modules/alerts.f90\
                              ../modules/line_preprocess.f90\
                              ../modules/constants.f90\
@@ -111,7 +111,7 @@ LHA_optimizer_SOURCES = ../modules/version.f90\
                              ../modules/internal.f90\
                              ../modules/vibrational_analysis.f90\
                              ../modules/vertical_model.f90\
-                             LHA_optimizer.f90
+                             NewtonRaphson_step.f90
 
 cartesian_duschinsky_SOURCES = ../modules/version.f90\
                              ../modules/alerts.f90\

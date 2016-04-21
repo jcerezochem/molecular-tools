@@ -317,4 +317,65 @@ module vertical_model
 
     end function projection_matrix2
 
+
+    function projection_matrix3(Nat,Ns,B,Mass) result(P)
+
+        !==============================================================
+        ! This code is part of MOLECULAR_TOOLS
+        !==============================================================
+        !Description
+        ! Diagonalizes a Hessian after mass-weighing and translation to 
+        ! the internal frame defined by satifying the Eckart-Saytvez conditions.
+        !
+        !Arguments
+        ! Nat     (inp) int /scalar   Number of atoms
+        ! Ns      (inp) int /scalar   Number of internal coordinates
+        !
+        ! Project out rot+trans from Cartesian Hessian, Hx
+        ! (the other version work on the MWC Hessian)
+        !==============================================================
+
+        integer,intent(in)                 :: Nat, Ns
+        real(8),dimension(:,:),intent(in)  :: B
+        real(8),dimension(:),intent(in),optional    :: Mass
+        real(8),dimension(3*Nat,3*Nat)     :: P
+
+        !Local
+        integer,parameter :: NDIM = 600
+
+        integer :: i,j ,ii, jj
+        real(8),dimension(NDIM,NDIM) :: Aux, Aux2
+        real(kind=8),dimension(1:Nat) :: Mass_local
+
+        if (present(Mass)) then
+            Mass_local(1:Nat) = Mass(1:Nat) * AMUtoAU
+        else
+            Mass_local(1:Nat) = 1.d0
+        endif
+
+        ! Aux is M^-1
+        ! Aux2 is B M^-1
+        Aux(1:3*Nat,1:3*Nat) = 0.d0
+        do i=1,Ns
+            do j=1,3*Nat
+                jj = (j-1)/3+1
+                Aux(j,j)  = 1.d0/Mass_local(jj)
+                Aux2(i,j) = B(i,j)/Mass_local(jj)
+            enddo
+        enddo
+
+        ! P=M^-1 B^t G^-1 B
+
+        ! Aux2=G^-1
+        Aux2(1:Ns,1:Ns)    = matrix_product(Ns,Ns,3*Nat,Aux2,B,tB=.true.)
+        Aux2(1:Ns,1:Ns)    = inverse_realgen(Ns,Aux2)
+        ! Now rotate with B:  B^t G^-1 B
+        P(1:3*Nat,1:3*Nat) = matrix_basisrot(3*Nat,Ns,B,Aux2,counter=.true.)
+        ! M^-1 * [B^t G^-1 B]
+        P(1:3*Nat,1:3*Nat) = matrix_product(3*Nat,3*Nat,3*Nat,Aux,P)
+
+        return
+
+    end function projection_matrix3
+
 end module vertical_model

@@ -49,6 +49,7 @@ program normal_modes_animation
     use zmat_manage 
     use vibrational_analysis
     use thermochemistry
+    use vertical_model
 
     implicit none
 
@@ -63,6 +64,7 @@ program normal_modes_animation
                check_symmetry=.true.,  &
                animate=.true.,         &
                project_on_all=.false.,  &
+               apply_projection_matrix=.false., &
                do_zmap
     !======================
 
@@ -102,8 +104,8 @@ program normal_modes_animation
     !====================== 
     ! PES topology and normal mode things
     real(8),dimension(:),allocatable :: Hlt
-    real(8),dimension(1:NDIM,1:NDIM) :: Hess, Hess_all, LL, LL_all, gBder
-    real(8),dimension(NDIM) :: Freq, Freq_all, Factor, Grad, Grad_all
+    real(8),dimension(1:NDIM,1:NDIM) :: Hess, Hess_all, LL, LL_all, gBder, P
+    real(8),dimension(NDIM) :: Freq, Freq_all, Factor, Grad, Grad_all, Vec1
     !Moving normal modes
     character(len=50) :: selection="none"
     real(8) :: Amplitude = 2.d0, qcoord
@@ -205,6 +207,7 @@ program normal_modes_animation
                      animate,movie_vmd, movie_cycles,                      &
                      ! Options (internal)
                      use_symmetry,def_internal,def_internal0,intfile,intfile0,&
+                     apply_projection_matrix,                              &
                      rmzfile,scan_type,  &
                      project_on_all,                                       &
                      ! connectivity file
@@ -400,6 +403,19 @@ program normal_modes_animation
         do j=1,3*Nat
             Bder(1:Nvib0,j,1:3*Nat) =  matrix_product(Nvib0,3*Nat,Ns,Asel,Bder(1:Ns,j,1:3*Nat),tA=.true.)
         enddo
+
+        if (apply_projection_matrix) then
+            ! Get projection matrix (again...)
+            P(1:3*Nat,1:3*Nat) = projection_matrix3(Nat,Nvib0,B0,molecule%atom(:)%Mass)
+            ! And rotate gradient
+            do i=1,3*Nat
+                Vec1(i) = 0.d0
+                do k=1,Nvib0
+                    Vec1(i) = Vec1(i) + P(i,k)*Grad(k)
+                enddo
+            enddo
+            Grad(1:3*Nat) = Vec1(1:3*Nat)
+        endif
 
         ! Get the Correction now
         print*, " Getting the correction term: gs^t\beta"
@@ -615,7 +631,7 @@ program normal_modes_animation
                 endif
             endif
             ! Get Hessian in internal
-            call HessianCart2int(Nat,Nvib_all,Hess_all,molecule%atom(:)%mass,B,G)
+            call HessianCart2int(Nat,Nvib_all,Hess_all,molecule%atom(:)%mass,B,G,method="I")
             ! Di vibrational analysis
             call gf_method(Nvib_all,G,Hess_all,LL_all,Freq_all,X,Xinv)
 
@@ -649,8 +665,15 @@ program normal_modes_animation
                 enddo
             endif
 
+            if (apply_projection_matrix) then
+                ! Get projection matrix (again...)
+                P(1:3*Nat,1:3*Nat) = projection_matrix3(Nat,Nvib,B,molecule%atom(:)%Mass)
+                ! Project out rotation and translation
+                Hess(1:3*Nat,1:3*Nat) = matrix_basisrot(3*Nat,3*Nat,P,Hess,counter=.true.)
+            endif
+
             ! Get Hessian in initernal coordinates
-            call HessianCart2int(Nat,Nvib,Hess,molecule%atom(:)%mass,B,G)
+            call HessianCart2int(Nat,Nvib,Hess,molecule%atom(:)%mass,B,G,method="I")
             ! Perform vibrational analysis (GF)
             call gf_method(Nvib,G,Hess,LL,Freq,X,Xinv)
             if (verbose>1) then
@@ -1101,6 +1124,7 @@ program normal_modes_animation
                            animate,movie_vmd, movie_cycles,                      &
                            ! Options (internal)
                            use_symmetry,def_internal,def_internal0,intfile,intfile0,&
+                           apply_projection_matrix,  &
                            rmzfile,scan_type,  &
                            project_on_all,                                       &
                            ! connectivity file
@@ -1119,7 +1143,7 @@ program normal_modes_animation
                                           selection,cnx_file,def_internal0
         real(8),intent(inout)          :: Amplitude,Tthermo
         logical,intent(inout)          :: call_vmd, include_hbonds,vertical, use_symmetry,movie_vmd,animate,&
-                                          analytic_Bder,project_on_all
+                                          analytic_Bder,project_on_all,apply_projection_matrix
         integer,intent(inout)          :: movie_cycles
 
         ! Local
@@ -1188,6 +1212,11 @@ program normal_modes_animation
                 case ("-intmode0")
                     call getarg(i+1, def_internal0)
                     argument_retrieved=.true.
+
+                case ("-prj-tr")
+                    apply_projection_matrix=.true.
+                case ("-noprj-tr")
+                    apply_projection_matrix=.false.
 
                 case ("-sym")
                     use_symmetry=.true.
@@ -1328,6 +1357,8 @@ program normal_modes_animation
         write(6,*)       '-cnx           Connectivity [filename|guess]   ', trim(adjustl(cnx_file))
 !         write(6,*)       '-fnm           Gradient file                   ', trim(adjustl(nmfile))
 !         write(6,*)       '-ftn           \_ FileType                     ', trim(adjustl(ftn))
+        write(6,*)       '-[no]prj-tr    Apply projection matrix to     ', apply_projection_matrix
+        write(6,*)       '               rotate Grad and Hess'
         write(6,*)       '-intmode0      Internal set:[zmat|sel|all] cor ', trim(adjustl(def_internal0))
         write(6,*)       '-intfile0      File with ICs (for "sel")[corr] ', trim(adjustl(intfile0))
         write(6,*)       '-intmode       Internal set:[zmat|sel|all]     ', trim(adjustl(def_internal))

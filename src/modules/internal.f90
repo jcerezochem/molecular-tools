@@ -1515,7 +1515,7 @@ module internal_module
     end subroutine generalized_inv
 
 
-    subroutine HessianCart2int(Nat,Ns,Hess,Mass,B,G)
+    subroutine HessianCart2int(Nat,Ns,Hess,Mass,B,G,method)
 
         !==============================================================
         ! This code is part of MOLECULAR_TOOLS 
@@ -1555,11 +1555,13 @@ module internal_module
         real(8),dimension(1:NDIM),intent(in)        :: Mass   ! Wilson matrices (in)
         real(8),dimension(1:NDIM,1:NDIM),intent(in) :: G,B    ! Wilson matrices (in)
         real(8),dimension(1:NDIM,1:NDIM),intent(inout) :: Hess   !Hessian: cart(in)-intern(out)
+        character(len=*),intent(in),optional        :: method
         !====================== 
     
         !====================== 
         !LOCAL
         integer                             :: Nvib
+        character(len=5)                    :: method_local
         !Internal analysis 
         real(8),dimension(1:NDIM,1:NDIM)    :: Ginv
         !Auxiliar arrays
@@ -1569,6 +1571,12 @@ module internal_module
         integer :: i,j,k, ii
         !====================== 
 
+        if (present(method)) then
+            method_local = adjustl(method)
+            call set_word_upper_case(method_local)
+        else
+            method_local="MASS"
+        endif
     
         ! If Ns > Nvib, then we need to extract the non-zero eigen values 
         ! from G in order to compute the generalized G inverse
@@ -1576,15 +1584,24 @@ module internal_module
         ! 
         Nvib = Ns
 
-        !Inverse of G
-        Ginv(1:Ns,1:Ns) = inverse_realsym(Ns,G)
-    
-        !Compute G^-1Bu  (where u is the inverse mass matrix)
-        Aux(1:Ns,1:3*Nat) = matrix_product(Ns,3*Nat,Ns,Ginv,B)
-        do i=1,3*Nat
-            ii = (i-1)/3+1
-            Aux(1:Ns,i) = Aux(1:Ns,i)/Mass(ii)/UMAtoAU
-        enddo
+        !Two choice with u=M^-1 or u=I
+        if (adjustl(method_local) == "MASS") then
+            !Inverse of G
+            Ginv(1:Ns,1:Ns) = inverse_realsym(Ns,G)
+            !Compute G^-1Bu  (where u is the inverse mass matrix)
+            Aux(1:Ns,1:3*Nat) = matrix_product(Ns,3*Nat,Ns,Ginv,B)
+            do i=1,3*Nat
+                ii = (i-1)/3+1
+                Aux(1:Ns,i) = Aux(1:Ns,i)/Mass(ii)/UMAtoAU
+            enddo           
+        else
+            !Inverse of (BB^t)
+            Ginv(1:Ns,1:Ns) = matrix_product(Ns,Ns,3*Nat,B,B,tB=.true.)
+            Ginv(1:Ns,1:Ns) = inverse_realsym(Ns,Ginv)
+            !Compute G^-1Bu  (where u is the inverse mass matrix)
+            Aux(1:Ns,1:3*Nat) = matrix_product(Ns,3*Nat,Ns,Ginv,B)
+        endif
+
         
         ! Hint = Aux ([~Hx]) Aux^T (this is "matrix_basisrot")
         Hess(1:Ns,1:3*Nat) = matrix_product(Ns,3*Nat,3*Nat,Aux,Hess)
@@ -1601,81 +1618,8 @@ module internal_module
 
     end subroutine HessianCart2int
 
-    subroutine HessianCart2intRed(Nat,Ns,Hess,Mass,B,Ginv)
 
-        !==============================================================
-        ! This code is part of MOLECULAR_TOOLS 
-        !==============================================================
-        ! Description
-        !  HESSIAN IN INTERNAL COORDINATES (JCC, 17, 49-56, by Frisch et al)
-        !    Hint = G^- Bu(Hx+B'^Tg_q)u^TB^T G^-
-        !   g_q is the gradient, so g_q=0 in a minimum
-        !   G^- is the generalized inverse (for redundant internal) or simply the
-        !   inverse for nonredundant
-        !
-        ! Arguments
-        !  Nat    Int /Scalar    Number of atoms
-        !  Ns     Int /Scalar    Number of internal coordianates
-        !  Hess   Real/Matrix    Hessian in Cartesian (corrected or not)
-        !  Mass   Real/Vector    Mass vector (Nat)
-        !  B      Real/Matrix    B matrix
-        !  G      Real/Matrix    Metric matrix
-        !------------------------------------------------------------------
-
-        use structure_types
-        use line_preprocess
-        use alerts
-        use constants
-        use atomic_geom
-        use matrix
-        use verbosity
-    
-        implicit none
-    
-        integer,parameter :: NDIM = 600
-    
-        !====================== 
-        !ARGUMENTS
-        integer,intent(in)                          :: Nat    ! Number of atoms (in)
-        integer,intent(in)                          :: Ns     ! Number of internal coordinates (in)
-        real(8),dimension(1:NDIM),intent(in)        :: Mass   ! Wilson matrices (in)
-        real(8),dimension(1:NDIM,1:NDIM),intent(in) :: Ginv,B    ! Wilson matrices (in)
-        real(8),dimension(1:NDIM,1:NDIM),intent(inout) :: Hess   !Hessian: cart(in)-intern(out)
-        !====================== 
-    
-        !====================== 
-        !LOCAL
-        !Auxiliar arrays
-        real(8),dimension(1:NDIM,1:NDIM)    :: AuxT,Aux
-        real(8),dimension(NDIM)             :: Vec
-        !Counters
-        integer :: i,j,k, ii
-        !====================== 
-    
-        !Compute G^-1Bu  (where u is the inverse mass matrix)
-        Aux(1:Ns,1:3*Nat) = matrix_product(Ns,3*Nat,Ns,Ginv,B)
-        do i=1,3*Nat
-            ii = (i-1)/3+1
-            Aux(1:Ns,i) = Aux(1:Ns,i)/Mass(ii)/UMAtoAU
-        enddo
-        
-        ! Hint = Aux ([~Hx]) Aux^T (this is "matrix_basisrot")
-        Hess(1:Ns,1:3*Nat) = matrix_product(Ns,3*Nat,3*Nat,Aux,Hess)
-        Hess(1:Ns,1:Ns)    = matrix_product(Ns,3*Nat,3*Nat,Hess,Aux,tB=.true.)
-    
-        if (verbose>1) then
-            Vec(1:Ns) = (/(Hess(i,i), i=1,Ns)/)
-            call print_vector(6,Vec,Ns,"F MATRIX (diagonal)")
-        endif
-        if (verbose>2) &
-         call MAT0(6,Hess,Ns,Ns,"F MATRIX")
-
-        return
-
-    end subroutine HessianCart2intRed
-
-
-    subroutine Gradcart2int(Nat,Ns,Grad,Mass,B,G)
+    subroutine Gradcart2int(Nat,Ns,Grad,Mass,B,G,method)
 
         !==============================================================
         ! This code is part of MOLECULAR_TOOLS 
@@ -1705,11 +1649,13 @@ module internal_module
         real(8),dimension(1:NDIM),intent(in)        :: Mass   ! Wilson matrices (in)
         real(8),dimension(1:NDIM,1:NDIM),intent(in) :: G,B    ! Wilson matrices (in)
         real(8),dimension(1:NDIM),intent(inout)     :: Grad   ! Gradient 
+        character(len=*),intent(in),optional        :: method
         !====================== 
     
         !====================== 
         !LOCAL
         integer                             :: Nvib
+        character(len=5)                    :: method_local
         !Internal analysis 
         real(8),dimension(1:NDIM,1:NDIM)    :: Ginv
         !Auxiliar arrays
@@ -1719,21 +1665,36 @@ module internal_module
         integer :: i,j,k, ii
         !====================== 
 
+        if (present(method)) then
+            method_local = adjustl(method)
+            call set_word_upper_case(method_local)
+        else
+            method_local="MASS"
+        endif
+
         ! If Ns > Nvib, then we need to extract the non-zero eigen values 
         ! from G in order to compute the generalized G inverse
         ! (TBD) 
         ! 
         Nvib = Ns
 
-        !Inverse of G
-        Ginv(1:Ns,1:Ns) = inverse_realsym(Ns,G)
-    
-        !Compute G^-1Bu  (where u is the inverse mass matrix)
-        Aux(1:Ns,1:3*Nat) = matrix_product(Ns,3*Nat,Ns,Ginv,B)
-        do i=1,3*Nat
-            ii = (i-1)/3+1
-            Aux(1:Ns,i) = Aux(1:Ns,i)/Mass(ii)/UMAtoAU
-        enddo
+        !Two choice with u=M^-1 or u=I
+        if (adjustl(method_local) == "MASS") then
+            !Inverse of G
+            Ginv(1:Ns,1:Ns) = inverse_realsym(Ns,G)
+            !Compute G^-1Bu  (where u is the inverse mass matrix)
+            Aux(1:Ns,1:3*Nat) = matrix_product(Ns,3*Nat,Ns,Ginv,B)
+            do i=1,3*Nat
+                ii = (i-1)/3+1
+                Aux(1:Ns,i) = Aux(1:Ns,i)/Mass(ii)/UMAtoAU
+            enddo           
+        else
+            !Inverse of (BB^t)
+            Ginv(1:Ns,1:Ns) = matrix_product(Ns,Ns,3*Nat,B,B,tB=.true.)
+            Ginv(1:Ns,1:Ns) = inverse_realsym(Ns,Ginv)
+            !Compute G^-1Bu  (where u is the inverse mass matrix)
+            Aux(1:Ns,1:3*Nat) = matrix_product(Ns,3*Nat,Ns,Ginv,B)
+        endif
 
         ! Get the gradient in internal coords: gq = G^-1Bu(gx)
         do i=1,Nvib
@@ -1750,68 +1711,6 @@ module internal_module
 
     end subroutine Gradcart2int
 
-    subroutine Gradcart2intRed(Nat,Ns,Grad,Mass,B,Ginv)
-
-        !==============================================================
-        ! This code is part of MOLECULAR_TOOLS 
-        !==============================================================
-        ! Description
-        ! Convert the Gradient from cartesian to internal 
-        ! useful when the Gradient is not used in HessianCart2int
-        ! (if used there, it is converted there!)
-        !------------------------------------------------------------------
-
-        use structure_types
-        use line_preprocess
-        use alerts
-        use constants
-        use atomic_geom
-        use matrix
-        use verbosity
-    
-        implicit none
-    
-        integer,parameter :: NDIM = 600
-    
-        !====================== 
-        !ARGUMENTS
-        integer,intent(in)                          :: Nat    ! Number of atoms (in)
-        integer,intent(in)                          :: Ns     ! Number of internal coordinates (in)
-        real(8),dimension(1:NDIM),intent(in)        :: Mass   ! Wilson matrices (in)
-        real(8),dimension(1:NDIM,1:NDIM),intent(in) :: Ginv,B    ! Wilson matrices (in)
-        real(8),dimension(1:NDIM),intent(inout)     :: Grad   ! Gradient 
-        !====================== 
-    
-        !====================== 
-        !LOCAL
-        !Auxiliar arrays
-        real(8),dimension(1:NDIM,1:NDIM)    :: Aux
-        real(8),dimension(NDIM)             :: Vec
-        !Counters
-        integer :: i,j,k, ii
-        !====================== 
-    
-        !Compute G^-1Bu  (where u is the inverse mass matrix)
-        Aux(1:Ns,1:3*Nat) = matrix_product(Ns,3*Nat,Ns,Ginv,B)
-        do i=1,3*Nat
-            ii = (i-1)/3+1
-            Aux(1:Ns,i) = Aux(1:Ns,i)/Mass(ii)/UMAtoAU
-        enddo
-
-        ! Get the gradient in internal coords: gq = G^-1Bu(gx)
-        do i=1,Ns
-            Vec(i) = 0.d0
-            do j=1,3*Nat
-                Vec(i) = Vec(i) + Aux(i,j) * Grad(j)
-            enddo
-        enddo
-        ! Update the gradient on output
-        Grad(1:3*Nat) = 0.d0
-        Grad(1:Ns) = Vec(1:Ns)
-
-        return
-
-    end subroutine Gradcart2intRed
     
     subroutine gf_method(Nvib,G,Hess,L,Freq,X,Xinv)
 
