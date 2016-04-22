@@ -815,20 +815,23 @@ program internal_duschinski
         enddo
 
         ! Get Cartesian coordinates
-        ! 1. Save redundant geom
-        allgeom = state2%geom
-        ! 2. Construct Z-matrix geom
-        call define_internal_set(state2,"ZMAT","none","none",use_symmetry,isym,S_sym,Nz)
-        zmatgeom = state2%geom
-        ! 3. Get mapping Z-matrix <--> redundant set
-        call internals_mapping(allgeom,zmatgeom,Zmap)
-        ! 4. Map redundant set onto the Z-matrix
-        S2(1:Nvib) = map_Zmatrix(Nvib,S2,Zmap)
-        ! 5. Construct structure from Z-matrix
-        state2%geom = zmatgeom
-        call zmat2cart(state2,S2)
-        ! 6. Recover original geometry
-        state2%geom = allgeom
+        call intshif2cart(state2,Vec1)
+        ! 
+        ! USING Z-MATRIX SUBSET:
+!         ! 1. Save redundant geom
+!         allgeom = state2%geom
+!         ! 2. Construct Z-matrix geom
+!         call define_internal_set(state2,"ZMAT","none","none",use_symmetry,isym,S_sym,Nz)
+!         zmatgeom = state2%geom
+!         ! 3. Get mapping Z-matrix <--> redundant set
+!         call internals_mapping(allgeom,zmatgeom,Zmap)
+!         ! 4. Map redundant set onto the Z-matrix
+!         S2(1:Nvib) = map_Zmatrix(Nvib,S2,Zmap)
+!         ! 5. Construct structure from Z-matrix
+!         state2%geom = zmatgeom
+!         call zmat2cart(state2,S2)
+!         ! 6. Recover original geometry
+!         state2%geom = allgeom
 
         ! Print the new structure file
         open(99,file="struct2_displaced.xyz")

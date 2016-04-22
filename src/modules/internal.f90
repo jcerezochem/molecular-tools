@@ -1439,7 +1439,9 @@ module internal_module
     subroutine generalized_inv(Nred,Nvib,G,Ginv)
     
         !IF WE USE ALL BONDED PARAMETERS,WE HAVE REDUNDANCY. WE SELECT A NON-REDUNDANT                                                                  
-        !COMBINATION FROM THE NON-ZERO EIGENVALUES OF G (Reimers 2001, JCP)   
+        !COMBINATION FROM THE NON-ZERO EIGENVALUES OF G (Reimers 2001, JCP) 
+        ! *** Not working!! ***
+        ! Alternative: use redundant2nonredundant + matrix rotations  
 
 
         use matrix
@@ -2074,9 +2076,12 @@ module internal_module
         endif
 #endif    
 
-
-        ! This SR works in AU
+        !----------------------------------------------
+        ! UNITS MANAGEMENT
+        ! This subroutine works with Atomic Units 
+        current_units=molec%units
         call set_geom_units(molec,"Bohr")
+        !----------------------------------------------
 
         !shortcuts
         Nat = molec%natoms
@@ -2304,10 +2309,201 @@ module internal_module
             endif  
         enddo  
 
+        !----------------------------------------------
+        ! UNITS MANAGEMENT
+        ! Revert original units
+        call set_geom_units(molec,adjustl(current_units))
+        !----------------------------------------------
+
         return
     
     end subroutine calc_BDer
 
+    !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%5
+
+    subroutine intshif2cart(molecule,DeltaS,&
+                                            thr_set,maxiter_set,converged)
+
+        !===========================================================
+        ! Description
+        ! -----------
+        ! Subroutine to transform a shift in internal coordinates
+        ! to Cartesian coordinates. The shift in applied onto the
+        ! input molecule, so changing its coordianates
+        !
+        ! Notes
+        ! -----
+        ! * The basic input can replace zmat2cart. Additional options can be
+        !   used to tune the behaviour
+        ! * IMPORTANT: the molecule%geom must be consistent with DeltaS
+        ! * It uses subroutines in this module to build B and Ginv
+        !================================================================
+
+        use constants
+        use matrix
+
+        integer,parameter :: NDIM = 600
+
+        type(str_resmol),intent(inout)    :: molecule
+        real(8),dimension(:),intent(in)   :: DeltaS
+        real(8),intent(in),optional       :: thr_set, maxiter_set
+        logical,intent(out),optional      :: converged
+
+        ! Local
+        real(8),dimension(NDIM,NDIM) :: A, B, G, Ginv
+        real(8),dimension(NDIM) :: S0, S1, DSx, DStarget, DX
+        real(8)                 :: Theta, Theta2, Theta3, thr, maxiter, rmsd, Sbond,Sangle,Sdihed
+        integer                 :: Nat, Ns, Nvib
+        integer                 :: i,j,k, ii,jj,kk, iter
+
+        !----------------------------------------------
+        ! UNITS MANAGEMENT
+        ! This subroutine works with Atomic Units 
+        current_units=molecule%units
+        call set_geom_units(molecule,"Bohr")
+        !----------------------------------------------
+
+        ! Set optional arguments
+        thr = 1.d-10
+        maxiter = 100
+        if (present(thr_set))     thr     = thr_set
+        if (present(maxiter_set)) maxiter = maxiter_set
+
+        ! shortcuts
+        Ns  = molecule%geom%nbonds +&
+              molecule%geom%nangles+&
+              molecule%geom%ndihed
+        Nat = molecule%natoms
+
+        ! Build B and G (silently)
+        call verbose_mute()
+        call internal_Wilson(molecule,Ns,S1,B)
+        call internal_Gmetric(Nat,Ns,molecule%atom(:)%mass,B,G)
+        call generalized_inv(Ns,Nvib,G,Ginv)
+        call verbose_continue()
+
+        ! A = M^-1 B^t G^-
+        do i=1,Ns
+        do j=1,3*Nat
+            jj=(j-1)/3+1
+            A(i,j) = B(i,j) / molecule%atom(jj)%mass / AMUtoAU
+        enddo
+        enddo
+        A(1:3*Nat,1:Ns) = matrix_product(3*Nat,Ns,Ns,A,Ginv,tA=.true.)
+      
+        if (verbose>0) then  
+            print'(/,A)', "================================================="
+            print'(A)', " Iterative process to get the DeltaX from DeltaS"
+            print'(A,/)', "================================================="
+        endif
+        if (verbose>1) then
+            print'(/,A)', " Iter     RMSD-str(Bohr)   RMSD-bond(Bohr)  RMSD-angl(rad)   RMSD-dihed(rad)"
+        endif
+        
+        ! Initialization
+        iter=0
+        rmsd=1.d10
+        DStarget(1:Ns) = DeltaS(1:Ns)
+
+        do while (rmsd>thr .and. iter<maxiter)
+            S0(1:Ns) = S1(1:Ns)
+            iter = iter+1
+            rmsd = 0.d0
+            ! And get DeltaX as DX
+            do i=1,3*Nat
+                DX(i) = 0.d0
+                do k=1,Ns
+                    DX(i) = DX(i) + A(i,k) * DStarget(k) 
+                enddo
+            enddo
+            do i=1,Nat
+                ii = 3*(i-1)
+                molecule%atom(i)%x = molecule%atom(i)%x + DX(ii+1) 
+                molecule%atom(i)%y = molecule%atom(i)%y + DX(ii+2)
+                molecule%atom(i)%z = molecule%atom(i)%z + DX(ii+3)
+                rmsd = rmsd + DX(ii+1)**2+DX(ii+2)**2+DX(ii+3)**2
+            enddo
+            rmsd = dsqrt(rmsd/dfloat(Nat))
+        
+            call verbose_mute()
+            call compute_internal(molecule,Ns,S1)
+            call verbose_continue()
+            ! DDs = Ds(curv) - Ds(x)
+            Theta = 0.d0
+            Sbond = 0.d0
+            k=0
+            do i=1,molecule%geom%nbonds
+                k=k+1
+                DSx(k) = S1(k)-S0(k)
+                DStarget(k) = DStarget(k) - DSx(k)
+                Sbond = max(Sbond,dabs(DStarget(k)))
+                Theta = Theta+DStarget(k)**2
+            enddo
+            Theta = dsqrt(Theta/Nat)
+            Theta2 = 0.d0
+            Sangle = 0.d0
+            do i=1, molecule%geom%nangles
+                k=k+1
+                DSx(k) = S1(k)-S0(k)
+                DStarget(k) = DStarget(k) - DSx(k)
+                Sangle = max(Sangle,dabs(DStarget(k)))
+                Theta2 = Theta2+DStarget(k)**2
+            enddo
+            Theta2 = dsqrt(Theta2/Nat)
+            Theta3 = 0.d0
+            Sdihed = 0.d0
+            do i=1,molecule%geom%ndihed
+                k=k+1
+                DSx(k) = S1(k)-S0(k)
+                if (abs(DSx(k)) > abs(DSx(k)-2*PI) ) then
+                    DSx(k) = DSx(k)-2*PI
+                else if (abs(DSx(k)) > abs(DSx(k)+2*PI) ) then
+                    DSx(k) = DSx(k)+2*PI
+                endif
+                DStarget(k) = DStarget(k) - DSx(k)
+                Sdihed = max(Sdihed,dabs(DStarget(k)))
+                Theta3 = Theta3+DStarget(k)**2
+            enddo
+            Theta3 = dsqrt(Theta3/Nat)
+        
+            if (verbose>1) then
+                print'(X,I4,2X,4(ES16.6,X))', iter, rmsd, Theta, Theta2, Theta3
+            endif
+        
+        enddo
+
+        if (iter>=maxiter .and. rmsd>=thr) then
+            print*, "Not converged!"
+            print*, "Iterations = ", iter
+            print'(X,A,ES16.6)', "RMSD(Bohr) = ", rmsd 
+            print'(X,A,F12.6)',  "MaxDev-bond(AA) = ", Sbond * BOHRtoANGS
+            print'(X,A,F12.6)',  "MaxDev-angl(deg)= ", Sangle* 180.d0/PI
+            print'(X,A,F12.6)',  "MaxDev-dihe(deg)= ", Sdihed* 180.d0/PI
+            print*, ""
+            call alert_msg("warning","DeltaS to DeltaX not converged")
+            if (present(converged)) converged=.false.
+        else
+            if (verbose>0) then
+                print*, "Converged!"
+                print*, "Iterations = ", iter
+                print'(X,A,ES16.6)', "RMSD(Bohr) = ", rmsd
+                print'(X,A,F12.6)',  "MaxDev-bond(AA) = ", Sbond * BOHRtoANGS
+                print'(X,A,F12.6)',  "MaxDev-angl(deg)= ", Sangle* 180.d0/PI
+                print'(X,A,F12.6)',  "MaxDev-dihe(deg)= ", Sdihed* 180.d0/PI
+                print*, ""
+            endif
+            if (present(converged)) converged=.true.
+        endif
+
+        !----------------------------------------------
+        ! UNITS MANAGEMENT
+        ! Revert original units
+        call set_geom_units(molecule,adjustl(current_units))
+        !----------------------------------------------
+
+        return
+
+    end subroutine intshif2cart
 
     !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%5
     

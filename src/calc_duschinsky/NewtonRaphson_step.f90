@@ -109,7 +109,7 @@ program NewtonRaphson_step
     !Auxiliar variables
     character(1) :: null
     character(len=16) :: dummy_char
-    real(8) :: Theta, Theta2, Theta3, thr
+    real(8) :: Theta, Theta2, Theta3, Theta4, thr
     ! Messages
     character(len=200) :: msg
     !====================== 
@@ -560,21 +560,56 @@ program NewtonRaphson_step
         call verbose_continue()
         print'(/,X,A)', "Check redundant to non-redundant transformation"
         k=0
+        Theta=0.d0
+        Theta2 = 0.d0
+        Theta3 = 0.d0
+        Theta4 = 1.d10
         print*, "BONDS", allgeom%nbonds
         do i=1,allgeom%nbonds
             k=k+1
             print'(3F10.4)', S2(k), S1(k), S2(k)-S1(k)
+            Theta = (S2(k)-S1(k)) * BOHRtoANGS
+            Theta2 = max(Theta2,abs(Theta))
+            Theta4 = min(Theta4,abs(Theta))
+            Theta3 = Theta3 + Theta**2
         enddo
+        Theta3 = dsqrt(Theta3/allgeom%nbonds)
+        print'(X,5(A,F12.6))',  "(1)MaxDev-bond(AA) = ", Theta2, "   MinDev", Theta4, "   RMSD", Theta3
+        Theta=0.d0
+        Theta2 = 0.d0
+        Theta3 = 0.d0
+        Theta4 = 1.d10
         print*, "ANGLES", allgeom%nangles
         do i=1,allgeom%nangles
             k=k+1
             print'(3F10.3)', S2(k)*180.d0/PI, S1(k)*180.d0/PI, (S2(k)-S1(k))*180.d0/PI
+            Theta = (S2(k)-S1(k)) * 180.d0/PI
+            Theta2 = max(Theta2,abs(Theta))
+            Theta4 = min(Theta4,abs(Theta))
+            Theta3 = Theta3 + Theta**2
         enddo
+        Theta3 = dsqrt(Theta3/allgeom%nangles)
+        print'(X,5(A,F12.6))',  "(1)MaxDev-angl(deg)= ", Theta2, "   MinDev", Theta4, "   RMSD", Theta3
+        Theta=0.d0
+        Theta2 = 0.d0
+        Theta3 = 0.d0
+        Theta4 = 1.d10
         print*, "DIHEDRALS", allgeom%ndihed
         do i=1,allgeom%ndihed
             k=k+1
             print'(3F10.3)', S2(k)*180.d0/PI, S1(k)*180.d0/PI, (S2(k)-S1(k))*180.d0/PI
+            Theta = (S2(k)-S1(k)) * 180.d0/PI
+            if (abs(Theta)>abs(Theta+360.d0)) then
+                Theta = Theta+360.d0
+            else if (abs(Theta)>abs(Theta-360.d0)) then
+                Theta = Theta-360.d0
+            endif
+            Theta2 = max(Theta2,abs(Theta))
+            Theta4 = min(Theta4,abs(Theta))
+            Theta3 = Theta3 + Theta**2
         enddo
+        Theta3 = dsqrt(Theta3/allgeom%ndihed)
+        print'(X,5(A,F12.6))',  "(1)MaxDev-dihe(deg)= ", Theta2, "   MinDev", Theta4, "   RMSD", Theta3
 !     endif
 
 
@@ -590,82 +625,13 @@ program NewtonRaphson_step
     Ginv(1:Ns,1:Ns) = matrix_basisrot(Ns,Nvib,Asel1(1:Ns,1:Nvib),Ginv,counter=.false.)
     ! Rotate back Bmatrix
     B1(1:Ns,1:3*Nat) = matrix_product(Ns,3*Nat,Nvib,Asel1,B1)
-    ! Now get A as Aux
-    do i=1,Ns
-    do j=1,3*Nat
-        jj=(j-1)/3+1
-        Aux(i,j) = B1(i,j) / state2%atom(jj)%mass / AMUtoAU
-    enddo
-    enddo
-    Aux(1:3*Nat,1:Ns) = matrix_product(3*Nat,Ns,Ns,Aux,Ginv,tA=.true.)
+
+    ! From scratch
+    state2%geom = allgeom
+
+    call intshif2cart(state2,Vec)
 
 
-    print'(2/,A)', "Iterative process to get the equilibrium geom"
-
-    ! Initialization
-    thr=1.d0
-    iter=0
-    call verbose_mute()
-    call compute_internal(state2,Ns,S2)
-    call verbose_continue()
-
-    do while (thr>1.d-20 .and. iter<999)
-        S1(1:Ns) = S2(1:Ns)
-        iter = iter+1
-        thr = 0.d0
-        ! And get DeltaX as Vec1
-        do i=1,3*Nat
-            Vec1(i) = 0.d0
-            do k=1,Ns
-                Vec1(i) = Vec1(i) + Aux(i,k) * Vec(k) 
-            enddo
-        enddo
-        do i=1,Nat
-            ii = 3*(i-1)
-            state2%atom(i)%x = state2%atom(i)%x + Vec1(ii+1) 
-            state2%atom(i)%y = state2%atom(i)%y + Vec1(ii+2)
-            state2%atom(i)%z = state2%atom(i)%z + Vec1(ii+3)
-            thr = thr + dsqrt(Vec1(ii+1)**2+Vec1(ii+2)**2+Vec1(ii+3)**2)
-        enddo
-        thr = thr/dsqrt(dfloat(Nat))
-
-        call verbose_mute()
-        call compute_internal(state2,Ns,S2)
-        call verbose_continue()
-        ! DDs = Ds(curv) - Ds(x)
-        Theta = 0.d0
-        k=0
-        do i=1,allgeom%nbonds
-            k=k+1
-            Vec1(k) = S2(k)-S1(k)
-! print*, Vec(k), Vec1(k)
-            Vec(k) = Vec(k) - Vec1(k)
-            Theta = Theta+Vec(k)
-        enddo
-        Theta2 = 0.d0
-        do i=1,allgeom%nangles
-            k=k+1
-            Vec1(k) = S2(k)-S1(k)
-            Vec(k) = Vec(k) - Vec1(k)
-            Theta2 = Theta2+Vec(k)
-        enddo
-        Theta3 = 0.d0
-        do i=1,allgeom%ndihed
-            k=k+1
-            Vec1(k) = S2(k)-S1(k)
-            if (abs(Vec1(k)) > abs(Vec1(k)-2*PI) ) then
-                Vec1(k) = Vec1(k)-2*PI
-            else if (abs(Vec1(k)) > abs(Vec1(k)+2*PI) ) then
-                Vec1(k) = Vec1(k)+2*PI
-            endif
-            Vec(k) = Vec(k) - Vec1(k)
-            Theta3 = Theta3+Vec(k)
-        enddo
-
-        print*, "iter", iter, "thr", thr, " ", Theta, Theta2, Theta3
-
-    enddo
-    print'(2/,A)', ""
 
     call set_geom_units(state2,"Angs")
     open(70,file="minim_harmonic_Inter_it.xyz")
@@ -679,21 +645,56 @@ program NewtonRaphson_step
         call verbose_continue()
         print'(/,X,A)', "Check redundant to non-redundant transformation"
         k=0
+        Theta=0.d0
+        Theta2 = 0.d0
+        Theta3 = 0.d0
+        Theta4 = 1.d10
         print*, "BONDS", allgeom%nbonds
         do i=1,allgeom%nbonds
             k=k+1
             print'(3F10.4)', S2(k), S1(k), S2(k)-S1(k)
+            Theta = (S2(k)-S1(k)) * BOHRtoANGS
+            Theta2 = max(Theta2,abs(Theta))
+            Theta4 = min(Theta4,abs(Theta))
+            Theta3 = Theta3 + Theta**2
         enddo
+        Theta3 = dsqrt(Theta3/allgeom%nbonds)
+        print'(X,5(A,F12.6))',  "(2)MaxDev-bond(AA) = ", Theta2, "   MinDev", Theta4, "   RMSD", Theta3
+        Theta=0.d0
+        Theta2 = 0.d0
+        Theta3 = 0.d0
+        Theta4 = 1.d10
         print*, "ANGLES", allgeom%nangles
         do i=1,allgeom%nangles
             k=k+1
             print'(3F10.3)', S2(k)*180.d0/PI, S1(k)*180.d0/PI, (S2(k)-S1(k))*180.d0/PI
+            Theta = (S2(k)-S1(k)) * 180.d0/PI
+            Theta2 = max(Theta2,abs(Theta))
+            Theta4 = min(Theta4,abs(Theta))
+            Theta3 = Theta3 + Theta**2
         enddo
+        Theta3 = dsqrt(Theta3/allgeom%nangles)
+        print'(X,5(A,F12.6))',  "(2)MaxDev-angl(deg)= ", Theta2, "   MinDev", Theta4, "   RMSD", Theta3
+        Theta=0.d0
+        Theta2 = 0.d0
+        Theta3 = 0.d0
+        Theta4 = 1.d10
         print*, "DIHEDRALS", allgeom%ndihed
         do i=1,allgeom%ndihed
             k=k+1
             print'(3F10.3)', S2(k)*180.d0/PI, S1(k)*180.d0/PI, (S2(k)-S1(k))*180.d0/PI
+            Theta = (S2(k)-S1(k)) * 180.d0/PI
+            if (abs(Theta)>abs(Theta+360.d0)) then
+                Theta = Theta+360.d0
+            else if (abs(Theta)>abs(Theta-360.d0)) then
+                Theta = Theta-360.d0
+            endif
+            Theta2 = max(Theta2,abs(Theta))
+            Theta4 = min(Theta4,abs(Theta))
+            Theta3 = Theta3 + Theta**2
         enddo
+        Theta3 = dsqrt(Theta3/allgeom%ndihed)
+        print'(X,5(A,F12.6))',  "(2)MaxDev-dihe(deg)= ", Theta2, "   MinDev", Theta4, "   RMSD", Theta3
 !     endif
 
 
