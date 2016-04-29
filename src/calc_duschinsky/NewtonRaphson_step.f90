@@ -68,8 +68,8 @@ program NewtonRaphson_step
     !B and G matrices
     real(8),dimension(NDIM,NDIM) :: B1,B2, B, G1,G2, Ginv
     !Other arrays
-    real(8),dimension(1:NDIM) :: Grad, FC, Q0
-    real(8),dimension(1:NDIM,1:NDIM) :: Hess, X1,X1inv,X2,X2inv, L1,L2, Asel1, Asel2, Asel, P
+    real(8),dimension(1:NDIM) :: Grad, FC, Q0, Grad0
+    real(8),dimension(1:NDIM,1:NDIM) :: Hess, X1,X1inv,X2,X2inv, L1,L2, Asel1, Asel2, Asel, P, Hess0, Pc
     real(8),dimension(3,3) :: IM, Xrot1, Xrot2
     real(8),dimension(3)   :: Rtras
     real(8),dimension(1:NDIM,1:NDIM,1:NDIM) :: Bder
@@ -82,7 +82,7 @@ program NewtonRaphson_step
     !Save definitio of the modes in character
     character(len=100),dimension(NDIM) :: ModeDef
     !VECTORS
-    real(8),dimension(NDIM) :: Freq, S1, S2, Vec, Vec2, mu, Factor, Vec1
+    real(8),dimension(NDIM) :: Freq, S1, S2, Vec, Vec2, mu, Factor, Vec1, Vec3
     integer,dimension(NDIM) :: S_sym, bond_sym,angle_sym,dihed_sym
     !Shifts
     real(8),dimension(NDIM) :: Delta
@@ -212,12 +212,14 @@ program NewtonRaphson_step
         Hess(j,i) = Hlt(k)
     enddo 
     enddo
+    Hess0(1:3*Nat,1:3*Nat)=Hess(1:3*Nat,1:3*Nat)
 !     deallocate(Hlt)
 
     ! GRADIENT FILE
     open(I_INP,file=gradfile,status='old',iostat=IOstatus)
     if (IOstatus /= 0) call alert_msg( "fatal","Unable to open "//trim(adjustl(gradfile)) )
     call generic_gradient_reader(I_INP,ftg,Nat,Grad,error)
+    Grad0(1:3*Nat)=Grad(1:3*Nat)
     close(I_INP)
 
     ! MANAGE INTERNAL COORDS
@@ -447,6 +449,9 @@ program NewtonRaphson_step
                 Bder(1:Nvib,j,1:3*Nat) =  matrix_product(Nvib,3*Nat,Ns,Asel1,Bder(1:Ns,j,1:3*Nat),tA=.true.)
             enddo
         endif
+
+    P(1:Ns,1:Ns) = matrix_product(Ns,Ns,Nvib,Asel1,Asel1,tB=.true.)
+    call MAT0(6,P,Ns,Ns,"Prj(1)")
 !     endif
 
     if (apply_projection_matrix) then
@@ -510,9 +515,6 @@ program NewtonRaphson_step
                 Vec(i) = Vec(i) + Asel1(i,k)*Delta(k)
             enddo
         enddo
-!     else
-!         Vec(1:Nvib)=Delta(1:Nvib)
-!     endif
 
     ! Print
     k=0
@@ -548,7 +550,7 @@ program NewtonRaphson_step
 
     !Transform to AA and export coords and put back into BOHR
     call set_geom_units(state1,"Angs")
-    open(70,file="minim_harmonic_Inter.xyz")
+    open(70,file="minim_harmonic_Int_Zmat.xyz")
     call write_xyz(70,state1)
     close(70)
     call set_geom_units(state1,"BOHR")
@@ -628,13 +630,14 @@ program NewtonRaphson_step
 
     ! From scratch
     state2%geom = allgeom
+    state1=state2
 
     call intshif2cart(state2,Vec)
 
 
 
     call set_geom_units(state2,"Angs")
-    open(70,file="minim_harmonic_Inter_it.xyz")
+    open(70,file="minim_harmonic_Int_it.xyz")
     call write_xyz(70,state2)
     close(70)
     call set_geom_units(state2,"BOHR")
@@ -822,6 +825,208 @@ program NewtonRaphson_step
 
     call cpu_time(tf)
     write(6,'(A,F12.3)') "CPU (s) for internal vib analysis: ", tf-ti
+
+
+!********************************************
+        !Transform back to Delta'
+        do i=1,Ns
+            Vec1(i) = 0.d0
+            do k=1,Ns
+                Vec1(i) = Vec1(i) + Asel1(k,i)*Vec(k)
+            enddo
+        enddo
+
+        print*, "Non-zero"
+        do i=1,Nvib
+            print'(3(ES14.6,2X))', Delta(i), Vec1(i), Delta(i)-Vec1(i)
+        enddo
+        print*, "Zero"
+        do i=Nvib+1,Ns
+            print'(3(ES14.6,2X))', Vec1(i)
+        enddo
+
+!----------- From scratch using Ginv as Pulay and Peng -------------
+    Hess(1:3*Nat,1:3*Nat) = Hess0(1:3*Nat,1:3*Nat)
+    Grad(1:3*Nat) = Grad0(1:3*Nat)
+    call internal_Wilson(state1,Ns,S1,B1,ModeDef)
+    call internal_Gmetric(Nat,Ns,state1%atom(:)%mass,B1,G1)
+    if (vertical) then
+        call calc_Bder(state1,Ns,Bder,analytic_Bder)
+    endif
+    print*, "Get Ginv and P and alpha(1-P)"
+    call generalized_inv(Ns,Nvib,G1,Ginv)
+    P(1:Ns,1:Ns) = matrix_product(Ns,Ns,Ns,G1,Ginv)
+!     Aux(1:Ns,1:Ns) = matrix_product(Ns,Ns,Nvib,Asel1,Asel1,tB=.true.)
+!     call MAT0(6,P,Ns,Ns,"P(1)")
+!     call MAT0(6,Aux,Ns,Ns,"P(2)")
+!     call MAT0(6,(Aux-P)*1e5,Ns,Ns,"[P(1)-P(2)] x1e5")
+!     Aux(1:Nvib,1:Nvib) = matrix_product(Nvib,Nvib,Ns,Asel1,Asel1,tA=.true.)
+!     call MAT0(6,Aux,Nvib,Nvib,"A^t A")
+! stop
+
+    Pc(1:Ns,1:Ns) = 0.d0
+    do i=1,Ns
+        Pc(i,i) = 1d0
+    enddo
+    Pc(1:Ns,1:Ns) = Pc(1:Ns,1:Ns)-P(1:Ns,1:Ns)
+    if (vertical) then
+        ! (Hess is already constructed)
+        ! Hs (with the correction)
+        ! First get: Hx' = Hx - gs^t\beta
+        ! 1. Get gs from gx
+        call Gradcart2int_red(Nat,Ns,Grad,state1%atom(:)%mass,B1,G1)
+        do i=1,Ns
+            Vec2(i) = 0.d0
+            do k=1,Ns
+                Vec2(i) = Vec2(i) + P(i,k)*Grad(k)
+            enddo
+        enddo
+!         Vec3(1:Ns) = Grad(1:Ns) 
+
+        ! 2. Multiply gs^t\beta and
+        ! 3. Apply the correction
+        ! Bder(i,j,K)^t * gq(K)
+        do i=1,3*Nat
+        do j=1,3*Nat
+            Aux2(i,j) = 0.d0
+            do k=1,Ns
+                Aux2(i,j) = Aux2(i,j) + Bder(k,i,j)*Grad(k)
+            enddo
+            Hess(i,j) = Hess(i,j) - Aux2(i,j)
+        enddo
+        enddo
+    endif
+    print'(/,X,A)', "Convert Hessian from Cart to Int(red)"
+    call HessianCart2int_red(Nat,Ns,Hess,state1%atom(:)%mass,B1,G1)
+!     Aux(1:Ns,1:Ns) = matrix_product(Ns,Ns,Ns,P,P)
+!     call MAT0(6,P,Ns,Ns,"P")
+!     call MAT0(6,Aux,Ns,Ns,"P^2")
+!     print'(/,X,A)', "Project Hessian"
+!     Aux(1:Ns,1:Ns) = matrix_basisrot(Ns,Ns,P,Hess)
+!     call MAT0(6,Hess*1e5,Ns,Ns,"Hess x1e5")
+!     call MAT0(6,Aux*1e5,Ns,Ns,"PHessP x1e5")
+!     call MAT0(6,(Aux-Hess)*1e5,Ns,Ns,"(PHessP-Hess) x1e5")
+
+
+!     Hess(1:Ns,1:Ns) = Hess(1:Ns,1:Ns) + 1.d3*Pc(1:Ns,1:Ns)
+    print'(/,X,A)', "Inverse projected Hessian"
+    call generalized_inv(Ns,Nvib,Hess,Aux)
+!     Aux(1:Ns,1:Ns) = inverse_realgen(Ns,Hess)
+!     print'(/,X,A)', "Project back inverse Hessian"
+!     Aux(1:Ns,1:Ns) = matrix_basisrot(Ns,Ns,P,Aux)
+! print*, "Nvib", Nvib
+
+
+
+    ! DeltaS0 = -Hs^1 * gs
+    do i=1,Ns
+        Vec2(i)=0.d0
+        do k=1,Ns
+            Vec2(i) = Vec2(i)-Aux(i,k) * Grad(k)
+        enddo 
+    enddo
+
+        do i=1,Ns
+            Vec3(i) = 0.d0
+            do k=1,Ns
+                Vec3(i) = Vec3(i) + Asel1(k,i)*Vec2(k)
+            enddo
+        enddo
+
+        print*, "Non-zero"
+        do i=1,Nvib
+            print'(3(ES14.6,2X))', Delta(i), Vec1(i), Vec3(i)
+        enddo
+        print*, "Zero"
+        do i=Nvib+1,Ns
+            print'(3(ES14.6,2X))', Vec1(i), Vec3(i)
+        enddo
+
+        print*, "Redundant"
+        do i=1,Ns
+            print'(3(ES14.6,2X))', Vec(i), Vec2(i)
+        enddo
+         
+
+!         stop
+
+!     else
+!         Vec(1:Nvib)=Delta(1:Nvib)
+!     endif
+    Vec(1:Ns) = Vec2(1:Ns)
+
+    ! From scratch
+    state1%geom = allgeom
+
+    call intshif2cart(state1,Vec,maxiter_set=100)
+
+
+
+    call set_geom_units(state1,"Angs")
+    open(70,file="minim_harmonic_Int_it2.xyz")
+    call write_xyz(70,state1)
+    close(70)
+    call set_geom_units(state1,"BOHR")
+!     if (Ns /= Nvib) then
+        state1%geom = allgeom
+        call verbose_mute()
+        call compute_internal(state1,Ns,S1,ModeDef)
+        call verbose_continue()
+        print'(/,X,A)', "Check redundant to non-redundant transformation"
+        k=0
+        Theta=0.d0
+        Theta2 = 0.d0
+        Theta3 = 0.d0
+        Theta4 = 1.d10
+        print*, "BONDS", allgeom%nbonds
+        do i=1,allgeom%nbonds
+            k=k+1
+            print'(3F10.4)', S2(k), S1(k), S2(k)-S1(k)
+            Theta = (S2(k)-S1(k)) * BOHRtoANGS
+            Theta2 = max(Theta2,abs(Theta))
+            Theta4 = min(Theta4,abs(Theta))
+            Theta3 = Theta3 + Theta**2
+        enddo
+        Theta3 = dsqrt(Theta3/allgeom%nbonds)
+        print'(X,5(A,F12.6))',  "(3)MaxDev-bond(AA) = ", Theta2, "   MinDev", Theta4, "   RMSD", Theta3
+        Theta=0.d0
+        Theta2 = 0.d0
+        Theta3 = 0.d0
+        Theta4 = 1.d10
+        print*, "ANGLES", allgeom%nangles
+        do i=1,allgeom%nangles
+            k=k+1
+            print'(3F10.3)', S2(k)*180.d0/PI, S1(k)*180.d0/PI, (S2(k)-S1(k))*180.d0/PI
+            Theta = (S2(k)-S1(k)) * 180.d0/PI
+            Theta2 = max(Theta2,abs(Theta))
+            Theta4 = min(Theta4,abs(Theta))
+            Theta3 = Theta3 + Theta**2
+        enddo
+        Theta3 = dsqrt(Theta3/allgeom%nangles)
+        print'(X,5(A,F12.6))',  "(3)MaxDev-angl(deg)= ", Theta2, "   MinDev", Theta4, "   RMSD", Theta3
+        Theta=0.d0
+        Theta2 = 0.d0
+        Theta3 = 0.d0
+        Theta4 = 1.d10
+        print*, "DIHEDRALS", allgeom%ndihed
+        do i=1,allgeom%ndihed
+            k=k+1
+!             print'(3F10.3)', S2(k)*180.d0/PI, S1(k)*180.d0/PI, (S2(k)-S1(k))*180.d0/PI
+            Theta = (S2(k)-S1(k)) * 180.d0/PI
+            if (abs(Theta)>abs(Theta+360.d0)) then
+                Theta = Theta+360.d0
+            else if (abs(Theta)>abs(Theta-360.d0)) then
+                Theta = Theta-360.d0
+            endif
+            Theta2 = max(Theta2,abs(Theta))
+            Theta4 = min(Theta4,abs(Theta))
+            Theta3 = Theta3 + Theta**2
+            print'(A,3F10.3)', ModeDef(k), S2(k)*180.d0/PI, S1(k)*180.d0/PI, Theta
+        enddo
+        Theta3 = dsqrt(Theta3/allgeom%ndihed)
+        print'(X,5(A,F12.6))',  "(3)MaxDev-dihe(deg)= ", Theta2, "   MinDev", Theta4, "   RMSD", Theta3
+
+!********************************************
 
     stop
 

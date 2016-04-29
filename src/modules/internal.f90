@@ -1436,11 +1436,11 @@ module internal_module
     end subroutine redundant2nonredundant
 
 
-    subroutine generalized_inv(Nred,Nvib,G,Ginv)
+    subroutine generalized_inv(Nred,Nnonred,G,Ginv)
     
         !IF WE USE ALL BONDED PARAMETERS,WE HAVE REDUNDANCY. WE SELECT A NON-REDUNDANT                                                                  
         !COMBINATION FROM THE NON-ZERO EIGENVALUES OF G (Reimers 2001, JCP) 
-        ! *** Not working!! ***
+        ! *** Needs more checks ***
         ! Alternative: use redundant2nonredundant + matrix rotations  
 
 
@@ -1452,22 +1452,22 @@ module internal_module
         integer,parameter :: NDIM = 600
         real(8),parameter :: ZEROp=1.d-10
 
-        integer,intent(inout) :: Nred, Nvib
+        integer,intent(inout) :: Nred
+        integer,intent(out)   :: Nnonred
         real(8),dimension(NDIM,NDIM),intent(in) :: G
         real(8),dimension(NDIM,NDIM),intent(out):: Ginv
 
         ! Local
-        real(8),dimension(NDIM,NDIM) :: Aux
-        real(8),dimension(NDIM)      :: Vec, Vec2
+        real(8),dimension(NDIM,NDIM) :: Aux, Aux2
+        real(8),dimension(NDIM)      :: Vec, Vec2, Vec3
         integer :: i, k,kk,kkk
+
+        if (verbose>0) then
+           print'(/,X,A,/)', "Generalized Inverse subroutine"
+        endif
 
         !Get a non-redundant set from the non-zero eigenvalues of G
         call diagonalize_full(G(1:Nred,1:Nred),Nred,Aux(1:Nred,1:Nred),Vec(1:Nred),"lapack")
-
-        if (verbose>2) &
-         call MAT0(6,Aux,Nred,Nred,"A MATRIX (before reordering)")
-        if (verbose>1) &
-         call print_vector(6,Vec,Nred,"A MATRIX Eigenvalues (before reordering)")
  
         ! Inverse the non-zero eigenvalues
         kk=0 
@@ -1482,35 +1482,37 @@ module internal_module
                 Vec2(k)        = 0.d0
             endif
         enddo
-
-        if (Nred /= Nvib+kkk) then
-            if (verbose>0) then
-                call sort_vec(Vec,Nred)
-                call print_vector(6,Vec*1e5,Nred,"A MATRIX Eigenvalues (x10^5)")
-                print*, "Zero eigenvalues: ", kkk 
-                print*, "Expected: ", Nred-Nvib
+        Nnonred = kk
+        kk=0 
+        kkk=0
+        do k=1,Nred
+            if (dabs(Vec(k)) > ZEROp) then
+                kk=kk+1
+                Vec3(kk)          = Vec(k)
+            else
+                !Redudant eigenvectors
+                kkk=kkk+1
+                Vec3(Nnonred+kkk) = Vec(k)
             endif
-            if (kkk > Nred-Nvib) then
-                if (verbose>0) then
-                    print*, "Internal-space dimension is reduced"
-                    print*, " Initial:", Nvib
-                    print*, " Reduced:", Nred-kkk
-                endif
-                call alert_msg("note","Redundant to non-redundant trasformation"//&
-                                     " resulted in a reduced space")
-                Nvib=Nred-kkk
-            else 
-                call alert_msg("note","Redundant to non-redundant trasformation failed")
-                Nvib=Nred-kkk
-            endif
+        enddo
+        
+        if (verbose>2) then
+            call MAT0(6,Aux,Nred,Nred,"A MATRIX")
+            call print_vector(6,Vec,Nred,"A MATRIX Eigenvalues")
         endif
-
-        Ginv(1:Nred,1:Nred) = diag_basisrot(Nred,Nred,Aux,Vec2,counter=.false.)
-
         if (verbose>1) then
-            call print_vector(6,Vec2(Nvib+1:Nred)*1.d15,Nred-Nvib,"A MATRIX Zero-Eigenvalues (x10^15)")
-            call print_vector(6,Vec2(1:Nvib)*1.d5,Nvib,"A MATRIX NonZero-Eigenvalues (x10^5)")
+            call print_vector(6,Vec3(Nnonred+1:Nred)*1e15,Nred-Nnonred,"Zero-eigenvalues(x1e15)")
+            call print_vector(6,Vec3(1:Nnonred)*1e5,Nnonred,"NonZero-eigenvalues(x1e5)")
         endif
+
+        if (verbose>0) then
+            print*, "Original row-dimension: ", Nred
+            print*, "Non-zero eigenvalues  : ", Nnonred
+        endif 
+
+        ! The diag inverse is stored (as vector of the diagonal elements) in Vec2
+        ! Now rotate back to the original frame
+        Ginv(1:Nred,1:Nred) = diag_basisrot(Nred,Nred,Aux,Vec2,counter=.false.)
 
         return
 
@@ -1621,6 +1623,116 @@ module internal_module
     end subroutine HessianCart2int
 
 
+    subroutine HessianCart2int_red(Nat,Ns,Hess,Mass,B,G,method)
+
+        !==============================================================
+        ! This code is part of MOLECULAR_TOOLS 
+        !==============================================================
+        ! Description
+        !  HESSIAN IN INTERNAL COORDINATES (JCC, 17, 49-56, by Frisch et al)
+        !    Hint = G^- Bu(Hx+B'^Tg_q)u^TB^T G^-
+        !   g_q is the gradient, so g_q=0 in a minimum
+        !   G^- is the generalized inverse (for redundant internal) or simply the
+        !   inverse for nonredundant
+        !
+        ! Arguments
+        !  Nat    Int /Scalar    Number of atoms
+        !  Ns     Int /Scalar    Number of internal coordianates
+        !  Hess   Real/Matrix    Hessian in Cartesian (corrected or not)
+        !  Mass   Real/Vector    Mass vector (Nat)
+        !  B      Real/Matrix    B matrix
+        !  G      Real/Matrix    Metric matrix
+        !
+        ! _red for redundant
+        !------------------------------------------------------------------
+
+        use structure_types
+        use line_preprocess
+        use alerts
+        use constants
+        use atomic_geom
+        use matrix
+        use verbosity
+    
+        implicit none
+    
+        integer,parameter :: NDIM = 600
+    
+        !====================== 
+        !ARGUMENTS
+        integer,intent(in)                          :: Nat    ! Number of atoms (in)
+        integer,intent(in)                          :: Ns     ! Number of internal coordinates (in)
+        real(8),dimension(1:NDIM),intent(in)        :: Mass   ! Wilson matrices (in)
+        real(8),dimension(1:NDIM,1:NDIM),intent(in) :: G,B    ! Wilson matrices (in)
+        real(8),dimension(1:NDIM,1:NDIM),intent(inout) :: Hess   !Hessian: cart(in)-intern(out)
+        character(len=*),intent(in),optional        :: method
+        !====================== 
+    
+        !====================== 
+        !LOCAL
+        integer                             :: Nvib
+        character(len=5)                    :: method_local
+        !Internal analysis 
+        real(8),dimension(1:NDIM,1:NDIM)    :: Ginv
+        !Auxiliar arrays
+        real(8),dimension(1:NDIM,1:NDIM)    :: AuxT,Aux
+        real(8),dimension(NDIM)             :: Vec
+        !Counters
+        integer :: i,j,k, ii, NN
+        !====================== 
+
+        if (present(method)) then
+            method_local = adjustl(method)
+            call set_word_upper_case(method_local)
+        else
+            method_local="MASS"
+        endif
+    
+        ! If Ns > Nvib, then we need to extract the non-zero eigen values 
+        ! from G in order to compute the generalized G inverse
+        ! (TBD) 
+        ! 
+!         Nvib = Ns
+
+        !Two choice with u=M^-1 or u=I
+        if (adjustl(method_local) == "MASS") then
+            !Inverse of G
+!             Ginv(1:Ns,1:Ns) = inverse_realsym(Ns,G)
+            NN=Ns
+            call generalized_inv(NN,Nvib,G,Ginv)
+            !Compute G^-1Bu  (where u is the inverse mass matrix)
+            Aux(1:Ns,1:3*Nat) = matrix_product(Ns,3*Nat,Ns,Ginv,B)
+            do i=1,3*Nat
+                ii = (i-1)/3+1
+                Aux(1:Ns,i) = Aux(1:Ns,i)/Mass(ii)/UMAtoAU
+            enddo           
+        else
+            !Inverse of (BB^t)
+            Ginv(1:Ns,1:Ns) = matrix_product(Ns,Ns,3*Nat,B,B,tB=.true.)
+!             Ginv(1:Ns,1:Ns) = inverse_realsym(Ns,Ginv)
+            NN=Ns
+            call generalized_inv(NN,Nvib,Ginv,Ginv)
+            !Compute G^-1Bu  (where u is the inverse mass matrix)
+            Aux(1:Ns,1:3*Nat) = matrix_product(Ns,3*Nat,Ns,Ginv,B)
+        endif
+
+        
+        ! Hint = Aux ([~Hx]) Aux^T (this is "matrix_basisrot")
+        Hess(1:Ns,1:3*Nat) = matrix_product(Ns,3*Nat,3*Nat,Aux,Hess)
+        Hess(1:Ns,1:Ns)    = matrix_product(Ns,3*Nat,3*Nat,Hess,Aux,tB=.true.)
+    
+        if (verbose>1) then
+            Vec(1:Ns) = (/(Hess(i,i), i=1,Ns)/)
+            call print_vector(6,Vec,Ns,"F MATRIX (diagonal)")
+        endif
+        if (verbose>2) &
+         call MAT0(6,Hess,Ns,Ns,"F MATRIX")
+
+        return
+
+    end subroutine HessianCart2int_red
+
+
     subroutine Gradcart2int(Nat,Ns,Grad,Mass,B,G,method)
 
         !==============================================================
@@ -1699,7 +1811,7 @@ module internal_module
         endif
 
         ! Get the gradient in internal coords: gq = G^-1Bu(gx)
-        do i=1,Nvib
+        do i=1,Ns
             Vec(i) = 0.d0
             do j=1,3*Nat
                 Vec(i) = Vec(i) + Aux(i,j) * Grad(j)
@@ -1707,11 +1819,103 @@ module internal_module
         enddo
         ! Update the gradient on output
         Grad(1:3*Nat) = 0.d0
-        Grad(1:Nvib) = Vec(1:Nvib)
+        Grad(1:Ns) = Vec(1:Ns)
 
         return
 
     end subroutine Gradcart2int
+
+    subroutine Gradcart2int_red(Nat,Ns,Grad,Mass,B,G,method)
+
+        !==============================================================
+        ! This code is part of MOLECULAR_TOOLS 
+        !==============================================================
+        ! Description
+        ! Convert the Gradient from cartesian to internal 
+        ! useful when the Gradient is not used in HessianCart2int
+        ! (if used there, it is converted there!)
+        !
+        ! _red for redundant
+        !------------------------------------------------------------------
+
+        use structure_types
+        use line_preprocess
+        use alerts
+        use constants
+        use atomic_geom
+        use matrix
+        use verbosity
+    
+        implicit none
+    
+        integer,parameter :: NDIM = 600
+    
+        !====================== 
+        !ARGUMENTS
+        integer,intent(in)                          :: Nat    ! Number of atoms (in)
+        integer,intent(in)                          :: Ns     ! Number of internal coordinates (in)
+        real(8),dimension(1:NDIM),intent(in)        :: Mass   ! Wilson matrices (in)
+        real(8),dimension(1:NDIM,1:NDIM),intent(in) :: G,B    ! Wilson matrices (in)
+        real(8),dimension(1:NDIM),intent(inout)     :: Grad   ! Gradient 
+        character(len=*),intent(in),optional        :: method
+        !====================== 
+    
+        !====================== 
+        !LOCAL
+        integer                             :: Nvib
+        character(len=5)                    :: method_local
+        !Internal analysis 
+        real(8),dimension(1:NDIM,1:NDIM)    :: Ginv
+        !Auxiliar arrays
+        real(8),dimension(1:NDIM,1:NDIM)    :: Aux
+        real(8),dimension(NDIM)             :: Vec
+        !Counters
+        integer :: i,j,k, ii, NN
+        !====================== 
+
+        if (present(method)) then
+            method_local = adjustl(method)
+            call set_word_upper_case(method_local)
+        else
+            method_local="MASS"
+        endif
+
+        !Two choice with u=M^-1 or u=I
+        if (adjustl(method_local) == "MASS") then
+            !Inverse of G
+!             Ginv(1:Ns,1:Ns) = inverse_realsym(Ns,G)
+            NN=Ns
+            call generalized_inv(NN,Nvib,G,Ginv)
+            !Compute G^-1Bu  (where u is the inverse mass matrix)
+            Aux(1:Ns,1:3*Nat) = matrix_product(Ns,3*Nat,Ns,Ginv,B)
+            do i=1,3*Nat
+                ii = (i-1)/3+1
+                Aux(1:Ns,i) = Aux(1:Ns,i)/Mass(ii)/UMAtoAU
+            enddo           
+        else
+            !Inverse of (BB^t)
+            Ginv(1:Ns,1:Ns) = matrix_product(Ns,Ns,3*Nat,B,B,tB=.true.)
+!             Ginv(1:Ns,1:Ns) = inverse_realsym(Ns,Ginv)
+            NN=Ns
+            call generalized_inv(NN,Nvib,Ginv,Ginv)
+            !Compute G^-1Bu  (where u is the inverse mass matrix)
+            Aux(1:Ns,1:3*Nat) = matrix_product(Ns,3*Nat,Ns,Ginv,B)
+        endif
+
+        ! Get the gradient in internal coords: gq = G^-1Bu(gx)
+        do i=1,Ns
+            Vec(i) = 0.d0
+            do j=1,3*Nat
+                Vec(i) = Vec(i) + Aux(i,j) * Grad(j)
+            enddo
+        enddo
+        ! Update the gradient on output
+        Grad(1:3*Nat) = 0.d0
+        Grad(1:Ns) = Vec(1:Ns)
+
+        return
+
+    end subroutine Gradcart2int_red
 
     
     subroutine gf_method(Nvib,G,Hess,L,Freq,X,Xinv)
@@ -2346,15 +2550,16 @@ module internal_module
 
         type(str_resmol),intent(inout)    :: molecule
         real(8),dimension(:),intent(in)   :: DeltaS
-        real(8),intent(in),optional       :: thr_set, maxiter_set
+        real(8),intent(in),optional       :: thr_set
+        integer,intent(in),optional       :: maxiter_set
         logical,intent(out),optional      :: converged
 
         ! Local
         real(8),dimension(NDIM,NDIM) :: A, B, G, Ginv
-        real(8),dimension(NDIM) :: S0, S1, DSx, DStarget, DX
-        real(8)                 :: Theta, Theta2, Theta3, thr, maxiter, rmsd, Sbond,Sangle,Sdihed
+        real(8),dimension(NDIM) :: S0, S1, DSx, DStarget, DX, Snull
+        real(8)                 :: Theta, Theta2, Theta3, thr, rmsd,rmsd0, Sbond,Sangle,Sdihed
         integer                 :: Nat, Ns, Nvib
-        integer                 :: i,j,k, ii,jj,kk, iter
+        integer                 :: i,j,k, ii,jj,kk, iter, maxiter
 
         !----------------------------------------------
         ! UNITS MANAGEMENT
@@ -2374,22 +2579,6 @@ module internal_module
               molecule%geom%nangles+&
               molecule%geom%ndihed
         Nat = molecule%natoms
-
-        ! Build B and G (silently)
-        call verbose_mute()
-        call internal_Wilson(molecule,Ns,S1,B)
-        call internal_Gmetric(Nat,Ns,molecule%atom(:)%mass,B,G)
-        call generalized_inv(Ns,Nvib,G,Ginv)
-        call verbose_continue()
-
-        ! A = M^-1 B^t G^-
-        do i=1,Ns
-        do j=1,3*Nat
-            jj=(j-1)/3+1
-            A(i,j) = B(i,j) / molecule%atom(jj)%mass / AMUtoAU
-        enddo
-        enddo
-        A(1:3*Nat,1:Ns) = matrix_product(3*Nat,Ns,Ns,A,Ginv,tA=.true.)
       
         if (verbose>0) then  
             print'(/,A)', "================================================="
@@ -2399,6 +2588,25 @@ module internal_module
         if (verbose>1) then
             print'(/,A)', " Iter     RMSD-str(Bohr)   RMSD-bond(Bohr)  RMSD-angl(rad)   RMSD-dihed(rad)"
         endif
+
+        !------------------------------------------------------------
+        ! ** Update transformation matrix ** 
+        ! Build B and G (silently)
+        call verbose_mute()
+        call internal_Wilson(molecule,Ns,S1,B)
+        call internal_Gmetric(Nat,Ns,molecule%atom(:)%mass,B,G)
+        call generalized_inv(Ns,Nvib,G,Ginv)
+        call verbose_continue()
+        
+        ! A = M^-1 B^t G^-
+        do i=1,Ns
+        do j=1,3*Nat
+            jj=(j-1)/3+1
+            A(i,j) = B(i,j) / molecule%atom(jj)%mass / AMUtoAU
+        enddo
+        enddo
+        A(1:3*Nat,1:Ns) = matrix_product(3*Nat,Ns,Ns,A,Ginv,tA=.true.)
+        !------------------------------------------------------------
         
         ! Initialization
         iter=0
@@ -2409,25 +2617,46 @@ module internal_module
             S0(1:Ns) = S1(1:Ns)
             iter = iter+1
             rmsd = 0.d0
+
             ! And get DeltaX as DX
             do i=1,3*Nat
                 DX(i) = 0.d0
                 do k=1,Ns
                     DX(i) = DX(i) + A(i,k) * DStarget(k) 
                 enddo
+                rmsd = rmsd + DX(i)**2
             enddo
+            rmsd = dsqrt(rmsd/dfloat(Nat))
+            if (iter==1) rmsd0=rmsd 
+            if (rmsd>rmsd0) then
+                exit
+            endif
             do i=1,Nat
                 ii = 3*(i-1)
                 molecule%atom(i)%x = molecule%atom(i)%x + DX(ii+1) 
                 molecule%atom(i)%y = molecule%atom(i)%y + DX(ii+2)
                 molecule%atom(i)%z = molecule%atom(i)%z + DX(ii+3)
-                rmsd = rmsd + DX(ii+1)**2+DX(ii+2)**2+DX(ii+3)**2
             enddo
-            rmsd = dsqrt(rmsd/dfloat(Nat))
         
+            !------------------------------------------------------------
+            ! ** Update transformation matrix ** 
+            ! Build B and G (silently)
             call verbose_mute()
-            call compute_internal(molecule,Ns,S1)
+            call internal_Wilson(molecule,Ns,S1,B)
+            call internal_Gmetric(Nat,Ns,molecule%atom(:)%mass,B,G)
+            call generalized_inv(Ns,Nvib,G,Ginv)
             call verbose_continue()
+            
+            ! A = M^-1 B^t G^-
+            do i=1,Ns
+            do j=1,3*Nat
+                jj=(j-1)/3+1
+                A(i,j) = B(i,j) / molecule%atom(jj)%mass / AMUtoAU
+            enddo
+            enddo
+            A(1:3*Nat,1:Ns) = matrix_product(3*Nat,Ns,Ns,A,Ginv,tA=.true.)
+            !------------------------------------------------------------
+
             ! DDs = Ds(curv) - Ds(x)
             Theta = 0.d0
             Sbond = 0.d0
@@ -2482,6 +2711,24 @@ module internal_module
             print*, ""
             call alert_msg("warning","DeltaS to DeltaX not converged")
             if (present(converged)) converged=.false.
+        elseif (rmsd0<rmsd .and. iter==2) then
+            print*, "Diverged!"
+            print*, "Iterations = ", iter
+            print'(X,A,ES16.6)', "RMSD(Bohr) = ", rmsd 
+            print'(X,A,F12.6)',  "MaxDev-bond(AA) = ", Sbond * BOHRtoANGS
+            print'(X,A,F12.6)',  "MaxDev-angl(deg)= ", Sangle* 180.d0/PI
+            print'(X,A,F12.6)',  "MaxDev-dihe(deg)= ", Sdihed* 180.d0/PI
+            print*, ""
+            call alert_msg("warning","DeltaS to DeltaX diverged. Iter 1 taken")
+        elseif (rmsd0<rmsd) then
+            print*, "Diverged!"
+            print*, "Iterations = ", iter
+            print'(X,A,ES16.6)', "RMSD(Bohr) = ", rmsd 
+            print'(X,A,F12.6)',  "MaxDev-bond(AA) = ", Sbond * BOHRtoANGS
+            print'(X,A,F12.6)',  "MaxDev-angl(deg)= ", Sangle* 180.d0/PI
+            print'(X,A,F12.6)',  "MaxDev-dihe(deg)= ", Sdihed* 180.d0/PI
+            print*, ""
+            call alert_msg("fatal","DeltaS to DeltaX diverged. Iter 1 taken")
         else
             if (verbose>0) then
                 print*, "Converged!"
