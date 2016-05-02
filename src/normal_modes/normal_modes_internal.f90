@@ -631,7 +631,7 @@ program normal_modes_animation
                 endif
             endif
             ! Get Hessian in internal
-            call HessianCart2int(Nat,Nvib_all,Hess_all,molecule%atom(:)%mass,B,G,method="I")
+            call HessianCart2int(Nat,Nvib_all,Hess_all,molecule%atom(:)%mass,B,G)
             ! Di vibrational analysis
             call gf_method(Nvib_all,G,Hess_all,LL_all,Freq_all,X,Xinv)
 
@@ -673,7 +673,7 @@ program normal_modes_animation
             endif
 
             ! Get Hessian in initernal coordinates
-            call HessianCart2int(Nat,Nvib,Hess,molecule%atom(:)%mass,B,G,method="I")
+            call HessianCart2int(Nat,Nvib,Hess,molecule%atom(:)%mass,B,G)
             ! Perform vibrational analysis (GF)
             call gf_method(Nvib,G,Hess,LL,Freq,X,Xinv)
             if (verbose>1) then
