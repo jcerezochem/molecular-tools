@@ -16,13 +16,16 @@ module verbosity
 
     integer, save :: verbose = 1
     integer, save :: verbose_current
+    integer, save :: verbose_mute_depth = 0
 
     contains
 
     subroutine verbose_mute()
 
-        verbose_current = verbose
+        if (verbose>1) return
+        if (verbose_mute_depth==0) verbose_current = verbose
         verbose=0
+        verbose_mute_depth = verbose_mute_depth + 1
 
          return
 
@@ -30,9 +33,11 @@ module verbosity
 
     subroutine verbose_continue()
 
-         verbose = verbose_current
+        if (verbose>1) return
+        verbose_mute_depth = verbose_mute_depth - 1
+        if (verbose_mute_depth==0) verbose = verbose_current
 
-         return
+        return
 
     end subroutine verbose_continue
 
