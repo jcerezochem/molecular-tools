@@ -2537,6 +2537,7 @@ module internal_module
         !
         ! Notes
         ! -----
+        ! * DeltaS need to be in AU/RAD
         ! * The basic input can replace zmat2cart. Additional options can be
         !   used to tune the behaviour
         ! * IMPORTANT: the molecule%geom must be consistent with DeltaS
@@ -2728,7 +2729,7 @@ module internal_module
             print'(X,A,F12.6)',  "MaxDev-angl(deg)= ", Sangle* 180.d0/PI
             print'(X,A,F12.6)',  "MaxDev-dihe(deg)= ", Sdihed* 180.d0/PI
             print*, ""
-            call alert_msg("fatal","DeltaS to DeltaX diverged. Iter 1 taken")
+            call alert_msg("fatal","DeltaS to DeltaX diverged after second iter")
         else
             if (verbose>0) then
                 print*, "Converged!"

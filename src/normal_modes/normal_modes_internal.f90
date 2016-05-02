@@ -128,12 +128,13 @@ program normal_modes_animation
     !Save definitio of the modes in character
     character(len=100),dimension(NDIM) :: ModeDef
     !VECTORS
-    real(8),dimension(NDIM) :: S, Sref, Szmat, Sall
+    real(8),dimension(NDIM) :: S, Sref, Szmat, Sall, DeltaS
     integer,dimension(NDIM) :: S_sym
     ! Switches
     character(len=4) :: def_internal="ALL",  & ! To do the vibrational analysis
                         def_internal0='defa',& ! defa(ult) is "the same as working set"
-                        def_internal_aux
+                        def_internal_aux,    &
+                        conversion_i2c="ZMAT"
     character(len=2) :: scan_type="NM"
     !Coordinate map
     integer,dimension(NDIM) :: Zmap, IntMap
@@ -204,7 +205,7 @@ program normal_modes_animation
                      ! Options (general)
                      Amplitude,call_vmd,include_hbonds,selection,vertical, &
                      ! Movie
-                     animate,movie_vmd, movie_cycles,                      &
+                     animate,movie_vmd, movie_cycles,conversion_i2c,       &
                      ! Options (internal)
                      use_symmetry,def_internal,def_internal0,intfile,intfile0,&
                      apply_projection_matrix,                              &
@@ -217,6 +218,7 @@ program normal_modes_animation
                      ! (hidden)
                      analytic_Bder)
     call set_word_upper_case(def_internal)
+    call set_word_upper_case(conversion_i2c)
 
 
     ! INTERNAL VIBRATIONAL ANALYSIS
@@ -795,16 +797,19 @@ program normal_modes_animation
         ndihed = molecule%geom%ndihed
         ! Initialization
         Sref = S
+        DeltaS = S
         ! To ensure that we always have the same orientation, we stablish the reference here
         ! this can be used to use the input structure as reference (this might need also a 
         ! traslation if not at COM -> not necesary, the L matrices are not dependent on the 
         ! COM position, only on the orientation)
-        if (Ns_zmat /= 0 .and. scan_type == "NM") then
-            ! From now on, we use the zmatgeom 
-            molecule%geom = zmatgeom
-            S(1:Ns_zmat) = map_Zmatrix(Ns_zmat,S,Zmap,Szmat)
+        if (conversion_i2c=="ZMAT") then
+            if (Ns_zmat /= 0 .and. scan_type == "NM") then
+                ! From now on, we use the zmatgeom 
+                molecule%geom = zmatgeom
+                S(1:Ns_zmat) = map_Zmatrix(Ns_zmat,S,Zmap,Szmat)
+            endif
+            call zmat2cart(molecule,S)
         endif
-        call zmat2cart(molecule,S)
         ! Save state as reference frame for RMSD fit (in AA)
         molec_aux=molecule
         ! Default steps (to be set by the user..)
@@ -884,16 +889,48 @@ program normal_modes_animation
             S=Sref
             call displace_Scoord(LL(:,j),nbonds,nangles,ndihed,Qstep/Factor(j)*i,S)
             ! Get Cart coordinates
-            if (Ns /= Ns_zmat .and. scan_type == "NM") then
-                S(1:Ns_zmat) = map_Zmatrix(Ns_zmat,S,Zmap,Szmat)
+            if (conversion_i2c=="ZMAT") then
+                if (Ns /= Ns_zmat .and. scan_type == "NM") then
+                    S(1:Ns_zmat) = map_Zmatrix(Ns_zmat,S,Zmap,Szmat)
+                endif
+                call zmat2cart(molecule,S)
+                !call rmsd_fit_frame(state,ref): efficient but not always works. If so, it uses rmsd_fit_frame_brute(state,ref)
+                call rmsd_fit_frame(molecule,molec_aux,info)
+                if (info /= 0) then
+                    print'(X,A,I0)', "RMSD fit failed at Step: ", k
+                    call rmsd_fit_frame_brute(molecule,molec_aux,dist)
+                endif
+            else 
+                l=0
+                do i=1,nbonds
+                    l=l+1
+                    DeltaS(l) = S(l) - DeltaS(l)
+                enddo
+                do i=1,nangles
+                    l=l+1
+                    DeltaS(l) = S(l)-DeltaS(l)
+                    if (abs(DeltaS(l)) > abs(DeltaS(l)-2*PI) ) then
+                        DeltaS(l) = DeltaS(l)-2*PI
+                    else if (abs(DeltaS(l)) > abs(DeltaS(l)+2*PI) ) then
+                        DeltaS(l) = DeltaS(l)+2*PI
+                    endif
+                enddo
+                do i=1,ndihed
+                    l=l+1
+                    DeltaS(l) = S(l)-DeltaS(l)
+                    if (abs(DeltaS(l)) > abs(DeltaS(l)-2*PI) ) then
+                        DeltaS(l) = DeltaS(l)-2*PI
+                    else if (abs(DeltaS(l)) > abs(DeltaS(l)+2*PI) ) then
+                        DeltaS(l) = DeltaS(l)+2*PI
+                    endif
+                enddo
+                call verbose_mute()
+                call intshif2cart(molecule,DeltaS,thr_set=1d-5)
+                ! Compute current ICs for the next step 
+                call compute_internal(molecule,Ns,DeltaS)
+                call verbose_continue()
             endif
-            call zmat2cart(molecule,S)
-            !call rmsd_fit_frame(state,ref): efficient but not always works. If so, it uses rmsd_fit_frame_brute(state,ref)
-            call rmsd_fit_frame(molecule,molec_aux,info)
-            if (info /= 0) then
-                print'(X,A,I0)', "RMSD fit failed at Step: ", k
-                call rmsd_fit_frame_brute(molecule,molec_aux,dist)
-            endif
+
             ! PRINT
             !Transform to AA and comparae with last step (stored in state)  -- this should be detected and fix by the subroutines
             call set_geom_units(molecule,"Angs")
@@ -923,20 +960,53 @@ program normal_modes_animation
             i=(nsteps-1)/2-istep
             S=Sref
             call displace_Scoord(LL(:,j),nbonds,nangles,ndihed,Qstep/Factor(j)*i,S)
-            ! Get Cart coordinates
-            if (Ns /= Ns_zmat .and. scan_type == "NM") then
-                S(1:Ns_zmat) = map_Zmatrix(Ns_zmat,S,Zmap,Szmat)
+            if (conversion_i2c=="ZMAT") then
+                ! Get Cart coordinates
+                if (Ns /= Ns_zmat .and. scan_type == "NM") then
+                    S(1:Ns_zmat) = map_Zmatrix(Ns_zmat,S,Zmap,Szmat)
+                endif
+                call zmat2cart(molecule,S)
+                !Transform to AA and comparae with last step (stored in state) -- comparison in AA
+                call set_geom_units(molecule,"Angs")
+                !call rmsd_fit_frame(state,ref): efficient but not always works. If so, it uses rmsd_fit_frame_brute(state,ref)
+                call rmsd_fit_frame(molecule,molec_aux,info)
+                if (info /= 0) then
+                    print'(X,A,I0)', "RMSD fit failed at Step: ", k
+                    call rmsd_fit_frame_brute(molecule,molec_aux,dist)
+                endif
+            else 
+                l=0
+                do i=1,nbonds
+                    l=l+1
+                    DeltaS(l) = S(l) - DeltaS(l)
+                enddo
+                do i=1,nangles
+                    l=l+1
+                    DeltaS(l) = S(l)-DeltaS(l)
+                    if (abs(DeltaS(l)) > abs(DeltaS(l)-2*PI) ) then
+                        DeltaS(l) = DeltaS(l)-2*PI
+                    else if (abs(DeltaS(l)) > abs(DeltaS(l)+2*PI) ) then
+                        DeltaS(l) = DeltaS(l)+2*PI
+                    endif
+                enddo
+                do i=1,ndihed
+                    l=l+1
+                    DeltaS(l) = S(l)-DeltaS(l)
+                    if (abs(DeltaS(l)) > abs(DeltaS(l)-2*PI) ) then
+                        DeltaS(l) = DeltaS(l)-2*PI
+                    else if (abs(DeltaS(l)) > abs(DeltaS(l)+2*PI) ) then
+                        DeltaS(l) = DeltaS(l)+2*PI
+                    endif
+                enddo
+                call verbose_mute()
+                call intshif2cart(molecule,DeltaS,thr_set=1d-5)
+                ! Compute current ICs for the next step 
+                call compute_internal(molecule,Ns,DeltaS)
+                call verbose_continue()
             endif
-            call zmat2cart(molecule,S)
-            !Transform to AA and comparae with last step (stored in state) -- comparison in AA
-            call set_geom_units(molecule,"Angs")
-            !call rmsd_fit_frame(state,ref): efficient but not always works. If so, it uses rmsd_fit_frame_brute(state,ref)
-            call rmsd_fit_frame(molecule,molec_aux,info)
-            if (info /= 0) then
-                print'(X,A,I0)', "RMSD fit failed at Step: ", k
-                call rmsd_fit_frame_brute(molecule,molec_aux,dist)
-            endif
+
             ! PRINT
+            call set_geom_units(molecule,"Angs")
             ! Write G96/GRO every step and G09 scan every 10 steps
             ! except the 5 poinst around minimum, which are all printed
             call write_gro(O_GRO,molecule)
@@ -967,16 +1037,47 @@ program normal_modes_animation
             i=-(nsteps-1)/2+istep
             S=Sref
             call displace_Scoord(LL(:,j),nbonds,nangles,ndihed,Qstep/Factor(j)*i,S)
-            ! Get Cart coordinates
-            if (Ns /= Ns_zmat .and. scan_type == "NM") then
-                S(1:Ns_zmat) = map_Zmatrix(Ns_zmat,S,Zmap,Szmat)
-            endif
-            call zmat2cart(molecule,S)
-            !call rmsd_fit_frame(state,ref): efficient but not always works. If so, it uses rmsd_fit_frame_brute(state,ref)
-            call rmsd_fit_frame(molecule,molec_aux,info)
-            if (info /= 0) then
-                print'(X,A,I0)', "RMSD fit failed at Step: ", k
-                call rmsd_fit_frame_brute(molecule,molec_aux,dist)
+            if (conversion_i2c=="ZMAT") then
+                ! Get Cart coordinates
+                if (Ns /= Ns_zmat .and. scan_type == "NM") then
+                    S(1:Ns_zmat) = map_Zmatrix(Ns_zmat,S,Zmap,Szmat)
+                endif
+                call zmat2cart(molecule,S)
+                !call rmsd_fit_frame(state,ref): efficient but not always works. If so, it uses rmsd_fit_frame_brute(state,ref)
+                call rmsd_fit_frame(molecule,molec_aux,info)
+                if (info /= 0) then
+                    print'(X,A,I0)', "RMSD fit failed at Step: ", k
+                    call rmsd_fit_frame_brute(molecule,molec_aux,dist)
+                endif
+            else 
+                l=0
+                do i=1,nbonds
+                    l=l+1
+                    DeltaS(l) = S(l) - DeltaS(l)
+                enddo
+                do i=1,nangles
+                    l=l+1
+                    DeltaS(l) = S(l)-DeltaS(l)
+                    if (abs(DeltaS(l)) > abs(DeltaS(l)-2*PI) ) then
+                        DeltaS(l) = DeltaS(l)-2*PI
+                    else if (abs(DeltaS(l)) > abs(DeltaS(l)+2*PI) ) then
+                        DeltaS(l) = DeltaS(l)+2*PI
+                    endif
+                enddo
+                do i=1,ndihed
+                    l=l+1
+                    DeltaS(l) = S(l)-DeltaS(l)
+                    if (abs(DeltaS(l)) > abs(DeltaS(l)-2*PI) ) then
+                        DeltaS(l) = DeltaS(l)-2*PI
+                    else if (abs(DeltaS(l)) > abs(DeltaS(l)+2*PI) ) then
+                        DeltaS(l) = DeltaS(l)+2*PI
+                    endif
+                enddo
+                call verbose_mute()
+                call intshif2cart(molecule,DeltaS,thr_set=1d-5)
+                ! Compute current ICs for the next step 
+                call compute_internal(molecule,Ns,DeltaS)
+                call verbose_continue()
             endif
             ! PRINT
             !Transform to AA and comparae with last step (stored in state)  -- this should be detected and fix by the subroutines
@@ -1121,7 +1222,7 @@ program normal_modes_animation
                            ! Options (general)
                            Amplitude,call_vmd,include_hbonds,selection,vertical, &
                            ! Movie
-                           animate,movie_vmd, movie_cycles,                      &
+                           animate,movie_vmd, movie_cycles,conversion_i2c,        &
                            ! Options (internal)
                            use_symmetry,def_internal,def_internal0,intfile,intfile0,&
                            apply_projection_matrix,  &
@@ -1140,7 +1241,7 @@ program normal_modes_animation
 
         character(len=*),intent(inout) :: inpfile,ft,hessfile,fth,gradfile,ftg,nmfile,ftn, &
                                           intfile,intfile0,rmzfile,scan_type,def_internal, &
-                                          selection,cnx_file,def_internal0
+                                          selection,cnx_file,def_internal0,conversion_i2c
         real(8),intent(inout)          :: Amplitude,Tthermo
         logical,intent(inout)          :: call_vmd, include_hbonds,vertical, use_symmetry,movie_vmd,animate,&
                                           analytic_Bder,project_on_all,apply_projection_matrix
@@ -1207,6 +1308,10 @@ program normal_modes_animation
 
                 case ("-intmode")
                     call getarg(i+1, def_internal)
+                    argument_retrieved=.true.
+
+                case ("-convdisp")
+                    call getarg(i+1, conversion_i2c)
                     argument_retrieved=.true.
 
                 case ("-intmode0")
@@ -1382,7 +1487,9 @@ program normal_modes_animation
         write(6,*)       '               to generate animations          '
         write(6,'(X,A,F5.2)') &
                          '-disp          Mode displacements for animate ',  Amplitude
-        write(6,*)       '               (dimensionless displacements)'
+        write(6,*)       '               (dimensionless displacements)'  
+        write(6,*)       '-convdisp      Algorith to convert from Cart. ',  conversion_i2c
+        write(6,*)       '               to internal [zmat|iter]'
         write(6,*)       '-[no]vmd       Launch VMD after computing the ',  call_vmd
         write(6,*)       '               modes (needs VMD installed)'
         write(6,'(X,A,I0)') &
@@ -1442,20 +1549,17 @@ program normal_modes_animation
         integer :: i, k
 
         k=0
-        if (verbose>1) &
-         print*, "Bonds"
+        ! "Bonds"
         do i=1,nbonds
             k=k+1
             S(k) = S(k) + Lc(k) * Qstep
         enddo
-        if (verbose>1) &
-         print*, "Angles"
+        ! "Angles"
         do i=1,nangles
             k=k+1
             S(k) = S(k) + Lc(k) * Qstep
         enddo
-        if (verbose>1) &
-         print*, "Dihedrals"
+        ! "Dihedrals"
         do i=1,ndihed
             k=k+1
             S(k) = S(k) + Lc(k) * Qstep

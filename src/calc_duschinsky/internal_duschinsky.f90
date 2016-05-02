@@ -1825,7 +1825,7 @@ program internal_duschinski
         write(6,*) '               '
         write(6,*) ' ** Options Vertical Model **'
         write(6,*) '-model       Model for harmonic PESs       ', trim(adjustl(model))
-        write(6,*) '             [vert|vertQ1|vertQ2|adia]     '
+        write(6,*) '             [vert|vertQ1|vertQ2|vert-a|adia]     '
         write(6,*) '-[no]corrS1  Correct S1 for non-stationary ', gradcorrectS1
         write(6,*) '-[no]corrS2  Correct S2 for non-stationary ', gradcorrectS2
         write(6,*) '               '
