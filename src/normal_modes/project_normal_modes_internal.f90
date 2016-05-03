@@ -375,18 +375,21 @@ program projection_normal_modes_int
         f0=0.d0
         f1=0.d0
         Nvib0=Nvib
+        j = 0
         do i=1,Nvib
             ff = FC(i)**2*Q0(i)**2*dexp(-2.d0*FC(i)*t)
             f0 = f0 + ff
             f1 = f1 + FC(i)**2*Q0(i)**2*dexp(-2.d0*FC(i)*(t+dt))
+            ! Discard modes that reached the baseline
             if (ff < 5e-24) then
                 Nvib0=Nvib0-1
             else
-                Q0b(i) = Q0(i)
+                j = j+1
+                Q0b(j) = Q0(i)
             endif
         enddo
-        Q0(1:Nvib) = Q0b(1:Nvib)
         Nvib = Nvib0
+        Q0(1:Nvib) = Q0b(1:Nvib)
         f0 = dsqrt(f0)
         f1 = dsqrt(f1)
         area = 0.5d0*(f0+f1)*dt

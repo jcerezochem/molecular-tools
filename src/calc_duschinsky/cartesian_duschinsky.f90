@@ -62,6 +62,7 @@ program cartesian_duschinsky
                apply_projection_matrix=.false.
     character(len=4) :: def_internal='all'
     character(len=1) :: reference_frame='F'
+    character(len=10):: model="adia"
     !======================
 
     !====================== 
@@ -90,12 +91,18 @@ program cartesian_duschinsky
     !Save definitio of the modes in character
     character(len=100),dimension(NDIM) :: ModeDef
     !VECTORS
-    real(8),dimension(NDIM) :: Freq1, Freq2, S1, S2, Vec, Vec1, mu, Q0, FC
+    real(8),dimension(NDIM) :: Freq1, Freq2, S1, S2, Vec, Vec1, Vec2, mu, Q0, FC
     integer,dimension(NDIM) :: S_sym, bond_sym,angle_sym,dihed_sym
     !Shifts
     real(8),dimension(NDIM) :: Delta
     real(8),dimension(3) :: DeltaCOM
     real(8) :: Delta_p, Er
+    !====================== 
+
+    !=========================
+    ! Distance calculation stuff
+    logical :: get_distances=.true.
+    real(8) :: ff, f1, f0, time, dt, dist, area
     !====================== 
 
     !====================== 
@@ -181,11 +188,12 @@ program cartesian_duschinsky
 !                               )
     call parse_input(inpfile,ft,gradfile,ftg,hessfile,fth,inpfile2,ft2,gradfile2,ftg2,hessfile2,fth2,&
                      cnx_file,intfile,rmzfile,def_internal,use_symmetry,derfile,gradcorrectS2,&
-                     gradcorrectS1,vertical,verticalQspace1,verticalQspace2,force_real,reference_frame,&
+                     gradcorrectS1,model,vertical,verticalQspace1,verticalQspace2,force_real,reference_frame,&
                      rm_gradcoord,rm_custom_file, &
                      int_space,apply_projection_matrix,analytic_Bder)
     call set_word_upper_case(def_internal)
     call set_word_upper_case(reference_frame)
+    call set_word_upper_case(model)
 
     !===========
     !State 1
@@ -507,397 +515,318 @@ program cartesian_duschinsky
     Nat = state2%natoms
     print'(X,A,/)', "Done"
 
-    if (gradcorrectS2.or.int_space.or.apply_projection_matrix) then
-        !***************************************************************
-        ! The whole vibrational analysis is not needed, only the Bder
-        print'(/,X,A)', "Preparing internal space..."
-    
-        ! Manage symmetry
-        if (.not.use_symmetry) then
-            state2%PG="C1"
-        else if (trim(adjustl(symm_file)) /= "none") then
-            msg = "Using custom symmetry file: "//trim(adjustl(symm_file)) 
-            call alert_msg("note",msg)
-            open(I_SYM,file=symm_file)
-            do i=1,state2%natoms
-                read(I_SYM,*) j, isym(j)
-            enddo
-            close(I_SYM)
-            !Set PG to CUStom
-            state2%PG="CUS"
-        else
-            state2%PG="XX"
-            call symm_atoms(state2,isym)
-        endif
-
-        !Generate bonded info
-        if (cnx_file == "guess") then
-            call guess_connect(state2)
-        else
-            print'(/,A,/)', "Reading connectivity from file: "//trim(adjustl(cnx_file))
-            open(I_CNX,file=cnx_file,status='old')
-            call read_connect(I_CNX,state2)
-            close(I_CNX)
-        endif
-        call gen_bonded(state2)
-    
-        ! Define internal set
-        call define_internal_set(state2,def_internal,intfile,rmzfile,use_symmetry,isym, S_sym,Ns)
-    
-        !From now on, we'll use atomic units
-        call set_geom_units(state2,"Bohr")
-    
-        ! INTERNAL COORDINATES
-    
-        !SOLVE GF METHOD TO GET NM AND FREQ
-        call internal_Wilson(state2,Ns,S1,B,ModeDef)
-        call internal_Gmetric(Nat,Ns,state2%atom(:)%mass,B,G1)
-        if (gradcorrectS2) then
-            call calc_BDer(state2,Ns,Bder)
-        endif
-    
-        ! SET REDUNDANT/SYMETRIZED/CUSTOM INTERNAL SETS
-        print'(/,2X,A)', "Estimating Nvib as 6N-6"
-        Nvib0 = 3*Nat-6
-    !     if (symaddapt) then (implement in an analogous way as compared with the transformation from red to non-red
-        if (Ns > Nvib0) then ! Redundant
-            call redundant2nonredundant(Ns,Nvib0,G1,Asel1)
-            ! Rotate Bmatrix
-            B(1:Nvib0,1:3*Nat)  = matrix_product(Nvib0,3*Nat,Ns,Asel1,B,tA=.true.)
-            ! Rotate Gmatrix
-            G1(1:Nvib0,1:Nvib0) = matrix_basisrot(Nvib0,Ns,Asel1(1:Ns,1:Nvib0),G1,counter=.true.)
-            ! Rotate Bders
+    if (adjustl(model) /= "AS") then
+        if (gradcorrectS2.or.int_space.or.apply_projection_matrix) then
+            !***************************************************************
+            ! The whole vibrational analysis is not needed, only the Bder
+            print'(/,X,A)', "Preparing internal space..."
+        
+            ! Manage symmetry
+            if (.not.use_symmetry) then
+                state2%PG="C1"
+            else if (trim(adjustl(symm_file)) /= "none") then
+                msg = "Using custom symmetry file: "//trim(adjustl(symm_file)) 
+                call alert_msg("note",msg)
+                open(I_SYM,file=symm_file)
+                do i=1,state2%natoms
+                    read(I_SYM,*) j, isym(j)
+                enddo
+                close(I_SYM)
+                !Set PG to CUStom
+                state2%PG="CUS"
+            else
+                state2%PG="XX"
+                call symm_atoms(state2,isym)
+            endif
+        
+            !Generate bonded info
+            if (cnx_file == "guess") then
+                call guess_connect(state2)
+            else
+                print'(/,A,/)', "Reading connectivity from file: "//trim(adjustl(cnx_file))
+                open(I_CNX,file=cnx_file,status='old')
+                call read_connect(I_CNX,state2)
+                close(I_CNX)
+            endif
+            call gen_bonded(state2)
+        
+            ! Define internal set
+            call define_internal_set(state2,def_internal,intfile,rmzfile,use_symmetry,isym, S_sym,Ns)
+        
+            !From now on, we'll use atomic units
+            call set_geom_units(state2,"Bohr")
+        
+            ! INTERNAL COORDINATES
+        
+            !SOLVE GF METHOD TO GET NM AND FREQ
+            call internal_Wilson(state2,Ns,S1,B,ModeDef)
+            call internal_Gmetric(Nat,Ns,state2%atom(:)%mass,B,G1)
             if (gradcorrectS2) then
-                do j=1,3*Nat
-                    Bder(1:Nvib0,j,1:3*Nat) =  matrix_product(Nvib0,3*Nat,Ns,Asel1,Bder(1:Ns,j,1:3*Nat),tA=.true.)
-                enddo
+                call calc_BDer(state2,Ns,Bder)
             endif
-        endif
-    endif
-
-
-    ! HESSIAN FILE (State2)
-    print'(/,X,A)', "READING STATE2 FILE (HESSIAN)..."
-    open(I_INP,file=hessfile2,status='old',iostat=IOstatus)
-    if (IOstatus /= 0) call alert_msg( "fatal","Unable to open "//trim(adjustl(hessfile2)) )
-    allocate(Hlt(1:3*Nat*(3*Nat+1)/2))
-    call generic_Hessian_reader(I_INP,fth2,Nat,Hlt,error) 
-    close(I_INP)
-    ! Hx 
-    Hess(1:3*Nat,1:3*Nat) = Hlt_to_Hess(3*Nat,Hlt(1:3*Nat*(3*Nat+1)/2))
-    print'(X,A,/)', "Done"
-
-    if (vertical.or.gradcorrectS2) then
-        ! GRADIENT FILE
-        print'(/,X,A)', "READING STATE2 FILE (GRADIENT)..."
-        open(I_INP,file=gradfile2,status='old',iostat=IOstatus)
-        if (IOstatus /= 0) call alert_msg( "fatal","Unable to open "//trim(adjustl(gradfile2)) )
-        call generic_gradient_reader(I_INP,ftg2,Nat,Grad,error)
-        close(I_INP)
-    else
-        print'(X,A,/)', "Assuming gradient for State2 equal to zero"
-        Grad(1:3*Nat) = 0.d0
-    endif
-
-    if (apply_projection_matrix) then
-        ! Get projection matrix
-        P(1:3*Nat,1:3*Nat) = projection_matrix(Nat,Nvib0,B)
-!         call MAT0(6,P,3*Nat,3*Nat,"P matrix (1)")
-!         P(1:3*Nat,1:3*Nat) = projection_matrix2(Nat,molecule%atom(1:Nat)%X, &
-!                                                     molecule%atom(1:Nat)%Y, &
-!                                                     molecule%atom(1:Nat)%Z, &
-!                                                     molecule%atom(1:Nat)%Mass)
-!         call MAT0(6,P,3*Nat,3*Nat,"P matrix (2)")
-        ! And rotate gradient
-        do i=1,3*Nat
-            Vec1(i) = 0.d0
-            do k=1,Nvib0
-                Vec1(i) = Vec1(i) + P(i,k)*Grad(k)
-            enddo
-        enddo
-        Grad(1:3*Nat) = Vec1(1:3*Nat)
-    endif
-
-    ! Run vibrations_Cart to get the number of Nvib (to detect linear molecules)
-    if (rm_gradcoord) then
-        call subheading(6,"Vibrations on the 3N-7 space",upper_case=.true.)
-        call subheading(6,"Vibrational analysis removing grad coordinate")
-        call vibrations_Cart(Nat,state2%atom(:)%X,state2%atom(:)%Y,state2%atom(:)%Z,state2%atom(:)%Mass,Hlt,&
-                        Nvib,L2,Freq2,error_flag=error,Grad=Grad1)
-
-    elseif (int_space) then
-        call subheading(6,"Vibrations on the space spanned by internal set",upper_case=.true.)
-        call subheading(6,"Preliminary vibraional analysis")
-        call vibrations_Cart(Nat,state2%atom(:)%X,state2%atom(:)%Y,state2%atom(:)%Z,state2%atom(:)%Mass,Hlt,&
-                        Nvib,L2,Freq2,error_flag=error)
-        ! Compare the dimesionality of the reduced space with that of the complete vibrational space
-        if (Nvib0 < Nvib) then
-            call alert_msg("note","The chosen internal space is a reduced one")
-        elseif (Nvib0 > Nvib) then
-            call alert_msg("fatal","The chosen internal is not consistent")
-        endif
-
-        !***************************************************************
-        if (gradcorrectS2) then
-            print*, "The Hessian will be corrected before computing the displacements"
-            ! (Hess is already constructed)
-            ! Hs (with the correction)
-            ! First get: Hx' = Hx - gs^t\beta
-            ! 1. Get gs from gx
-            Vec(1:3*Nat) = Grad(1:3*Nat)
-            call Gradcart2int(Nat,Nvib0,Vec,state2%atom(:)%mass,B,G1)
-            ! 2. Multiply gs^t\beta and
-            ! 3. Apply the correction
-            ! Bder(i,j,K)^t * gq(K)
-            do i=1,3*Nat
-            do j=1,3*Nat
-                Aux2(i,j) = 0.d0
-                do k=1,Nvib0
-                    Aux2(i,j) = Aux2(i,j) + Bder(k,i,j)*Vec(k)
-                enddo
-                Hess(i,j) = Hess(i,j) - Aux2(i,j)
-            enddo
-            enddo
-            if (verbose>2) then
-                print*, "Correction matrix to be applied on Hx:"
-                call MAT0(6,Aux2,3*Nat,3*Nat,"gs*Bder matrix")
-            endif
-            
-            if (check_symmetry) then
-                call check_symm_gsBder(state2,Aux2)
-            endif
-        endif
-        ! Apply projection matrix if required
-        if (apply_projection_matrix) then
-            ! Project out rotation and translation
-            Hess(1:3*Nat,1:3*Nat) = matrix_basisrot(3*Nat,3*Nat,P,Hess)
-        endif
         
-        ! Get Hs
-        call HessianCart2int(Nat,Nvib0,Hess,state2%atom(:)%mass,B,G1)
-        ! B^t Hs B [~Hx]
-        Hess(1:3*Nat,1:3*Nat) = matrix_basisrot(3*Nat,Nvib0,B,Hess,counter=.true.)
-        ! Compute vibraional analysis with the new Hx
-        Hlt(1:3*Nat*(3*Nat+1)/2) = Hess_to_Hlt(3*Nat,Hess)
-        call subheading(6,"Vibrational analysis with the internal Hessian rotated back to Cartesian")
-        call vibrations_Cart(Nat,state2%atom(:)%X,state2%atom(:)%Y,state2%atom(:)%Z,state2%atom(:)%Mass,Hlt,&
-                    Nvib,L2,Freq2,error_flag=error)
-
-        !Check the new vibrational space
-        if (Nvib>Nvib0) then
-            call statement(6,"Removing modes with Freq<0.1cm-1",upper_case=.true.)
-            j=0
-            do i=1,Nvib
-                if (abs(Freq2(i)) > 0.1d0) then
-                    j=j+1
-                    Aux(1:3*Nat,j) = L2(1:3*Nat,i)
-                    Vec(j) = Freq2(i)
-                else
-                    print'(2X,A,I0,A,F8.2)', "Removed mode ",i," with frequency (cm-1): ", Freq2(i)
+            ! SET REDUNDANT/SYMETRIZED/CUSTOM INTERNAL SETS
+            print'(/,2X,A)', "Estimating Nvib as 6N-6"
+            Nvib0 = 3*Nat-6
+        !     if (symaddapt) then (implement in an analogous way as compared with the transformation from red to non-red
+            if (Ns > Nvib0) then ! Redundant
+                call redundant2nonredundant(Ns,Nvib0,G1,Asel1)
+                ! Rotate Bmatrix
+                B(1:Nvib0,1:3*Nat)  = matrix_product(Nvib0,3*Nat,Ns,Asel1,B,tA=.true.)
+                ! Rotate Gmatrix
+                G1(1:Nvib0,1:Nvib0) = matrix_basisrot(Nvib0,Ns,Asel1(1:Ns,1:Nvib0),G1,counter=.true.)
+                ! Rotate Bders
+                if (gradcorrectS2) then
+                    do j=1,3*Nat
+                        Bder(1:Nvib0,j,1:3*Nat) =  matrix_product(Nvib0,3*Nat,Ns,Asel1,Bder(1:Ns,j,1:3*Nat),tA=.true.)
+                    enddo
                 endif
-            enddo
-            if (j/=Nvib0) call alert_msg("fatal","Internal space cannot be applied properly")
-            L2(1:3*Nat,1:Nvib0) = Aux(1:3*Nat,1:Nvib0)
-            Freq2(1:Nvib0) = Vec(1:Nvib0)
-            Nvib=Nvib0
+            endif
         endif
-
-
-    else
-        call subheading(6,"Vibrations on the 3N-6 space",upper_case=.true.)
-        call subheading(6,"Preliminary vibraional analysis")
-        call vibrations_Cart(Nat,state2%atom(:)%X,state2%atom(:)%Y,state2%atom(:)%Z,state2%atom(:)%Mass,Hlt,&
-                         Nvib,L2,Freq2,error_flag=error)
-    endif
-
-    ! From now on in atomic units
-    call set_geom_units(state1,"Bohr")
-    call set_geom_units(state2,"Bohr") 
-
-    ! If Adiabatic, need to rotate State2 to State1 orientation or the contrary
-    if (.not.vertical) then
-        ! Move to com (this does not change Hess nor Grad nor vibrations_Cart
-        call get_com(state1)
-        state1%atom(1:Nat)%x = state1%atom(1:Nat)%x-state1%comX
-        state1%atom(1:Nat)%y = state1%atom(1:Nat)%y-state1%comY
-        state1%atom(1:Nat)%z = state1%atom(1:Nat)%z-state1%comZ
-        call get_com(state2)
-        state2%atom(1:Nat)%x = state2%atom(1:Nat)%x-state2%comX
-        state2%atom(1:Nat)%y = state2%atom(1:Nat)%y-state2%comY
-        state2%atom(1:Nat)%z = state2%atom(1:Nat)%z-state2%comZ
-        ! Rotate to same orientation (can be done with Tswithch or ROTATA)
-        if (reference_frame == "F") then
-            ! Rotate State1 to State2
-            call ROTATA1(state1,state2,T)
-            print*, "Rotate State1 to minimize RMSD with State2"
-            call MAT0(6,T,3,3,"Rotation matrix")
-            call rotate_molec(state1,T)
-            ! Rotate L1 modes
-            L1(1:3*Nat,1:Nvib) = rotate3D_matrix(3*Nat,Nvib,L1,T)
-            ! NOW THE HESSIAN IN STATE2 GEOM, SO IT IS RIGHT TO COMPUTE Er 
+        
+        
+        ! HESSIAN FILE (State2)
+        print'(/,X,A)', "READING STATE2 FILE (HESSIAN)..."
+        open(I_INP,file=hessfile2,status='old',iostat=IOstatus)
+        if (IOstatus /= 0) call alert_msg( "fatal","Unable to open "//trim(adjustl(hessfile2)) )
+        allocate(Hlt(1:3*Nat*(3*Nat+1)/2))
+        call generic_Hessian_reader(I_INP,fth2,Nat,Hlt,error) 
+        close(I_INP)
+        ! Hx 
+        Hess(1:3*Nat,1:3*Nat) = Hlt_to_Hess(3*Nat,Hlt(1:3*Nat*(3*Nat+1)/2))
+        print'(X,A,/)', "Done"
+        
+        if (vertical.or.gradcorrectS2) then
+            ! GRADIENT FILE
+            print'(/,X,A)', "READING STATE2 FILE (GRADIENT)..."
+            open(I_INP,file=gradfile2,status='old',iostat=IOstatus)
+            if (IOstatus /= 0) call alert_msg( "fatal","Unable to open "//trim(adjustl(gradfile2)) )
+            call generic_gradient_reader(I_INP,ftg2,Nat,Grad,error)
+            close(I_INP)
         else
-            ! Rotate State2 to State1
-            call ROTATA1(state2,state1,T)
-            print*, "Rotate State2 to minimize RMSD with State1"
-            call MAT0(6,T,3,3,"Rotation matrix")
-            call rotate_molec(state2,T)
-            ! Rotate L2 modes
-            L2(1:3*Nat,1:Nvib) = rotate3D_matrix(3*Nat,Nvib,L2,T)
-            ! Rotate Hess (to properly compute the Er):
-            ! Rot Hess Rot^t
-            Hess(1:3*Nat,1:3*Nat) = rotate3D_matrix(3*Nat,3*Nat,Hess,T)
-            ! The other part is done as
-            ! A Rot^t = (Rot A^t)^t
-            Hess(1:3*Nat,1:3*Nat) = rotate3D_matrix(3*Nat,3*Nat,Hess,T,tA=.true.)
-            ! Ne need to transpose again, since Hess is symmetric
+            print'(X,A,/)', "Assuming gradient for State2 equal to zero"
+            Grad(1:3*Nat) = 0.d0
         endif
-    endif
-
-    deallocate(Hlt)
-
-    !==============
-    ! DUSCHINSKI
-    !==============
-    ! At this point
-    !  * Hess: Cartesian
-    !  * Grad: Cartesian
-    !  * L1  : MWC
-    if (vertical.and.verticalQspace1) then
-        print*, "Vertical model in Q1-space"
-        call Lmwc_to_Lcart(Nat,Nvib,state1%atom(:)%Mass,L1,L1,error)
-        !*****************************************************    
-        ! Apply matrix derivative if the option is enabled
-        !*****************************************************
-        if (gradcorrectS2) then
-            print'(X,A,/)', "Apply correction for vertical case based on internal vibrational analysis..."
-            ! Compute gQ from gs
-            !  gQ = L1int^t gs
-            ! Convert Gradient to normal mode coordinates in state1 Qspace.
-            ! We use the internal normal modes and not the Cartesian
-            ! ones to get the sign consistent with the internal mode
-            ! definition. Note that, apart from the sign, both should be
-            ! equivalent in state1 Qspace
-            ! Use Vec1 as temporary vector to store Grad (so to have Cartesia Grad)
-            Vec1(1:3*Nat) = Grad(1:3*Nat)
-            call Gradcart2int(Nat,Nvib0,Vec1,state1%atom(:)%mass,B,G1)
-            ! Compute gs^t * Bder
+        
+        if (apply_projection_matrix) then
+            ! Get projection matrix
+            P(1:3*Nat,1:3*Nat) = projection_matrix(Nat,Nvib0,B)
+!             call MAT0(6,P,3*Nat,3*Nat,"P matrix (1)")
+!             P(1:3*Nat,1:3*Nat) = projection_matrix2(Nat,molecule%atom(1:Nat)%X, &
+!                                                         molecule%atom(1:Nat)%Y, &
+!                                                         molecule%atom(1:Nat)%Z, &
+!                                                         molecule%atom(1:Nat)%Mass)
+!             call MAT0(6,P,3*Nat,3*Nat,"P matrix (2)")
+            ! And rotate gradient
             do i=1,3*Nat
-            do j=1,3*Nat
-                Aux(i,j) = 0.d0
+                Vec1(i) = 0.d0
                 do k=1,Nvib0
-                    Aux(i,j) = Aux(i,j) + Bder(k,i,j)*Vec1(k)
+                    Vec1(i) = Vec1(i) + P(i,k)*Grad(k)
                 enddo
             enddo
-            enddo
+            Grad(1:3*Nat) = Vec1(1:3*Nat)
+        endif
         
-            ! Compute (Hess - gQ LLL^Q) -- store in Hess2 (we keep normal Hess to compute Er)
-            Hess2(1:3*Nat,1:3*Nat) = Hess(1:3*Nat,1:3*Nat) - Aux(1:3*Nat,1:3*Nat)
+        ! Run vibrations_Cart to get the number of Nvib (to detect linear molecules)
+        if (rm_gradcoord) then
+            call subheading(6,"Vibrations on the 3N-7 space",upper_case=.true.)
+            call subheading(6,"Vibrational analysis removing grad coordinate")
+            call vibrations_Cart(Nat,state2%atom(:)%X,state2%atom(:)%Y,state2%atom(:)%Z,state2%atom(:)%Mass,Hlt,&
+                            Nvib,L2,Freq2,error_flag=error,Grad=Grad1)
         
-            !Compute H_Q' = L1^t (Hess - gQ LLL^Q) L1
-            Hess2(1:Nvib,1:Nvib) = matrix_basisrot(Nvib,3*Nat,L1,Hess2,counter=.true.)
-
-            ! Also check the symmetry of the correction term
-            if (check_symmetry) then
-                call check_symm_gsBder(state2,Aux2)
+        elseif (int_space) then
+            call subheading(6,"Vibrations on the space spanned by internal set",upper_case=.true.)
+            call subheading(6,"Preliminary vibraional analysis")
+            call vibrations_Cart(Nat,state2%atom(:)%X,state2%atom(:)%Y,state2%atom(:)%Z,state2%atom(:)%Mass,Hlt,&
+                            Nvib,L2,Freq2,error_flag=error)
+            ! Compare the dimesionality of the reduced space with that of the complete vibrational space
+            if (Nvib0 < Nvib) then
+                call alert_msg("note","The chosen internal space is a reduced one")
+            elseif (Nvib0 > Nvib) then
+                call alert_msg("fatal","The chosen internal is not consistent")
             endif
         
-        else
-            print'(X,A,/)', "Uncorrected vertical approach (Q1-space)"
-            ! Do not apply any correction (original PCCP2011 implementation)
-            !Compute H_Q = L1^t Hess L1 
-            Hess2(1:Nvib,1:Nvib) = matrix_basisrot(Nvib,3*Nat,L1,Hess,counter=.true.)
-        
-        endif
-        
-        !-------------------
-        ! Duschisky matrix
-        !-------------------
-        print'(/,X,A,/)', "DIAGONALIZE HESSIAN IN Q1-SPACE..."
-        ! The matrix that diagonalizes the Hessian in Q1 modes is the Duschisky matrix
-        call diagonalize_full(Hess2(1:Nvib,1:Nvib),Nvib,G1(1:Nvib,1:Nvib),FC(1:Nvib),"lapack")
-        if (verbose>2) &
-            call MAT0(6,G1,Nvib,Nvib,"DUSCHINSKI MATRIX")
-        
-        !---------
-        !Check FC
-        !---------
-        if (verbose>1) &
-            call print_vector(6,FC*1.d6,Nvib,"FORCE CONSTANTS x 10^6 (A.U.)")
-        !Transform FC to Freq
-        do i=1,Nvib
-            Freq2(i) = sign(dsqrt(abs(FC(i))*HARTtoJ/BOHRtoM**2/AUtoKG)/2.d0/pi/clight/1.d2,&
-                             FC(i))
-!             if (FC(i)<0) then
-!                 print*, i, FC(i), Freq2(i)
-!                 if (force_real) then 
-!                     FC(i)    = abs(FC(i))
-!                     Freq2(i) = abs(Freq2(i))
-!                     call alert_msg("warning","Negative FC turned real (Gradient is also changed)")
-!                 else
-!                     call alert_msg("warning","A negative FC found")
-!                 endif
-!             endif
-        enddo
-        if (verbose>0) &
-            call print_vector(6,Freq2,Nvib,"Frequencies (cm-1)")
-        
-        ! Restore L1 in MWC
-        call Lcart_to_Lmwc(Nat,Nvib,state1%atom(:)%Mass,L1,L1,error)
-
-    else if (vertical) then ! vertical in X-space
-        print*, "Vertical model in X-space"
-        if (gradcorrectS2) then
-            print*, "The Hessian will be corrected before computing the displacements"
-            ! (Hess is already constructed)
-            ! Hs (with the correction)
-            ! First get: Hx' = Hx - gs^t\beta
-            ! 1. Get gs from gx
-            Vec(1:3*Nat) = Grad(1:3*Nat)
-            call Gradcart2int(Nat,Nvib0,Vec,state2%atom(:)%mass,B,G1)
-            ! 2. Multiply gs^t\beta and
-            ! 3. Apply the correction
-            ! Bder(i,j,K)^t * gq(K)
-            do i=1,3*Nat
-            do j=1,3*Nat
-                Aux2(i,j) = 0.d0
-                do k=1,Nvib0
-                    Aux2(i,j) = Aux2(i,j) + Bder(k,i,j)*Vec(k)
+            !***************************************************************
+            if (gradcorrectS2) then
+                print*, "The Hessian will be corrected before computing the displacements"
+                ! (Hess is already constructed)
+                ! Hs (with the correction)
+                ! First get: Hx' = Hx - gs^t\beta
+                ! 1. Get gs from gx
+                Vec(1:3*Nat) = Grad(1:3*Nat)
+                call Gradcart2int(Nat,Nvib0,Vec,state2%atom(:)%mass,B,G1)
+                ! 2. Multiply gs^t\beta and
+                ! 3. Apply the correction
+                ! Bder(i,j,K)^t * gq(K)
+                do i=1,3*Nat
+                do j=1,3*Nat
+                    Aux2(i,j) = 0.d0
+                    do k=1,Nvib0
+                        Aux2(i,j) = Aux2(i,j) + Bder(k,i,j)*Vec(k)
+                    enddo
+                    Hess(i,j) = Hess(i,j) - Aux2(i,j)
                 enddo
-                Hess(i,j) = Hess(i,j) - Aux2(i,j)
-            enddo
-            enddo
-            if (verbose>2) then
-                print*, "Correction matrix to be applied on Hx:"
-                call MAT0(6,Aux2,3*Nat,3*Nat,"gs*Bder matrix")
+                enddo
+                if (verbose>2) then
+                    print*, "Correction matrix to be applied on Hx:"
+                    call MAT0(6,Aux2,3*Nat,3*Nat,"gs*Bder matrix")
+                endif
+                
+                if (check_symmetry) then
+                    call check_symm_gsBder(state2,Aux2)
+                endif
+            endif
+            ! Apply projection matrix if required
+            if (apply_projection_matrix) then
+                ! Project out rotation and translation
+                Hess(1:3*Nat,1:3*Nat) = matrix_basisrot(3*Nat,3*Nat,P,Hess)
             endif
             
-            if (check_symmetry) then
-                call check_symm_gsBder(state2,Aux2)
-            endif
             ! Get Hs
             call HessianCart2int(Nat,Nvib0,Hess,state2%atom(:)%mass,B,G1)
             ! B^t Hs B [~Hx]
             Hess(1:3*Nat,1:3*Nat) = matrix_basisrot(3*Nat,Nvib0,B,Hess,counter=.true.)
-            ! M^-1/2 [Hx] M^-1/2
-            do i=1,3*Nat
-            do j=1,i
-                ii = (i-1)/3+1
-                jj = (j-1)/3+1
-                Aux(i,j) = Hess(i,j) &
-                            /dsqrt(state2%atom(ii)%mass*AMUtoAU) &
-                            /dsqrt(state2%atom(jj)%mass*AMUtoAU)
-                Aux(j,i) = Aux(i,j)
-            enddo
-            enddo
-            ! Get number of Trans+Rot 
-            Nrt = 3*Nat - Nvib
-            ! D [M^-1/2 [Hx] M^1/2] D^t
-            Aux(1:Nvib,1:Nvib) = matrix_basisrot(Nvib,3*Nat,D(1:3*Nat,Nrt+1:3*Nat),Aux,counter=.true.)
-            ! Diagonalize and get data (in Eckart internal frame)
-            call diagonalize_full(Aux(1:Nvib,1:Nvib),Nvib,L2(1:Nvib,1:Nvib),FC(1:Nvib),"lapack")
-            ! Rotate modes back to mwc
-            L2(1:3*Nat,1:Nvib) = matrix_product(3*Nat,Nvib,Nvib,D(1:3*Nat,Nrt+1:3*Nat),L2(1:Nvib,1:Nvib))
-
+            ! Compute vibraional analysis with the new Hx
+            Hlt(1:3*Nat*(3*Nat+1)/2) = Hess_to_Hlt(3*Nat,Hess)
+            call subheading(6,"Vibrational analysis with the internal Hessian rotated back to Cartesian")
+            call vibrations_Cart(Nat,state2%atom(:)%X,state2%atom(:)%Y,state2%atom(:)%Z,state2%atom(:)%Mass,Hlt,&
+                        Nvib,L2,Freq2,error_flag=error)
+        
+            !Check the new vibrational space
+            if (Nvib>Nvib0) then
+                call statement(6,"Removing modes with Freq<0.1cm-1",upper_case=.true.)
+                j=0
+                do i=1,Nvib
+                    if (abs(Freq2(i)) > 0.1d0) then
+                        j=j+1
+                        Aux(1:3*Nat,j) = L2(1:3*Nat,i)
+                        Vec(j) = Freq2(i)
+                    else
+                        print'(2X,A,I0,A,F8.2)', "Removed mode ",i," with frequency (cm-1): ", Freq2(i)
+                    endif
+                enddo
+                if (j/=Nvib0) call alert_msg("fatal","Internal space cannot be applied properly")
+                L2(1:3*Nat,1:Nvib0) = Aux(1:3*Nat,1:Nvib0)
+                Freq2(1:Nvib0) = Vec(1:Nvib0)
+                Nvib=Nvib0
+            endif
+        
+        
+        else
+            call subheading(6,"Vibrations on the 3N-6 space",upper_case=.true.)
+            call subheading(6,"Preliminary vibraional analysis")
+            call vibrations_Cart(Nat,state2%atom(:)%X,state2%atom(:)%Y,state2%atom(:)%Z,state2%atom(:)%Mass,Hlt,&
+                             Nvib,L2,Freq2,error_flag=error)
+        endif
+        
+        ! From now on in atomic units
+        call set_geom_units(state1,"Bohr")
+        call set_geom_units(state2,"Bohr") 
+        
+        ! If Adiabatic, need to rotate State2 to State1 orientation or the contrary
+        if (.not.vertical) then
+            ! Move to com (this does not change Hess nor Grad nor vibrations_Cart
+            call get_com(state1)
+            state1%atom(1:Nat)%x = state1%atom(1:Nat)%x-state1%comX
+            state1%atom(1:Nat)%y = state1%atom(1:Nat)%y-state1%comY
+            state1%atom(1:Nat)%z = state1%atom(1:Nat)%z-state1%comZ
+            call get_com(state2)
+            state2%atom(1:Nat)%x = state2%atom(1:Nat)%x-state2%comX
+            state2%atom(1:Nat)%y = state2%atom(1:Nat)%y-state2%comY
+            state2%atom(1:Nat)%z = state2%atom(1:Nat)%z-state2%comZ
+            ! Rotate to same orientation (can be done with Tswithch or ROTATA)
+            if (reference_frame == "F") then
+                ! Rotate State1 to State2
+                call ROTATA1(state1,state2,T)
+                print*, "Rotate State1 to minimize RMSD with State2"
+                call MAT0(6,T,3,3,"Rotation matrix")
+                call rotate_molec(state1,T)
+                ! Rotate L1 modes
+                L1(1:3*Nat,1:Nvib) = rotate3D_matrix(3*Nat,Nvib,L1,T)
+                ! NOW THE HESSIAN IN STATE2 GEOM, SO IT IS RIGHT TO COMPUTE Er 
+            else
+                ! Rotate State2 to State1
+                call ROTATA1(state2,state1,T)
+                print*, "Rotate State2 to minimize RMSD with State1"
+                call MAT0(6,T,3,3,"Rotation matrix")
+                call rotate_molec(state2,T)
+                ! Rotate L2 modes
+                L2(1:3*Nat,1:Nvib) = rotate3D_matrix(3*Nat,Nvib,L2,T)
+                ! Rotate Hess (to properly compute the Er):
+                ! Rot Hess Rot^t
+                Hess(1:3*Nat,1:3*Nat) = rotate3D_matrix(3*Nat,3*Nat,Hess,T)
+                ! The other part is done as
+                ! A Rot^t = (Rot A^t)^t
+                Hess(1:3*Nat,1:3*Nat) = rotate3D_matrix(3*Nat,3*Nat,Hess,T,tA=.true.)
+                ! Ne need to transpose again, since Hess is symmetric
+            endif
+        endif
+        
+        deallocate(Hlt)
+        
+        !==============
+        ! DUSCHINSKI
+        !==============
+        ! At this point
+        !  * Hess: Cartesian
+        !  * Grad: Cartesian
+        !  * L1  : MWC
+        if (vertical.and.verticalQspace1) then
+            print*, "Vertical model in Q1-space"
+            call Lmwc_to_Lcart(Nat,Nvib,state1%atom(:)%Mass,L1,L1,error)
+            !*****************************************************    
+            ! Apply matrix derivative if the option is enabled
+            !*****************************************************
+            if (gradcorrectS2) then
+                print'(X,A,/)', "Apply correction for vertical case based on internal vibrational analysis..."
+                ! Compute gQ from gs
+                !  gQ = L1int^t gs
+                ! Convert Gradient to normal mode coordinates in state1 Qspace.
+                ! We use the internal normal modes and not the Cartesian
+                ! ones to get the sign consistent with the internal mode
+                ! definition. Note that, apart from the sign, both should be
+                ! equivalent in state1 Qspace
+                ! Use Vec1 as temporary vector to store Grad (so to have Cartesia Grad)
+                Vec1(1:3*Nat) = Grad(1:3*Nat)
+                call Gradcart2int(Nat,Nvib0,Vec1,state1%atom(:)%mass,B,G1)
+                ! Compute gs^t * Bder
+                do i=1,3*Nat
+                do j=1,3*Nat
+                    Aux(i,j) = 0.d0
+                    do k=1,Nvib0
+                        Aux(i,j) = Aux(i,j) + Bder(k,i,j)*Vec1(k)
+                    enddo
+                enddo
+                enddo
+            
+                ! Compute (Hess - gQ LLL^Q) -- store in Hess2 (we keep normal Hess to compute Er)
+                Hess2(1:3*Nat,1:3*Nat) = Hess(1:3*Nat,1:3*Nat) - Aux(1:3*Nat,1:3*Nat)
+            
+                !Compute H_Q' = L1^t (Hess - gQ LLL^Q) L1
+                Hess2(1:Nvib,1:Nvib) = matrix_basisrot(Nvib,3*Nat,L1,Hess2,counter=.true.)
+        
+                ! Also check the symmetry of the correction term
+                if (check_symmetry) then
+                    call check_symm_gsBder(state2,Aux2)
+                endif
+            
+            else
+                print'(X,A,/)', "Uncorrected vertical approach (Q1-space)"
+                ! Do not apply any correction (original PCCP2011 implementation)
+                !Compute H_Q = L1^t Hess L1 
+                Hess2(1:Nvib,1:Nvib) = matrix_basisrot(Nvib,3*Nat,L1,Hess,counter=.true.)
+            
+            endif
+            
+            !-------------------
+            ! Duschisky matrix
+            !-------------------
+            print'(/,X,A,/)', "DIAGONALIZE HESSIAN IN Q1-SPACE..."
+            ! The matrix that diagonalizes the Hessian in Q1 modes is the Duschisky matrix
+            call diagonalize_full(Hess2(1:Nvib,1:Nvib),Nvib,G1(1:Nvib,1:Nvib),FC(1:Nvib),"lapack")
+            if (verbose>2) &
+                call MAT0(6,G1,Nvib,Nvib,"DUSCHINSKI MATRIX")
+            
             !---------
             !Check FC
             !---------
@@ -907,32 +836,123 @@ program cartesian_duschinsky
             do i=1,Nvib
                 Freq2(i) = sign(dsqrt(abs(FC(i))*HARTtoJ/BOHRtoM**2/AUtoKG)/2.d0/pi/clight/1.d2,&
                                  FC(i))
-                if (FC(i)<0) then
-                    print*, i, FC(i), Freq2(i)
-                    if (force_real) then 
-                        FC(i)    = abs(FC(i))
-                        Freq2(i) = abs(Freq2(i))
-                        call alert_msg("warning","Negative FC turned real")
-                    else
-                        call alert_msg("warning","A negative FC found")
-                    endif
-                endif
+!                 if (FC(i)<0) then
+!                     print*, i, FC(i), Freq2(i)
+!                     if (force_real) then 
+!                         FC(i)    = abs(FC(i))
+!                         Freq2(i) = abs(Freq2(i))
+!                         call alert_msg("warning","Negative FC turned real (Gradient is also changed)")
+!                     else
+!                         call alert_msg("warning","A negative FC found")
+!                     endif
+!                 endif
             enddo
             if (verbose>0) &
                 call print_vector(6,Freq2,Nvib,"Frequencies (cm-1)")
-
+            
+            ! Restore L1 in MWC
+            call Lcart_to_Lmwc(Nat,Nvib,state1%atom(:)%Mass,L1,L1,error)
+        
+        else if (vertical) then ! vertical in X-space
+            print*, "Vertical model in X-space"
+            if (gradcorrectS2) then
+                print*, "The Hessian will be corrected before computing the displacements"
+                ! (Hess is already constructed)
+                ! Hs (with the correction)
+                ! First get: Hx' = Hx - gs^t\beta
+                ! 1. Get gs from gx
+                Vec(1:3*Nat) = Grad(1:3*Nat)
+                call Gradcart2int(Nat,Nvib0,Vec,state2%atom(:)%mass,B,G1)
+                ! 2. Multiply gs^t\beta and
+                ! 3. Apply the correction
+                ! Bder(i,j,K)^t * gq(K)
+                do i=1,3*Nat
+                do j=1,3*Nat
+                    Aux2(i,j) = 0.d0
+                    do k=1,Nvib0
+                        Aux2(i,j) = Aux2(i,j) + Bder(k,i,j)*Vec(k)
+                    enddo
+                    Hess(i,j) = Hess(i,j) - Aux2(i,j)
+                enddo
+                enddo
+                if (verbose>2) then
+                    print*, "Correction matrix to be applied on Hx:"
+                    call MAT0(6,Aux2,3*Nat,3*Nat,"gs*Bder matrix")
+                endif
+                
+                if (check_symmetry) then
+                    call check_symm_gsBder(state2,Aux2)
+                endif
+                ! Get Hs
+                call HessianCart2int(Nat,Nvib0,Hess,state2%atom(:)%mass,B,G1)
+                ! B^t Hs B [~Hx]
+                Hess(1:3*Nat,1:3*Nat) = matrix_basisrot(3*Nat,Nvib0,B,Hess,counter=.true.)
+                ! M^-1/2 [Hx] M^-1/2
+                do i=1,3*Nat
+                do j=1,i
+                    ii = (i-1)/3+1
+                    jj = (j-1)/3+1
+                    Aux(i,j) = Hess(i,j) &
+                                /dsqrt(state2%atom(ii)%mass*AMUtoAU) &
+                                /dsqrt(state2%atom(jj)%mass*AMUtoAU)
+                    Aux(j,i) = Aux(i,j)
+                enddo
+                enddo
+                ! Get number of Trans+Rot 
+                Nrt = 3*Nat - Nvib
+                ! D [M^-1/2 [Hx] M^1/2] D^t
+                Aux(1:Nvib,1:Nvib) = matrix_basisrot(Nvib,3*Nat,D(1:3*Nat,Nrt+1:3*Nat),Aux,counter=.true.)
+                ! Diagonalize and get data (in Eckart internal frame)
+                call diagonalize_full(Aux(1:Nvib,1:Nvib),Nvib,L2(1:Nvib,1:Nvib),FC(1:Nvib),"lapack")
+                ! Rotate modes back to mwc
+                L2(1:3*Nat,1:Nvib) = matrix_product(3*Nat,Nvib,Nvib,D(1:3*Nat,Nrt+1:3*Nat),L2(1:Nvib,1:Nvib))
+        
+                !---------
+                !Check FC
+                !---------
+                if (verbose>1) &
+                    call print_vector(6,FC*1.d6,Nvib,"FORCE CONSTANTS x 10^6 (A.U.)")
+                !Transform FC to Freq
+                do i=1,Nvib
+                    Freq2(i) = sign(dsqrt(abs(FC(i))*HARTtoJ/BOHRtoM**2/AUtoKG)/2.d0/pi/clight/1.d2,&
+                                     FC(i))
+                    if (FC(i)<0) then
+                        print*, i, FC(i), Freq2(i)
+                        if (force_real) then 
+                            FC(i)    = abs(FC(i))
+                            Freq2(i) = abs(Freq2(i))
+                            call alert_msg("warning","Negative FC turned real")
+                        else
+                            call alert_msg("warning","A negative FC found")
+                        endif
+                    endif
+                enddo
+                if (verbose>0) &
+                    call print_vector(6,Freq2,Nvib,"Frequencies (cm-1)")
+        
+            endif
+            ! Otherwise, the vibrational analysis done preliminarily can be used
+        
+            ! Direct formula (L1 and L2 in MWC)
+            G1(1:Nvib,1:Nvib) = matrix_product(Nvib,Nvib,3*Nat,L1,L2,tA=.true.)
+        
+        else ! Adiabati and Vertical uncorrected
+            ! Direct formula (L1 and L2 in MWC)
+            G1(1:Nvib,1:Nvib) = matrix_product(Nvib,Nvib,3*Nat,L1,L2,tA=.true.)
+        
         endif
-        ! Otherwise, the vibrational analysis done preliminarily can be used
 
-        ! Direct formula (L1 and L2 in MWC)
-        G1(1:Nvib,1:Nvib) = matrix_product(Nvib,Nvib,3*Nat,L1,L2,tA=.true.)
-
-    else ! Adiabati and Vertical uncorrected
-        ! Direct formula (L1 and L2 in MWC)
-        G1(1:Nvib,1:Nvib) = matrix_product(Nvib,Nvib,3*Nat,L1,L2,tA=.true.)
-
+    else
+        ! Get Freqs from State1
+        Freq2(1:Nvib) = Freq1(1:Nvib)
+        ! Make Duschinski the unit matrix
+        G1(1:Nvib,1:Nvib) = 0.d0
+        do i=1,Nvib
+            G1(i,i) = 1.d0
+        enddo
+        ! Set Reference frame to Initial
+        reference_frame="I"
     endif
-
 
     !==============
     ! SHIFT VECTOR
@@ -1319,6 +1339,50 @@ program cartesian_duschinsky
     enddo
     close(O_STAT)
 
+    if (get_distances) then
+        print*, "DISTANCES FROM STATE1 TO STATE2 IN Q1-SPACE"
+        ! Euclidean distance
+        dist=0.d0
+        do i=1,Nvib
+            dist = dist + Vec1(i)**2
+        enddo
+        dist=dsqrt(dist)
+        print'(X,A,F10.4)', "Euclidean distance in nm space", dist/dsqrt(AMUtoAU)
+        
+        ! RC path distance
+        FC(1:Nvib) = Freq2FC(Nvib,Freq1)
+        dist=0.d0
+        area=1.d0
+        dt=5.d1
+        time = 0.d0
+        Nvib0=Nvib
+        do while (dabs(area) > 1d-10 .and. Nvib0>0)
+            f0=0.d0
+            f1=0.d0
+            Nvib0=Nvib
+            j = 0
+            do i=1,Nvib
+                ff = FC(i)**2*Vec1(i)**2*dexp(-2.d0*FC(i)*time)
+                f0 = f0 + ff
+                f1 = f1 + FC(i)**2*Vec1(i)**2*dexp(-2.d0*FC(i)*(time+dt))
+                ! Discard modes that reached the baseline
+                if (ff < 5e-24) then
+                    Nvib0=Nvib0-1
+                else
+                    j = j+1
+                    Vec2(j) = Vec1(i)
+                endif
+            enddo
+            Nvib = Nvib0
+            Vec1(1:Nvib) = Vec2(1:Nvib)
+            f0 = dsqrt(f0)
+            f1 = dsqrt(f1)
+            area = 0.5d0*(f0+f1)*dt
+            dist = dist + area
+            time=time+dt
+        enddo
+        print'(X,A,F10.4,/)', "Contour distance in IRC space ", dist/dsqrt(AMUtoAU)
+    endif
 
 
     call summary_alerts
@@ -1335,7 +1399,7 @@ program cartesian_duschinsky
 
     subroutine parse_input(inpfile,ft,gradfile,ftg,hessfile,fth,inpfile2,ft2,gradfile2,ftg2,hessfile2,fth2,&
                            cnx_file,intfile,rmzfile,def_internal,use_symmetry,derfile,gradcorrectS2,&
-                           gradcorrectS1,vertical,verticalQspace1,verticalQspace2,force_real,reference_frame,&
+                           gradcorrectS1,model,vertical,verticalQspace1,verticalQspace2,force_real,reference_frame,&
                            rm_gradcoord,rm_custom_file, &
                            int_space,apply_projection_matrix,analytic_Bder)
     !==================================================
@@ -1345,7 +1409,7 @@ program cartesian_duschinsky
 
         character(len=*),intent(inout) :: inpfile,ft,gradfile,ftg,hessfile,fth,gradfile2,ftg2,hessfile2,fth2,&
                                           cnx_file,intfile,rmzfile,def_internal,derfile,inpfile2,ft2,reference_frame,&
-                                          rm_custom_file
+                                          rm_custom_file, model
         logical,intent(inout)          :: use_symmetry,gradcorrectS2,gradcorrectS1,vertical,&
                                           verticalQspace1,verticalQspace2,force_real,rm_gradcoord,int_space,&
                                           apply_projection_matrix,analytic_Bder
@@ -1355,7 +1419,7 @@ program cartesian_duschinsky
         integer:: i
         character(len=200) :: arg
         character(len=500) :: input_command
-        character(len=10)  :: model="adia", MODEL_UPPER
+        character(len=10)  :: MODEL_UPPER
 
         ! Tune defaults
         logical :: gradcorrectS1_default=.true., &
@@ -1568,6 +1632,10 @@ program cartesian_duschinsky
        call set_word_upper_case(MODEL_UPPER)
        select case (adjustl(MODEL_UPPER))
            case ("ADIA") 
+               vertical=.false.
+               verticalQspace1=.false.
+               verticalQspace2=.false.
+           case ("AS") 
                vertical=.false.
                verticalQspace1=.false.
                verticalQspace2=.false.

@@ -83,6 +83,7 @@ program internal_duschinski
     character(len=4) :: def_internal='all'
     character(len=4) :: def_internal0='defa' ! defa(ult) is "the same as working set"
     character(len=1) :: reference_frame='F'
+    character(len=10):: model="adia"
     !======================
 
     !====================== 
@@ -124,6 +125,12 @@ program internal_duschinski
     ! Z-mat and redundant geoms
     integer,dimension(NDIM) :: Zmap
     type(str_bonded) :: zmatgeom, allgeom
+    !====================== 
+
+    !=========================
+    ! Distance calculation stuff
+    logical :: get_distances=.true.
+    real(8) :: ff, f1, f0, time, dt, dist, area
     !====================== 
 
     !====================== 
@@ -210,12 +217,13 @@ program internal_duschinski
                      use_symmetry,cnx_file, &
 !                    tswitch,
                      symaddapt,same_red2nonred_rotation,analytic_Bder,&
-                     vertical,verticalQspace2,verticalQspace1,&
+                     model,vertical,verticalQspace2,verticalQspace1,&
                      gradcorrectS1,gradcorrectS2,&
                      orthogonalize,original_internal,force_real,reference_frame,&
                      apply_projection_matrix,move_to_min)
     call set_word_upper_case(def_internal)
     call set_word_upper_case(reference_frame)
+    call set_word_upper_case(model)
 
     ! 1. INTERNAL VIBRATIONAL ANALYSIS ON STATE1 AND STATE2
 
@@ -536,309 +544,182 @@ program internal_duschinski
     if (Nat /= state2%natoms) call alert_msg("fatal","Initial and final states don't have the same number of atoms.")
 
     ! HESSIAN FILE
-    open(I_INP,file=hessfile2,status='old',iostat=IOstatus)
-    if (IOstatus /= 0) call alert_msg( "fatal","Unable to open "//trim(adjustl(hessfile2)) )
-    allocate(A(1:3*Nat*(3*Nat+1)/2))
-    call generic_Hessian_reader(I_INP,fth2,Nat,A,error) 
-    if (error /= 0) call alert_msg("fatal","Error reading Hessian (State2)")
-    close(I_INP)
-
-    ! Run vibrations_Cart to get the number of Nvib (to detect linear molecules)
-    ! This is also used to check if the symmetry changed from the other state
-    call vibrations_Cart(Nat,state2%atom(:)%X,state2%atom(:)%Y,state2%atom(:)%Z,state2%atom(:)%Mass,A,&
-                         NNvib,L2,Freq2,error_flag=error)
-    if (NNvib /= 3*Nat-6) call alert_msg("warning","Linear molecule (at state2). Things can go very bad.")
-    if (NNvib > Nvib) then
-        print'(/,A,/)', "Using reduced space from State1"
-    endif
-    k=0
-    do i=1,3*Nat
-    do j=1,i
-        k=k+1
-        Hess(i,j) = A(k)
-        Hess(j,i) = A(k)
-    enddo 
-    enddo
-    deallocate(A)
-
-    if (vertical.or.gradcorrectS2) then
-        ! GRADIENT FILE
-        open(I_INP,file=gradfile2,status='old',iostat=IOstatus)
-        if (IOstatus /= 0) call alert_msg( "fatal","Unable to open "//trim(adjustl(gradfile2)) )
-        call generic_gradient_reader(I_INP,ftg2,Nat,Grad,error)
-        if (error /= 0) call alert_msg("fatal","Error reading gradient (State2)")
+    if (adjustl(model)/="AS") then
+        open(I_INP,file=hessfile2,status='old',iostat=IOstatus)
+        if (IOstatus /= 0) call alert_msg( "fatal","Unable to open "//trim(adjustl(hessfile2)) )
+        allocate(A(1:3*Nat*(3*Nat+1)/2))
+        call generic_Hessian_reader(I_INP,fth2,Nat,A,error) 
+        if (error /= 0) call alert_msg("fatal","Error reading Hessian (State2)")
         close(I_INP)
-    endif
-
-
-    ! MANAGE INTERNAL COORDS
-    ! ---------------------------------
-    ! Get connectivity 
-    if (cnx_file == "guess") then
-        call guess_connect(state2)
-    else
-        print'(/,A,/)', "Reading connectivity from file: "//trim(adjustl(cnx_file))
-        open(I_CNX,file=cnx_file,status='old')
-        call read_connect(I_CNX,state2)
-        close(I_CNX)
-    endif
-
-    ! Manage symmetry
-    if (.not.use_symmetry) then
-        state2%PG="C1"
-    else if (trim(adjustl(symm_file)) /= "none") then
-        msg = "Using custom symmetry file: "//trim(adjustl(symm_file)) 
-        call alert_msg("note",msg)
-        open(I_SYM,file=symm_file)
-        do i=1,state2%natoms
-            read(I_SYM,*) j, isym(j)
-        enddo
-        close(I_SYM)
-        !Set PG to CUStom
-        state2%PG="CUS"
-    else
-        state2%PG="XX"
-        call symm_atoms(state2,isym)
-    endif
-    if (state1%PG /= state2%PG) then
-        print*, "PG(State1): ", state1%PG
-        print*, "PG(State2): ", state2%PG
-        if (.not.use_symmetry) then
-            call alert_msg("note","Initial and final state have different symmetry")
-        else
-            call alert_msg("warning","Initial and final state have different symmetry")
+        
+        ! Run vibrations_Cart to get the number of Nvib (to detect linear molecules)
+        ! This is also used to check if the symmetry changed from the other state
+        call vibrations_Cart(Nat,state2%atom(:)%X,state2%atom(:)%Y,state2%atom(:)%Z,state2%atom(:)%Mass,A,&
+                             NNvib,L2,Freq2,error_flag=error)
+        if (NNvib /= 3*Nat-6) call alert_msg("warning","Linear molecule (at state2). Things can go very bad.")
+        if (NNvib > Nvib) then
+            print'(/,A,/)', "Using reduced space from State1"
         endif
-    endif
-
-    !Specific actions (for Nvib and Nvib0 sets)
-    !*****************
-    if (gradcorrectS2) then
-        ! Nvib0 SET
-        !-----------
-        print'(/,X,A)', "COMPUTING CORRECTION FOR NON-STATIONARY   "
-        print*, "------------------------------------------"
-        ! The internal set for the correction does not need to be the same 
-        ! as the one to represent the normal modes
-        !Generate bonded info
-        call gen_bonded(state2)
-
-        !---------------------------------------
-        ! NOW, GET THE ACTUAL WORKING INTERNAL SET (from that of state1)
-        if (gradcorrectS1) then
-            state2%geom = geom0
-            Ns=Ns0
-        else
-            call define_internal_set(state2,def_internal0,intfile0,rmzfile,use_symmetry,isym,S_sym,Ns)
-        endif
-        !---------------------------------------
-
-        ! Get G, B, and Bder 
-        call internal_Wilson(state2,Ns,S2,B0,ModeDef)
-        call internal_Gmetric(Nat,Ns,state2%atom(:)%mass,B0,G0)
-        call calc_Bder(state2,Ns,Bder,analytic_Bder)
-
-        ! The diagonalization of the G matrix can be donne with all sets
-        ! (either redundant or non-redundant), and it is the best way to 
-        ! set the number of vibrations. The following call also set Nvib0
-        ! Nvib0=Nvib <-- we need to use Nvib0 as is. Nvib might have changed to a reduced space
-        call redundant2nonredundant(Ns,Nvib0,G0,Asel2)
-        ! Rotate Bmatrix
-        B0(1:Nvib0,1:3*Nat) = matrix_product(Nvib0,3*Nat,Ns,Asel2,B0,tA=.true.)
-        ! Rotate Gmatrix
-        G0(1:Nvib0,1:Nvib0) = matrix_basisrot(Nvib0,Ns,Asel2(1:Ns,1:Nvib0),G0,counter=.true.)
-        ! Rotate Bders
-        do j=1,3*Nat
-            Bder(1:Nvib0,j,1:3*Nat) =  matrix_product(Nvib0,3*Nat,Ns,Asel2,Bder(1:Ns,j,1:3*Nat),tA=.true.)
-        enddo
-
-        if (apply_projection_matrix) then
-            ! Get projection matrix (again...)
-            P(1:3*Nat,1:3*Nat) = projection_matrix(Nat,Nvib0,B0)
-            ! And rotate gradient
-            do i=1,3*Nat
-                Vec1(i) = 0.d0
-                do k=1,Nvib0
-                    Vec1(i) = Vec1(i) + P(i,k)*Grad(k)
-                enddo
-            enddo
-            Grad(1:3*Nat) = Vec1(1:3*Nat)
-        endif
-
-        ! Get the Correction now
-        print*, " Getting the correction term: gs^t\beta"
-        ! The correction is applied with the Nvib0 SET
-        ! Correct Hessian as
-        ! Hx' = Hx - gs^t\beta
-        ! 1. Get gs from gx 
-        Vec1(1:3*Nat) = Grad(1:3*Nat)
-        call Gradcart2int(Nat,Nvib0,Vec1,state2%atom(:)%mass,B0,G0)
-        ! 2. Multiply gs^t\beta and
-        ! 3. Apply the correction
-        ! Bder(i,j,K)^t * gq(K)
+        k=0
         do i=1,3*Nat
-        do j=1,3*Nat
-            gBder(i,j) = 0.d0
-            do k=1,Nvib0
-                gBder(i,j) = gBder(i,j) + Bder(k,i,j)*Vec1(k)
-            enddo
+        do j=1,i
+            k=k+1
+            Hess(i,j) = A(k)
+            Hess(j,i) = A(k)
+        enddo 
         enddo
-        enddo
-        if (verbose>2) then
-            print*, "Correction matrix to be applied on Hx:"
-            call MAT0(6,gBder,3*Nat,3*Nat,"gs*Bder matrix")
+        deallocate(A)
+
+        if (vertical.or.gradcorrectS2) then
+            ! GRADIENT FILE
+            open(I_INP,file=gradfile2,status='old',iostat=IOstatus)
+            if (IOstatus /= 0) call alert_msg( "fatal","Unable to open "//trim(adjustl(gradfile2)) )
+            call generic_gradient_reader(I_INP,ftg2,Nat,Grad,error)
+            if (error /= 0) call alert_msg("fatal","Error reading gradient (State2)")
+            close(I_INP)
         endif
-
-        if (check_symmetry) then
-            call check_symm_gsBder(state1,gBder)
-        endif
-    endif
-
-    !Nvib SET
-    !---------
-    print'(/,X,A)', "GETTING INTERNAL SET TO DESCRIBE MODES   "
-    print*, "------------------------------------------"
-    ! Refress connectivity
-    call gen_bonded(state2)
-
-    ! Define internal set => taken from state1
-    state2%geom = geomS
-    Ns = NsS
-
-    !From now on, we'll use atomic units
-    call set_geom_units(state2,"Bohr")
-
-
-    ! INTERNAL COORDINATES
-
-    !SOLVE GF METHOD TO GET NM AND FREQ
-    call internal_Wilson(state2,Ns,S2,B2,ModeDef)
-    call internal_Gmetric(Nat,Ns,state2%atom(:)%mass,B2,G2)
-    ! Handle redundant/symtrized sets
-!     if (symaddapt) then (implement in an analogous way as compared with the transformation from red to non-red
-    if (original_internal.and.Nvib==Ns) then
-        print*, "Using internal without linear combination"
-        Asel2(1:Ns,1:Nvib) = 0.d0
-        do i=1,Nvib
-            Asel2(i,i) = 1.d0 
-        enddo
-        Asel2inv(1:Nvib,1:Ns) = Asel2(1:Ns,1:Nvib)
-    else
-        if (same_red2nonred_rotation) then
-            print*, "Using internal from eigevectors of G (state1)"
-            ! Using Asel1 (from state1)
-            Asel2(1:Ns,1:Nvib) = Asel1(1:Ns,1:Nvib)
-            Asel2inv(1:Nvib,1:Ns) = Asel1inv(1:Nvib,1:Ns)
-            ! Rotate Gmatrix
-            G2(1:Nvib,1:Nvib) = matrix_basisrot(Nvib,Ns,Asel2inv(1:Nvib,1:Ns),G2)
+        
+        
+        ! MANAGE INTERNAL COORDS
+        ! ---------------------------------
+        ! Get connectivity 
+        if (cnx_file == "guess") then
+            call guess_connect(state2)
         else
-            print*, "Using internal from eigevectors of G (state2)"
-            call redundant2nonredundant(Ns,Nvib,G2,Asel2)
-            ! Rotate Gmatrix
-            G2(1:Nvib,1:Nvib) = matrix_basisrot(Nvib,Ns,Asel2(1:Ns,1:Nvib),G2,&
-                                                counter=.true.)
-            if (orthogonalize) then
-                print*, "Orthogonalyzing state2 internals..."
-                X2inv(1:Nvib,1:Nvib) = 0.d0
-                X(1:Nvib,1:Nvib)     = 0.d0
-                do i=1,Nvib
-                    X(i,i)     = dsqrt(G2(i,i))
-                    X2inv(i,i) = 1.d0/X(i,i)
-                enddo
-                ! Rotate Gmatrix (again)
-                G2(1:Nvib,1:Nvib) = matrix_basisrot(Nvib,Nvib,X2inv(1:Nvib,1:Nvib),G2)
-                ! Update Asel(inv)
-                Asel2inv(1:Nvib,1:Ns) = matrix_product(Nvib,Ns,Nvib,X2inv,Asel2,tB=.true.)
-                Asel2(1:Ns,1:Nvib)    = matrix_product(Ns,Nvib,Nvib,Asel2,X)
+            print'(/,A,/)', "Reading connectivity from file: "//trim(adjustl(cnx_file))
+            open(I_CNX,file=cnx_file,status='old')
+            call read_connect(I_CNX,state2)
+            close(I_CNX)
+        endif
+        
+        ! Manage symmetry
+        if (.not.use_symmetry) then
+            state2%PG="C1"
+        else if (trim(adjustl(symm_file)) /= "none") then
+            msg = "Using custom symmetry file: "//trim(adjustl(symm_file)) 
+            call alert_msg("note",msg)
+            open(I_SYM,file=symm_file)
+            do i=1,state2%natoms
+                read(I_SYM,*) j, isym(j)
+            enddo
+            close(I_SYM)
+            !Set PG to CUStom
+            state2%PG="CUS"
+        else
+            state2%PG="XX"
+            call symm_atoms(state2,isym)
+        endif
+        if (state1%PG /= state2%PG) then
+            print*, "PG(State1): ", state1%PG
+            print*, "PG(State2): ", state2%PG
+            if (.not.use_symmetry) then
+                call alert_msg("note","Initial and final state have different symmetry")
             else
-                Asel2inv(1:Nvib,1:Ns) = transpose(Asel2(1:Ns,1:Nvib))
+                call alert_msg("warning","Initial and final state have different symmetry")
             endif
         endif
-        ! Rotate Bmatrix
-        B2(1:Nvib,1:3*Nat) = matrix_product(Nvib,3*Nat,Ns,Asel2inv,B2)
-    endif
-
-    if (apply_projection_matrix) then
-        ! Get projection matrix (again...)
-        P(1:3*Nat,1:3*Nat) = projection_matrix(Nat,Nvib,B2)
-    endif
-
-    if (gradcorrectS2) then
-        do i=1,3*Nat
-        do j=1,3*Nat
-            ! Apply correction to the Hessian term
-            Hess(i,j) = Hess(i,j) - gBder(i,j)
-        enddo
-        enddo
-    endif
-
-    if (apply_projection_matrix) then
-        ! Project out rotation and translation
-        Hess(1:3*Nat,1:3*Nat) = matrix_basisrot(3*Nat,3*Nat,P,Hess)
-    endif
-
-    ! Convert also the gradient to internal (for future use)
-    call Gradcart2int(Nat,Nvib,Grad,state2%atom(:)%mass,B2,G2)
-    call HessianCart2int(Nat,Nvib,Hess,state1%atom(:)%mass,B2,G2)
-
-    if (move_to_min) then
-        print*, "Displace to the minimum"
-        ! GET MINIMUM IN INTERNAL COORDINATES
-        ! At this point
-        !  * Hess has the Hessian  of State2 in internal coords (output from HessianCart2int)
-        !  * Grad has the gradient of State2 in internal coords (output from HessianCart2int)
-        ! Inverse of the Hessian
-        Aux(1:Nvib,1:Nvib) = inverse_realgen(Nvib,Hess)
-        ! DeltaS0 = -Hs^1 * gs
-        do i=1,Nvib
-            Delta(i)=0.d0
-            do k=1,Nvib
-                Delta(i) = Delta(i)-Aux(i,k) * Grad(k)
-            enddo 
-        enddo
-! always do redundant2nonredundant
-!         if (Nvib<Ns) then
-            !Transform Delta' into Delta (for control purposes only)
-            ! Delta = A Delta'
-            do i=1,Ns
-                Vec1(i) = 0.d0
-                do k=1,Nvib
-                    Vec1(i) = Vec1(i) + Asel2(i,k)*Delta(k)
+        
+        !Specific actions (for Nvib and Nvib0 sets)
+        !*****************
+        if (gradcorrectS2) then
+            ! Nvib0 SET
+            !-----------
+            print'(/,X,A)', "COMPUTING CORRECTION FOR NON-STATIONARY   "
+            print*, "------------------------------------------"
+            ! The internal set for the correction does not need to be the same 
+            ! as the one to represent the normal modes
+            !Generate bonded info
+            call gen_bonded(state2)
+        
+            !---------------------------------------
+            ! NOW, GET THE ACTUAL WORKING INTERNAL SET (from that of state1)
+            if (gradcorrectS1) then
+                state2%geom = geom0
+                Ns=Ns0
+            else
+                call define_internal_set(state2,def_internal0,intfile0,rmzfile,use_symmetry,isym,S_sym,Ns)
+            endif
+            !---------------------------------------
+        
+            ! Get G, B, and Bder 
+            call internal_Wilson(state2,Ns,S2,B0,ModeDef)
+            call internal_Gmetric(Nat,Ns,state2%atom(:)%mass,B0,G0)
+            call calc_Bder(state2,Ns,Bder,analytic_Bder)
+        
+            ! The diagonalization of the G matrix can be donne with all sets
+            ! (either redundant or non-redundant), and it is the best way to 
+            ! set the number of vibrations. The following call also set Nvib0
+            ! Nvib0=Nvib <-- we need to use Nvib0 as is. Nvib might have changed to a reduced space
+            call redundant2nonredundant(Ns,Nvib0,G0,Asel2)
+            ! Rotate Bmatrix
+            B0(1:Nvib0,1:3*Nat) = matrix_product(Nvib0,3*Nat,Ns,Asel2,B0,tA=.true.)
+            ! Rotate Gmatrix
+            G0(1:Nvib0,1:Nvib0) = matrix_basisrot(Nvib0,Ns,Asel2(1:Ns,1:Nvib0),G0,counter=.true.)
+            ! Rotate Bders
+            do j=1,3*Nat
+                Bder(1:Nvib0,j,1:3*Nat) =  matrix_product(Nvib0,3*Nat,Ns,Asel2,Bder(1:Ns,j,1:3*Nat),tA=.true.)
+            enddo
+        
+            if (apply_projection_matrix) then
+                ! Get projection matrix (again...)
+                P(1:3*Nat,1:3*Nat) = projection_matrix(Nat,Nvib0,B0)
+                ! And rotate gradient
+                do i=1,3*Nat
+                    Vec1(i) = 0.d0
+                    do k=1,Nvib0
+                        Vec1(i) = Vec1(i) + P(i,k)*Grad(k)
+                    enddo
+                enddo
+                Grad(1:3*Nat) = Vec1(1:3*Nat)
+            endif
+        
+            ! Get the Correction now
+            print*, " Getting the correction term: gs^t\beta"
+            ! The correction is applied with the Nvib0 SET
+            ! Correct Hessian as
+            ! Hx' = Hx - gs^t\beta
+            ! 1. Get gs from gx 
+            Vec1(1:3*Nat) = Grad(1:3*Nat)
+            call Gradcart2int(Nat,Nvib0,Vec1,state2%atom(:)%mass,B0,G0)
+            ! 2. Multiply gs^t\beta and
+            ! 3. Apply the correction
+            ! Bder(i,j,K)^t * gq(K)
+            do i=1,3*Nat
+            do j=1,3*Nat
+                gBder(i,j) = 0.d0
+                do k=1,Nvib0
+                    gBder(i,j) = gBder(i,j) + Bder(k,i,j)*Vec1(k)
                 enddo
             enddo
-!         else
-!             Vec1(1:Nvib)=Delta(1:Nvib)
-!         endif
-
-        ! Get coordinates
-        do i=1,Ns
-            S2(i) = S1(i) + Vec1(i)
-        enddo
-
-        ! Get Cartesian coordinates
-        call intshif2cart(state2,Vec1)
-        ! 
-        ! USING Z-MATRIX SUBSET:
-!         ! 1. Save redundant geom
-!         allgeom = state2%geom
-!         ! 2. Construct Z-matrix geom
-!         call define_internal_set(state2,"ZMAT","none","none",use_symmetry,isym,S_sym,Nz)
-!         zmatgeom = state2%geom
-!         ! 3. Get mapping Z-matrix <--> redundant set
-!         call internals_mapping(allgeom,zmatgeom,Zmap)
-!         ! 4. Map redundant set onto the Z-matrix
-!         S2(1:Nvib) = map_Zmatrix(Nvib,S2,Zmap)
-!         ! 5. Construct structure from Z-matrix
-!         state2%geom = zmatgeom
-!         call zmat2cart(state2,S2)
-!         ! 6. Recover original geometry
-!         state2%geom = allgeom
-
-        ! Print the new structure file
-        open(99,file="struct2_displaced.xyz")
-        call generic_strmol_writer(99,'xyz',state2,error)
-        close(99)
-
-        !GET AGAIN THE G VECTOR
+            enddo
+            if (verbose>2) then
+                print*, "Correction matrix to be applied on Hx:"
+                call MAT0(6,gBder,3*Nat,3*Nat,"gs*Bder matrix")
+            endif
+        
+            if (check_symmetry) then
+                call check_symm_gsBder(state1,gBder)
+            endif
+        endif
+        
+        !Nvib SET
+        !---------
+        print'(/,X,A)', "GETTING INTERNAL SET TO DESCRIBE MODES   "
+        print*, "------------------------------------------"
+        ! Refress connectivity
+        call gen_bonded(state2)
+        
+        ! Define internal set => taken from state1
+        state2%geom = geomS
+        Ns = NsS
+        
+        !From now on, we'll use atomic units
+        call set_geom_units(state2,"Bohr")
+        
+        
+        ! INTERNAL COORDINATES
+        
+        !SOLVE GF METHOD TO GET NM AND FREQ
         call internal_Wilson(state2,Ns,S2,B2,ModeDef)
         call internal_Gmetric(Nat,Ns,state2%atom(:)%mass,B2,G2)
         ! Handle redundant/symtrized sets
@@ -889,148 +770,293 @@ program internal_duschinski
             ! Get projection matrix (again...)
             P(1:3*Nat,1:3*Nat) = projection_matrix(Nat,Nvib,B2)
         endif
-
-        ! From now, it is as if it were a adiabatic calculation
-        vertical = .false.
-    endif
-
-    call gf_method(Nvib,G2,Hess,L2,Freq2,X,X2inv)
-    if (verbose>0) then
-        ! Analyze normal modes in terms of the redundant set
-! always do redundant2nonredundant
-!         if (Nvib<Ns) then
-            Aux(1:Ns,1:Nvib) = matrix_product(Ns,Nvib,Nvib,Asel2,L2)
-!         else
-!             Aux(1:Ns,1:Nvib) = L2(1:Ns,1:Nvib)
-!         endif
-        if (use_symmetry) then
-            call analyze_internal(Nvib,Ns,Aux,Freq2,ModeDef,S_sym)
-        else
-            call analyze_internal(Nvib,Ns,Aux,Freq2,ModeDef)
+        
+        if (gradcorrectS2) then
+            do i=1,3*Nat
+            do j=1,3*Nat
+                ! Apply correction to the Hessian term
+                Hess(i,j) = Hess(i,j) - gBder(i,j)
+            enddo
+            enddo
         endif
-    endif
-
-
-    !==========================================
-    ! CHECKS ON THE INTERNAL SETS
-    !==========================================
-    ! Evaluate orthogonality
-    if (verbose>0) then
-     print'(2/,X,A)', "============================================"
-     print*,          " Internal Coordinates Orthogonality Checks  "
-     print*,          "============================================"
-     print*,          "Analysing: D = G1^-1/2 (A1^-1 A2) G2^1/2"
-    endif
-
-    if (.not.same_red2nonred_rotation) then
-        ! We need to include the fact that Asel1 /= Asel2, i.e.,
-        ! rotate to the same redundant space L(red) = Asel * L(non-red)
-        ! J = L1^-1 A1^-1 A2 L2
-        ! so store in Aux the following part: [L1^-1 A1^-1 A2]
-        Aux(1:Nvib,1:Nvib) = matrix_product(Nvib,Nvib,Ns,Asel1inv,Asel2)
-        Aux(1:Nvib,1:Nvib) = matrix_product(Nvib,Nvib,Nvib,X1inv,Aux)
-    else
-        Aux(1:Nvib,1:Nvib) = X1inv(1:Nvib,1:Nvib)
-    endif
-
-    Aux(1:Nvib,1:Nvib) = matrix_product(Nvib,Nvib,Nvib,Aux,X)
-    open (O_DMAT,file="D_matrix_abs.dat",status="replace")
-    do i=1,Nvib
-        write(O_DMAT,'(600f8.2)') dabs(Aux(i,1:Nvib))
-    enddo
-    close(O_DMAT)
-    open (O_DMAT,file="D_matrix.dat",status="replace")
-    do i=1,Nvib
-        write(O_DMAT,'(600f8.2)') Aux(i,1:Nvib)
-    enddo
-    close(O_DMAT)
-    if (verbose>0) &
-     print'(X,A,/)', "(D matrix written to files: D_matrix.dat and D_matrix_abs.dat)"
-    
-    if (verbose>0) then
-        ! COMPUTE DETERMINANT AND TRACE OF D_matrix
-        theta = 0.d0
-        do i=1,Nvib
-            theta = theta+Aux(i,i)
-        enddo    
-        print'(X,A,F8.2,A,I0,A)', "Trace", theta, "  (",Nvib,")"
-        theta = -100.d0  !max
-        theta2 = 100.d0  !min
-        do i=1,Nvib
-            if (Aux(i,i) > theta) then
-                theta = Aux(i,i)
-                imax = i
+        
+        if (apply_projection_matrix) then
+            ! Project out rotation and translation
+            Hess(1:3*Nat,1:3*Nat) = matrix_basisrot(3*Nat,3*Nat,P,Hess)
+        endif
+        
+        ! Convert also the gradient to internal (for future use)
+        call Gradcart2int(Nat,Nvib,Grad,state2%atom(:)%mass,B2,G2)
+        call HessianCart2int(Nat,Nvib,Hess,state1%atom(:)%mass,B2,G2)
+        
+        if (move_to_min) then
+            print*, "Displace to the minimum"
+            ! GET MINIMUM IN INTERNAL COORDINATES
+            ! At this point
+            !  * Hess has the Hessian  of State2 in internal coords (output from HessianCart2int)
+            !  * Grad has the gradient of State2 in internal coords (output from HessianCart2int)
+            ! Inverse of the Hessian
+            Aux(1:Nvib,1:Nvib) = inverse_realgen(Nvib,Hess)
+            ! DeltaS0 = -Hs^1 * gs
+            do i=1,Nvib
+                Delta(i)=0.d0
+                do k=1,Nvib
+                    Delta(i) = Delta(i)-Aux(i,k) * Grad(k)
+                enddo 
+            enddo
+! al    ways do redundant2nonredundant
+!             if (Nvib<Ns) then
+                !Transform Delta' into Delta (for control purposes only)
+                ! Delta = A Delta'
+                do i=1,Ns
+                    Vec1(i) = 0.d0
+                    do k=1,Nvib
+                        Vec1(i) = Vec1(i) + Asel2(i,k)*Delta(k)
+                    enddo
+                enddo
+!             else
+!                 Vec1(1:Nvib)=Delta(1:Nvib)
+!             endif
+        
+            ! Get coordinates
+            do i=1,Ns
+                S2(i) = S1(i) + Vec1(i)
+            enddo
+        
+            ! Get Cartesian coordinates
+            call intshif2cart(state2,Vec1)
+            ! 
+            ! USING Z-MATRIX SUBSET:
+!             ! 1. Save redundant geom
+!             allgeom = state2%geom
+!             ! 2. Construct Z-matrix geom
+!             call define_internal_set(state2,"ZMAT","none","none",use_symmetry,isym,S_sym,Nz)
+!             zmatgeom = state2%geom
+!             ! 3. Get mapping Z-matrix <--> redundant set
+!             call internals_mapping(allgeom,zmatgeom,Zmap)
+!             ! 4. Map redundant set onto the Z-matrix
+!             S2(1:Nvib) = map_Zmatrix(Nvib,S2,Zmap)
+!             ! 5. Construct structure from Z-matrix
+!             state2%geom = zmatgeom
+!             call zmat2cart(state2,S2)
+!             ! 6. Recover original geometry
+!             state2%geom = allgeom
+        
+            ! Print the new structure file
+            open(99,file="struct2_displaced.xyz")
+            call generic_strmol_writer(99,'xyz',state2,error)
+            close(99)
+        
+            !GET AGAIN THE G VECTOR
+            call internal_Wilson(state2,Ns,S2,B2,ModeDef)
+            call internal_Gmetric(Nat,Ns,state2%atom(:)%mass,B2,G2)
+            ! Handle redundant/symtrized sets
+!             if (symaddapt) then (implement in an analogous way as compared with the transformation from red to non-red
+            if (original_internal.and.Nvib==Ns) then
+                print*, "Using internal without linear combination"
+                Asel2(1:Ns,1:Nvib) = 0.d0
+                do i=1,Nvib
+                    Asel2(i,i) = 1.d0 
+                enddo
+                Asel2inv(1:Nvib,1:Ns) = Asel2(1:Ns,1:Nvib)
+            else
+                if (same_red2nonred_rotation) then
+                    print*, "Using internal from eigevectors of G (state1)"
+                    ! Using Asel1 (from state1)
+                    Asel2(1:Ns,1:Nvib) = Asel1(1:Ns,1:Nvib)
+                    Asel2inv(1:Nvib,1:Ns) = Asel1inv(1:Nvib,1:Ns)
+                    ! Rotate Gmatrix
+                    G2(1:Nvib,1:Nvib) = matrix_basisrot(Nvib,Ns,Asel2inv(1:Nvib,1:Ns),G2)
+                else
+                    print*, "Using internal from eigevectors of G (state2)"
+                    call redundant2nonredundant(Ns,Nvib,G2,Asel2)
+                    ! Rotate Gmatrix
+                    G2(1:Nvib,1:Nvib) = matrix_basisrot(Nvib,Ns,Asel2(1:Ns,1:Nvib),G2,&
+                                                        counter=.true.)
+                    if (orthogonalize) then
+                        print*, "Orthogonalyzing state2 internals..."
+                        X2inv(1:Nvib,1:Nvib) = 0.d0
+                        X(1:Nvib,1:Nvib)     = 0.d0
+                        do i=1,Nvib
+                            X(i,i)     = dsqrt(G2(i,i))
+                            X2inv(i,i) = 1.d0/X(i,i)
+                        enddo
+                        ! Rotate Gmatrix (again)
+                        G2(1:Nvib,1:Nvib) = matrix_basisrot(Nvib,Nvib,X2inv(1:Nvib,1:Nvib),G2)
+                        ! Update Asel(inv)
+                        Asel2inv(1:Nvib,1:Ns) = matrix_product(Nvib,Ns,Nvib,X2inv,Asel2,tB=.true.)
+                        Asel2(1:Ns,1:Nvib)    = matrix_product(Ns,Nvib,Nvib,Asel2,X)
+                    else
+                        Asel2inv(1:Nvib,1:Ns) = transpose(Asel2(1:Ns,1:Nvib))
+                    endif
+                endif
+                ! Rotate Bmatrix
+                B2(1:Nvib,1:3*Nat) = matrix_product(Nvib,3*Nat,Ns,Asel2inv,B2)
             endif
-            if (Aux(i,i) < theta2) then
-                theta2 = Aux(i,i)
-                imin = i
+            
+            if (apply_projection_matrix) then
+                ! Get projection matrix (again...)
+                P(1:3*Nat,1:3*Nat) = projection_matrix(Nat,Nvib,B2)
             endif
-        enddo 
-        print*, "Min diagonal", theta2, trim(adjustl(ModeDef(imin)))
-        print*, "Max diagonal", theta,  trim(adjustl(ModeDef(imax)))
-        theta = -100.d0  !max
-        theta2 = 100.d0  !min
-        theta3 = 0.d0
-        k=0
+        
+            ! From now, it is as if it were a adiabatic calculation
+            vertical = .false.
+        endif
+        
+        call gf_method(Nvib,G2,Hess,L2,Freq2,X,X2inv)
+        if (verbose>0) then
+            ! Analyze normal modes in terms of the redundant set
+! al    ways do redundant2nonredundant
+!             if (Nvib<Ns) then
+                Aux(1:Ns,1:Nvib) = matrix_product(Ns,Nvib,Nvib,Asel2,L2)
+!             else
+!                 Aux(1:Ns,1:Nvib) = L2(1:Ns,1:Nvib)
+!             endif
+            if (use_symmetry) then
+                call analyze_internal(Nvib,Ns,Aux,Freq2,ModeDef,S_sym)
+            else
+                call analyze_internal(Nvib,Ns,Aux,Freq2,ModeDef)
+            endif
+        endif
+        
+        
+        !==========================================
+        ! CHECKS ON THE INTERNAL SETS
+        !==========================================
+        ! Evaluate orthogonality
+        if (verbose>0) then
+         print'(2/,X,A)', "============================================"
+         print*,          " Internal Coordinates Orthogonality Checks  "
+         print*,          "============================================"
+         print*,          "Analysing: D = G1^-1/2 (A1^-1 A2) G2^1/2"
+        endif
+        
+        if (.not.same_red2nonred_rotation) then
+            ! We need to include the fact that Asel1 /= Asel2, i.e.,
+            ! rotate to the same redundant space L(red) = Asel * L(non-red)
+            ! J = L1^-1 A1^-1 A2 L2
+            ! so store in Aux the following part: [L1^-1 A1^-1 A2]
+            Aux(1:Nvib,1:Nvib) = matrix_product(Nvib,Nvib,Ns,Asel1inv,Asel2)
+            Aux(1:Nvib,1:Nvib) = matrix_product(Nvib,Nvib,Nvib,X1inv,Aux)
+        else
+            Aux(1:Nvib,1:Nvib) = X1inv(1:Nvib,1:Nvib)
+        endif
+        
+        Aux(1:Nvib,1:Nvib) = matrix_product(Nvib,Nvib,Nvib,Aux,X)
+        open (O_DMAT,file="D_matrix_abs.dat",status="replace")
         do i=1,Nvib
-        do j=1,Nvib
-            if (i==j) cycle
-            k=k+1
-            theta3 = theta3 + dabs(Aux(i,j))
-            theta  = max(theta, Aux(i,j))
-            theta2 = min(theta2,Aux(i,j))
+            write(O_DMAT,'(600f8.2)') dabs(Aux(i,1:Nvib))
         enddo
-        enddo 
-        print*, "Min off-diagonal", theta2    
-        print*, "Max off-diagonal", theta
-        print*, "AbsDev off-diagonal sum", theta3
-        print*, "AbsDev off-diagonal per element", theta3/dfloat(k)
-        theta = determinant_realgen(Nvib,Aux)
-        print*, "Determinant", theta
-        print*, "-------------------------------------------------------"
-        print*, ""
-    endif
-
-
-    ! ===========================================
-    ! COMPUTE DUSCHINSKY MATRIX AND DISPLACEMENT VECTOR 
-    ! ===========================================
-    !--------------------------
-    ! J-matrix (Duschinski)
-    !--------------------------
-    ! Orthogonal Duschinski (from orthogonalized ICs. Not used in this version)
-    ! Get orthogonal modes:  L' = G^-1/2 L
-    Aux(1:Nvib,1:Nvib)  = matrix_product(Nvib,Nvib,Nvib,X1inv,L1)
-    Aux2(1:Nvib,1:Nvib) = matrix_product(Nvib,Nvib,Nvib,X2inv,L2)
-    ! Duschinsky matrix (orth) stored in JdusO = L1'^t L2'
-!     JdusO(1:Nvib,1:Nvib) = matrix_product(Nvib,Nvib,Nvib,Aux,Aux2,tA=.true.)
-    !Store L1' in Aux2 to later be used to get the displacement
-    Aux2(1:Nvib,1:Nvib)=Aux(1:Nvib,1:Nvib)
-
-    ! Non-Orthogonal Duschinski (the one we use)
-    if (verbose>0) &
-     print*, "Calculating Duschisky..."
-    !Inverse of L1 (and store in L1inv)
-    L1inv(1:Nvib,1:Nvib) = inverse_realgen(Nvib,L1(1:Nvib,1:Nvib))
-    ! Account for different rotations to non-redundant set 
-    ! but preserve the inverse L1 matrix in L1
-! always do redundant2nonredundant
-!     if (Nvib<Ns .and. .not.same_red2nonred_rotation) then
-    if (.not.same_red2nonred_rotation) then
-        print*, "  Using different A rotations"
-        ! We need to include the fact that Asel1 /= Asel2, i.e.,
-        ! rotate to the same redundant space L(red) = Asel * L(non-red)
-        ! J = L1^-1 A1^-1 A2 L2
-        ! so store in Aux the following part: [L1^-1 A1^-1 A2]
-        Aux(1:Nvib,1:Nvib) = matrix_product(Nvib,Nvib,Ns,Asel1inv,Asel2)
-        Aux(1:Nvib,1:Nvib) = matrix_product(Nvib,Nvib,Nvib,L1inv,Aux)
+        close(O_DMAT)
+        open (O_DMAT,file="D_matrix.dat",status="replace")
+        do i=1,Nvib
+            write(O_DMAT,'(600f8.2)') Aux(i,1:Nvib)
+        enddo
+        close(O_DMAT)
+        if (verbose>0) &
+         print'(X,A,/)', "(D matrix written to files: D_matrix.dat and D_matrix_abs.dat)"
+        
+        if (verbose>0) then
+            ! COMPUTE DETERMINANT AND TRACE OF D_matrix
+            theta = 0.d0
+            do i=1,Nvib
+                theta = theta+Aux(i,i)
+            enddo    
+            print'(X,A,F8.2,A,I0,A)', "Trace", theta, "  (",Nvib,")"
+            theta = -100.d0  !max
+            theta2 = 100.d0  !min
+            do i=1,Nvib
+                if (Aux(i,i) > theta) then
+                    theta = Aux(i,i)
+                    imax = i
+                endif
+                if (Aux(i,i) < theta2) then
+                    theta2 = Aux(i,i)
+                    imin = i
+                endif
+            enddo 
+            print*, "Min diagonal", theta2, trim(adjustl(ModeDef(imin)))
+            print*, "Max diagonal", theta,  trim(adjustl(ModeDef(imax)))
+            theta = -100.d0  !max
+            theta2 = 100.d0  !min
+            theta3 = 0.d0
+            k=0
+            do i=1,Nvib
+            do j=1,Nvib
+                if (i==j) cycle
+                k=k+1
+                theta3 = theta3 + dabs(Aux(i,j))
+                theta  = max(theta, Aux(i,j))
+                theta2 = min(theta2,Aux(i,j))
+            enddo
+            enddo 
+            print*, "Min off-diagonal", theta2    
+            print*, "Max off-diagonal", theta
+            print*, "AbsDev off-diagonal sum", theta3
+            print*, "AbsDev off-diagonal per element", theta3/dfloat(k)
+            theta = determinant_realgen(Nvib,Aux)
+            print*, "Determinant", theta
+            print*, "-------------------------------------------------------"
+            print*, ""
+        endif
+        
+        
+        ! ===========================================
+        ! COMPUTE DUSCHINSKY MATRIX AND DISPLACEMENT VECTOR 
+        ! ===========================================
+        !--------------------------
+        ! J-matrix (Duschinski)
+        !--------------------------
+        ! Orthogonal Duschinski (from orthogonalized ICs. Not used in this version)
+        ! Get orthogonal modes:  L' = G^-1/2 L
+        Aux(1:Nvib,1:Nvib)  = matrix_product(Nvib,Nvib,Nvib,X1inv,L1)
+        Aux2(1:Nvib,1:Nvib) = matrix_product(Nvib,Nvib,Nvib,X2inv,L2)
+        ! Duschinsky matrix (orth) stored in JdusO = L1'^t L2'
+!         JdusO(1:Nvib,1:Nvib) = matrix_product(Nvib,Nvib,Nvib,Aux,Aux2,tA=.true.)
+        !Store L1' in Aux2 to later be used to get the displacement
+        Aux2(1:Nvib,1:Nvib)=Aux(1:Nvib,1:Nvib)
+        
+        ! Non-Orthogonal Duschinski (the one we use)
+        if (verbose>0) &
+         print*, "Calculating Duschisky..."
+        !Inverse of L1 (and store in L1inv)
+        L1inv(1:Nvib,1:Nvib) = inverse_realgen(Nvib,L1(1:Nvib,1:Nvib))
+        ! Account for different rotations to non-redundant set 
+        ! but preserve the inverse L1 matrix in L1
+! al    ways do redundant2nonredundant
+!         if (Nvib<Ns .and. .not.same_red2nonred_rotation) then
+        if (.not.same_red2nonred_rotation) then
+            print*, "  Using different A rotations"
+            ! We need to include the fact that Asel1 /= Asel2, i.e.,
+            ! rotate to the same redundant space L(red) = Asel * L(non-red)
+            ! J = L1^-1 A1^-1 A2 L2
+            ! so store in Aux the following part: [L1^-1 A1^-1 A2]
+            Aux(1:Nvib,1:Nvib) = matrix_product(Nvib,Nvib,Ns,Asel1inv,Asel2)
+            Aux(1:Nvib,1:Nvib) = matrix_product(Nvib,Nvib,Nvib,L1inv,Aux)
+        else
+            print*, "  Using the same A rotation for both states"
+            Aux(1:Nvib,1:Nvib) = L1inv(1:Nvib,1:Nvib)
+        endif
+        !J = L1^-1 [A1^t A2] L2 (stored in J).
+        Jdus(1:Nvib,1:Nvib) = matrix_product(Nvib,Nvib,Nvib,Aux,L2)
     else
-        print*, "  Using the same A rotation for both states"
-        Aux(1:Nvib,1:Nvib) = L1inv(1:Nvib,1:Nvib)
+        !Inverse of L1 (and store in L1inv)
+        L1inv(1:Nvib,1:Nvib) = inverse_realgen(Nvib,L1(1:Nvib,1:Nvib))
+        ! Compute S2
+        state2%geom=state1%geom
+        call set_geom_units(state2,"Bohr")
+        call compute_internal(state2,Ns,S2)
+        call set_geom_units(state2,"Angs")
+        ! Get Freqs from State1
+        Freq2(1:Nvib) = Freq1(1:Nvib)
+        ! Make Duschinski the unit matrix
+        Jdus(1:Nvib,1:Nvib) = 0.d0
+        do i=1,Nvib
+            Jdus(i,i) = 1.d0
+        enddo
+        ! Set Reference frame to Initial
+        reference_frame="I"
     endif
-    !J = L1^-1 [A1^t A2] L2 (stored in J).
-    Jdus(1:Nvib,1:Nvib) = matrix_product(Nvib,Nvib,Nvib,Aux,L2)
-
 
     !--------------------------
     ! ICs displacement
@@ -1473,10 +1499,55 @@ program internal_duschinski
     close(O_DIS)
 !     close(O_DIS2)
 
+    if (get_distances) then
+        print*, "DISTANCES FROM STATE1 TO STATE2 IN Q1-SPACE"
+        ! Euclidean distance
+        dist=0.d0
+        do i=1,Nvib
+            dist = dist + Vec1(i)**2
+        enddo
+        dist=dsqrt(dist)
+        print'(X,A,F10.4)', "Euclidean distance in nm space", dist/dsqrt(AMUtoAU)
+        
+        ! RC path distance
+        FC(1:Nvib) = Freq2FC(Nvib,Freq1)
+        dist=0.d0
+        area=1.d0
+        dt=5.d1
+        time = 0.d0
+        Nvib0=Nvib
+        do while (dabs(area) > 1d-10 .and. Nvib0>0)
+            f0=0.d0
+            f1=0.d0
+            Nvib0=Nvib
+            j = 0
+            do i=1,Nvib
+                ff = FC(i)**2*Vec1(i)**2*dexp(-2.d0*FC(i)*time)
+                f0 = f0 + ff
+                f1 = f1 + FC(i)**2*Vec1(i)**2*dexp(-2.d0*FC(i)*(time+dt))
+                ! Discard modes that reached the baseline
+                if (ff < 5e-24) then
+                    Nvib0=Nvib0-1
+                else
+                    j = j+1
+                    Vec2(j) = Vec1(i)
+                endif
+            enddo
+            Nvib = Nvib0
+            Vec1(1:Nvib) = Vec2(1:Nvib)
+            f0 = dsqrt(f0)
+            f1 = dsqrt(f1)
+            area = 0.5d0*(f0+f1)*dt
+            dist = dist + area
+            time=time+dt
+        enddo
+        print'(X,A,F10.4,/)', "Contour distance in IRC space ", dist/dsqrt(AMUtoAU)
+    endif
+
     call summary_alerts
 
     call cpu_time(tf)
-    write(6,'(A,F12.3)') "CPU (s) for internal vib analysis: ", tf-ti
+    write(6,'(/,A,X,F12.3,/)') "CPU (s) for internal vib analysis: ", tf-ti
 
     stop
 
@@ -1490,7 +1561,7 @@ program internal_duschinski
                            use_symmetry,cnx_file,&
 !                          tswitch,
                            symaddapt,same_red2nonred_rotation,analytic_Bder,&
-                           vertical,verticalQspace2,verticalQspace1,&
+                           model,vertical,verticalQspace2,verticalQspace1,&
                            gradcorrectS1,gradcorrectS2,&
                            orthogonalize,original_internal,force_real,reference_frame,&
                            apply_projection_matrix,move_to_min)
@@ -1502,7 +1573,7 @@ program internal_duschinski
         character(len=*),intent(inout) :: inpfile,ft,hessfile,fth,gradfile,ftg,&
                                           inpfile2,ft2,hessfile2,fth2,gradfile2,ftg2,&
                                           intfile,intfile0,rmzfile,def_internal,def_internal0,&
-                                          cnx_file,reference_frame !, symfile
+                                          cnx_file,reference_frame,model !, symfile
         logical,intent(inout)          :: use_symmetry, vertical, verticalQspace2, &
                                           verticalQspace1, &
                                           gradcorrectS1, gradcorrectS2, symaddapt, &
@@ -1517,7 +1588,7 @@ program internal_duschinski
         integer:: i
         character(len=200) :: arg
         character(len=500) :: input_command
-        character(len=10)  :: model="adia", MODEL_UPPER
+        character(len=10)  :: MODEL_UPPER
 
         ! Tune defaults
         logical :: gradcorrectS1_default=.true., &
@@ -1735,6 +1806,10 @@ program internal_duschinski
        call set_word_upper_case(MODEL_UPPER)
        select case (adjustl(MODEL_UPPER))
            case ("ADIA") 
+               vertical=.false.
+               verticalQspace1=.false.
+               verticalQspace2=.false.
+           case ("AS") 
                vertical=.false.
                verticalQspace1=.false.
                verticalQspace2=.false.
