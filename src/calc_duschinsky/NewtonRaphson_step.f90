@@ -352,6 +352,7 @@ program NewtonRaphson_step
     print'(A)',   "-------------------------------------------------"
     call vibrations_Cart(Nat,state2%atom(:)%X,state2%atom(:)%Y,state2%atom(:)%Z,state2%atom(:)%Mass,Hlt,&
                          Nvib,L1,Vec2,error)
+    deallocate(Hlt)
 
     !-------------------------------
     ! Reorganization energy
@@ -640,7 +641,27 @@ program NewtonRaphson_step
     open(70,file="minim_harmonic_Int_it.xyz")
     call write_xyz(70,state2)
     close(70)
+
+    ! Export fch with the Hessian transfomed back at the minimum
+    open(70,file="minim_harmonic_Int_it.fchk")
+    call generic_structure_writer(70,'fchk',Nat,state2%atom(1:Nat)%X,&
+                                                state2%atom(1:Nat)%Y,&
+                                                state2%atom(1:Nat)%Z,&
+                                                state2%atom(1:Nat)%Mass,&
+                                                state2%atom(1:Nat)%Name,&
+                                                error,"NewtonRaphson step")
+    
+    call internal_Wilson(state2,Ns,S2,B2,ModeDef)
+    Hess(1:Ns,1:Ns) = matrix_basisrot(Ns,Nvib,Asel1(1:Ns,1:Nvib),Hess,counter=.false.)
+    Hess(1:3*Nat,1:3*Nat) = matrix_basisrot(3*Nat,Ns,B2,Hess,counter=.true.)
+    N = 3*Nat*(3*Nat+1)/2
+    allocate(Hlt(1:N))
+    Hlt(1:N) = Hess_to_Hlt(3*Nat,Hess)
+    call write_fchk(70,"Cartesian Force Constants","R",N,Hlt,(/0/),error)
+    deallocate(Hlt)
+    close(70)
     call set_geom_units(state2,"BOHR")
+
 !     if (Ns /= Nvib) then
         state2%geom = allgeom
         call verbose_mute()
