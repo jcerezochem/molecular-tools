@@ -11,12 +11,13 @@ bin_PROGRAMS = nm_internal numder_fc numder_L prj_nm_internal nm_cartesian gen_L
 # ============
 # nm_internal
 # ============
-nm_internal_SOURCES =   ../modules/version.f90\
+nm_internal_SOURCES =   \
                         ../modules/verbosity.f90\
                         ../modules/alerts.f90\
                         ../modules/line_preprocess.f90\
-                        ../modules/io.f90\
                         ../modules/constants.f90\
+                        ../modules/io.f90                  \
+                        ../modules/version.f90             \
                         ../modules/matrix.f90              \
                         ../modules/matrix_print.f90        \
                         ../modules/structure_types.f90     \
@@ -49,12 +50,13 @@ nm_internal_SOURCES =   ../modules/version.f90\
 # ============
 # nm_cartesian
 # ============
-nm_cartesian_SOURCES =  ../modules/version.f90\
+nm_cartesian_SOURCES =  \
                         ../modules/verbosity.f90\
                         ../modules/alerts.f90\
                         ../modules/line_preprocess.f90\
-                        ../modules/io.f90\
                         ../modules/constants.f90\
+                        ../modules/io.f90                  \
+                        ../modules/version.f90             \
                         ../modules/matrix.f90              \
                         ../modules/matrix_print.f90        \
                         ../modules/structure_types.f90     \
@@ -268,12 +270,13 @@ prj_nm_internal_SOURCES =../modules/alerts.f90              \
                              project_normal_modes_internal.f90
 
 
-prj_grad_on_nm_int_SOURCES = ../modules/version.f90\
+prj_grad_on_nm_int_SOURCES = \
                              ../modules/alerts.f90\
                              ../modules/line_preprocess.f90\
                              ../modules/constants.f90\
                              ../modules/verbosity.f90\
-                             ../modules/io.f90\
+                             ../modules/io.f90                  \
+                             ../modules/version.f90             \
                              ../modules/matrix.f90\
                              ../modules/matrix_print.f90\
                              ../modules/structure_types.f90\

@@ -25,9 +25,11 @@ if [ "$old_git_hash" != "$git_hash" ]; then
 cat <<EOF > version.f90
     subroutine print_version()
 
-        write(6,'(/A)') "GIT VERSION INFO"
-        write(6,'(A)')   " Commit id  : $git_hash"
-        write(6,'(A)')   " Commit date: $git_date"
+        use io, only: uout
+
+        write(uout,'(/A)') "GIT VERSION INFO"
+        write(uout,'(A)')   " Commit id  : $git_hash"
+        write(uout,'(A)')   " Commit date: $git_date"
         
         return
     end subroutine 

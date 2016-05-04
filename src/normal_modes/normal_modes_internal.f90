@@ -71,7 +71,7 @@ program normal_modes_animation
     !====================== 
     !System variables
     type(str_resmol) :: molecule, molec_aux
-    type(str_bonded) :: zmatgeom, allgeom, currentgeom
+    type(str_bonded) :: zmatgeom, allgeom, currentgeom, selgeom
     integer,dimension(1:NDIM) :: isym
     integer,dimension(4,1:NDIM,1:NDIM) :: Osym
     integer :: Nsym
@@ -122,7 +122,7 @@ program normal_modes_animation
 
     !====================== 
     !INTERNAL CODE THINGS
-    real(8),dimension(1:NDIM,1:NDIM) :: B, G, Asel, Asel_all, B0, G0, Asel0
+    real(8),dimension(1:NDIM,1:NDIM) :: B, G, Asel, Asel_all, B0, G0, Asel0, Bprj
     real(8),dimension(1:NDIM,1:NDIM,1:NDIM) :: Bder
     real(8),dimension(1:NDIM,1:NDIM) :: X,Xinv
     !Save definitio of the modes in character
@@ -527,8 +527,22 @@ program normal_modes_animation
 
     !---------------------------------------
     ! NOW, GET THE ACTUAL WORKING INTERNAL SET
+    call define_internal_set(molecule,"ALL",intfile,rmzfile,use_symmetry,isym,S_sym,Ns)
+    allgeom = molecule%geom
     call define_internal_set(molecule,def_internal,intfile,rmzfile,use_symmetry,isym,S_sym,Ns)
+    selgeom = molecule%geom
     !---------------------------------------
+
+    ! Compute B matrix in the selgeom for projection
+    Nvib0 = Nvib
+    call internal_Wilson(molecule,Ns,S,Bprj)
+    call internal_Gmetric(Nat,Ns,molecule%atom(:)%mass,Bprj,G)
+    call redundant2nonredundant(Ns,Nvib0,G,Asel)
+    Bprj(1:Nvib_all,1:3*Nat) = matrix_product(Nvib0,3*Nat,Ns,Asel,Bprj,tA=.true.)
+    ! And get back allgeom
+    Ns = allgeom%nbonds+allgeom%nangles+allgeom%ndihed
+    molecule%geom = allgeom
+
 
     ! Set variables based on the working internal set 
     if (molecule%geom%nimprop/=0) then
@@ -669,7 +683,9 @@ program normal_modes_animation
 
             if (apply_projection_matrix) then
                 ! Get projection matrix (again...)
-                P(1:3*Nat,1:3*Nat) = projection_matrix3(Nat,Nvib,B,molecule%atom(:)%Mass)
+                P(1:3*Nat,1:3*Nat) = projection_matrix3(Nat,Nvib0,Bprj,molecule%atom(:)%Mass)
+                Aux(1:3*Nat,1:3*Nat) = identity_matrix(3*Nat)
+                P(1:3*Nat,1:3*Nat) =  Aux(1:3*Nat,1:3*Nat)-P(1:3*Nat,1:3*Nat)
                 ! Project out rotation and translation
                 Hess(1:3*Nat,1:3*Nat) = matrix_basisrot(3*Nat,3*Nat,P,Hess,counter=.true.)
             endif

@@ -9,20 +9,38 @@ program geom_param_list
     !  the number of itmes: 2=bond, 3=angle, 4=dihedral angle
     !==============================================================
 
-    !Compilation instructions: now using automake (v4)
-
-    !History
-    !v4: adapted to v4 modules (disabled allocation)
-
+    !*****************
+    !   MODULE LOAD
+    !*****************
+    !============================================
+    !   Generic
+    !============================================
     use alerts
-    use structure_types
     use line_preprocess
-    use gaussian_manage
-    use gaussian_fchk_manage
-    use pdb_manage
-    use gro_manage
+    use constants 
+    use verbosity
+    use matrix
+    use matrix_print
+    use io, only: uout
+    !============================================
+    !   Structure types module
+    !============================================
+    use structure_types
+    !============================================
+    !   File readers
+    !============================================
+    use generic_io
+    use generic_io_molec
     use xyz_manage
+    use gaussian_manage
+    !============================================
+    !  Structure-related modules
+    !============================================
+    use molecular_structure
+    use ff_build
+    use metrics
     use atomic_geom
+    use symmetry
 
     implicit none
 
@@ -44,6 +62,10 @@ program geom_param_list
     real :: param
 #endif
 
+    !===========================
+    ! Set output unit to stderr
+    uout = 0
+    !===========================
 
     ! 0. GET COMMAND LINE ARGUMENTS
     call parse_input(inpfile,listfile,filetype,labels)
@@ -59,7 +81,7 @@ program geom_param_list
         call split_line_back(inpfile,".",null,filetype)
     endif
 
-    call generic_strfile_read(IGeom,filetype,molecule)
+    call generic_strmol_reader(IGeom,filetype,molecule)
     close(IGeom)
 
     !Read input list
@@ -67,17 +89,17 @@ program geom_param_list
     read(IList,*) nlines
     do i=1,nlines
         read(IList,'(A)') list_item
-        call string2vector_int(list_item,atlabels,nitems)
+        call string2vector_int(list_item,atlabels,nitems,",")
         if (nitems == 2) then
-            param=calc_dist(molecule%atom(atlabels(1)),molecule%atom(atlabels(2)))
+            param=calc_atm_dist(molecule%atom(atlabels(1)),molecule%atom(atlabels(2)))
             if (.not.labels) print'(F9.4,2X)', param
             if (labels)      print'(2I5,11X,F9.4)', atlabels(1), atlabels(2), param
         elseif (nitems == 3) then
-            param=calc_angle(molecule%atom(atlabels(1)),molecule%atom(atlabels(2)),molecule%atom(atlabels(3)))
+            param=calc_atm_angle(molecule%atom(atlabels(1)),molecule%atom(atlabels(2)),molecule%atom(atlabels(3)))
             if (.not.labels) print'(F9.2,2X)', param*180.d0/pi
             if (labels)      print'(3I5,6X,F9.2)', atlabels(1), atlabels(2), atlabels(3), param*180.d0/pi
         elseif (nitems == 4) then
-            param=calc_dihed_new(molecule%atom(atlabels(1)),molecule%atom(atlabels(2)),molecule%atom(atlabels(3)),&
+            param=calc_atm_dihed_new(molecule%atom(atlabels(1)),molecule%atom(atlabels(2)),molecule%atom(atlabels(3)),&
                              molecule%atom(atlabels(4)))
             if (.not.labels) print'(F9.2,2X)', param*180.d0/pi
             if (labels)      print'(4I5,X,F9.2)', atlabels(1), atlabels(2), atlabels(3), atlabels(4), param*180.d0/pi
@@ -140,57 +162,24 @@ program geom_param_list
 
 
        !Print options (to stderr)
-        write(0,'(/,A)') '--------------------------------------------------'
-        write(0,'(/,A)') '                GEOM_PARAM '    
-        write(0,'(/,A)') '     Automatic geometric parameter generator '        
-        write(0,'(/,A)') '--------------------------------------------------'
-        write(0,*) '-f              ', trim(adjustl(inpfile))
-        write(0,*) '-ft             ', trim(adjustl(filetype))
-        write(0,*) '-l              ', trim(adjustl(listfile))
-        write(0,*) '-[no]labels    ',  labels
-        write(0,*) '-h             ',  need_help
-        write(0,*) '--------------------------------------------------'
+        write(0,'(/,A)') '========================================================'
+        write(0,'(/,A)') '                G E O M   P A R A M '    
+        write(0,'(/,A)') '     Automatic geometric parameter generator '     
+        call print_version()
+        write(0,'(/,A)') '========================================================'
+        write(0,'(/,A)') '-------------------------------------------------------------------'
+        write(0,'(A)')   ' Flag         Description                      Value'
+        write(0,'(A)')   '-------------------------------------------------------------------'
+        write(0,*)       '-f           Input file                       ', trim(adjustl(inpfile))
+        write(0,*)       '-ft          \_ FileTyep                      ', trim(adjustl(filetype))
+        write(0,*)       '-l           File with coordinates(IC) list   ', trim(adjustl(listfile))
+        write(0,*)       '-[no]labels  Show IC labels                  ',  labels
+        write(0,*)       '-h           This help                       ',  need_help
+        write(0,*)       '-------------------------------------------------------------------'
         if (need_help) call alert_msg("fatal", 'There is no manual (for the moment)' )
 
         return
     end subroutine parse_input
-
-
-    subroutine generic_strfile_read(unt,filetype,molec)
-
-        integer, intent(in) :: unt
-        character(len=*),intent(inout) :: filetype
-        type(str_resmol),intent(inout) :: molec
-
-        !local axu
-        !Read gaussian log auxiliars
-        type(str_molprops),allocatable :: props
-        character :: null
-
-        select case (adjustl(filetype))
-            case("gro")
-             call read_gro(unt,molec)
-            case("g96")
-             call read_g96(unt,molec)
-            case("xyz")
-             call read_xyz(unt,molec)
-            case("pdb")
-             call read_pdb_new(unt,molec)
-            case("log")
-             allocate(props)
-             call parse_summary(unt,molec,props,"struct_only")
-             deallocate(props)
-            case("fchk")
-             call read_fchk_geom(unt,molec)
-            case default
-             call alert_msg("fatal","File type not supported: "//filetype)
-        end select
-
-!         call atname2element(molec)
-
-        return
-
-    end subroutine generic_strfile_read
 
 
 end program geom_param_list

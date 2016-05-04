@@ -13,7 +13,6 @@ noinst_LIBRARIES = libmoleculartools.a
 # We compile only the modules that are
 # used by the binaries out there
 libmoleculartools_a_SOURCES =         \
-    version.f90                       \
     alerts.f90                        \
     line_preprocess.f90               \
     matrix.f90                        \
@@ -22,6 +21,7 @@ libmoleculartools_a_SOURCES =         \
     verbosity.f90                     \
 \
     io.f90                            \
+    version.f90                       \
     structure_types.f90               \
 \
     metrics.f90                       \

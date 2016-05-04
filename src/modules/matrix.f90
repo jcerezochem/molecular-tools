@@ -20,6 +20,32 @@ module matrix
 
     CONTAINS
 
+    function identity_matrix(N) result(A)
+        
+        !===============================
+        ! Description
+        ! -----------
+        ! Returns an identity matrix of 
+        ! size N
+        ! 
+        !===============================
+
+        integer,intent(in) :: N
+        real(8),dimension(N,N) :: A
+        
+        ! Local
+        integer :: i
+
+        A(1:N,1:N) = 0.d0
+        do i=1,N
+            A(i,i) = 1.d0
+        enddo
+
+        return
+
+    end function identity_matrix
+
+
     function determinant_realsym(N,A) result(det)
     
         !=============================================================

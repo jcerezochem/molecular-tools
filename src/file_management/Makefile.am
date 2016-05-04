@@ -6,11 +6,13 @@ bin_PROGRAMS = reform_fchk rmsd_fit fchk2gro read_irc read_scan get_symatoms
 # ============
 # reform_fchk
 # ============
-reform_fchk_SOURCES = ../modules/version.f90                 \
+reform_fchk_SOURCES = \
                       ../modules/alerts.f90                  \
                       ../modules/line_preprocess.f90         \
                       ../modules/constants.f90               \
                       ../modules/verbosity.f90               \
+                      ../modules/io.f90                      \
+                      ../modules/version.f90                 \
                       ../modules/matrix.f90                  \
                       ../modules/matrix_print.f90            \
                       ../modules/structure_types.f90         \
@@ -39,11 +41,13 @@ reform_fchk_SOURCES = ../modules/version.f90                 \
                       reform_fchk.f90
 reform_fchk_LDFLAGS = @LIBS@
 
-rmsd_fit_SOURCES = ../modules/version.f90                 \
+rmsd_fit_SOURCES = \
                    ../modules/alerts.f90                  \
                    ../modules/line_preprocess.f90         \
                    ../modules/constants.f90               \
                    ../modules/verbosity.f90               \
+                   ../modules/io.f90                      \
+                   ../modules/version.f90                 \
                    ../modules/matrix.f90                  \
                    ../modules/matrix_print.f90            \
                    ../modules/structure_types.f90         \
@@ -71,11 +75,13 @@ rmsd_fit_SOURCES = ../modules/version.f90                 \
                    rmsd_fit.f90
 rmsd_fit_LDFLAGS = @LIBS@
 
-fchk2gro_SOURCES = ../modules/version.f90                 \
+fchk2gro_SOURCES = \
                    ../modules/alerts.f90                  \
                    ../modules/line_preprocess.f90         \
                    ../modules/constants.f90               \
                    ../modules/verbosity.f90               \
+                   ../modules/io.f90                      \
+                   ../modules/version.f90                 \
                    ../modules/matrix.f90                  \
                    ../modules/matrix_print.f90            \
                    ../modules/structure_types.f90         \
@@ -103,11 +109,13 @@ fchk2gro_SOURCES = ../modules/version.f90                 \
                    fchk2gro.f90
 fchk2gro_LDFLAGS = @LIBS@
 
-read_irc_SOURCES = ../modules/version.f90                 \
+read_irc_SOURCES = \
                    ../modules/alerts.f90                  \
                    ../modules/line_preprocess.f90         \
                    ../modules/constants.f90               \
                    ../modules/verbosity.f90               \
+                   ../modules/io.f90                      \
+                   ../modules/version.f90                 \
                    ../modules/matrix.f90                  \
                    ../modules/matrix_print.f90            \
                    ../modules/structure_types.f90         \
@@ -135,11 +143,13 @@ read_irc_SOURCES = ../modules/version.f90                 \
                    read_irc.f90
 read_irc_LDFLAGS = @LIBS@
 
-read_scan_SOURCES = ../modules/version.f90                 \
+read_scan_SOURCES = \
                    ../modules/alerts.f90                  \
                    ../modules/line_preprocess.f90         \
                    ../modules/constants.f90               \
                    ../modules/verbosity.f90               \
+                   ../modules/io.f90                      \
+                   ../modules/version.f90                 \
                    ../modules/matrix.f90                  \
                    ../modules/matrix_print.f90            \
                    ../modules/structure_types.f90         \
@@ -170,11 +180,13 @@ read_irc_LDFLAGS = @LIBS@
 # ============
 # get_symatoms
 # ============
-get_symatoms_SOURCES = ../modules/version.f90                 \
+get_symatoms_SOURCES = \
                       ../modules/alerts.f90                  \
                       ../modules/line_preprocess.f90         \
                       ../modules/constants.f90               \
                       ../modules/verbosity.f90               \
+                      ../modules/io.f90                      \
+                      ../modules/version.f90                 \
                       ../modules/matrix.f90                  \
                       ../modules/matrix_print.f90            \
                       ../modules/structure_types.f90         \
