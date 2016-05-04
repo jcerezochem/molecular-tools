@@ -175,7 +175,7 @@ read_scan_SOURCES = \
                    ../modules/ff_build.f90                \
                    ../modules/internal.f90                \
                    read_scan.f90
-read_irc_LDFLAGS = @LIBS@
+read_scanLDFLAGS = @LIBS@
 
 # ============
 # get_symatoms

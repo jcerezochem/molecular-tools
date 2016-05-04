@@ -52,11 +52,14 @@ AC_ARG_WITH([mkl],
     [with_mkl=no])
 
 AS_IF([test "x$with_mkl" = "xyes"],
-      [AC_CHECK_LIB([mkl_intel],[zsytrf],
-                    [use_lapack=no;LIBS="$LIBS -lmkl_intel"],
-                    [AC_MSG_WARN([MKL library requested but not found]);use_lapack=yes])],
-      # MKL test needs some changes in the configure file:
-      # sed -i "s/-lmkl_intel/-lmkl_intel_lp64 -lmkl_sequential -lmkl_core/g" configure
+      # Using macro:
+      # AC_CHECK_LIB (library, function, [action-if-found], [action-if-not-found], [other-libraries])
+      # where we use the last (optional) argument [other-libraries] to enter the additional libs
+      # needed to use mkl lapack. (Previously this was done post-processing the configure: not nice)
+      [AC_CHECK_LIB([mkl_intel_lp64],[zsytrf],
+                    [use_lapack=no;LIBS="$LIBS -lmkl_intel_lp64 -lmkl_sequential -lmkl_core"],
+                    [AC_MSG_WARN([MKL library requested but not found]);use_lapack=yes],
+                    [-lmkl_sequential -lmkl_core])],
       [use_lapack=yes])
 
 AS_IF([test "x$use_lapack" = "xyes"],
