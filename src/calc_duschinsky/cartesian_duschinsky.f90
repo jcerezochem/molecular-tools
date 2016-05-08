@@ -1353,9 +1353,10 @@ program cartesian_duschinsky
         FC(1:Nvib) = Freq2FC(Nvib,Freq1)
         dist=0.d0
         area=1.d0
-        dt=5.d1
+        dt=5.d2
         time = 0.d0
         Nvib0=Nvib
+        k=0
         do while (dabs(area) > 1d-10 .and. Nvib0>0)
             f0=0.d0
             f1=0.d0
@@ -1380,8 +1381,14 @@ program cartesian_duschinsky
             area = 0.5d0*(f0+f1)*dt
             dist = dist + area
             time=time+dt
+            k=k+1
+            if (k==10000000) exit
         enddo
-        print'(X,A,F10.4,/)', "Contour distance in IRC space ", dist/dsqrt(AMUtoAU)
+        if (k<10000000) then
+            print'(X,A,F10.4,/)', "Contour distance in IRC space ", dist/dsqrt(AMUtoAU)
+        else
+            print'(X,A,F10.4,/)', "Contour distance in IRC space (integration failed)"
+        endif
     endif
 
 
