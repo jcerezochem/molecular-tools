@@ -1,4 +1,4 @@
-program reorder_fchk
+program read_opt
 
 
     !==============================================================
@@ -134,7 +134,7 @@ program reorder_fchk
 
     !=============
     !Counters
-    integer :: i,j,k,l, ii,jj,kk, iat, nn, imin, imax, iii
+    integer :: i,j,k,l, ii,jj,kk, iat, nn, imin, imax, iii, i_scan
     !=============
 
     !================
@@ -200,66 +200,77 @@ program reorder_fchk
     print'(X,A,I0)', " Mult.   : ", mult
     print'(X,A,/)', "Done"
 
-    ! IRC iNFO
+    ! Opt iNFO
     !-----------
     ! Data info
-    call read_fchk(I_INP,"IRC Num results per geometry",dtype,N,A,IA,error)
-    if (error /= 0) call alert_msg("fatal","Looking for IRC info")
+    call read_fchk(I_INP,"Optimization Num results per geometry",dtype,N,A,IA,error)
+    if (error /= 0) call alert_msg("fatal","Looking for Scan info")
     ninfo=IA(1)
     deallocate(IA)
     ! 3Nat
-    call read_fchk(I_INP,"IRC Num geometry variables",dtype,N,A,IA,error)
-    if (error /= 0) call alert_msg("fatal","Looking for IRC info")
-    if (IA(1) /= 3*Nat) call alert_msg("fatal","Atoms in IRC are not consisntent")
+    call read_fchk(I_INP,"Optimization Num geometry variables",dtype,N,A,IA,error)
+    if (error /= 0) call alert_msg("fatal","Looking for Scan info")
+    if (IA(1) /= 3*Nat) call alert_msg("fatal","Atoms in Scan are not consisntent")
     deallocate(IA)
-    ! Energies and Distances
-    call read_fchk(I_INP,"IRC point       1 Results for each geome",dtype,N,A,IA,error)
-    if (error /= 0) call alert_msg("fatal","Looking for IRC info (Energies)")
-    k=0
-    nsteps = N/ninfo
-    allocate(E(1:nsteps),R(1:nsteps))
-    do i=1,nsteps
-        k=k+1
-        E(i) = A(k)
-        k=k+1
-        R(i) = A(k)
-    enddo
-    deallocate(A)
-
-    ! Read all geoms and write to files
-    call read_fchk(I_INP,"IRC point       1 Geometries",dtype,N,A,IA,error)
-    if (error /= 0) call alert_msg("fatal","Looking for IRC info (Geometries)")
-    if (nsteps /= N/(3*Nat)) call alert_msg("fatal","Inconsistency in the number of steps")
-    print*, "IRC steps:", nsteps
-    k=0
-    do i=1,nsteps
-        do j=1,Nat 
-            k=k+1
-            molecule%atom(j)%x = A(k)*BOHRtoANGS
-            k=k+1
-            molecule%atom(j)%y = A(k)*BOHRtoANGS
-            k=k+1
-            molecule%atom(j)%z = A(k)*BOHRtoANGS
+    ! Run over the only Opt step (Kown number of steps)
+    i_scan = 0
+    do ii=1,1
+        write(line,'(A9,I8,X,A22)') "Opt point",i_scan+1,"Results for each geome"
+        ! Energies and Distances
+        call read_fchk(I_INP,adjustl(line),dtype,N,A,IA,error)
+        if (error /= 0) exit
+        i_scan = i_scan + 1
+        nsteps = N/ninfo
+        ! Read all points
+        allocate(E(1:nsteps),R(1:nsteps))
+        j=0
+        do i=1,nsteps
+            j=j+1
+            E(i) = A(j)
+            j=j+1
+            R(i) = A(j)
         enddo
-        label = int20char(i,2)
-        write(title,'(A,I0,5X,A,F15.6,X,A,F10.4)') "IRC step ", i, "E=", E(i), "R=", R(i)
-        outfile=trim(adjustl(basefile))//trim(adjustl(label))//"."//trim(adjustl(extension))
-        open(O_STR,file=outfile)
-        call generic_strmol_writer(O_STR,filetype_out,molecule,title=title)
-        close(O_STR)
-        ! Write g09 input
-        outfile=trim(adjustl(basefile))//trim(adjustl(label))//".com"
-        open(O_GAU,file=outfile)
-        call write_gcom(O_GAU,molecule,&
-                              !Optional args
-                              chkname=outfile,&! 
-                              calc=calc_type,  &! e.g. SP, Freq, Opt...
-                              method=method,   &!
-                              basis=basis,     &!
-                              title=title      )
-        close(O_GAU)
+        deallocate(A)
+        
+        ! Read all geoms and write to files
+        write(line,'(A9,I8,X,A10)') "Opt point",i_scan,"Geometries"
+        call read_fchk(I_INP,adjustl(line),dtype,N,A,IA,error)
+        if (error /= 0) call alert_msg("fatal","Looking for Scan info (Geometries)")
+        if (nsteps /= N/(3*Nat)) call alert_msg("fatal","Inconsistency in the number of steps")
+
+        do i=1,nsteps
+            k=(i-1)*Nat*3
+            do j=1,Nat 
+                k=k+1
+                molecule%atom(j)%x = A(k)*BOHRtoANGS
+                k=k+1
+                molecule%atom(j)%y = A(k)*BOHRtoANGS
+                k=k+1
+                molecule%atom(j)%z = A(k)*BOHRtoANGS
+            enddo
+            label = int20char(i,2)
+            write(title,'(A,I0,5X,A,F15.6,X,A,F10.4)') "Opt step ", i, "E=", E(i)
+            outfile=trim(adjustl(basefile))//trim(adjustl(label))//"."//trim(adjustl(extension))
+            open(O_STR,file=outfile)
+            call generic_strmol_writer(O_STR,filetype_out,molecule,title=title)
+            close(O_STR)
+            ! Write g09 input
+            outfile=trim(adjustl(basefile))//trim(adjustl(label))//".com"
+            open(O_GAU,file=outfile)
+            call write_gcom(O_GAU,molecule,&
+                                  !Optional args
+                                  chkname=outfile,&! 
+                                  calc=calc_type,  &! e.g. SP, Freq, Opt...
+                                  method=method,   &!
+                                  basis=basis,     &!
+                                  title=title      )
+            close(O_GAU)
+        enddo
+        
+        deallocate(A)
     enddo
-    deallocate(A)
+
+    write(0,*) 'Number of opt points', i_scan
 
     call cpu_time(tf)
     write(0,'(/,A,X,F12.3,/)') "CPU time (s)", tf-ti
@@ -323,8 +334,8 @@ program reorder_fchk
 
        !Print options (to stdx)
         write(0,'(/,A)') '========================================================'
-        write(0,'(/,A)') '             R E A D    I R C '    
-        write(0,'(/,A)') '         Read IRC steps from FCHK' 
+        write(0,'(/,A)') '             R E A D    O P T '    
+        write(0,'(/,A)') '       Read Optimization steps from FCHK' 
         call print_version()
         write(0,'(/,A)') '========================================================'
         write(0,'(/,A)') '-------------------------------------------------------------------'
@@ -332,6 +343,7 @@ program reorder_fchk
         write(0,'(A)')   '-------------------------------------------------------------------'
         write(0,*)       '-f           Input file                       ', trim(adjustl(inpfile))
         write(0,*)       '-ft          \_ FileTyep                      ', trim(adjustl(filetype))
+        write(0,*)       '             (the molecule is rotated FIRST)'
         write(0,*)       '-o           Output file                      ', trim(adjustl(outfile))
         write(0,*)       '-fto         \_ FileTyep                      ', trim(adjustl(filetype_out))
         write(0,*)       '-ow          Force overwrite output          ',  overwrite
@@ -343,5 +355,5 @@ program reorder_fchk
     end subroutine parse_input
        
 
-end program reorder_fchk
+end program read_opt
 

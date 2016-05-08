@@ -51,8 +51,9 @@ module generic_io_molec
         character(len=200) :: msg
 
         ! Readers still unsupported by generic_io module
-        if (adjustl(filetype)=="gro") then
-            call read_gro(unt,molec)
+        if (adjustl(filetype)=="xxx") then
+            ! all parser are now in generic_structure_reader
+            ! but keep this if structure for the moment
 
         ! any other format is assumed to be supported
         else 

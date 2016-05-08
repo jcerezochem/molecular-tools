@@ -28,6 +28,7 @@ src/bonded_info/calcRMS_bonded
 src/bonded_info/geom_param_list
 src/bonded_info/get_com
 src/build_top/build_top
+src/file_management/read_opt
 src/file_management/get_gscan
 src/file_management/get_symatoms
 src/file_management/reform_fchk

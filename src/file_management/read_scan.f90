@@ -337,7 +337,6 @@ program read_scan
         write(0,'(A)')   '-------------------------------------------------------------------'
         write(0,*)       '-f           Input file                       ', trim(adjustl(inpfile))
         write(0,*)       '-ft          \_ FileTyep                      ', trim(adjustl(filetype))
-        write(0,*)       '             (the molecule is rotated FIRST)'
         write(0,*)       '-o           Output file                      ', trim(adjustl(outfile))
         write(0,*)       '-fto         \_ FileTyep                      ', trim(adjustl(filetype_out))
         write(0,*)       '-ow          Force overwrite output          ',  overwrite

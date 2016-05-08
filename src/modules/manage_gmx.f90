@@ -20,6 +20,100 @@ module gmx_manage
 
     contains
 
+    subroutine read_gro_natoms(unt,Nat)
+
+        !==============================================================
+        ! This code is part of FCC_TOOLS
+        !==============================================================
+        !Description
+        ! Get geometry and atom names from gro. The number of atoms
+        ! is also taken
+        !
+        !Arguments
+        ! unt     (inp) int /scalar    unit for the file 
+        ! Nat     (out) int /scalar    Number of atoms
+        !
+        !==============================================================
+
+
+        integer,intent(in)  :: unt
+        integer,intent(out) :: Nat
+
+        !local
+        character(len=260) :: line
+
+
+        read(unt,'(A)') line
+        read(unt,*) Nat 
+
+        return
+
+    end subroutine read_gro_natoms
+
+    subroutine read_gro_geom(unt,Nat,AtName,X,Y,Z,title)
+
+        !==============================================================
+        ! This code is part of FCC_TOOLS
+        !==============================================================
+        !Description
+        ! Get geometry and atom names from xyz. The number of atoms
+        ! is also taken
+        !
+        !Arguments
+        ! unt     (inp) int /scalar    unit for the file 
+        ! Nat     (out) int /scalar    Number of atoms
+        ! AtName  (out) char/vertor    Atom names
+        ! X,Y,Z   (out) real/vectors   Coordinate vectors (ANGSTRONG)
+        !
+        ! TODO
+        ! A lot of info is lost (resname, resseq, box...). This might be
+        ! introduced by additional optional (or not) arguments
+        ! 
+        !==============================================================
+
+        integer,intent(in)  :: unt
+        integer,intent(out) :: Nat
+        character(len=*), dimension(:), intent(out) :: AtName
+        real(kind=8), dimension(:), intent(out) :: X,Y,Z
+        character(len=*),intent(out),optional   :: title
+        !local
+        integer::i, natoms, ii, ios
+        character(len=260) :: line
+        character :: dummy_char
+
+        read(unt,'(A)') line
+        if (present(title)) title=adjustl(line)
+        read(unt,*) Nat 
+
+        do i=1,Nat
+
+            read(unt,100) ii,           &
+                          dummy_char,   &
+                          AtName(i),    &
+                          !serial
+                          X(i),         &
+                          Y(i),         &
+                          Z(i)
+!             !Atomnames are "adjustl"ed - TODO?
+!             system%atom(i)%name = adjustl(system%atom(i)%name)
+
+        enddo
+        X(1:natoms) = X(1:natoms)*10.d0
+        Y(1:natoms) = Y(1:natoms)*10.d0
+        Z(1:natoms) = Z(1:natoms)*10.d0
+
+!         read(unt,101) system%boxX, system%boxY, system%boxZ
+
+        return
+
+    !gro file format
+100 format(i5,2a5,5X,3f8.3,3f8.4) !Serial is not read
+101 format(3f10.5)
+
+    end subroutine read_gro_geom
+
+
+
     subroutine read_g96_natoms(unt,Nat)
 
         !==============================================================
