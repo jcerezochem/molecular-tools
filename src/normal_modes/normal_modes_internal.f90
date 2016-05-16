@@ -530,18 +530,19 @@ program normal_modes_animation
     call define_internal_set(molecule,"ALL",intfile,rmzfile,use_symmetry,isym,S_sym,Ns)
     allgeom = molecule%geom
     call define_internal_set(molecule,def_internal,intfile,rmzfile,use_symmetry,isym,S_sym,Ns)
-    selgeom = molecule%geom
     !---------------------------------------
 
     ! Compute B matrix in the selgeom for projection
-    Nvib0 = Nvib
-    call internal_Wilson(molecule,Ns,S,Bprj)
-    call internal_Gmetric(Nat,Ns,molecule%atom(:)%mass,Bprj,G)
-    call redundant2nonredundant(Ns,Nvib0,G,Asel)
-    Bprj(1:Nvib_all,1:3*Nat) = matrix_product(Nvib0,3*Nat,Ns,Asel,Bprj,tA=.true.)
-    ! And get back allgeom
-    Ns = allgeom%nbonds+allgeom%nangles+allgeom%ndihed
-    molecule%geom = allgeom
+    if (apply_projection_matrix) then
+        Nvib0 = Nvib
+        call internal_Wilson(molecule,Ns,S,Bprj)
+        call internal_Gmetric(Nat,Ns,molecule%atom(:)%mass,Bprj,G)
+        call redundant2nonredundant(Ns,Nvib0,G,Asel)
+        Bprj(1:Nvib_all,1:3*Nat) = matrix_product(Nvib0,3*Nat,Ns,Asel,Bprj,tA=.true.)
+        ! And get back allgeom
+        Ns = allgeom%nbonds+allgeom%nangles+allgeom%ndihed
+        molecule%geom = allgeom
+    endif
 
 
     ! Set variables based on the working internal set 
@@ -684,8 +685,8 @@ program normal_modes_animation
             if (apply_projection_matrix) then
                 ! Get projection matrix (again...)
                 P(1:3*Nat,1:3*Nat) = projection_matrix3(Nat,Nvib0,Bprj,molecule%atom(:)%Mass)
-                Aux(1:3*Nat,1:3*Nat) = identity_matrix(3*Nat)
-                P(1:3*Nat,1:3*Nat) =  Aux(1:3*Nat,1:3*Nat)-P(1:3*Nat,1:3*Nat)
+!                 Aux(1:3*Nat,1:3*Nat) = identity_matrix(3*Nat)
+!                 P(1:3*Nat,1:3*Nat) =  Aux(1:3*Nat,1:3*Nat)-P(1:3*Nat,1:3*Nat)
                 ! Project out rotation and translation
                 Hess(1:3*Nat,1:3*Nat) = matrix_basisrot(3*Nat,3*Nat,P,Hess,counter=.true.)
             endif
@@ -1334,9 +1335,9 @@ program normal_modes_animation
                     call getarg(i+1, def_internal0)
                     argument_retrieved=.true.
 
-                case ("-prj-tr")
+                case ("-prj-trS")
                     apply_projection_matrix=.true.
-                case ("-noprj-tr")
+                case ("-noprj-trS")
                     apply_projection_matrix=.false.
 
                 case ("-sym")
@@ -1478,8 +1479,10 @@ program normal_modes_animation
         write(6,*)       '-cnx           Connectivity [filename|guess]   ', trim(adjustl(cnx_file))
 !         write(6,*)       '-fnm           Gradient file                   ', trim(adjustl(nmfile))
 !         write(6,*)       '-ftn           \_ FileType                     ', trim(adjustl(ftn))
-        write(6,*)       '-[no]prj-tr    Apply projection matrix to     ', apply_projection_matrix
-        write(6,*)       '               rotate Grad and Hess'
+        write(6,*)       '-[no]prj-trS   Apply projection matrix to     ', apply_projection_matrix
+        write(6,*)       '               rotate Grad and Hess.'
+        write(6,*)       '               Projection P=B^+B, where the'
+        write(6,*)       '               internal space is read from -intfile'
         write(6,*)       '-intmode0      Internal set:[zmat|sel|all] cor ', trim(adjustl(def_internal0))
         write(6,*)       '-intfile0      File with ICs (for "sel")[corr] ', trim(adjustl(intfile0))
         write(6,*)       '-intmode       Internal set:[zmat|sel|all]     ', trim(adjustl(def_internal))
