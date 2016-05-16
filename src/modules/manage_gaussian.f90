@@ -1061,6 +1061,78 @@ module gaussian_manage
 
     end subroutine read_gaussfchk_dip
 
+    subroutine read_gausslog_forces(unt,Nat,Grad,error_flag)
+
+        !=====================================================
+        ! THIS CODE IS PART OF FCC_TOOLS
+        !=====================================================
+        ! Description
+        !  Read Forces (gradient) from the log file for a Force
+        !  calculation. NOT FROM SUMMARY, but from the middle
+        !  of the log
+        !
+        ! Notes
+        !  Only the length-gauge reponse properties are taken
+        !========================================================
+
+        integer,intent(in)              :: unt
+        integer,intent(in)              :: Nat
+        real(8),dimension(:),intent(out):: Grad
+        integer,intent(out),optional    :: error_flag
+
+        !Local
+        !Variables for reading
+        character(len=240)               :: line=""
+        character(len=3)                 :: auxchar
+        !I/O
+        integer :: IOstatus
+        !Other local
+        integer                          :: i,j,k, ii, jj
+
+        ! Number of excited states computed
+        ! Search section
+        print*, "reading gradient from log body"
+        ii = 0
+        if (present(error_flag)) error_flag = 0
+        do
+                ii = ii + 1
+                read(unt,'(A)',IOSTAT=IOstatus) line
+                ! Possible scenarios while reading:
+                ! 1) End of file
+                if ( IOstatus < 0 ) then
+                    if (present(error_flag)) error_flag = -ii
+                    return
+                endif
+                ! 2) Found a Excited State section
+                if ( INDEX(line,"Forces (Hartrees/Bohr)") /= 0 ) then
+                    exit
+                endif
+                ! 3) That was the target state
+                if (INDEX(line,"GINC")/=0) then
+                    call alert_msg("note","No Force inside the log")
+                    if (present(error_flag)) error_flag = 1
+                    return
+                endif
+        enddo
+
+        ! Read next useless line
+        read(unt,'(A)',IOSTAT=IOstatus) line
+
+        ! Read gradient
+        do i=1,Nat
+            j=3*(i-1)
+            read(unt,*,IOSTAT=IOstatus) ii,ii, Grad(j+1), Grad(j+2), Grad(j+3)
+            if ( IOstatus < 0 ) then
+                call alert_msg("warnign","Unexpected end-of-section while reading Forces (log)")
+                if (present(error_flag)) error_flag = 1
+                return
+            endif
+        enddo
+
+        return
+
+    end subroutine read_gausslog_forces
+
     subroutine read_gausslog_targestate(unt,S,error_flag)
 
         !=====================================================

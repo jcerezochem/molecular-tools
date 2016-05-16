@@ -36,7 +36,7 @@ module generic_io
 
         !Local
         integer :: i
-        character(len=len(AtName(i))) :: element
+        character(len=len(AtName(1))) :: element
         
         do i=1,Nat
             element = element_from_AtName(AtName(i))

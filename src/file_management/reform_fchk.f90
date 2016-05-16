@@ -95,7 +95,7 @@ program reorder_fchk
 
     !=====================
     ! Available data swithes
-    logical :: have_gradient, have_hessian,&
+    logical :: have_gradient, have_hessian, read_log_body,&
                ! Energies
                have_SCF,have_TD,have_TOT
     !===================== 
@@ -180,16 +180,6 @@ program reorder_fchk
     if (adjustl(filetype) /= "log" .and. adjustl(filetype) /= "fchk") &
         call alert_msg("fatal","Only Gaussian log and fchk files supported")
 
-    ! STRUCTURE FILE
-    print'(X,A)', "READING STRUCTURE..."
-    open(I_INP,file=inpfile,status='old',iostat=IOstatus)
-    if (IOstatus /= 0) call alert_msg( "fatal","Unable to open "//trim(adjustl(inpfile)) )
-    call generic_strmol_reader(I_INP,filetype,molecule)
-    !Shortcuts
-    Nat = molecule%natoms
-    Nvib = 3*Nat-6
-    print'(X,A,/)', "Done"
-
     ! JOB INFO
     print'(X,A)', "READING JOB INFO..."
     rewind(I_INP)
@@ -203,9 +193,46 @@ program reorder_fchk
     print'(X,A,I0)', " Mult.   : ", mult
     print'(X,A,/)', "Done"
 
-    ! HESSIAN FILE
-    have_hessian=.false.
+    ! Determine the available data and how to read them (Freq and Grad)
+    have_gradient=.false.
     if (adjustl(calc_type) == "Freq") then
+        ! Freq calcs have gradient in log and fchk
+        have_gradient=.true.
+        have_hessian=.true.
+        read_log_body=.false.
+    elseif (adjustl(calc_type) == "Opt"   .or. &
+            adjustl(calc_type) == "FOpt"  .or. &
+            adjustl(calc_type) == "Force") then
+!       ! This calculation types do not have the gradient in the log summary
+        have_gradient=.true.
+        have_hessian=.false.
+        read_log_body=.true.
+    endif
+
+    ! STRUCTURE FILE
+    print'(X,A)', "READING STRUCTURE..."
+    open(I_INP,file=inpfile,status='old',iostat=IOstatus)
+    if (IOstatus /= 0) call alert_msg( "fatal","Unable to open "//trim(adjustl(inpfile)) )
+    call generic_strmol_reader(I_INP,filetype,molecule)
+    !Shortcuts
+    Nat = molecule%natoms
+    Nvib = 3*Nat-6
+    print'(X,A,/)', "Done"
+
+    ! GRADIENT FILE
+    if (have_gradient) then
+        rewind(I_INP)
+        print'(X,A)', "READING GRADIENT..."
+        if (read_log_body) then
+            call read_gausslog_forces(I_INP,Nat,Grad,error)
+        else
+            call generic_gradient_reader(I_INP,filetype,Nat,Grad,error)
+        endif
+        print'(X,A,/)', "Done"
+    endif
+
+    ! HESSIAN FILE
+    if (have_hessian) then
         rewind(I_INP)
         print'(X,A)', "READING HESSIAN..."
         allocate(Hlt(1:3*Nat*(3*Nat+1)/2))
@@ -213,28 +240,6 @@ program reorder_fchk
         Hess(1:3*Nat,1:3*Nat) = Hlt_to_Hess(3*Nat,Hlt)
         print'(X,A,/)', "Done"
         have_hessian=.true.
-    endif
-
-    ! GRADIENT FILE
-    have_gradient=.false.
-    if (adjustl(calc_type) == "Freq") then
-        ! Freq calcs have gradient in log and fchk
-        have_gradient=.true.
-    elseif (adjustl(calc_type) == "Opt"   .or. &
-            adjustl(calc_type) == "FOpt"  .or. &
-            adjustl(calc_type) == "Force") then
-        ! Other calcs only have gradient on fchk
-        if (adjustl(filetype) == "fchk") then
-            have_gradient=.true.
-        else
-            have_gradient=.false.
-        endif
-    endif
-    if (have_gradient) then
-        rewind(I_INP)
-        print'(X,A)', "READING GRADIENT..."
-        call generic_gradient_reader(I_INP,filetype,Nat,Grad,error) 
-        print'(X,A,/)', "Done"
     endif
 
     ! ENERGIES
