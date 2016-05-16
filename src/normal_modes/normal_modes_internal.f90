@@ -75,7 +75,7 @@ program normal_modes_animation
     integer,dimension(1:NDIM) :: isym
     integer,dimension(4,1:NDIM,1:NDIM) :: Osym
     integer :: Nsym
-    integer :: Nat, Nvib, Ns, Nvib0
+    integer :: Nat, Nvib, Ns, Nvib0, NvibP
     integer :: Ns_zmat, Ns_all, Nvib_all
     character(len=5) :: PG
     real(8) :: Tthermo=0.d0
@@ -384,8 +384,22 @@ program normal_modes_animation
 
         !---------------------------------------
         ! NOW, GET THE ACTUAL WORKING INTERNAL SET
+        call define_internal_set(molecule,"ALL",intfile,rmzfile,use_symmetry,isym,S_sym,Ns)
+        allgeom = molecule%geom
         call define_internal_set(molecule,def_internal0,intfile0,rmzfile,use_symmetry,isym,S_sym,Ns)
         !---------------------------------------
+        
+        ! Compute B matrix in the selgeom for projection
+        if (apply_projection_matrix) then
+            NvibP = Nvib
+            call internal_Wilson(molecule,Ns,S,Bprj)
+            call internal_Gmetric(Nat,Ns,molecule%atom(:)%mass,Bprj,G)
+            call redundant2nonredundant(Ns,NvibP,G,Asel)
+            Bprj(1:Nvib_all,1:3*Nat) = matrix_product(NvibP,3*Nat,Ns,Asel,Bprj,tA=.true.)
+            ! And get back allgeom
+            Ns = allgeom%nbonds+allgeom%nangles+allgeom%ndihed
+            molecule%geom = allgeom
+        endif
 
         ! Get G, B, and Bder 
         call internal_Wilson(molecule,Ns,S,B0,ModeDef)
@@ -408,11 +422,12 @@ program normal_modes_animation
 
         if (apply_projection_matrix) then
             ! Get projection matrix (again...)
-            P(1:3*Nat,1:3*Nat) = projection_matrix3(Nat,Nvib0,B0,molecule%atom(:)%Mass)
+!             P(1:3*Nat,1:3*Nat) = projection_matrix3(Nat,Nvib0,B0,molecule%atom(:)%Mass)
+            P(1:3*Nat,1:3*Nat) = projection_matrix3(Nat,NvibP,Bprj,molecule%atom(:)%Mass)
             ! And rotate gradient
             do i=1,3*Nat
                 Vec1(i) = 0.d0
-                do k=1,Nvib0
+                do k=1,3*Nat
                     Vec1(i) = Vec1(i) + P(i,k)*Grad(k)
                 enddo
             enddo
@@ -443,33 +458,7 @@ program normal_modes_animation
         endif
 
         if (check_symmetry) then
-            print'(/,X,A)', "---------------------------------------"
-            print'(X,A  )', " Check effect of symmetry operations"
-            print'(X,A  )', " on the correction term gs^t\beta"
-            print'(X,A  )', "---------------------------------------"
-            current_symm=molecule%PG
-            molecule%PG="XX"
-            call symm_atoms(molecule,isym,Osym,rotate=.false.,nsym_ops=nsym)
-            ! Check the symmetry of the correction term
-            ! Check all detected symmetry ops
-            do iop=1,Nsym
-                Aux(1:3*Nat,1:3*Nat) = dfloat(Osym(iop,1:3*Nat,1:3*Nat))
-                Aux(1:3*Nat,1:3*Nat) = matrix_basisrot(3*Nat,3*Nat,Aux,gBder,counter=.true.)
-                Theta=0.d0
-                do i=1,3*Nat 
-                do j=1,3*Nat 
-                    if (Theta < abs(Aux(i,j)-gBder(i,j))) then
-                        Theta = abs(Aux(i,j)-gBder(i,j))
-                        Theta2=gBder(i,j)
-                    endif
-                enddo
-                enddo
-                print'(X,A,I0)', "Symmetry operation :   ", iop
-                print'(X,A,F10.6)',   " Max abs difference : ", Theta
-                print'(X,A,F10.6,/)', " Value before sym op: ", Theta2
-            enddo
-            print'(X,A,/)', "---------------------------------------"
-            molecule%PG=current_symm
+            call check_symm_gsBder(molecule,gBder)
         endif
     endif
 
@@ -534,11 +523,11 @@ program normal_modes_animation
 
     ! Compute B matrix in the selgeom for projection
     if (apply_projection_matrix) then
-        Nvib0 = Nvib
+        NvibP = Nvib
         call internal_Wilson(molecule,Ns,S,Bprj)
         call internal_Gmetric(Nat,Ns,molecule%atom(:)%mass,Bprj,G)
-        call redundant2nonredundant(Ns,Nvib0,G,Asel)
-        Bprj(1:Nvib_all,1:3*Nat) = matrix_product(Nvib0,3*Nat,Ns,Asel,Bprj,tA=.true.)
+        call redundant2nonredundant(Ns,NvibP,G,Asel)
+        Bprj(1:Nvib_all,1:3*Nat) = matrix_product(NvibP,3*Nat,Ns,Asel,Bprj,tA=.true.)
         ! And get back allgeom
         Ns = allgeom%nbonds+allgeom%nangles+allgeom%ndihed
         molecule%geom = allgeom
@@ -684,7 +673,7 @@ program normal_modes_animation
 
             if (apply_projection_matrix) then
                 ! Get projection matrix (again...)
-                P(1:3*Nat,1:3*Nat) = projection_matrix3(Nat,Nvib0,Bprj,molecule%atom(:)%Mass)
+                P(1:3*Nat,1:3*Nat) = projection_matrix3(Nat,NvibP,Bprj,molecule%atom(:)%Mass)
 !                 Aux(1:3*Nat,1:3*Nat) = identity_matrix(3*Nat)
 !                 P(1:3*Nat,1:3*Nat) =  Aux(1:3*Nat,1:3*Nat)-P(1:3*Nat,1:3*Nat)
                 ! Project out rotation and translation

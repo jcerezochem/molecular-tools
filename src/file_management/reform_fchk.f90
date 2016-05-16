@@ -174,6 +174,9 @@ program reorder_fchk
     !================
     ! READ DATA
     !================
+    ! OPEN FILE
+    open(I_INP,file=inpfile,status='old',iostat=IOstatus)
+    if (IOstatus /= 0) call alert_msg( "fatal","Unable to open "//trim(adjustl(inpfile)) )
     if (adjustl(filetype) == "guess") &
     call split_line_back(inpfile,".",null,filetype)
 
@@ -211,8 +214,7 @@ program reorder_fchk
 
     ! STRUCTURE FILE
     print'(X,A)', "READING STRUCTURE..."
-    open(I_INP,file=inpfile,status='old',iostat=IOstatus)
-    if (IOstatus /= 0) call alert_msg( "fatal","Unable to open "//trim(adjustl(inpfile)) )
+    rewind(I_INP)
     call generic_strmol_reader(I_INP,filetype,molecule)
     !Shortcuts
     Nat = molecule%natoms
