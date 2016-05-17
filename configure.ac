@@ -48,7 +48,7 @@ AC_SUBST([AM_FCFLAGS])
 # Checks for libraries: LAPACK
 AC_ARG_WITH([mkl],
     AS_HELP_STRING([--with-mkl], [Use Intel MKL library for lapak subroutines]),
-    [with_mkl=yes],
+    [],
     [with_mkl=no])
 
 AS_IF([test "x$with_mkl" = "xyes"],
@@ -72,33 +72,32 @@ AS_IF([test "x$have_lapack_funct" != "xyes"],
       [AC_MSG_ERROR([No lapack library found])],
       [have_lapack_funct=yes])
 
-# Checks for libraries: FFT
-AC_ARG_WITH([fftw],
-    AS_HELP_STRING([--with-fftw], [Use the Fastes Fourier Transform in the West (FFTW)]),
-    [with_fftw=yes],
-    [with_fftw=no;use_fftw=no])
-
-AS_IF([test "x$with_fftw" = "xyes"],
-      [AC_CHECK_LIB([fftw3],[dfftw_plan_dft_1d],
-                    [use_fftw=yes;LIBS="$LIBS -lfftw3"],
-                    [AC_MSG_WARN([FFTW functionalities cannot be used]);use_fftw=no])],
-      [use_fftw=no])
+# # Checks for libraries: FFT
+# AC_ARG_WITH([fftw],
+#     AS_HELP_STRING([--without-fftw], [Disable FFTW and use the packed DFT routines]),
+#     [],
+#     [with_fftw=yes])
+# 
+# AS_IF([test "x$with_fftw" = xyes],
+#       [AC_CHECK_LIB([fftw3],[dfftw_plan_dft_1d],
+#                     [use_fftw=yes;LIBS="$LIBS -lfftw3"],
+#                     [AC_MSG_WARN([FFTW not found. Using alternative packed version.]);use_fftw=no])],
+#       [AC_MSG_NOTICE([FFTW3 disabled. Using alternative packed version.]);use_fftw=no])
 
 # Check libbders
 AC_ARG_WITH([libbders],
     AS_HELP_STRING([--with-libbders], [B analytical derivatives library (libbders)]),
-    [with_libbders=yes],
-    [with_libbders=no; use_libbders=no])
+    [],
+    [with_libbders=no])
 
 AS_IF([test "x$with_libbders" = "xyes"],
       [AC_CHECK_LIB([bders],[derBstre],
-                    [use_libders=yes;
-                     LIBS="$LIBS -lbders -L${abs_srcdir}/libs/AnalyticalBders";
+                    [LIBS="$LIBS -lbders -L${abs_srcdir}/libs/AnalyticalBders";
                      FCFLAGS="$FCFLAGS -DWITH_LIBBDERS"],
-                    [AC_MSG_WARN([libders disabled]);use_libders=no])],
-      [use_libders=yes])
+                    [AC_MSG_WARN([libders disabled])])],
+      [AC_MSG_NOTICE([libbders (analytical derivatives) not enabled])])
 # Pass info to automake
-AM_CONDITIONAL([WITH_LIBDERS], [test "$use_libders" = "yes"])
+AM_CONDITIONAL([WITH_LIBDERS], [test "$with_libbders" = "yes"])
 
 
 AS_IF([test "x$use_fftw" = "xyes"],
