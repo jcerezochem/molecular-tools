@@ -90,9 +90,13 @@ AC_ARG_WITH([libbders],
     [],
     [with_libbders=no])
 
+# We need to define the relative path to the libs. To that end we use
+# \${top_srcdir}, that will be expanded at make step
+# top_srcdir: is the top source, where the main Makefile file was called
+# srcdr: is the folder where the current Makefile was called
 AS_IF([test "x$with_libbders" = "xyes"],
       [AC_CHECK_LIB([bders],[derBstre],
-                    [LIBS="$LIBS -lbders -L${abs_srcdir}/libs/AnalyticalBders";
+                    [LIBS="$LIBS -L\${top_srcdir}/libs/AnalyticalBders -lbders";
                      FCFLAGS="$FCFLAGS -DWITH_LIBBDERS"],
                     [AC_MSG_WARN([libders disabled])])],
       [AC_MSG_NOTICE([libbders (analytical derivatives) not enabled])])
