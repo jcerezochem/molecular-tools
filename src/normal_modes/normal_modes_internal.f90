@@ -65,6 +65,7 @@ program normal_modes_animation
                animate=.true.,         &
                project_on_all=.false.,  &
                apply_projection_matrix=.false., &
+               complementay_projection=.false., &
                do_zmap
     !======================
 
@@ -208,7 +209,7 @@ program normal_modes_animation
                      animate,movie_vmd, movie_cycles,conversion_i2c,       &
                      ! Options (internal)
                      use_symmetry,def_internal,def_internal0,intfile,intfile0,&
-                     apply_projection_matrix,                              &
+                     apply_projection_matrix,complementay_projection,      &
                      rmzfile,scan_type,  &
                      project_on_all,                                       &
                      ! connectivity file
@@ -421,9 +422,12 @@ program normal_modes_animation
         enddo
 
         if (apply_projection_matrix) then
-            ! Get projection matrix (again...)
-!             P(1:3*Nat,1:3*Nat) = projection_matrix3(Nat,Nvib0,B0,molecule%atom(:)%Mass)
+            ! Get projection matrix 
             P(1:3*Nat,1:3*Nat) = projection_matrix3(Nat,NvibP,Bprj,molecule%atom(:)%Mass)
+            if (complementay_projection) then
+                Aux(1:3*Nat,1:3*Nat) = identity_matrix(3*Nat)
+                P(1:3*Nat,1:3*Nat) =  Aux(1:3*Nat,1:3*Nat)-P(1:3*Nat,1:3*Nat)
+            endif
             ! And rotate gradient
             do i=1,3*Nat
                 Vec1(i) = 0.d0
@@ -674,8 +678,10 @@ program normal_modes_animation
             if (apply_projection_matrix) then
                 ! Get projection matrix (again...)
                 P(1:3*Nat,1:3*Nat) = projection_matrix3(Nat,NvibP,Bprj,molecule%atom(:)%Mass)
-!                 Aux(1:3*Nat,1:3*Nat) = identity_matrix(3*Nat)
-!                 P(1:3*Nat,1:3*Nat) =  Aux(1:3*Nat,1:3*Nat)-P(1:3*Nat,1:3*Nat)
+                if (complementay_projection) then
+                    Aux(1:3*Nat,1:3*Nat) = identity_matrix(3*Nat)
+                    P(1:3*Nat,1:3*Nat) =  Aux(1:3*Nat,1:3*Nat)-P(1:3*Nat,1:3*Nat)
+                endif
                 ! Project out rotation and translation
                 Hess(1:3*Nat,1:3*Nat) = matrix_basisrot(3*Nat,3*Nat,P,Hess,counter=.true.)
             endif
@@ -1231,7 +1237,7 @@ program normal_modes_animation
                            animate,movie_vmd, movie_cycles,conversion_i2c,        &
                            ! Options (internal)
                            use_symmetry,def_internal,def_internal0,intfile,intfile0,&
-                           apply_projection_matrix,  &
+                           apply_projection_matrix,complementay_projection,  &
                            rmzfile,scan_type,  &
                            project_on_all,                                       &
                            ! connectivity file
@@ -1250,7 +1256,7 @@ program normal_modes_animation
                                           selection,cnx_file,def_internal0,conversion_i2c
         real(8),intent(inout)          :: Amplitude,Tthermo
         logical,intent(inout)          :: call_vmd, include_hbonds,vertical, use_symmetry,movie_vmd,animate,&
-                                          analytic_Bder,project_on_all,apply_projection_matrix
+                                          analytic_Bder,project_on_all,apply_projection_matrix,complementay_projection
         integer,intent(inout)          :: movie_cycles
 
         ! Local
@@ -1324,9 +1330,16 @@ program normal_modes_animation
                     call getarg(i+1, def_internal0)
                     argument_retrieved=.true.
 
-                case ("-prj-trS")
+                case ("-prjS")
                     apply_projection_matrix=.true.
-                case ("-noprj-trS")
+                    complementay_projection=.false.
+                case ("-noprjS")
+                    apply_projection_matrix=.false.
+
+                case ("-prjS-c")
+                    apply_projection_matrix=.true.
+                    complementay_projection=.true.
+                case ("-noprjS-c")
                     apply_projection_matrix=.false.
 
                 case ("-sym")
@@ -1468,10 +1481,11 @@ program normal_modes_animation
         write(6,*)       '-cnx           Connectivity [filename|guess]   ', trim(adjustl(cnx_file))
 !         write(6,*)       '-fnm           Gradient file                   ', trim(adjustl(nmfile))
 !         write(6,*)       '-ftn           \_ FileType                     ', trim(adjustl(ftn))
-        write(6,*)       '-[no]prj-trS   Apply projection matrix to     ', apply_projection_matrix
+        write(6,*)       '-[no]prjS      Apply projection matrix to     ', apply_projection_matrix
         write(6,*)       '               rotate Grad and Hess.'
         write(6,*)       '               Projection P=B^+B, where the'
-        write(6,*)       '               internal space is read from -intfile'
+        write(6,*)       '-[no]prjS-c    Use the complentary projection ', complementay_projection
+        write(6,*)       '               P=I - B^+B'
         write(6,*)       '-intmode0      Internal set:[zmat|sel|all] cor ', trim(adjustl(def_internal0))
         write(6,*)       '-intfile0      File with ICs (for "sel")[corr] ', trim(adjustl(intfile0))
         write(6,*)       '-intmode       Internal set:[zmat|sel|all]     ', trim(adjustl(def_internal))

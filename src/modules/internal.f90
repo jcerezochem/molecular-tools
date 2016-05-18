@@ -1411,7 +1411,8 @@ module internal_module
             call sort_vec(Vec,Nred)
             call print_vector(6,Vec*1e5,Nred,"A MATRIX Eigenvalues (x10^5)")
             print*, "Zero eigenvalues: ", kkk 
-            print*, "Expected: ", Nred-Nvib
+            print*, "Expected:         ", Nred-Nvib
+            print*, "Deleted modes:    ", kkk - Nred + Nvib
             if (kkk > Nred-Nvib) then
                 print*, "Internal-space dimension is reduced"
                 print*, " Initial:", Nvib
