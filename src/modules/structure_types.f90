@@ -27,10 +27,10 @@ module structure_types
     !---------------------------------------------------------
 
     !SIZES
-    integer,parameter:: MAX_ATOMS = 100000, &
-                        MAX_ATM_RES = 36000,  &
+    integer,parameter:: MAX_ATOMS = 10000, &
+                        MAX_ATM_RES = 600,  &
                         MAX_CONNEXIONS = 6, &
-                        MAX_DERIVED_CNX = 5000
+                        MAX_DERIVED_CNX = 1000
 
     !DERIVED TYPES
 !   Auxiliar new types (need to be defined first)

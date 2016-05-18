@@ -947,6 +947,8 @@ program internal_duschinski
         character(len=200) :: arg
         character(len=500) :: input_command
         character(len=10)  :: model="adia", MODEL_UPPER
+        ! iargc type must be specified with implicit none (strict compilation)
+        integer :: iargc
 
         ! Tune defaults
         logical :: gradcorrectS1_default=.true., &

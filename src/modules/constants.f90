@@ -14,7 +14,7 @@ module constants
 #else
         real, parameter :: &
 #endif
-                           PI      = 4.0d0*datan(1.0d0), & !
+                           PI      = 3.14159265358979323846d0, & !
                            NAv     = 6.02214129D23,      & ! Avogadro number
                            clight  = 2.99792458D8,       & ! Speed of light
                            SL      = 2.99792458D8,       & ! (synonym to above)

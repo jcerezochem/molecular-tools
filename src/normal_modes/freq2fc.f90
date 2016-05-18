@@ -84,6 +84,8 @@ program freq2fc
         character(len=200) :: arg
         !Dummy arguments, for printing
         character(len=200) :: cfreq="", cfc=""
+        ! iargc type must be specified with implicit none (strict compilation)
+        integer :: iargc
 
         argument_retrieved=.false.
         do i=1,iargc()

@@ -308,7 +308,7 @@ program reorder_fchk
         ! Only change the selected ones
         read(I_ORD,*) nswap
         ! initialize iord
-        iord(1:3*molecule%natoms) = [ (i, i=1,3*molecule%natoms) ]
+        iord(1:3*molecule%natoms) = (/(i, i=1,3*molecule%natoms)/)
         molec_aux = molecule
         do i=1,nswap !molecule%natoms
             read(I_ORD,*) iat_orig, iat_new
@@ -511,6 +511,8 @@ program reorder_fchk
                    need_help = .false.
         integer:: i
         character(len=200) :: arg
+        ! iargc type must be specified with implicit none (strict compilation)
+        integer :: iargc
 
         argument_retrieved=.false.
         do i=1,iargc()

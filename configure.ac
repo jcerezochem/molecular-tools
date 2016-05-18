@@ -23,27 +23,28 @@ if test -z $FFLAGS; then
     FFLAGS='-I../modules/'
 fi
 if test -z $FCFLAGS; then
-    FCFLAGS='-DDOUBLE -DUSE_LAPACK -I../modules/'
+    if test "$FC" == "lf95"; then
+        FCFLAGS='-DDOUBLE -DUSE_LAPACK -I../modules/ -Cpp --chk --maxfatals 1'
+    else
+        FCFLAGS='-DDOUBLE -DUSE_LAPACK -I../modules/ -cpp'
+    fi
 fi
 
 LDFLAGS="$LDFLAGS -L$srcdir/libs/AnalyticalBders"
 
-# AC_PROG_F77([ifort,gfortran])
- # ifort compiler works, but gfortran does not!
 AC_PROG_FC([])
 
 # Check compiler flags
-my_save_fcflags="$FCFLAGS"
-FCFLAGS=-cpp
-AC_MSG_CHECKING([whether $FC accepts -cpp])
-AC_COMPILE_IFELSE([AC_LANG_PROGRAM([])],
-    [AC_MSG_RESULT([yes])]
-    [AM_FCFLAGS=-cpp],
-    [AC_MSG_RESULT([no])]
-    [AC_MSG_ERROR([Compiler does not support preprocessor flags])]
-)
-FCFLAGS="$my_save_fcflags"
-AC_SUBST([AM_FCFLAGS])
+# my_save_fcflags="$FCFLAGS"
+# AC_MSG_CHECKING([whether $FC accepts -cpp])
+# AC_COMPILE_IFELSE([AC_LANG_PROGRAM([])],
+#     [AC_MSG_RESULT([yes])]
+#     [AM_FCFLAGS=-cpp],
+#     [AC_MSG_RESULT([no])]
+#     [AC_MSG_ERROR([Compiler does not support preprocessor flags])]
+# )
+# FCFLAGS="$my_save_fcflags"
+# AC_SUBST([AM_FCFLAGS])
 
 # Checks for libraries: LAPACK
 AC_ARG_WITH([mkl],

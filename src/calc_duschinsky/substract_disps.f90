@@ -82,6 +82,8 @@ program substract_disps
                    need_help = .false.
         integer:: i
         character(len=200) :: arg
+        ! iargc type must be specified with implicit none (strict compilation)
+        integer :: iargc
 
 
         argument_retrieved=.false.

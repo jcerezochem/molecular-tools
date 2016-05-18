@@ -200,6 +200,8 @@ program state2hessian
         integer:: i
         character(len=200) :: arg
         character(len=500) :: input_command
+        ! iargc type must be specified with implicit none (strict compilation)
+        integer :: iargc
 
         argument_retrieved=.false.
         do i=1,iargc()

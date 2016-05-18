@@ -920,6 +920,8 @@ program normal_modes_animation
                    need_help = .false.
         integer:: i
         character(len=200) :: arg
+        ! iargc type must be specified with implicit none (strict compilation)
+        integer :: iargc
 
         !Prelimirary defaults
         Nsel = 0

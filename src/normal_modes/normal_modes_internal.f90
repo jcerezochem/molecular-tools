@@ -1265,6 +1265,8 @@ program normal_modes_animation
         integer:: i
         character(len=200) :: arg
         character(len=200) :: int_selection, nm_selection
+        ! iargc type must be specified with implicit none (strict compilation)
+        integer :: iargc
 
         argument_retrieved=.false.
         do i=1,iargc()
@@ -1531,7 +1533,7 @@ program normal_modes_animation
     subroutine prepare_files(icoord,label,scan_type,grofile,g09file,g96file,numfile,qfile,title)
 
         integer,intent(in) :: icoord
-        character(len=*),intent(out) :: label, scan_type
+        character(len=*),intent(in) :: label, scan_type
         character(len=*),intent(out) :: grofile,g09file,g96file,numfile,qfile,title
 
         !Local
