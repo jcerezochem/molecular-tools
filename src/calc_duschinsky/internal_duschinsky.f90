@@ -1425,14 +1425,14 @@ program internal_duschinski
     open(O_STAT,file="state_file_1")
     call set_geom_units(state1,"Angs")
     do i=1,Nat
-        write(O_STAT,*) state1%atom(i)%x
-        write(O_STAT,*) state1%atom(i)%y
-        write(O_STAT,*) state1%atom(i)%z
+        write(O_STAT,'(E17.8)') state1%atom(i)%x
+        write(O_STAT,'(E17.8)') state1%atom(i)%y
+        write(O_STAT,'(E17.8)') state1%atom(i)%z
     enddo
     call Lcart_to_LcartNrm(Nat,Nvib,L1,Aux,error)
     do i=1,3*Nat
     do j=1,Nvib
-        write(O_STAT,*) Aux(i,j)
+        write(O_STAT,'(E17.8)') Aux(i,j)
     enddo
     enddo
     do j=1,Nvib
@@ -1441,7 +1441,7 @@ program internal_duschinski
             call alert_msg("warning","An imagainary frequency turned real (state1)")
             Freq1(j) = abs(Freq1(j))
         endif
-        write(O_STAT,'(F12.5)') Freq1(j)
+        write(O_STAT,'(F10.4)') Freq1(j)
     enddo
     close(O_STAT)
     ! STATE2
@@ -1457,14 +1457,14 @@ program internal_duschinski
     ! Note that the geometry is the input one (not displaced for vertical)
     ! But it is ok for FCclasses (it is not using it AFIK) What about HT??
     do i=1,Nat
-        write(O_STAT,*) state2%atom(i)%x
-        write(O_STAT,*) state2%atom(i)%y
-        write(O_STAT,*) state2%atom(i)%z
+        write(O_STAT,'(E17.8)') state2%atom(i)%x
+        write(O_STAT,'(E17.8)') state2%atom(i)%y
+        write(O_STAT,'(E17.8)') state2%atom(i)%z
     enddo
     call Lcart_to_LcartNrm(Nat,Nvib,L2,Aux,error)
     do i=1,3*Nat
     do j=1,Nvib
-        write(O_STAT,*) Aux(i,j)
+        write(O_STAT,'(E17.8)') Aux(i,j)
     enddo
     enddo
     do j=1,Nvib
@@ -1473,7 +1473,7 @@ program internal_duschinski
             call alert_msg("warning","An imagainary frequency turned real (state2)")
             Freq2(j) = abs(Freq2(j))
         endif
-        write(O_STAT,'(F12.5)') Freq2(j)
+        write(O_STAT,'(F10.4)') Freq2(j)
     enddo
     close(O_STAT)
 
