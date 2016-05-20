@@ -62,7 +62,7 @@ program projection_normal_modes_int
     !System variables
     type(str_resmol) :: molecule, molec_aux
     integer,dimension(1:NDIM) :: isym
-    integer :: Nat, Nvib, Ns
+    integer :: Nat, Nvib, Ns, Nf
     character(len=5) :: PG
     !====================== 
 
@@ -233,7 +233,7 @@ program projection_normal_modes_int
     call gen_bonded(molecule)
 
     ! Define internal set
-    call define_internal_set(molecule,def_internal,intfile,rmzfile,use_symmetry,isym, S_sym,Ns)
+    call define_internal_set(molecule,def_internal,intfile,rmzfile,use_symmetry,isym, S_sym,Ns,Nf,Aux2)
     if (Ns > Nvib) then
         call alert_msg("fatal","Non-redundan coordinate set needs mapping (still on dev)")
         ! Need mapping from whole set to Zmat

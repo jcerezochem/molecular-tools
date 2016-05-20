@@ -10,7 +10,7 @@ module internal_module
     contains
 
 
-    subroutine define_internal_set(molec,def_internal,intfile,rmzfile,use_symmetry,isym,S_sym,Ns)
+    subroutine define_internal_set(molec,def_internal,intfile,rmzfile,use_symmetry,isym,S_sym,Ns,Nf,Fltr)
 
         !==============================================================
         ! This code is part of MOLECULAR_TOOLS 
@@ -42,6 +42,8 @@ module internal_module
         integer,dimension(:),intent(in)    :: isym              ! array with the simmetric atom (in)
         integer,dimension(:),intent(out)   :: S_sym             ! array with symmetric internals (out)
         integer,intent(out)                :: Ns                ! Total number of internal coordiantes to use
+        integer,intent(out)       :: Nf
+        real(8),dimension(:,:)    :: Fltr
         !====================== 
     
         !======================
@@ -71,14 +73,18 @@ module internal_module
         Nat = molec%natoms
         PG = molec%PG
 
+        Nf = 0
+
         !GEN BONDED SET FOR INTERNAL COORD
         if (adjustl(def_internal_local) == "SEL") then
             if (verbose>0) &
              print*, "Reading internal coordianates from: "//trim(adjustl(intfile))
             open(I_FILE,file=intfile,iostat=IOstatus,status='old') 
             if (IOstatus /= 0) call alert_msg("fatal","Cannot open file: "//trim(adjustl(intfile)))
+            ! Preprocess the file to get combination labels
+            call pp_modredundant(I_FILE,molec,Nf,Fltr)
             ! Get internal coords (using modredundant sr)
-            call modredundant(I_FILE,molec)
+!             call modredundant(I_FILE,molec)
             close(I_FILE)
 
         elseif (adjustl(def_internal_local) == "ZMAT") then
@@ -1410,11 +1416,9 @@ module internal_module
         if (Nred /= Nvib+kkk) then
             call sort_vec(Vec,Nred)
             call print_vector(6,Vec*1e5,Nred,"A MATRIX Eigenvalues (x10^5)")
-            print*, "Zero eigenvalues: ", kkk 
-            print*, "Expected:         ", Nred-Nvib
-            print*, "Deleted modes:    ", kkk - Nred + Nvib
             if (kkk > Nred-Nvib) then
                 print*, "Internal-space dimension is reduced"
+                print*, " Deleted modes:    ", kkk - Nred + Nvib
                 print*, " Initial:", Nvib
                 print*, " Reduced:", Nred-kkk
                 call alert_msg("warning","Redundant to non-redundant trasformation"//&

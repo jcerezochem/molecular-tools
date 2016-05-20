@@ -68,6 +68,139 @@ module zmat_manage
         return
     
     end subroutine modredundant
+
+    subroutine pp_modredundant(I_RED,molec,Nf,Fltr)
+    
+        use structure_types
+        use alerts
+        use constants
+        use atomic_geom
+        use symmetry
+    
+        type(str_resmol),intent(inout) :: molec
+        integer,intent(in) :: I_RED
+        !Local
+        character(len=1)  :: int_type
+        character(len=100) :: int_type_group
+        character(len=100) :: line
+        integer :: i,j,k, g
+
+        ! Group stuff
+        integer,intent(out) :: Nf
+        real(8),dimension(:,:),intent(out) :: Fltr
+
+        character(len=100) :: coeff_char
+        character(len=1),dimension(600) :: group_id, group_id_known
+        real(8),dimension(600,4) :: coeff
+        integer,dimension(600)   :: ng
+        logical :: is_known
+        real(8) :: factor
+
+        !----------------------------------------------
+        ! UNITS MANAGEMENT
+        ! This subroutine works with no Units
+        !------------------------------------------------
+    
+        nbonds  = 0
+        nangles = 0
+        ndihed  = 0
+        nimprop = 0    
+
+        k=0
+        do
+            k=k+1
+            read(I_RED,'(A)',iostat=ios) line
+            int_type = adjustl(line)
+            if (int_type == "!") then
+                !this is a comment
+                cycle
+            elseif (int_type == "") then
+            !Blank line is the end
+                exit
+            endif
+
+            call split_line(line,'}',int_type_group,line)
+            if (ios /=0) exit
+            if (index(int_type_group,'{') /= 0) then
+                call split_line(int_type_group,'{',int_type,coeff_char)
+                call split_line(coeff_char,':',group_id(k),coeff_char)
+                call string2vector(coeff_char,coeff(k,:),ng(k),',')
+            else
+                read(int_type_group,'(A,A)') int_type, line
+                group_id(k)='0'
+                ng(k)=0
+            endif
+
+            if (int_type == "B") then
+                read(line,*) i1, i2
+                nbonds = nbonds + 1
+                molec%geom%bond(nbonds,1:2) = (/i1,i2/)
+            elseif (int_type == "A") then
+                read(line,*) i1, i2, i3
+                nangles = nangles + 1
+                molec%geom%angle(nangles,1:3) = (/i1,i2,i3/)
+            elseif (int_type == "D") then
+                read(line,*) i1, i2, i3, i4
+                ndihed = ndihed + 1
+                molec%geom%dihed(ndihed,1:4) = (/i1,i2,i3,i4/)
+            elseif (int_type == "I") then
+                read(line,*) i1, i2, i3, i4
+                nimprop = nimprop + 1
+                molec%geom%improp(nimprop,1:4) = (/i1,i2,i3,i4/)
+                call alert_msg("fatal","Unknows internal type: "//int_type)
+            endif
+        enddo
+    
+        molec%geom%nbonds  = nbonds
+        molec%geom%nangles = nangles
+        molec%geom%ndihed  = ndihed
+        molec%geom%nimprop = nimprop
+        Ns = nbonds+nangles+ndihed+nimprop
+
+        !Get filter
+        Nf=0
+        Fltr(1:Ns,1:Ns) = 0.d0
+        Nids = 0
+        do i=1,Ns
+            if (group_id(i) == "0") then
+                Nf = Nf+1
+                Fltr(Nf,i) = 1.d0
+                cycle
+            endif
+            is_known = .false.
+            do j=1,Nids
+                if (group_id(i) == group_id_known(j)) then
+                    is_known=.true.
+                    exit
+                endif
+            enddo
+            if (is_known) cycle
+
+            do g = 1,ng(i)
+                Nf = Nf+1
+                do k=i,Ns
+                    if (group_id(k) == group_id(i)) then
+                        Fltr(Nf,k) = coeff(k,g)
+                    endif
+                enddo
+            enddo
+
+            Nids = Nids+1
+            group_id_known(Nids) = group_id(i)
+            
+        enddo
+
+        do i=1,Nf
+            factor=0.d0
+            do j=1,Ns
+                factor = factor + Fltr(i,j)**2
+            enddo
+            Fltr(i,1:Ns) = Fltr(i,1:Ns)/dsqrt(factor)
+        enddo
+
+        return
+    
+    end subroutine pp_modredundant
     
     !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%5
     

@@ -69,7 +69,7 @@ program cartesian_duschinsky
     !System variables
     type(str_resmol) :: state1,state2
     integer,dimension(1:NDIM) :: isym
-    integer :: Nat, Nvib, Ns, Nrt, Nvib0
+    integer :: Nat, Nvib, Ns, Nrt, Nvib0, Nf
     !====================== 
 
     !====================== 
@@ -136,7 +136,7 @@ program cartesian_duschinsky
                I_ADD=14,  &
                I_AD2=15,  &
                I_RMF=16,  &
-               I_DER=17,  &
+               I_MAS=17,  &
                I_CNX=18,  &
                I_RMC=19,  &
                O_DUS=20,  &
@@ -159,6 +159,7 @@ program cartesian_duschinsky
                          symm_file="none", &
                          rm_custom_file="none", &
                          cnx_file="guess", &
+                         mass_file="none", &
                          derfile="base", derfile_base, &
                          tmpfile
     !status
@@ -189,7 +190,7 @@ program cartesian_duschinsky
     call parse_input(inpfile,ft,gradfile,ftg,hessfile,fth,inpfile2,ft2,gradfile2,ftg2,hessfile2,fth2,&
                      cnx_file,intfile,rmzfile,def_internal,use_symmetry,derfile,gradcorrectS2,&
                      gradcorrectS1,model,vertical,verticalQspace1,verticalQspace2,force_real,reference_frame,&
-                     rm_gradcoord,rm_custom_file, &
+                     rm_gradcoord,rm_custom_file,mass_file,&
                      int_space,apply_projection_matrix,analytic_Bder)
     call set_word_upper_case(def_internal)
     call set_word_upper_case(reference_frame)
@@ -224,6 +225,18 @@ program cartesian_duschinsky
     ! Shortcuts
     Nat = state1%natoms
     print'(X,A,/)', "Done"
+
+    ! Read mass from file if given
+    if (adjustl(mass_file) /= "none") then
+        print'(/,X,A)', "Reading atomic masses from: "//trim(adjustl(mass_file))
+        open(I_MAS,file=mass_file,status='old',iostat=IOstatus)
+        if (IOstatus /= 0) call alert_msg( "fatal","Unable to open "//trim(adjustl(mass_file)) )
+        do i=1,Nat
+            read(I_MAS,*,iostat=IOstatus) state1%atom(i)%mass 
+            if (IOstatus /= 0) call alert_msg( "fatal","While reading "//trim(adjustl(mass_file)) )
+        enddo
+        close(I_MAS)
+    endif
 
 
     if (gradcorrectS1.or.int_space.or.apply_projection_matrix) then
@@ -261,7 +274,7 @@ program cartesian_duschinsky
         call gen_bonded(state1)
     
         ! Define internal set
-        call define_internal_set(state1,def_internal,intfile,rmzfile,use_symmetry,isym, S_sym,Ns)
+        call define_internal_set(state1,def_internal,intfile,rmzfile,use_symmetry,isym, S_sym,Ns,Nf,Aux2)
     
         !From now on, we'll use atomic units
         call set_geom_units(state1,"Bohr")
@@ -515,6 +528,18 @@ program cartesian_duschinsky
     Nat = state2%natoms
     print'(X,A,/)', "Done"
 
+    ! Read mass from file if given
+    if (adjustl(mass_file) /= "none") then
+        print'(/,X,A)', "Reading atomic masses from: "//trim(adjustl(mass_file))
+        open(I_MAS,file=mass_file,status='old',iostat=IOstatus)
+        if (IOstatus /= 0) call alert_msg( "fatal","Unable to open "//trim(adjustl(mass_file)) )
+        do i=1,Nat
+            read(I_MAS,*,iostat=IOstatus) state2%atom(i)%mass 
+            if (IOstatus /= 0) call alert_msg( "fatal","While reading "//trim(adjustl(mass_file)) )
+        enddo
+        close(I_MAS)
+    endif
+
     if (adjustl(model) /= "AS") then
         if (gradcorrectS2.or.int_space.or.apply_projection_matrix) then
             !***************************************************************
@@ -551,7 +576,7 @@ program cartesian_duschinsky
             call gen_bonded(state2)
         
             ! Define internal set
-            call define_internal_set(state2,def_internal,intfile,rmzfile,use_symmetry,isym, S_sym,Ns)
+            call define_internal_set(state2,def_internal,intfile,rmzfile,use_symmetry,isym, S_sym,Ns,Nf,Aux2)
         
             !From now on, we'll use atomic units
             call set_geom_units(state2,"Bohr")
@@ -1407,7 +1432,7 @@ program cartesian_duschinsky
     subroutine parse_input(inpfile,ft,gradfile,ftg,hessfile,fth,inpfile2,ft2,gradfile2,ftg2,hessfile2,fth2,&
                            cnx_file,intfile,rmzfile,def_internal,use_symmetry,derfile,gradcorrectS2,&
                            gradcorrectS1,model,vertical,verticalQspace1,verticalQspace2,force_real,reference_frame,&
-                           rm_gradcoord,rm_custom_file, &
+                           rm_gradcoord,rm_custom_file,mass_file,&
                            int_space,apply_projection_matrix,analytic_Bder)
     !==================================================
     ! My input parser (gromacs style)
@@ -1416,7 +1441,7 @@ program cartesian_duschinsky
 
         character(len=*),intent(inout) :: inpfile,ft,gradfile,ftg,hessfile,fth,gradfile2,ftg2,hessfile2,fth2,&
                                           cnx_file,intfile,rmzfile,def_internal,derfile,inpfile2,ft2,reference_frame,&
-                                          rm_custom_file, model
+                                          rm_custom_file, model, mass_file
         logical,intent(inout)          :: use_symmetry,gradcorrectS2,gradcorrectS1,vertical,&
                                           verticalQspace1,verticalQspace2,force_real,rm_gradcoord,int_space,&
                                           apply_projection_matrix,analytic_Bder
@@ -1490,6 +1515,10 @@ program cartesian_duschinsky
                     argument_retrieved=.true.
                 case ("-ftg2") 
                     call getarg(i+1, ftg2)
+                    argument_retrieved=.true.
+
+                case ("-fmass") 
+                    call getarg(i+1, mass_file)
                     argument_retrieved=.true.
 
                 case ("-intfile") 
@@ -1700,6 +1729,7 @@ program cartesian_duschinsky
         write(6,*) '-fth2        \_ FileType                   ', trim(adjustl(fth2))
         write(6,*) '-fgrad2      Gradient(S2) file             ', trim(adjustl(gradfile2))
         write(6,*) '-ftg2        \_ FileType                   ', trim(adjustl(ftg2))
+        write(6,*) '-fmass       Mass file                     ', trim(adjustl(mass_file))
         write(6,*) ''
         write(6,*) ' ** Options for state_files ** '
         write(6,*) '-ref         Reference state to output the ', reference_frame

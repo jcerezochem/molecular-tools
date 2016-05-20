@@ -59,7 +59,7 @@ program vertical2adiabatic
     type(str_resmol) :: state1,state2
     type(str_bonded) :: zmatgeom, allgeom
     integer,dimension(1:NDIM) :: isym
-    integer :: Nat, Nvib, Ns
+    integer :: Nat, Nvib, Ns, Nf
     !====================== 
 
     !====================== 
@@ -257,13 +257,13 @@ program vertical2adiabatic
         print*, "Preliminary Zmat analysis"
         ! Get Zmat first
         def_internal_aux="ZMAT"
-        call define_internal_set(state1,def_internal_aux,"none","none",use_symmetry,isym,S_sym,Ns)
+        call define_internal_set(state1,def_internal_aux,"none","none",use_symmetry,isym,S_sym,Ns,Nf,Aux2)
         ! Get only the geom, and reuse molecule
         zmatgeom=state1%geom
         ! And reset bonded parameters
         call gen_bonded(state1)
     endif
-    call define_internal_set(state1,def_internal,intfile,rmzfile,use_symmetry,isym,S_sym,Ns)
+    call define_internal_set(state1,def_internal,intfile,rmzfile,use_symmetry,isym,S_sym,Ns,Nf,Aux2)
     if (Ns > Nvib) then
         call internals_mapping(state1%geom,zmatgeom,Zmap)
     elseif (Ns < Nvib) then

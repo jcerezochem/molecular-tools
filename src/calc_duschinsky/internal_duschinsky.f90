@@ -91,7 +91,7 @@ program internal_duschinski
     type(str_resmol) :: state1, state2
     type(str_bonded) :: geomS, geom0
     integer,dimension(1:NDIM) :: isym
-    integer :: Nat, Nvib, Ns, NNvib, Nvib0, Ns0, NsS, Nz
+    integer :: Nat, Nvib, Ns, NNvib, Nvib0, Ns0, NsS, Nz, Nf
     character(len=5) :: PG
     !Bonded info
     integer,dimension(1:NDIM,1:4) :: bond_s, angle_s, dihed_s
@@ -169,6 +169,7 @@ program internal_duschinski
                I_AD2=15,  &
                I_RMF=16,  &
                I_CNX=17,  &
+               I_MAS=18,  &
                O_DUS=20,  &
                O_DIS=21,  &
                O_DMAT=22, &
@@ -188,7 +189,8 @@ program internal_duschinski
                          intfile0 ="default", & ! default is "the same as working set"
                          rmzfile  ="none", &
                          symm_file="none", &
-                         cnx_file="guess"
+                         cnx_file="guess", &
+                         mass_file="none"
     !status
     integer :: IOstatus
     !===================
@@ -214,7 +216,7 @@ program internal_duschinski
     call parse_input(inpfile,ft,hessfile,fth,gradfile,ftg,&
                      inpfile2,ft2,hessfile2,fth2,gradfile2,ftg2,&
                      intfile,intfile0,rmzfile,def_internal,def_internal0,&
-                     use_symmetry,cnx_file, &
+                     use_symmetry,cnx_file,mass_file,&
 !                    tswitch,
                      symaddapt,same_red2nonred_rotation,analytic_Bder,&
                      model,vertical,verticalQspace2,verticalQspace1,&
@@ -255,6 +257,18 @@ program internal_duschinski
     close(I_INP)
     ! Shortcuts
     Nat = state1%natoms
+
+    ! Read mass from file if given
+    if (adjustl(mass_file) /= "none") then
+        print'(/,X,A)', "Reading atomic masses from: "//trim(adjustl(mass_file))
+        open(I_MAS,file=mass_file,status='old',iostat=IOstatus)
+        if (IOstatus /= 0) call alert_msg( "fatal","Unable to open "//trim(adjustl(mass_file)) )
+        do i=1,Nat
+            read(I_MAS,*,iostat=IOstatus) state1%atom(i)%mass 
+            if (IOstatus /= 0) call alert_msg( "fatal","While reading "//trim(adjustl(mass_file)) )
+        enddo
+        close(I_MAS)
+    endif
 
     ! HESSIAN FILE
     open(I_INP,file=hessfile,status='old',iostat=IOstatus)
@@ -331,7 +345,7 @@ program internal_duschinski
 
         !---------------------------------------
         ! NOW, GET THE ACTUAL WORKING INTERNAL SET
-        call define_internal_set(state1,def_internal0,intfile0,rmzfile,use_symmetry,isym,S_sym,Ns)
+        call define_internal_set(state1,def_internal0,intfile0,rmzfile,use_symmetry,isym,S_sym,Ns,Nf,Aux2)
         !---------------------------------------
         ! Save the geom for the state2
         geom0=state1%geom
@@ -406,7 +420,7 @@ program internal_duschinski
     call gen_bonded(state1)
 
     ! Define internal set
-    call define_internal_set(state1,def_internal,intfile,rmzfile,use_symmetry,isym, S_sym,Ns)
+    call define_internal_set(state1,def_internal,intfile,rmzfile,use_symmetry,isym, S_sym,Ns,Nf,Aux2)
     ! Save the geom for the state2
     geomS=state1%geom
     NsS=Ns
@@ -543,6 +557,18 @@ program internal_duschinski
     ! Shortcuts
     if (Nat /= state2%natoms) call alert_msg("fatal","Initial and final states don't have the same number of atoms.")
 
+    ! Read mass from file if given
+    if (adjustl(mass_file) /= "none") then
+        print'(/,X,A)', "Reading atomic masses from: "//trim(adjustl(mass_file))
+        open(I_MAS,file=mass_file,status='old',iostat=IOstatus)
+        if (IOstatus /= 0) call alert_msg( "fatal","Unable to open "//trim(adjustl(mass_file)) )
+        do i=1,Nat
+            read(I_MAS,*,iostat=IOstatus) state2%atom(i)%mass 
+            if (IOstatus /= 0) call alert_msg( "fatal","While reading "//trim(adjustl(mass_file)) )
+        enddo
+        close(I_MAS)
+    endif
+
     ! HESSIAN FILE
     if (adjustl(model)/="AS") then
         open(I_INP,file=hessfile2,status='old',iostat=IOstatus)
@@ -637,7 +663,7 @@ program internal_duschinski
                 state2%geom = geom0
                 Ns=Ns0
             else
-                call define_internal_set(state2,def_internal0,intfile0,rmzfile,use_symmetry,isym,S_sym,Ns)
+                call define_internal_set(state2,def_internal0,intfile0,rmzfile,use_symmetry,isym,S_sym,Ns,Nf,Aux2)
             endif
             !---------------------------------------
         
@@ -1565,7 +1591,7 @@ program internal_duschinski
     subroutine parse_input(inpfile,ft,hessfile,fth,gradfile,ftg,&
                            inpfile2,ft2,hessfile2,fth2,gradfile2,ftg2,&
                            intfile,intfile0,rmzfile,def_internal,def_internal0,&
-                           use_symmetry,cnx_file,&
+                           use_symmetry,cnx_file,mass_file,&
 !                          tswitch,
                            symaddapt,same_red2nonred_rotation,analytic_Bder,&
                            model,vertical,verticalQspace2,verticalQspace1,&
@@ -1580,7 +1606,7 @@ program internal_duschinski
         character(len=*),intent(inout) :: inpfile,ft,hessfile,fth,gradfile,ftg,&
                                           inpfile2,ft2,hessfile2,fth2,gradfile2,ftg2,&
                                           intfile,intfile0,rmzfile,def_internal,def_internal0,&
-                                          cnx_file,reference_frame,model !, symfile
+                                          cnx_file,reference_frame,model,mass_file !, symfile
         logical,intent(inout)          :: use_symmetry, vertical, verticalQspace2, &
                                           verticalQspace1, &
                                           gradcorrectS1, gradcorrectS2, symaddapt, &
@@ -1659,6 +1685,10 @@ program internal_duschinski
                     argument_retrieved=.true.
                 case ("-ftg2") 
                     call getarg(i+1, ftg2)
+                    argument_retrieved=.true.
+
+                case ("-fmass") 
+                    call getarg(i+1, mass_file)
                     argument_retrieved=.true.
 
                 case ("-cnx") 
@@ -1882,6 +1912,7 @@ program internal_duschinski
         write(6,*) '-fth2        \_ FileType                   ', trim(adjustl(fth2))
         write(6,*) '-fgrad2      Gradient(S2) file             ', trim(adjustl(gradfile2))
         write(6,*) '-ftg2        \_ FileType                   ', trim(adjustl(ftg2))
+        write(6,*) '-fmass       Mass file                     ', trim(adjustl(mass_file))
         write(6,*) ''
         write(6,*) ' ** Options for state_files ** '
         write(6,*) '-ref         Reference state to output the ', reference_frame

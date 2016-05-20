@@ -67,8 +67,8 @@ program normal_modes_cartesian
                orthogonalize=.false.,   &
                Eckart_frame=.true.,     &
                modes_as_internals=.false., &
-               original_internal=.false., &
-               rm_gradcoord=.false., &
+               original_internal=.false.,  &
+               rm_gradcoord=.false.,       &
                apply_projection_matrix=.false., &
                print_modes=.false.
     !======================
@@ -155,6 +155,7 @@ program normal_modes_cartesian
                I_RMF=16,  &
                I_CNX=17,  &
                I_RMC=18,  &
+               I_MAS=19,  &
                O_GRO=20,  &
                O_G09=21,  &
                O_G96=22,  &
@@ -172,7 +173,8 @@ program normal_modes_cartesian
                          intfile  ="none", &
                          rmzfile  ="none", &
                          symm_file="none", &
-                         cnx_file="guess", &
+                         cnx_file ="guess",&
+                         mass_file="none", &
                          rm_custom_file="none"
     !Structure files to be created
     character(len=100) :: g09file,qfile, tmpfile, g96file, grofile,numfile
@@ -199,7 +201,7 @@ program normal_modes_cartesian
     ! 0. GET COMMAND LINE ARGUMENTS
     call parse_input(&
                      ! input data
-                     inpfile,ft,hessfile,fth,gradfile,ftg,nmfile,ftn,      &
+                     inpfile,ft,hessfile,fth,gradfile,ftg,nmfile,ftn,mass_file,&
                      ! Options (general)
                      Amplitude,call_vmd,include_hbonds,selection,vertical, &
                      ! Options (Cartesian)
@@ -285,6 +287,18 @@ program normal_modes_cartesian
     close(I_INP)
     ! Shortcuts
     Nat = molecule%natoms
+
+    ! Read mass from file if given
+    if (adjustl(mass_file) /= "none") then
+        print'(/,X,A)', "Reading atomic masses from: "//trim(adjustl(mass_file))
+        open(I_MAS,file=mass_file,status='old',iostat=IOstatus)
+        if (IOstatus /= 0) call alert_msg( "fatal","Unable to open "//trim(adjustl(mass_file)) )
+        do i=1,Nat
+            read(I_MAS,*,iostat=IOstatus) molecule%atom(i)%mass 
+            if (IOstatus /= 0) call alert_msg( "fatal","While reading "//trim(adjustl(mass_file)) )
+        enddo
+        close(I_MAS)
+    endif
 
 
     ! VIBRATIONAL ANALYSIS: either read from file or from diagonalization of Hessian
@@ -405,7 +419,7 @@ program normal_modes_cartesian
             ! Define internal set
             ! Get the set of internal coordinates
             call subheading(6,"Generating internal set for analysis")
-            call define_internal_set(molecule,def_internal,intfile,rmzfile,use_symmetry,isym,S_sym,Ns)
+            call define_internal_set(molecule,def_internal,intfile,rmzfile,use_symmetry,isym,S_sym,Ns,Nf,Aux2)
             !From now on, we'll use atomic units
 !             call set_geom_units(molecule,"Bohr")
             if (Ns > Nvib0) then
@@ -1060,7 +1074,7 @@ program normal_modes_cartesian
 
     subroutine parse_input(&
                            ! input data
-                           inpfile,ft,hessfile,fth,gradfile,ftg,nmfile,ftn,      &
+                           inpfile,ft,hessfile,fth,gradfile,ftg,nmfile,ftn,mass_file,&
                            ! Options (general)
                            Amplitude,call_vmd,include_hbonds,selection,vertical, &
                            ! Options (Cartesian)
@@ -1088,7 +1102,7 @@ program normal_modes_cartesian
         character(len=*),intent(inout) :: inpfile,ft,hessfile,fth,gradfile,ftg,nmfile,ftn,selection, &
                                           !Internal
                                           def_internal,intfile,rmzfile,cnx_file, &
-                                          rm_custom_file
+                                          rm_custom_file, mass_file
         real(8),intent(inout)          :: Amplitude, Tthermo
         logical,intent(inout)          :: call_vmd, include_hbonds,vertical,movie_vmd,full_diagonalize,animate,&
                                           rm_gradcoord, &
@@ -1141,6 +1155,10 @@ program normal_modes_cartesian
                     argument_retrieved=.true.
                 case ("-ftn") 
                     call getarg(i+1, ftn)
+                    argument_retrieved=.true.
+
+                case ("-fmass") 
+                    call getarg(i+1, mass_file)
                     argument_retrieved=.true.
 
                 case ("-rmgrad")
@@ -1318,6 +1336,7 @@ program normal_modes_cartesian
         write(6,*)       '-ftg           \_ FileType                     ', trim(adjustl(ftg))
         write(6,*)       '-fnm           Gradient file                   ', trim(adjustl(nmfile))
         write(6,*)       '-ftn           \_ FileType                     ', trim(adjustl(ftn))
+        write(6,*)       '-fmass         Mass file (optional)            ', trim(adjustl(mass_file))       
         write(6,*)       ''
         write(6,*)       ' ** Options for vibration analysis **'
         write(6,*)       '-[no]prj-tr    Project out tras+rot           ', apply_projection_matrix

@@ -90,7 +90,7 @@ program internal_duschinski
     type(str_resmol) :: state1, state2
     type(str_bonded) :: geomS, geom0
     integer,dimension(NDIM) :: isym
-    integer :: Nat, Nvib, Ns, NNvib, Nvib0, Ns0, NsS
+    integer :: Nat, Nvib, Ns, NNvib, Nvib0, Ns0, NsS, Nf
     character(len=5) :: PG
     !Bonded info
     integer,dimension(1:NDIM,1:4) :: bond_s, angle_s, dihed_s
@@ -322,7 +322,7 @@ program internal_duschinski
 
         !---------------------------------------
         ! NOW, GET THE ACTUAL WORKING INTERNAL SET
-        call define_internal_set(state1,def_internal0,intfile0,rmzfile,use_symmetry,isym,S_sym,Ns)
+        call define_internal_set(state1,def_internal0,intfile0,rmzfile,use_symmetry,isym,S_sym,Ns,Nf,Aux2)
         !---------------------------------------
         ! Save the geom for the state2
         geom0=state1%geom
@@ -397,7 +397,7 @@ program internal_duschinski
     call gen_bonded(state1)
 
     ! Define internal set
-    call define_internal_set(state1,def_internal,intfile,rmzfile,use_symmetry,isym, S_sym,Ns)
+    call define_internal_set(state1,def_internal,intfile,rmzfile,use_symmetry,isym, S_sym,Ns,Nf,Aux2)
     ! Save the geom for the state2
     geomS=state1%geom
     NsS=Ns

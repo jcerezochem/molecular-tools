@@ -67,7 +67,7 @@ program cartesian_duschinsky
     !System variables
     type(str_resmol) :: state1,state2
     integer,dimension(1:NDIM) :: isym
-    integer :: Nat, Nvib, Ns, Nrt, Nvib0
+    integer :: Nat, Nvib, Ns, Nrt, Nvib0, Nf
     !====================== 
 
     !====================== 
@@ -248,7 +248,7 @@ program cartesian_duschinsky
         call gen_bonded(state1)
     
         ! Define internal set
-        call define_internal_set(state1,def_internal,intfile,rmzfile,use_symmetry,isym, S_sym,Ns)
+        call define_internal_set(state1,def_internal,intfile,rmzfile,use_symmetry,isym, S_sym,Ns,Nf,Aux2)
     
         !From now on, we'll use atomic units
         call set_geom_units(state1,"Bohr")

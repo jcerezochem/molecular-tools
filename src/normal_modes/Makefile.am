@@ -2,9 +2,11 @@ AUTOMAKE_OPTIONS = subdir-objects
 
 LDFLAGS = -L$(top_builddir)/libs/AnalyticalBders @LIBS@ 
 
-bin_PROGRAMS = nm_internal numder_fc numder_L prj_nm_internal nm_cartesian gen_Lder_numx\
-               check_derivatives numder_Lint prj_grad_on_nm_int 
-# prj_grad_on_nm_cart
+bin_PROGRAMS = nm_internal numder_fc prj_nm_internal nm_cartesian \
+               prj_grad_on_nm_int 
+# prj_grad_on_nm_cart 
+# Deprecated:
+# numder_L numder_Lint gen_Lder_numx check_derivatives
 
 # freq2fc   vibrations_cart
 

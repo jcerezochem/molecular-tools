@@ -76,7 +76,7 @@ program normal_modes_animation
     integer,dimension(1:NDIM) :: isym
     integer,dimension(4,1:NDIM,1:NDIM) :: Osym
     integer :: Nsym
-    integer :: Nat, Nvib, Ns, Nvib0, NvibP
+    integer :: Nat, Nvib, Ns, Nvib0, NvibP, Nf
     integer :: Ns_zmat, Ns_all, Nvib_all
     character(len=5) :: PG
     real(8) :: Tthermo=0.d0
@@ -105,7 +105,7 @@ program normal_modes_animation
     !====================== 
     ! PES topology and normal mode things
     real(8),dimension(:),allocatable :: Hlt
-    real(8),dimension(1:NDIM,1:NDIM) :: Hess, Hess_all, LL, LL_all, gBder, P
+    real(8),dimension(1:NDIM,1:NDIM) :: Hess, Hess_all, LL, LL_all, gBder, P, Fltr
     real(8),dimension(NDIM) :: Freq, Freq_all, Factor, Grad, Grad_all, Vec1
     !Moving normal modes
     character(len=50) :: selection="none"
@@ -157,6 +157,7 @@ program normal_modes_animation
                I_SYM=12,  &
                I_RMF=16,  &
                I_CNX=17,  &
+               I_MAS=19,  &
                O_GRO=20,  &
                O_G09=21,  &
                O_G96=22,  &
@@ -176,6 +177,7 @@ program normal_modes_animation
                          intfile0 ="default", & ! default is "the same as working set"
                          rmzfile  ="none", &
                          symm_file="none", &
+                         mass_file="none", &
                          cnx_file="guess"
     !Structure files to be created
     character(len=100) :: g09file,qfile, tmpfile, g96file, grofile,numfile
@@ -202,7 +204,7 @@ program normal_modes_animation
     ! 0. GET COMMAND LINE ARGUMENTS
     call parse_input(&
                      ! input data
-                     inpfile,ft,hessfile,fth,gradfile,ftg,nmfile,ftn,      &
+                     inpfile,ft,hessfile,fth,gradfile,ftg,nmfile,ftn,mass_file,&
                      ! Options (general)
                      Amplitude,call_vmd,include_hbonds,selection,vertical, &
                      ! Movie
@@ -284,6 +286,18 @@ program normal_modes_animation
     close(I_INP)
     ! Shortcuts
     Nat = molecule%natoms
+
+    ! Read mass from file if given
+    if (adjustl(mass_file) /= "none") then
+        print'(/,X,A)', "Reading atomic masses from: "//trim(adjustl(mass_file))
+        open(I_MAS,file=mass_file,status='old',iostat=IOstatus)
+        if (IOstatus /= 0) call alert_msg( "fatal","Unable to open "//trim(adjustl(mass_file)) )
+        do i=1,Nat
+            read(I_MAS,*,iostat=IOstatus) molecule%atom(i)%mass 
+            if (IOstatus /= 0) call alert_msg( "fatal","While reading "//trim(adjustl(mass_file)) )
+        enddo
+        close(I_MAS)
+    endif
 
     !Only read Grad/Hess or nm if we want to scan norma modes
     if (scan_type == "NM") then
@@ -385,9 +399,9 @@ program normal_modes_animation
 
         !---------------------------------------
         ! NOW, GET THE ACTUAL WORKING INTERNAL SET
-        call define_internal_set(molecule,"ALL",intfile,rmzfile,use_symmetry,isym,S_sym,Ns)
+        call define_internal_set(molecule,"ALL",intfile,rmzfile,use_symmetry,isym,S_sym,Ns,Nf,Fltr)
         allgeom = molecule%geom
-        call define_internal_set(molecule,def_internal0,intfile0,rmzfile,use_symmetry,isym,S_sym,Ns)
+        call define_internal_set(molecule,def_internal0,intfile0,rmzfile,use_symmetry,isym,S_sym,Ns,Nf,Fltr)
         !---------------------------------------
         
         ! Compute B matrix in the selgeom for projection
@@ -466,6 +480,17 @@ program normal_modes_animation
         endif
     endif
 
+    ! Get the selection of normal modes to represent
+    if (adjustl(selection) == "all") then
+        Nsel=Nvib
+        nm(1:Nvib) = (/(i, i=1,Nvib)/)
+    else if (adjustl(selection) == "none") then
+        Nsel=0
+    else
+        call selection2intlist(selection,nm,Nsel)
+    endif
+    if (Nsel == 0) animate=.false.
+
     !Nvib SET
     !---------
     print'(/,X,A)', "=========================================="
@@ -486,7 +511,7 @@ program normal_modes_animation
         print*, "Preliminary Zmat analysis"
         ! Get Zmat first
         def_internal_aux="ZMAT"
-        call define_internal_set(molecule,def_internal_aux,"none","none",use_symmetry,isym,S_sym,Ns)
+        call define_internal_set(molecule,def_internal_aux,"none","none",use_symmetry,isym,S_sym,Ns,Nf,Fltr)
         ! Get Ns at this point to latter form the proper Zmat
         Ns_zmat = Ns
         ! Get only the geom, and reuse molecule
@@ -500,12 +525,12 @@ program normal_modes_animation
         ! And reset bonded parameters
         call gen_bonded(molecule)
     endif
-    if (project_on_all.and.def_internal/="ALL") then
+    if (project_on_all) then
         print'(/X,A,/)', "Preparing to make the projection on 'all' set"
         ! Prepare to compute selected frame on all coords
         ! Get all coordinates
         def_internal_aux="ALL"
-        call define_internal_set(molecule,def_internal_aux,"none","none",use_symmetry,isym,S_sym,Ns)
+        call define_internal_set(molecule,def_internal_aux,"none","none",use_symmetry,isym,S_sym,Ns,Nf,Fltr)
         ! Get Ns at this point to latter form the proper Zmat
         Ns_all = Ns
         ! Get only the geom, and reuse molecule
@@ -513,22 +538,34 @@ program normal_modes_animation
         ! And reset bonded parameters
         call gen_bonded(molecule)
         print'(X,A,/)', "Projection on 'all' prepared"
-    elseif (project_on_all.and.def_internal=="ALL") then
-        call alert_msg("note","The projection on the 'all' set is not done with -intmode all")
-        project_on_all=.false.
     endif
 
     !---------------------------------------
     ! NOW, GET THE ACTUAL WORKING INTERNAL SET
-    call define_internal_set(molecule,"ALL",intfile,rmzfile,use_symmetry,isym,S_sym,Ns)
+    call define_internal_set(molecule,"ALL",intfile,rmzfile,use_symmetry,isym,S_sym,Ns,Nf,Fltr)
     allgeom = molecule%geom
-    call define_internal_set(molecule,def_internal,intfile,rmzfile,use_symmetry,isym,S_sym,Ns)
+    call define_internal_set(molecule,def_internal,intfile,rmzfile,use_symmetry,isym,S_sym,Ns,Nf,Fltr)
+    if (Nf==0) then
+        Nf=Ns
+        Fltr(1:Ns,1:Ns) = 0.d0
+        do i=1,Ns
+            Fltr(i,i) = 1.d0
+        enddo
+    endif
+
     !---------------------------------------
 
     ! Compute B matrix in the selgeom for projection
     if (apply_projection_matrix) then
         NvibP = Nvib
         call internal_Wilson(molecule,Ns,S,Bprj)
+
+        if (verbose>1) then
+            call MAT0(6,Fltr,Nf,Ns,"Filter Matrix")
+        endif
+        Bprj(1:Nf,1:3*Nat) = matrix_product(Nf,3*Nat,Ns,Fltr,Bprj)
+        Ns=Nf
+
         call internal_Gmetric(Nat,Ns,molecule%atom(:)%mass,Bprj,G)
         call redundant2nonredundant(Ns,NvibP,G,Asel)
         Bprj(1:Nvib_all,1:3*Nat) = matrix_product(NvibP,3*Nat,Ns,Asel,Bprj,tA=.true.)
@@ -556,23 +593,14 @@ program normal_modes_animation
     !From now on, we'll use atomic units
     call set_geom_units(molecule,"Bohr")
 
-    ! SCAN JOBS
-    ! Get the selection of normal modes to represent
-    if (adjustl(selection) == "all") then
-        Nsel=Nvib
-        nm(1:Nvib) = (/(i, i=1,Nvib)/)
-    else if (adjustl(selection) == "none") then
-        Nsel=0
-    else
-        call selection2intlist(selection,nm,Nsel)
-    endif
+    ! JOBS
     !Two possible jobs:
     if (scan_type=="IN") then
         !--------------------------------------
         ! 1. Internal Coordinates SCAN
         !--------------------------------------
         ! We need to call Wilson to get ModeDef
-        call internal_Wilson(molecule,Nvib,S,B,ModeDef)
+        call compute_internal(molecule,Nvib,S,ModeDef)
         LL(1:Ns,1:Ns)=0.d0
         do i=1,Nsel
             LL(nm(i),nm(i)) = 1.d0
@@ -717,16 +745,20 @@ program normal_modes_animation
     if (project_on_all) then
         print*, "Projecting reduced normal mode set on whole set"
         ! Map 'all' modes with reduced space
-        call internals_mapping(currentgeom,allgeom,IntMap)
-   
-        do i=1,Ns_all
-            j=IntMap(i) 
-            if (j/=0) then
-                Aux2(i,1:Nvib) = Asel(j,1:Nvib)
-            else
-                Aux2(i,1:Nvib) = 0.d0
-            endif
-        enddo
+        if (.not.apply_projection_matrix) then
+            call internals_mapping(currentgeom,allgeom,IntMap)
+!             Asel(1:Ns,1:Nvib) = matrix_product(Ns,Nvib,Nf,Fltr,Asel,tA=.true.)
+            do i=1,Ns_all
+                j=IntMap(i) 
+                if (j/=0) then
+                    Aux2(i,1:Nvib) = Asel(j,1:Nvib)
+                else
+                    Aux2(i,1:Nvib) = 0.d0
+                endif
+            enddo
+        else
+            Aux2(1:Ns,1:Nvib) = Asel(1:Ns,1:Nvib)
+        endif
         !
         ! Prj1 = (LL)^-1 * (Asel)^t * Asel_all * LL_all
         !
@@ -1230,7 +1262,7 @@ program normal_modes_animation
 
     subroutine parse_input(&
                            ! input data
-                           inpfile,ft,hessfile,fth,gradfile,ftg,nmfile,ftn,      &
+                           inpfile,ft,hessfile,fth,gradfile,ftg,nmfile,ftn,mass_file,&
                            ! Options (general)
                            Amplitude,call_vmd,include_hbonds,selection,vertical, &
                            ! Movie
@@ -1253,7 +1285,7 @@ program normal_modes_animation
 
         character(len=*),intent(inout) :: inpfile,ft,hessfile,fth,gradfile,ftg,nmfile,ftn, &
                                           intfile,intfile0,rmzfile,scan_type,def_internal, &
-                                          selection,cnx_file,def_internal0,conversion_i2c
+                                          selection,cnx_file,def_internal0,conversion_i2c,mass_file
         real(8),intent(inout)          :: Amplitude,Tthermo
         logical,intent(inout)          :: call_vmd, include_hbonds,vertical, use_symmetry,movie_vmd,animate,&
                                           analytic_Bder,project_on_all,apply_projection_matrix,complementay_projection
@@ -1302,6 +1334,10 @@ program normal_modes_animation
                     argument_retrieved=.true.
                 case ("-ftn") 
                     call getarg(i+1, ftn)
+                    argument_retrieved=.true.
+
+                case ("-fmass") 
+                    call getarg(i+1, mass_file)
                     argument_retrieved=.true.
 
                 case ("-cnx") 
@@ -1481,6 +1517,7 @@ program normal_modes_animation
         write(6,*)       '-fgrad         Hessian file                    ', trim(adjustl(gradfile))
         write(6,*)       '-ftg           \_ FileType                     ', trim(adjustl(ftg))
         write(6,*)       '-cnx           Connectivity [filename|guess]   ', trim(adjustl(cnx_file))
+        write(6,*)       '-fmass         Mass file (optional)            ', trim(adjustl(mass_file)) 
 !         write(6,*)       '-fnm           Gradient file                   ', trim(adjustl(nmfile))
 !         write(6,*)       '-ftn           \_ FileType                     ', trim(adjustl(ftn))
         write(6,*)       '-[no]prjS      Apply projection matrix to     ', apply_projection_matrix

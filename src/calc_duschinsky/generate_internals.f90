@@ -44,7 +44,8 @@ program vertical2adiabatic
     logical :: use_symmetry=.false. ,&
                modred=.false.       ,&
                tswitch=.false.      ,&
-               symaddapt=.false.    
+               symaddapt=.false.    ,&
+               overwrite=.false.
     character(len=4) :: def_internal='zmat'
     !======================
 
@@ -52,7 +53,7 @@ program vertical2adiabatic
     !System variables
     type(str_resmol) :: state1,state2
     integer,dimension(1:NDIM) :: isym
-    integer :: Nat, Nvib, Ns, N
+    integer :: Nat, Nvib, Ns, N, Nf
     !====================== 
 
     !====================== 
@@ -100,6 +101,7 @@ program vertical2adiabatic
                          order_file="none"
     !status
     integer :: IOstatus
+    character(len=7) :: filestatus
     !===================
 
     !===================
@@ -116,7 +118,7 @@ program vertical2adiabatic
 !     call generic_input_parser(inpfile, "-f" ,"c",&
 !                               filetype,"-ft","c",&
 !                               )
-    call parse_input(inpfile,ft,zmatfile,rmzfile,def_internal,use_symmetry,intfile,cnx_file,order_file)
+    call parse_input(inpfile,ft,zmatfile,rmzfile,def_internal,use_symmetry,intfile,cnx_file,order_file,overwrite)
     call set_word_upper_case(def_internal)
 
     ! READ DATA (each element from a different file is possible)
@@ -167,7 +169,7 @@ program vertical2adiabatic
     call gen_bonded(state1)
 
     ! Define internal set
-    call define_internal_set(state1,def_internal,zmatfile,rmzfile,use_symmetry,isym, S_sym,Ns)
+    call define_internal_set(state1,def_internal,zmatfile,rmzfile,use_symmetry,isym, S_sym,Ns,Nf,Aux2)
 
     if (adjustl(order_file) /= "none") then
         ! Read order_file
@@ -198,7 +200,12 @@ program vertical2adiabatic
     endif
 
     !WRITE MODEREDUNDANT FILE
-    open(O_ICF,file=intfile,status="new",iostat=IOstatus)
+    if (overwrite) then
+        filestatus='replace'
+    else
+        filestatus='new'
+    endif
+    open(O_ICF,file=intfile,status=filestatus,iostat=IOstatus)
     if (IOstatus /= 0) call alert_msg("fatal","Cannot write on output: "//trim(adjustl(intfile)) )
     do i=1,state1%geom%nbonds
         write(O_ICF,'(A,100I10)') "B", state1%geom%bond(i,1:2)
@@ -222,7 +229,7 @@ program vertical2adiabatic
     contains
     !=============================================
 
-    subroutine parse_input(inpfile,ft,zmatfile,rmzfile,def_internal,use_symmetry,intfile,cnx_file,order_file)
+    subroutine parse_input(inpfile,ft,zmatfile,rmzfile,def_internal,use_symmetry,intfile,cnx_file,order_file,overwrite)
     !==================================================
     ! My input parser (gromacs style)
     !==================================================
@@ -231,7 +238,7 @@ program vertical2adiabatic
         character(len=*),intent(inout) :: inpfile,ft,zmatfile,&
                                           intfile,rmzfile,def_internal,cnx_file, &
                                           order_file
-        logical,intent(inout)          :: use_symmetry
+        logical,intent(inout)          :: use_symmetry,overwrite
         ! Local
         logical :: argument_retrieved,  &
                    need_help = .false.
@@ -263,7 +270,12 @@ program vertical2adiabatic
                     call getarg(i+1, order_file)
                     argument_retrieved=.true.
 
+                ! Keep for backward compatibility
                 case ("-intfile") 
+                    call getarg(i+1, intfile)
+                    argument_retrieved=.true.
+                ! New flag
+                case ("-o") 
                     call getarg(i+1, intfile)
                     argument_retrieved=.true.
 
@@ -291,6 +303,11 @@ program vertical2adiabatic
                     use_symmetry=.true.
                 case ("-nosym")
                     use_symmetry=.false.
+
+                case ("-ow")
+                    overwrite=.true.
+                case ("-noow")
+                    overwrite=.false.
         
                 case ("-h")
                     need_help=.true.
@@ -319,12 +336,13 @@ program vertical2adiabatic
         write(6,'(/,A)') '--------------------------------------------------'
         write(6,*) '-f              ', trim(adjustl(inpfile))
         write(6,*) '-ft             ', trim(adjustl(ft))
+        write(6,*) '-o              ', trim(adjustl(intfile))
         write(6,*) '-cnx            ', trim(adjustl(cnx_file))
         write(6,*) '-reorder        ', trim(adjustl(order_file))
         write(6,*) '-intmode        ', trim(adjustl(def_internal))
-        write(6,*) '-intfile        ', trim(adjustl(intfile))
         write(6,*) '-zmatfile       ', trim(adjustl(zmatfile))
         write(6,*) '-rmzfile        ', trim(adjustl(rmzfile))
+        write(6,*) '-ow            ',  overwrite
         write(6,*) '-h             ',  need_help
         write(6,*) '--------------------------------------------------'
         if (need_help) call alert_msg("fatal", 'There is no manual (for the moment)' )
