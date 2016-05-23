@@ -100,13 +100,21 @@ module vertical_model
         ! This code is part of MOLECULAR_TOOLS
         !==============================================================
         !Description
-        ! Diagonalizes a Hessian after mass-weighing and translation to 
-        ! the internal frame defined by satifying the Eckart-Saytvez conditions.
+        ! Obtain projection matrix to the internal set determine by the 
+        ! range of B. The projection can be defined in either Cartesian
+        ! or MWC usin the optional Mass argument
         !
         !Arguments
         ! Nat     (inp) int /scalar   Number of atoms
         ! Ns      (inp) int /scalar   Number of internal coordinates
         !
+        ! If present(Mass): P defined in MWC
+        !   P = (BM^-1/2)^t  [(BM^-1/2)^t]^+  = (BM^-1/2)^+  (BM^-1/2)
+        !    where: (BM^-1/2)^+ = (BM^-1/2)^t (BM^-1B^t)^-1 
+        !
+        ! Else: P is defined in Cart 
+        !   P = B^t  [B^t]^+  =  B^+ B
+        !    where: B^+ = B^t (BB^t)^-1
         !
         !==============================================================
 
@@ -128,6 +136,10 @@ module vertical_model
             Mass_local(1:Nat) = 1.d0
         endif
 
+        !        ***present(Mass)?***
+        !        True          False
+        ! Aux  = B M^-1    or  B
+        ! Aux2 = B M^-1/2  or  B
         do i=1,Ns
             do j=1,3*Nat
                 jj = (j-1)/3+1
@@ -136,10 +148,15 @@ module vertical_model
             enddo
         enddo
 
-        ! Aux=G^-1
+        !            ***present(Mass)?***
+        !           True             False
+        ! Aux = G = B M^-1 B^t   or  B B^t
         Aux(1:Ns,1:Ns)    = matrix_product(Ns,Ns,3*Nat,Aux,B,tB=.true.)
+        ! Aux = G^-1 (generalized inverse, as Ns can be > Nvib
         Aux(1:Ns,1:Ns)    = inverse_realgen(Ns,Aux)
-        ! Now rotate with [B M^-1/2]
+        !           *******present(Mass)?*******
+        !       True                           False
+        ! P  = (B M-1/2)^t G^-1 (B M-1/2)  or  B^t G^-1 B
         P(1:3*Nat,1:3*Nat) = matrix_basisrot(3*Nat,Ns,Aux2,Aux,counter=.true.)
 
         return
@@ -153,8 +170,9 @@ module vertical_model
         ! This code is part of MOLECULAR_TOOLS
         !==============================================================
         !Description
-        ! Diagonalizes a Hessian after mass-weighing and translation to 
-        ! the internal frame defined by satifying the Eckart-Saytvez conditions.
+        ! Obtain projection matrix to the internal set (i.e. eliminating 
+        ! translations and pseudo-roations) following the Eckart frame as
+        ! in the WDC book. The projection is defined in MWC (as in the book)
         !
         !Arguments
         ! Nat     (int) int /scalar   Number of atoms
@@ -324,8 +342,11 @@ module vertical_model
         ! This code is part of MOLECULAR_TOOLS
         !==============================================================
         !Description
-        ! Diagonalizes a Hessian after mass-weighing and translation to 
-        ! the internal frame defined by satifying the Eckart-Saytvez conditions.
+        ! Obtain projection matrix to the internal set determine by the 
+        ! range of B. The projection can be worked out in either Cartesian
+        ! or MWC using the optional Mass argument. BUT THE OUTPUT P MATRIX
+        ! MUST BE APPLIED TO CARTESIAN COORDS (i.e., the transformaton 
+        ! MWC -> Cart is already applied
         !
         !Arguments
         ! Nat     (inp) int /scalar   Number of atoms
@@ -333,6 +354,18 @@ module vertical_model
         !
         ! Project out rot+trans from Cartesian Hessian, Hx
         ! (the other version work on the MWC Hessian)
+        !
+        ! If present(Mass): P defined in MWC
+        !   P = (BM^-1/2)^t  [(BM^-1/2)^t]^+  = (BM^-1/2)^+  (BM^-1/2)
+        !    where: (BM^-1/2)^+ = (BM^-1/2)^t (BM^-1B^t)^-1
+        !    And eventually tranformed to Cart,
+        !   P Hq P = P (M^-1/2HxM^-1/2) P, so we get P'=PM^1/2 (which is no longer symmetric),
+        !    and the projection is applied as:
+        !   P' Hx (P')^t
+        !
+        ! Else: P is defined in Cart 
+        !   P = B^t  [B^t]^+  =  B^+ B
+        !    where: B^+ = B^t (BB^t)^-1
         !==============================================================
 
         integer,intent(in)                 :: Nat, Ns
@@ -377,5 +410,77 @@ module vertical_model
         return
 
     end function projection_matrix3
+
+
+    function projection_matrix4(Nat,Ns,B,Mass) result(P)
+
+        !==============================================================
+        ! This code is part of MOLECULAR_TOOLS
+        !==============================================================
+        ! ** NOT WORKING **
+        !Description
+        ! Obtain projection matrix to the internal set determine by the 
+        ! range of B. The projection is defined in internal coordinates,
+        ! but it can take as reference the definition of B in either
+        ! Cart or MWC, selected with the present(Mass) argument.
+        !
+        !Arguments
+        ! Nat     (inp) int /scalar   Number of atoms
+        ! Ns      (inp) int /scalar   Number of internal coordinates
+        !
+        ! Project out rot+trans from Cartesian Hessian, Hx
+        ! (the other version work on the MWC Hessian)
+        !
+        ! If present(Mass): s=BM^-1/2 q (MWC)
+        !   P = (BM^-1/2)  (BM^-1/2)^+ = BM^-1B^t
+        !
+        ! Else: s=Bx (Cart) 
+        !   P = B B^+ = B B^t (BB^t)^-1 = I
+        !
+        !  *** How to define a projection to a reduced set?? ****
+        !==============================================================
+
+        integer,intent(in)                 :: Nat, Ns
+        real(8),dimension(:,:),intent(in)  :: B
+        real(8),dimension(:),intent(in),optional    :: Mass
+        real(8),dimension(3*Nat,3*Nat)     :: P
+
+        !Local
+        integer,parameter :: NDIM = 600
+
+        integer :: i,j ,ii, jj
+        real(8),dimension(NDIM,NDIM) :: Aux, Aux2
+        real(kind=8),dimension(1:Nat) :: Mass_local
+
+        if (present(Mass)) then
+            Mass_local(1:Nat) = Mass(1:Nat) * AMUtoAU
+        else
+            Mass_local(1:Nat) = 1.d0
+        endif
+
+        ! Aux is M^-1
+        ! Aux2 is B M^-1
+        Aux(1:3*Nat,1:3*Nat) = 0.d0
+        do i=1,Ns
+            do j=1,3*Nat
+                jj = (j-1)/3+1
+                Aux(j,j)  = 1.d0/Mass_local(jj)
+                Aux2(i,j) = B(i,j)/Mass_local(jj)
+            enddo
+        enddo
+
+        ! P=M^-1 B^t G^-1 B
+
+        ! Aux2=G^-1
+        Aux2(1:Ns,1:Ns)    = matrix_product(Ns,Ns,3*Nat,Aux2,B,tB=.true.)
+        Aux2(1:Ns,1:Ns)    = inverse_realgen(Ns,Aux2)
+        ! Now rotate with B:  B^t G^-1 B
+        P(1:3*Nat,1:3*Nat) = matrix_basisrot(3*Nat,Ns,B,Aux2,counter=.true.)
+        ! M^-1 * [B^t G^-1 B]
+        P(1:3*Nat,1:3*Nat) = matrix_product(3*Nat,3*Nat,3*Nat,Aux,P)
+
+        return
+
+    end function projection_matrix4
 
 end module vertical_model
