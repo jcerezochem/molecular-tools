@@ -76,14 +76,18 @@ module zmat_manage
         use constants
         use atomic_geom
         use symmetry
+
+        implicit none
     
         type(str_resmol),intent(inout) :: molec
         integer,intent(in) :: I_RED
         !Local
-        character(len=1)  :: int_type
+        character(len=1),dimension(600)  :: int_type
         character(len=100) :: int_type_group
         character(len=100) :: line
-        integer :: i,j,k, g
+        integer :: i,j,k, g, ia,ib,id,im, ii,kk, i1,i2,i3,i4
+        integer :: Ns, nbonds,nangles,ndihed,nimprop,Nids
+        integer :: ios
 
         ! Group stuff
         integer,intent(out) :: Nf
@@ -92,7 +96,7 @@ module zmat_manage
         character(len=100) :: coeff_char
         character(len=1),dimension(600) :: group_id, group_id_known
         real(8),dimension(600,4) :: coeff
-        integer,dimension(600)   :: ng
+        integer,dimension(600)   :: ng, map_reorder
         logical :: is_known
         real(8) :: factor
 
@@ -108,46 +112,52 @@ module zmat_manage
 
         k=0
         do
-            k=k+1
             read(I_RED,'(A)',iostat=ios) line
-            int_type = adjustl(line)
-            if (int_type == "!") then
+            if (ios /= 0) then
+                !If end-of-file exit. Otherwise it keeps on reading the last line
+                ! if it is a comment
+                exit
+            endif
+            line = adjustl(line)
+            if (line(1:1) == "!") then
                 !this is a comment
                 cycle
-            elseif (int_type == "") then
+            elseif (len_trim(line) == 0) then
             !Blank line is the end
                 exit
             endif
 
+            k=k+1
             call split_line(line,'}',int_type_group,line)
             if (ios /=0) exit
             if (index(int_type_group,'{') /= 0) then
-                call split_line(int_type_group,'{',int_type,coeff_char)
+                call split_line(int_type_group,'{',int_type(k),coeff_char)
                 call split_line(coeff_char,':',group_id(k),coeff_char)
                 call string2vector(coeff_char,coeff(k,:),ng(k),',')
             else
-                read(int_type_group,'(A,A)') int_type, line
+                read(int_type_group,'(A,A)') int_type(k), line
                 group_id(k)='0'
                 ng(k)=0
             endif
 
-            if (int_type == "B") then
+            if (int_type(k) == "B") then
                 read(line,*) i1, i2
                 nbonds = nbonds + 1
                 molec%geom%bond(nbonds,1:2) = (/i1,i2/)
-            elseif (int_type == "A") then
+            elseif (int_type(k) == "A") then
                 read(line,*) i1, i2, i3
                 nangles = nangles + 1
                 molec%geom%angle(nangles,1:3) = (/i1,i2,i3/)
-            elseif (int_type == "D") then
+            elseif (int_type(k) == "D") then
                 read(line,*) i1, i2, i3, i4
                 ndihed = ndihed + 1
                 molec%geom%dihed(ndihed,1:4) = (/i1,i2,i3,i4/)
-            elseif (int_type == "I") then
+            elseif (int_type(k) == "I") then
                 read(line,*) i1, i2, i3, i4
                 nimprop = nimprop + 1
                 molec%geom%improp(nimprop,1:4) = (/i1,i2,i3,i4/)
-                call alert_msg("fatal","Unknows internal type: "//int_type)
+            else
+                call alert_msg("fatal","Unknows internal type: "//int_type(k))
             endif
         enddo
     
@@ -157,14 +167,43 @@ module zmat_manage
         molec%geom%nimprop = nimprop
         Ns = nbonds+nangles+ndihed+nimprop
 
+        ! Reorder map
+        ! Get the internal coordinates in the order
+        ! they are used in the code, i.e., bonds,angles,dihed..
+        ! while the combinations are in the input order
+        ib=0
+        ia=0
+        id=0
+        im=0
+        do i=1,Ns
+            if (int_type(i) == "B") then
+                ib = ib + 1
+                ii = ib
+            elseif (int_type(i) == "A") then
+                ia = ia + 1
+                ii = ia + nbonds
+            elseif (int_type(i) == "D") then
+                id = id + 1
+                ii = id + nbonds + nangles
+            elseif (int_type(i) == "I") then
+                im = im + 1
+                ii = im + nbonds + nangles + ndihed
+            endif
+            map_reorder(i)       = ii
+        enddo
+
         !Get filter
+        ! Fltr matrix contains the combinations on each row
+        ! The columns are in the internal coordinates in the 
+        ! order they are used in the code
         Nf=0
         Fltr(1:Ns,1:Ns) = 0.d0
         Nids = 0
         do i=1,Ns
             if (group_id(i) == "0") then
                 Nf = Nf+1
-                Fltr(Nf,i) = 1.d0
+                ii = map_reorder(i)
+                Fltr(Nf,ii) = 1.d0
                 cycle
             endif
             is_known = .false.
@@ -180,7 +219,8 @@ module zmat_manage
                 Nf = Nf+1
                 do k=i,Ns
                     if (group_id(k) == group_id(i)) then
-                        Fltr(Nf,k) = coeff(k,g)
+                        kk=map_reorder(k)
+                        Fltr(Nf,kk) = coeff(k,g)
                     endif
                 enddo
             enddo

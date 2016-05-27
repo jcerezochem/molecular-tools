@@ -81,7 +81,7 @@ program normal_modes_cartesian
     integer,dimension(1:NDIM) :: isym
     integer,dimension(4,1:NDIM,1:NDIM) :: Osym
     integer :: nsym
-    integer :: Nat, Nvib0, Nvib, Ns, Nrt
+    integer :: Nat, Nvib0, Nvib, Ns, Nrt, Nf
     character(len=5) :: PG
     real(8) :: Tthermo=0.d0
     !Job info
@@ -326,13 +326,17 @@ program normal_modes_cartesian
         close(I_INP)
         
         ! GRADIENT FILE
-        call statement(6,"READING GRADIENT FILE...")
-        open(I_INP,file=gradfile,status='old',iostat=IOstatus)
-        if (IOstatus /= 0) call alert_msg( "fatal","Unable to open "//trim(adjustl(gradfile)) )
-        call generic_gradient_reader(I_INP,ftg,Nat,Grad,error)
-        close(I_INP)
-        if (error /= 0) then
-            print*, "Error reading the Gradient. It will be set to zero"
+        if (vertical.or.rm_gradcoord) then
+            call statement(6,"READING GRADIENT FILE...")
+            open(I_INP,file=gradfile,status='old',iostat=IOstatus)
+            if (IOstatus /= 0) call alert_msg( "fatal","Unable to open "//trim(adjustl(gradfile)) )
+            call generic_gradient_reader(I_INP,ftg,Nat,Grad,error)
+            close(I_INP)
+            if (error /= 0) then
+                print*, "Error reading the Gradient. It will be set to zero"
+                Grad(1:3*Nat) = 0.d0
+            endif
+        else
             Grad(1:3*Nat) = 0.d0
         endif
 

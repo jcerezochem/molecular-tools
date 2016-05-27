@@ -1356,7 +1356,7 @@ module internal_module
         enddo
 
         if (verbose>1) &
-            call MAT0(6,G,Ns,Ns,"G MATRIX")
+            call MAT0(6,G*1.d5,Ns,Ns,"G MATRIX x1e5")
 
         return
 
@@ -1421,11 +1421,15 @@ module internal_module
                 print*, " Deleted modes:    ", kkk - Nred + Nvib
                 print*, " Initial:", Nvib
                 print*, " Reduced:", Nred-kkk
-                call alert_msg("warning","Redundant to non-redundant trasformation"//&
+                call alert_msg("note","Redundant to non-redundant trasformation"//&
                                      " resulted in a reduced space")
                 Nvib=Nred-kkk
             else 
                 call alert_msg("fatal","Redundant to non-redundant trasformation failed")
+            endif
+        else
+            if (verbose>0) then
+                print'(X,A,I0,/)', "Internal-space dimension:", Nvib
             endif
         endif
 

@@ -101,12 +101,55 @@ module io
             
         if (verbose == 0) return
 
+        write(unt,'(/,X,A)') "------------------------------------------"
+        write(unt,'(2X,A)' )  line
+        write(unt,'(X,A)')   "------------------------------------------"
+
+        return
+
+    end subroutine subheading
+
+    subroutine subsubheading(unt,title,keep_case,upper_case)
+
+        integer,intent(in)          :: unt
+        character(len=*),intent(in) :: title
+        logical,intent(in),optional :: keep_case
+        logical,intent(in),optional :: upper_case
+        ! local
+        character(len=len_trim(title)) :: line
+        integer :: i
+        logical :: first_letter
+
+        if (verbose == 0) return
+
+        if (present(keep_case) .and. keep_case) then
+            line=adjustl(title)
+        elseif (present(upper_case) .and. upper_case) then
+            line=adjustl(title)
+            call set_word_upper_case(line)
+        else
+            line=adjustl(title)
+            first_letter = .true.
+            do i=1,len_trim(line)
+                if (len_trim(line(i:i)) == 0) then
+                    first_letter=.true.
+                else if (first_letter) then
+                    call set_upper_case(line(i:i))
+                    first_letter=.false.
+                else
+                    call set_lower_case(line(i:i))
+                endif
+            enddo
+        endif
+            
+        if (verbose == 0) return
+
         write(unt,'(/,2X,A)' )  line
         write(unt,'(X,A)')     "------------------------------------------"
 
         return
 
-    end subroutine subheading
+    end subroutine subsubheading
 
     subroutine statement(unt,title,keep_case,upper_case)
 
@@ -141,7 +184,7 @@ module io
             enddo
         endif
 
-        write(unt,'(3X,A)' )  line
+        write(unt,'(3X,A,/)' )  line
 
         return
 
