@@ -100,7 +100,7 @@ program normal_modes_animation
 
     !=============
     !Counters
-    integer :: i,j,k,l, jj, iop
+    integer :: i,j,k,l, ii,jj, iop
     !=============
 
     !====================== 
@@ -795,9 +795,10 @@ program normal_modes_animation
                     P(1:3*Nat,1:3*Nat) =  Aux(1:3*Nat,1:3*Nat)-P(1:3*Nat,1:3*Nat)
                 endif
                 ! Project out rotation and translation
-                Hess(1:3*Nat,1:3*Nat) = matrix_basisrot(3*Nat,3*Nat,P,Hess,counter=.true.)
-                Nf=3*Nat
-                call generalized_inv(Nf,Nvib,Hess,Aux)
+!                 Nf=3*Nat
+!                 ! Call generalized Hessian to Check dimensionality
+!                 call generalized_inv(Nf,Nvib,Hess,Aux)
+
             endif
 
             ! Get Hessian in initernal coordinates

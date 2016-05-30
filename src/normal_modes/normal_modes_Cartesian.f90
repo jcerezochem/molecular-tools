@@ -834,9 +834,9 @@ program normal_modes_cartesian
         if (verbose>0.or.print_modes) &
          print'(X,A,I0,A)', "Generating Mode ", j, "..."
         if (print_modes) then
-            print*, "   Lmwc^t                Lcart^-1"
+            print*, "   Lcart^-1              Lmwc^t"
             do i=1,3*Nat
-            print'(2ES22.12)', Lmwc(i,j), Lcartinv(i,j) 
+            print'(2ES22.12)', Lcartinv(i,j), Lmwc(i,j)
             enddo 
         endif
 
