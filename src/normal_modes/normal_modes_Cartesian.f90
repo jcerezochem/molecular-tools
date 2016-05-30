@@ -664,10 +664,21 @@ program normal_modes_cartesian
             call diagonalize_full(Aux(1:Nrt,1:Nrt),Nrt,LL(1:Nrt,1:Nrt),Freq(1:Nrt),"lapack")
             ! 1b) Get T modes fromt he 3x3 block in the Eckart frame
             Nrt = 3*Nat - Nvib
+            ! If there is an additional, do not sort it with rotations
+            if (rm_custom_file/="none".or.rm_gradcoord) &
+              Nrt=Nrt-1
             ! D [M^-1/2 [Hx] M^1/2] D^t
             Aux(1:Nrt-3,1:Nrt-3) = matrix_basisrot(Nrt-3,3*Nat,D(1:3*Nat,4:Nrt),Hess,counter=.true.)
             ! Diagonalize and get data
             call diagonalize_full(Aux(1:Nrt-3,1:Nrt-3),Nrt-3,LL(4:Nrt,4:Nrt),Freq(4:Nrt),"lapack")
+            ! If there is an additional removed coordinate, sort it out now
+            if (rm_custom_file/="none".or.rm_gradcoord) then
+                Nrt=Nrt+1
+                ! D [M^-1/2 [Hx] M^1/2] D^t
+                Aux(1:1,1:1) = matrix_basisrot(1,3*Nat,D(1:3*Nat,Nrt:Nrt),Hess,counter=.true.)
+                ! Diagonalize and get data
+                call diagonalize_full(Aux(1:1,1:1),1,LL(Nrt:Nrt,Nrt:Nrt),Freq(Nrt:Nrt),"lapack")
+            endif
             ! 2) Get Vib modes fromt he NvibxNvib Eckart frame
             ! D [M^-1/2 [Hx] M^1/2] D^t
             Hess(1:Nvib,1:Nvib) = matrix_basisrot(Nvib,3*Nat,D(1:3*Nat,Nrt+1:3*Nat),Hess,counter=.true.)
