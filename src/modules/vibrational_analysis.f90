@@ -210,12 +210,12 @@ module vibrational_analysis
 
             if (present(Grad)) then
                 !Get vector parallel to gradient
-                if (verbose>0) print*, "Removing coordinate parallel to gradient"
+                if (verbose>0) print*, "Removing coordinate parallel to custom coordinate"
                 ! D7(k) = m^1/2 * gx(k); k=1,3*Nat
                 ii = ii + 1
                 do k=1,3*Nat
                     j = (k-1)/3+1
-                    D(k,ii) = Grad(k) / dsqrt(Mass_local(j)) * 1.d5
+                    D(k,ii) = Grad(k) /dsqrt(Mass_local(j)) * 1.d5
                 enddo
                 ! Normalize the vector
                 pes = vector_dot_product(3*Nat,D(1:3*Nat,ii),D(1:3*Nat,ii))

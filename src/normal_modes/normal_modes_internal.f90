@@ -751,6 +751,21 @@ program normal_modes_animation
         if (nmfile == "none") then
             !SOLVE GF METHOD TO GET NM AND FREQ
             call internal_Gmetric(Nat,Ns,molecule%atom(1:Nat)%mass,B,G)
+!             call MAT0(6,Fltr,Nf,Ns,"Filter")
+!             if (Nf /= 0) then
+!                 B(1:Nf,1:3*Nat) = matrix_product(Nf,3*Nat,Ns,Fltr,B)
+!                 G(1:Nf,1:Nf) = matrix_basisrot(Nf,Ns,Fltr(1:Nf,1:Ns),G,counter=.false.)          
+!                 Ns=Nf
+!             endif
+!             call MAT0(6,G,Nf,Nf,"GGGG")
+!             G(113,113)=0.d0
+!             G(114,113)=0.d0
+!             G(113,114)=0.d0
+!             G(114,114)=0.d0
+!             G(113,:)=0.d0
+!             G(:,113)=0.d0
+!             G(114,:)=0.d0
+!             G(:,114)=0.d0
 
             ! The diagonalization of the G matrix can be donne with all sets
             ! (either redundant or non-redundant), and it is the best way to 
@@ -795,6 +810,7 @@ program normal_modes_animation
                     P(1:3*Nat,1:3*Nat) =  Aux(1:3*Nat,1:3*Nat)-P(1:3*Nat,1:3*Nat)
                 endif
                 ! Project out rotation and translation
+                Hess(1:3*Nat,1:3*Nat) = matrix_basisrot(3*Nat,3*Nat,P,Hess,counter=.true.)
 !                 Nf=3*Nat
 !                 ! Call generalized Hessian to Check dimensionality
 !                 call generalized_inv(Nf,Nvib,Hess,Aux)

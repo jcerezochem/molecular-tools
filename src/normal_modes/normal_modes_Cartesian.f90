@@ -363,7 +363,9 @@ program normal_modes_cartesian
             ! Read the custom coordinate. Store in Grad1
             open(I_RMC,file=rm_custom_file,status="old")
             do i=1,3*Nat
+                ii = (i-1)/3+1
                 read(I_RMC,*) Grad1(i)
+                Grad1(i) = Grad1(i)*molecule%atom(ii)%mass
             enddo
             ! 
             call vibrations_Cart(Nat,molecule%atom(:)%X,molecule%atom(:)%Y,molecule%atom(:)%Z,molecule%atom(:)%Mass,&
@@ -636,6 +638,10 @@ program normal_modes_cartesian
         enddo
 
         if (apply_projection_matrix) then
+            Nrt = 3*Nat-Nvib
+            P(1:3*Nat,1:3*Nat) = matrix_product(3*Nat,3*Nat,Nrt,D(1:3*Nat,1:Nrt),D(1:3*Nat,1:Nrt),tB=.true.)
+            Aux(1:3*Nat,1:3*Nat) = identity_matrix(3*Nat)
+            P(1:3*Nat,1:3*Nat) = Aux(1:3*Nat,1:3*Nat) - P(1:3*Nat,1:3*Nat)
             ! Project out rotation and translation
             Hess(1:3*Nat,1:3*Nat) = matrix_basisrot(3*Nat,3*Nat,P,Hess)
         endif
