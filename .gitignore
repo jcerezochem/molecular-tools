@@ -55,6 +55,7 @@ src/calc_duschinsky/zmat2modredundant
 src/calc_duschinsky/internal_duschinsky
 src/calc_duschinsky/generate_internals
 src/calc_duschinsky/vertical2adiabatic
+src/calc_duschinsky/get_DeltaX
 src/ad_hoc_utilities/*
 src/gen_oniom/gen_oniom
 src/wf_analysis/contribMO
