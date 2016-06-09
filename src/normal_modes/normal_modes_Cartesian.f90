@@ -175,7 +175,8 @@ program normal_modes_cartesian
                          symm_file="none", &
                          cnx_file ="guess",&
                          mass_file="none", &
-                         rm_custom_file="none"
+                         rm_custom_coord="none", &
+                         rm_custom_mode ="none"
     !Structure files to be created
     character(len=100) :: g09file,qfile, tmpfile, g96file, grofile,numfile
     !status
@@ -207,7 +208,7 @@ program normal_modes_cartesian
                      ! Options (Cartesian)
                      full_diagonalize,                                     &
                      ! Remove coordinate along gradient
-                     rm_gradcoord,rm_custom_file,                          &
+                     rm_gradcoord,rm_custom_coord,rm_custom_mode,          &
                      ! Animation and Movie
                      animate,movie_vmd, movie_cycles,print_modes,          &   
                      ! Options (internal)
@@ -357,15 +358,32 @@ program normal_modes_cartesian
             ! Store the number of vibrational degrees on freedom on Nvib0
             ! Nvib stores the reduced dimensionality
             Nvib0=Nvib+1
-        elseif (adjustl(rm_custom_file) /= "none") then
+        elseif (adjustl(rm_custom_coord) /= "none") then
             call subheading(6,"Vibrations on the 3N-7 space",upper_case=.true.)
             call subheading(6,"Vibrational analysis removing one custom coordinate")
             ! Read the custom coordinate. Store in Grad1
-            open(I_RMC,file=rm_custom_file,status="old")
+            open(I_RMC,file=rm_custom_coord,status="old")
             do i=1,3*Nat
                 ii = (i-1)/3+1
                 read(I_RMC,*) Grad1(i)
                 Grad1(i) = Grad1(i)*molecule%atom(ii)%mass
+            enddo
+            ! 
+            call vibrations_Cart(Nat,molecule%atom(:)%X,molecule%atom(:)%Y,molecule%atom(:)%Z,molecule%atom(:)%Mass,&
+                             Hlt,Nvib,LL,Freq,error_flag=error,Dout=D,Grad=Grad1)
+            ! Store the number of vibrational degrees on freedom on Nvib0
+            ! Nvib stores the reduced dimensionality
+            Nvib0 = Nvib+1
+            rm_gradcoord=.true.
+        elseif (adjustl(rm_custom_mode) /= "none") then
+            call subheading(6,"Vibrations on the 3N-7 space",upper_case=.true.)
+            call subheading(6,"Vibrational analysis removing one custom mode")
+            ! Read the custom coordinate. Store in Grad1
+            open(I_RMC,file=rm_custom_mode,status="old")
+            do i=1,3*Nat
+                ii = (i-1)/3+1
+                read(I_RMC,*) Grad1(i)
+!                 Grad1(i) = Grad1(i)*molecule%atom(ii)%mass
             enddo
             ! 
             call vibrations_Cart(Nat,molecule%atom(:)%X,molecule%atom(:)%Y,molecule%atom(:)%Z,molecule%atom(:)%Mass,&
@@ -671,14 +689,14 @@ program normal_modes_cartesian
             ! 1b) Get T modes fromt he 3x3 block in the Eckart frame
             Nrt = 3*Nat - Nvib
             ! If there is an additional, do not sort it with rotations
-            if (rm_custom_file/="none".or.rm_gradcoord) &
+            if (rm_custom_coord/="none".or.rm_gradcoord) &
               Nrt=Nrt-1
             ! D [M^-1/2 [Hx] M^1/2] D^t
             Aux(1:Nrt-3,1:Nrt-3) = matrix_basisrot(Nrt-3,3*Nat,D(1:3*Nat,4:Nrt),Hess,counter=.true.)
             ! Diagonalize and get data
             call diagonalize_full(Aux(1:Nrt-3,1:Nrt-3),Nrt-3,LL(4:Nrt,4:Nrt),Freq(4:Nrt),"lapack")
             ! If there is an additional removed coordinate, sort it out now
-            if (rm_custom_file/="none".or.rm_gradcoord) then
+            if (rm_custom_coord/="none".or.rm_gradcoord) then
                 Nrt=Nrt+1
                 ! D [M^-1/2 [Hx] M^1/2] D^t
                 Aux(1:1,1:1) = matrix_basisrot(1,3*Nat,D(1:3*Nat,Nrt:Nrt),Hess,counter=.true.)
@@ -1101,7 +1119,7 @@ program normal_modes_cartesian
                            ! Options (Cartesian)
                            full_diagonalize,                                     &
                            ! Remove coordinate along gradient
-                           rm_gradcoord,rm_custom_file,                          &
+                           rm_gradcoord,rm_custom_coord,rm_custom_mode,          &
                            ! Movie
                            animate,movie_vmd, movie_cycles,print_modes,          &
                            ! Options (internal)
@@ -1123,7 +1141,7 @@ program normal_modes_cartesian
         character(len=*),intent(inout) :: inpfile,ft,hessfile,fth,gradfile,ftg,nmfile,ftn,selection, &
                                           !Internal
                                           def_internal,intfile,rmzfile,cnx_file, &
-                                          rm_custom_file, mass_file
+                                          rm_custom_coord,rm_custom_mode, mass_file
         real(8),intent(inout)          :: Amplitude, Tthermo
         logical,intent(inout)          :: call_vmd, include_hbonds,vertical,movie_vmd,full_diagonalize,animate,&
                                           rm_gradcoord, &
@@ -1188,7 +1206,11 @@ program normal_modes_cartesian
                     rm_gradcoord=.false.
 
                 case ("-rmcoord") 
-                    call getarg(i+1, rm_custom_file)
+                    call getarg(i+1, rm_custom_coord)
+                    argument_retrieved=.true.
+
+                case ("-rmmode") 
+                    call getarg(i+1, rm_custom_mode)
                     argument_retrieved=.true.
 
                 case ("-Eckart")
@@ -1363,8 +1385,10 @@ program normal_modes_cartesian
         write(6,*)       '-[no]prj-tr    Project out tras+rot           ', apply_projection_matrix
         write(6,*)       '-[no]rmgrad    Remove coordinate along the    ', rm_gradcoord
         write(6,*)       '               grandient                      '
-        write(6,*)       '-[no]rmcoord Remove custom coordinate         ', rm_custom_file
-        write(6,*)       '             (in this file)                      '
+        write(6,*)       '-rmcoord       Remove custom coordinate       ', rm_custom_coord
+        write(6,*)       '               (in this file)                      '
+        write(6,*)       '-rmmode        Remove custom mode             ', rm_custom_mode
+        write(6,*)       '               (in this file)                      '
         write(6,*)       '-[no]fulldiag  Diagonalize the 3Nx3N matrix   ',  full_diagonalize
         write(6,*)       '-[no]Eckart    Include translation & rotation ',  Eckart_frame
         write(6,*)       '               in the Eckart frame            '
