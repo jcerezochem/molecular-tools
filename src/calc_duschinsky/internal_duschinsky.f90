@@ -79,6 +79,7 @@ program internal_duschinski
                original_internal=.false., &
                force_real=.false., &
                apply_projection_matrix=.false., &
+               complementay_projection=.false., &
                move_to_min=.false.
     character(len=4) :: def_internal='all'
     character(len=4) :: def_internal0='defa' ! defa(ult) is "the same as working set"
@@ -91,7 +92,7 @@ program internal_duschinski
     type(str_resmol) :: state1, state2
     type(str_bonded) :: geomS, geom0
     integer,dimension(1:NDIM) :: isym
-    integer :: Nat, Nvib, Ns, NNvib, Nvib0, Ns0, NsS, Nz, Nf
+    integer :: Nat, Nvib, Ns, NNvib, Nvib0, Ns0, NsS, Nz, Nf, NvibP, NvibP2
     character(len=5) :: PG
     !Bonded info
     integer,dimension(1:NDIM,1:4) :: bond_s, angle_s, dihed_s
@@ -101,12 +102,12 @@ program internal_duschinski
     !INTERNAL VIBRATIONAL ANALYSIS
     !MATRICES
     !B and G matrices
-    real(8),dimension(NDIM,NDIM) :: B1, B2
+    real(8),dimension(NDIM,NDIM) :: B1, B2, Bprj, Bprj2
     !Other arrays
     real(8),dimension(1:NDIM) :: Grad
     real(8),dimension(1:NDIM,1:NDIM) :: Hess, X, X1inv,X2inv, L1,L2,L1inv, &
-                                        Asel1,Asel2,Asel1inv,Asel2inv, gBder, &
-                                        G0, B0, P
+                                        Asel1,Asel2,Asel1inv,Asel2inv, gBder,Asel, &
+                                        G0, B0, P, Fltr
     real(8),dimension(1:NDIM,1:NDIM,1:NDIM) :: Bder
     !Duschisky
     real(8),dimension(NDIM,NDIM) :: G1, G2, Jdus
@@ -222,7 +223,7 @@ program internal_duschinski
                      model,vertical,verticalQspace2,verticalQspace1,&
                      gradcorrectS1,gradcorrectS2,&
                      orthogonalize,original_internal,force_real,reference_frame,&
-                     apply_projection_matrix,move_to_min)
+                     apply_projection_matrix,complementay_projection,move_to_min)
     call set_word_upper_case(def_internal)
     call set_word_upper_case(reference_frame)
     call set_word_upper_case(model)
@@ -420,16 +421,112 @@ program internal_duschinski
     call gen_bonded(state1)
 
     ! Define internal set
-    call define_internal_set(state1,def_internal,intfile,rmzfile,use_symmetry,isym, S_sym,Ns,Nf,Aux2)
+    call define_internal_set(state1,'ALL',intfile,rmzfile,use_symmetry,isym, S_sym,Ns,Nf,Fltr)
+    allgeom=state1%geom
+    call define_internal_set(state1,def_internal,intfile,rmzfile,use_symmetry,isym, S_sym,Ns,Nf,Fltr)
     ! Save the geom for the state2
     geomS=state1%geom
     NsS=Ns
+    ! Get all geom back
+!     if (apply_projection_matrix) then
+!         state1%geom =  allgeom
+!         Ns=allgeom%nbonds+allgeom%nangles+allgeom%ndihed
+!     endif
 
     !From now on, we'll use atomic units
     call set_geom_units(state1,"Bohr")
 
 
     ! INTERNAL COORDINATES
+
+    if (apply_projection_matrix) then
+        call statement(6,"The working set will be used to construct a projecton matrix")
+        NvibP = Nvib
+        call internal_Wilson(state1,Ns,S1,Bprj)
+
+        if (verbose>1) then
+            call MAT0(6,Fltr,Nf,Ns,"Filter Matrix")
+        endif
+        Bprj(1:Nf,1:3*Nat) = matrix_product(Nf,3*Nat,Ns,Fltr,Bprj)
+        Ns=Nf
+
+        call internal_Gmetric(Nat,Ns,state1%atom(:)%mass,Bprj,G1)
+        call MAT0(6,G1*1.d5,Ns,Ns,"G MATRIX x1e5")
+        call subsubheading(6,"Getting the actual vibrational space dimension")
+        call redundant2nonredundant(Ns,NvibP,G1,Asel)
+        if (NvibP==0) then
+            call alert_msg("warning","The vibrational space is void")
+        else
+            Bprj(1:NvibP,1:3*Nat) = matrix_product(NvibP,3*Nat,Ns,Asel,Bprj,tA=.true.)
+        endif
+        ! Get second set 
+        if (intfile /= intfile0) then
+            call gen_bonded(state1)
+            call statement(6,"Using an additonal set to defined a second projection (P=P1*P2)",keep_case=.true.)
+            call define_internal_set(state1,def_internal0,intfile0,rmzfile,use_symmetry,isym,S_sym,Ns,Nf,Fltr)
+            NvibP2 = Nvib
+            call internal_Wilson(state1,Ns,S1,Bprj2)
+            
+            if (verbose>1) then
+                call MAT0(6,Fltr,Nf,Ns,"Filter Matrix")
+            endif
+            Bprj2(1:Nf,1:3*Nat) = matrix_product(Nf,3*Nat,Ns,Fltr,Bprj2)
+            Ns=Nf
+            
+            call internal_Gmetric(Nat,Ns,state1%atom(:)%mass,Bprj2,G1)
+            call subsubheading(6,"Getting the actual vibrational space dimension")
+            call redundant2nonredundant(Ns,NvibP2,G1,Asel)
+            if (NvibP2==0) then
+                call alert_msg("warning","The vibrational space is void")
+            else
+                Bprj2(1:NvibP2,1:3*Nat) = matrix_product(NvibP2,3*Nat,Ns,Asel,Bprj2,tA=.true.)
+            endif
+        endif
+        ! And get back allgeom
+        call statement(6,"The working set will be used to construct a projecton matrix")
+        Ns = allgeom%nbonds+allgeom%nangles+allgeom%ndihed
+        state1%geom = allgeom
+    endif
+
+    if (gradcorrectS1) then
+        do i=1,3*Nat
+        do j=1,3*Nat
+            ! Apply correction to the Hessian term
+            Hess(i,j) = Hess(i,j) - gBder(i,j)
+        enddo
+        enddo
+    endif
+
+    if (apply_projection_matrix) then
+        call statement(6,"Projecting Cartesian Hessian")
+        ! Get projection matrix (again...)
+        if (NvibP == 0) then
+            Aux(1:3*Nat,1:3*Nat) = 0.d0
+        else
+            Aux(1:3*Nat,1:3*Nat) = projection_matrix3(Nat,NvibP,Bprj,state1%atom(:)%Mass)
+        endif
+        if (NvibP2 == 0) then
+            Aux2(1:3*Nat,1:3*Nat) = 0.d0
+        else
+            Aux2(1:3*Nat,1:3*Nat) = projection_matrix3(Nat,NvibP2,Bprj2,state1%atom(:)%Mass)
+        endif
+        ! Get P as composition of P1 and P2 only if the sets are different
+        if (intfile /= intfile0) then
+            P(1:3*Nat,1:3*Nat) = matrix_product(3*Nat,3*Nat,3*Nat,Aux,Aux2)
+        else
+            P(1:3*Nat,1:3*Nat) = Aux(1:3*Nat,1:3*Nat)
+        endif
+        if (complementay_projection) then
+            Aux(1:3*Nat,1:3*Nat) = identity_matrix(3*Nat)
+            P(1:3*Nat,1:3*Nat) =  Aux(1:3*Nat,1:3*Nat)-P(1:3*Nat,1:3*Nat)
+        endif
+        ! Project out rotation and translation
+        Hess(1:3*Nat,1:3*Nat) = matrix_basisrot(3*Nat,3*Nat,P,Hess,counter=.true.)
+!         Nf=3*Nat
+!         ! Call generalized Hessian to Check dimensionality
+!         call generalized_inv(Nf,Nvib,Hess,Aux)
+
+    endif
 
     !SOLVE GF METHOD TO GET NM AND FREQ
     call internal_Wilson(state1,Ns,S1,B1,ModeDef)
@@ -471,27 +568,11 @@ program internal_duschinski
         B1(1:Nvib,1:3*Nat) = matrix_product(Nvib,3*Nat,Ns,Asel1inv,B1)
     endif
 
-    if (apply_projection_matrix) then
-        ! Get projection matrix (again...)
-        P(1:3*Nat,1:3*Nat) = projection_matrix(Nat,Nvib,B1)
-    endif
-
-    if (gradcorrectS1) then
-        do i=1,3*Nat
-        do j=1,3*Nat
-            ! Apply correction to the Hessian term
-            Hess(i,j) = Hess(i,j) - gBder(i,j)
-        enddo
-        enddo
-    endif
-
-    if (apply_projection_matrix) then
-        ! Project out rotation and translation
-        Hess(1:3*Nat,1:3*Nat) = matrix_basisrot(3*Nat,3*Nat,P,Hess)
-    endif
-
     call HessianCart2int(Nat,Nvib,Hess,state1%atom(:)%mass,B1,G1)
     call gf_method(Nvib,G1,Hess,L1,Freq1,X,X1inv)
+    do i=1,Nvib
+        if (dabs(Freq1(i)) < 1d-1) Freq1(i)=0.d0
+    enddo
     if (verbose>0) then
         ! Analyze normal modes in terms of the redundant set
 ! always do redundant2nonredundant
@@ -738,6 +819,12 @@ program internal_duschinski
         ! Define internal set => taken from state1
         state2%geom = geomS
         Ns = NsS
+
+        ! Get all geom back
+!         if (apply_projection_matrix) then
+!             state2%geom =  allgeom
+!             Ns=allgeom%nbonds+allgeom%nangles+allgeom%ndihed
+!         endif
         
         !From now on, we'll use atomic units
         call set_geom_units(state2,"Bohr")
@@ -745,6 +832,95 @@ program internal_duschinski
         
         ! INTERNAL COORDINATES
         
+        if (apply_projection_matrix) then
+            call statement(6,"The working set will be used to construct a projecton matrix")
+            NvibP = Nvib
+            call internal_Wilson(state2,Ns,S2,Bprj)
+        
+            if (verbose>1) then
+                call MAT0(6,Fltr,Nf,Ns,"Filter Matrix")
+            endif
+            Bprj(1:Nf,1:3*Nat) = matrix_product(Nf,3*Nat,Ns,Fltr,Bprj)
+            Ns=Nf
+        
+            call internal_Gmetric(Nat,Ns,state2%atom(:)%mass,Bprj,G2)
+            call MAT0(6,G2*1.d5,Ns,Ns,"G MATRIX x1e5")
+            call subsubheading(6,"Getting the actual vibrational space dimension")
+            call redundant2nonredundant(Ns,NvibP,G2,Asel)
+            if (NvibP==0) then
+                call alert_msg("warning","The vibrational space is void")
+            else
+                Bprj(1:NvibP,1:3*Nat) = matrix_product(NvibP,3*Nat,Ns,Asel,Bprj,tA=.true.)
+            endif
+            ! Get second set 
+            if (intfile /= intfile0) then
+                call gen_bonded(state2)
+                call statement(6,"Using an additonal set to defined a second projection (P=P1*P2)",keep_case=.true.)
+                call define_internal_set(state2,def_internal0,intfile0,rmzfile,use_symmetry,isym,S_sym,Ns,Nf,Fltr)
+                NvibP2 = Nvib
+                call internal_Wilson(state2,Ns,S2,Bprj2)
+                
+                if (verbose>1) then
+                    call MAT0(6,Fltr,Nf,Ns,"Filter Matrix")
+                endif
+                Bprj2(1:Nf,1:3*Nat) = matrix_product(Nf,3*Nat,Ns,Fltr,Bprj2)
+                Ns=Nf
+                
+                call internal_Gmetric(Nat,Ns,state2%atom(:)%mass,Bprj2,G2)
+                call subsubheading(6,"Getting the actual vibrational space dimension")
+                call redundant2nonredundant(Ns,NvibP2,G2,Asel)
+                if (NvibP2==0) then
+                    call alert_msg("warning","The vibrational space is void")
+                else
+                    Bprj2(1:NvibP2,1:3*Nat) = matrix_product(NvibP2,3*Nat,Ns,Asel,Bprj2,tA=.true.)
+                endif
+            endif
+            ! And get back allgeom
+            call statement(6,"The working set will be used to construct a projecton matrix")
+            Ns = allgeom%nbonds+allgeom%nangles+allgeom%ndihed
+            state2%geom = allgeom
+        endif
+        
+        if (gradcorrectS2) then
+            do i=1,3*Nat
+            do j=1,3*Nat
+                ! Apply correction to the Hessian term
+                Hess(i,j) = Hess(i,j) - gBder(i,j)
+            enddo
+            enddo
+        endif
+        
+        if (apply_projection_matrix) then
+            call statement(6,"Projecting Cartesian Hessian")
+            ! Get projection matrix (again...)
+            if (NvibP == 0) then
+                Aux(1:3*Nat,1:3*Nat) = 0.d0
+            else
+                Aux(1:3*Nat,1:3*Nat) = projection_matrix3(Nat,NvibP,Bprj,state2%atom(:)%Mass)
+            endif
+            if (NvibP2 == 0) then
+                Aux2(1:3*Nat,1:3*Nat) = 0.d0
+            else
+                Aux2(1:3*Nat,1:3*Nat) = projection_matrix3(Nat,NvibP2,Bprj2,state2%atom(:)%Mass)
+            endif
+            ! Get P as composition of P1 and P2 only if the sets are different
+            if (intfile /= intfile0) then
+                P(1:3*Nat,1:3*Nat) = matrix_product(3*Nat,3*Nat,3*Nat,Aux,Aux2)
+            else
+                P(1:3*Nat,1:3*Nat) = Aux(1:3*Nat,1:3*Nat)
+            endif
+            if (complementay_projection) then
+                Aux(1:3*Nat,1:3*Nat) = identity_matrix(3*Nat)
+                P(1:3*Nat,1:3*Nat) =  Aux(1:3*Nat,1:3*Nat)-P(1:3*Nat,1:3*Nat)
+            endif
+            ! Project out rotation and translation
+            Hess(1:3*Nat,1:3*Nat) = matrix_basisrot(3*Nat,3*Nat,P,Hess,counter=.true.)
+!             Nf=3*Nat
+!             ! Call generalized Hessian to Check dimensionality
+!             call generalized_inv(Nf,Nvib,Hess,Aux)
+        
+        endif
+
         !SOLVE GF METHOD TO GET NM AND FREQ
         call internal_Wilson(state2,Ns,S2,B2,ModeDef)
         call internal_Gmetric(Nat,Ns,state2%atom(:)%mass,B2,G2)
@@ -790,25 +966,6 @@ program internal_duschinski
             endif
             ! Rotate Bmatrix
             B2(1:Nvib,1:3*Nat) = matrix_product(Nvib,3*Nat,Ns,Asel2inv,B2)
-        endif
-        
-        if (apply_projection_matrix) then
-            ! Get projection matrix (again...)
-            P(1:3*Nat,1:3*Nat) = projection_matrix(Nat,Nvib,B2)
-        endif
-        
-        if (gradcorrectS2) then
-            do i=1,3*Nat
-            do j=1,3*Nat
-                ! Apply correction to the Hessian term
-                Hess(i,j) = Hess(i,j) - gBder(i,j)
-            enddo
-            enddo
-        endif
-        
-        if (apply_projection_matrix) then
-            ! Project out rotation and translation
-            Hess(1:3*Nat,1:3*Nat) = matrix_basisrot(3*Nat,3*Nat,P,Hess)
         endif
         
         ! Convert also the gradient to internal (for future use)
@@ -930,6 +1087,9 @@ program internal_duschinski
         endif
         
         call gf_method(Nvib,G2,Hess,L2,Freq2,X,X2inv)
+        do i=1,Nvib
+            if (dabs(Freq2(i)) < 1d-1) Freq2(i)=0.d0
+        enddo
         if (verbose>0) then
             ! Analyze normal modes in terms of the redundant set
 ! al    ways do redundant2nonredundant
@@ -1597,7 +1757,7 @@ program internal_duschinski
                            model,vertical,verticalQspace2,verticalQspace1,&
                            gradcorrectS1,gradcorrectS2,&
                            orthogonalize,original_internal,force_real,reference_frame,&
-                           apply_projection_matrix,move_to_min)
+                           apply_projection_matrix,complementay_projection,move_to_min)
     !==================================================
     ! My input parser (gromacs style)
     !==================================================
@@ -1612,7 +1772,7 @@ program internal_duschinski
                                           gradcorrectS1, gradcorrectS2, symaddapt, &
                                           same_red2nonred_rotation,analytic_Bder, &
                                           orthogonalize,original_internal,force_real, &
-                                          apply_projection_matrix,move_to_min
+                                          apply_projection_matrix,move_to_min,complementay_projection
 !         logical,intent(inout) :: tswitch
 
         ! Local
@@ -1699,7 +1859,7 @@ program internal_duschinski
                     call getarg(i+1, intfile)
                     argument_retrieved=.true.
 
-                case ("-intfile0") 
+                case ("-intfile2") 
                     call getarg(i+1, intfile0)
                     argument_retrieved=.true.
 
@@ -1768,10 +1928,16 @@ program internal_duschinski
                 case ("-noforce-real")
                     force_real=.false.
 
-                case ("-prj-tr")
+                case ("-prjS")
                     apply_projection_matrix=.true.
-                case ("-noprj-tr")
+                    complementay_projection=.false.
+                case ("-noprjS")
                     apply_projection_matrix=.false.
+                case ("-prjS-c")
+                    complementay_projection=.true.
+                    apply_projection_matrix=.true.
+                case ("-noprjS-c")
+                    complementay_projection=.false.
 
                 case ("-orth")
                     orthogonalize=.true.
@@ -1922,11 +2088,12 @@ program internal_duschinski
         write(6,*) '              to real (also affects Er)'
         write(6,*) '               '                       
         write(6,*) ' ** Options Internal Coordinates **           '
-        write(6,*) '-[no]prj-tr  Apply projection matrix to   ', apply_projection_matrix
+        write(6,*) '-[no]prjS    Apply projection matrix to    ', apply_projection_matrix
         write(6,*) '             rotate Grad and Hess'
+        write(6,*) '-[no]prjS-c  Apply complementay projection ', complementay_projection
         write(6,*) '-cnx         Connectivity [filename|guess] ', trim(adjustl(cnx_file))
         write(6,*) '-intmode0    Internal set:[zmat|sel|all]   ', trim(adjustl(def_internal0))
-        write(6,*) '-intfile0    File with ICs (for "sel")     ', trim(adjustl(intfile0))
+        write(6,*) '-intfile2    File with ICs (for "sel")     ', trim(adjustl(intfile0))
         write(6,*) '-intmode     Internal set:[zmat|sel|all]   ', trim(adjustl(def_internal))
         write(6,*) '-intfile     File with ICs (for "sel")     ', trim(adjustl(intfile))
         write(6,*) '-rmzfile     File deleting ICs from Zmat   ', trim(adjustl(rmzfile))

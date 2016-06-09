@@ -1,4 +1,4 @@
-program normal_modes_animation
+program normal_modes_internal
 
 
     !==============================================================
@@ -1757,5 +1757,5 @@ program normal_modes_animation
        
     end subroutine displace_Scoord
 
-end program normal_modes_animation
+end program normal_modes_internal
 
