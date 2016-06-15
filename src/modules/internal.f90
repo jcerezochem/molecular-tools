@@ -1617,8 +1617,9 @@ module internal_module
 
         
         ! Hint = Aux ([~Hx]) Aux^T (this is "matrix_basisrot")
-        Hess(1:Ns,1:3*Nat) = matrix_product(Ns,3*Nat,3*Nat,Aux,Hess)
-        Hess(1:Ns,1:Ns)    = matrix_product(Ns,3*Nat,3*Nat,Hess,Aux,tB=.true.)
+        Hess(1:Ns,1:Ns) = matrix_basisrot(Ns,3*Nat,Aux,Hess)
+!         Hess(1:Ns,1:3*Nat) = matrix_product(Ns,3*Nat,3*Nat,Aux,Hess)
+!         Hess(1:Ns,1:Ns)    = matrix_product(Ns,3*Nat,3*Nat,Hess,Aux,tB=.true.)
     
         if (verbose>1) then
             Vec(1:Ns) = (/(Hess(i,i), i=1,Ns)/)
@@ -1725,10 +1726,8 @@ module internal_module
             Aux(1:Ns,1:3*Nat) = matrix_product(Ns,3*Nat,Ns,Ginv,B)
         endif
 
-        
         ! Hint = Aux ([~Hx]) Aux^T (this is "matrix_basisrot")
-        Hess(1:Ns,1:3*Nat) = matrix_product(Ns,3*Nat,3*Nat,Aux,Hess)
-        Hess(1:Ns,1:Ns)    = matrix_product(Ns,3*Nat,3*Nat,Hess,Aux,tB=.true.)
+        Hess(1:Ns,1:Ns) = matrix_basisrot(Ns,3*Nat,Aux,Hess)
     
         if (verbose>1) then
             Vec(1:Ns) = (/(Hess(i,i), i=1,Ns)/)
@@ -1951,6 +1950,7 @@ module internal_module
         implicit none
     
         integer,parameter :: NDIM = 600
+        real(8),parameter :: ZEROp=1.d-10
     
         !====================== 
         !ARGUMENTS
@@ -1981,19 +1981,21 @@ module internal_module
             do j=1,Nvib
                 X(i,j) = 0.d0
                 do k=1,Nvib
+                    if (dabs(Freq(k))<ZEROp) cycle
                     X(i,j) = X(i,j) + Aux(i,k)*dsqrt(Freq(k))*Aux(j,k)
                 enddo
             enddo
         enddo
         !And the inverse
-        do i=1,Nvib
-            do j=1,Nvib
-                Xinv(i,j) = 0.d0
-                do k=1,Nvib
-                    Xinv(i,j) = Xinv(i,j) + Aux(i,k)/dsqrt(Freq(k))*Aux(j,k)
-                enddo
-            enddo
-        enddo
+!         do i=1,Nvib
+!             do j=1,Nvib
+!                 Xinv(i,j) = 0.d0
+!                 do k=1,Nvib
+!                     if (dabs(Freq(k))<ZEROp) cycle
+!                     Xinv(i,j) = Xinv(i,j) + Aux(i,k)/dsqrt(Freq(k))*Aux(j,k)
+!                 enddo
+!             enddo
+!         enddo
     
         if (verbose>1) &
             call MAT0(6,X,Nvib,Nvib,"X (G^1/2)")
@@ -2018,7 +2020,7 @@ module internal_module
         enddo
         if (verbose>0) &
             call print_vector(6,Freq,Nvib,"Frequencies (cm-1)")
-
+stop
         !Normal mode matrix
         if (verbose>1) &
             call MAT0(6,L,Nvib,Nvib,"L' (ORTH NORMAL MODES)")
@@ -2761,6 +2763,127 @@ module internal_module
         return
 
     end subroutine intshif2cart
+
+    subroutine prj_internalGrad(Hess,Ns,Grad,G,complement)
+
+        !-----------------------------------------------
+        ! Project out the gradient from the Hessian in 
+        ! internal coordinates.
+        ! Following Nguyen,Jackels,Truhlar, JCP 1996
+        ! 
+        !  Hess' = (1-P G)Hess(1-G P) = (1-GP)^t Hess (1-GP)
+        !   where: P = gg^t/(g^tGg)
+        !
+        ! if complement=.false. then, the projeciton is
+        !
+        !  Hess' = (P G)Hess(G P) = (GP)^t Hess (GP)
+        !
+        !-----------------------------------------------
+
+        real(8),dimension(:,:),intent(inout) :: Hess
+        integer,intent(in)                   :: Ns
+        real(8),dimension(:),intent(in)      :: Grad
+        real(8),dimension(:,:),intent(in)    :: G
+        logical,intent(in),optional          :: complement
+
+        !Local
+        integer :: i,j
+        real(8) :: t
+        real(8),dimension(Ns,Ns) :: P, Aux
+        logical :: complement_local
+
+        ! Optional argument.
+        if (present(complement)) then
+            complement_local = complement
+        else
+            !Default is true
+            complement_local = .true.
+        endif
+
+        !Compute the denominator, T=g^tGg
+        t=0.d0
+        do i=1,Ns
+        do j=1,Ns
+            t = t + Grad(i)*G(i,j)*Grad(j)
+        enddo
+        enddo
+
+        ! Compute P
+        do i=1,Ns
+        do j=1,Ns
+            P(i,j) = Grad(i)*Grad(j)/t
+        enddo
+        enddo
+
+        ! Compute P'=1-GP or GP
+        P(1:Ns,1:Ns) = matrix_product(Ns,Ns,Ns,G,P)
+        ! Take complement if required (default is YES)
+        if (complement_local) then
+            Aux(1:Ns,1:Ns) = identity_matrix(Ns) 
+            P(1:Ns,1:Ns) = Aux(1:Ns,1:Ns) - P(1:Ns,1:Ns)
+        endif
+
+        ! Project gradient out
+        Hess(1:Ns,1:Ns) = matrix_basisrot(Ns,Ns,P,Hess,counter=.true.)
+        
+        return
+
+    end subroutine prj_internalGrad
+
+
+    subroutine prj_internalCoord(Hess,Ns,icoord,G,complement)
+
+        !-----------------------------------------------
+        ! Project out the gradient from the Hessian in 
+        ! internal coordinates.
+        ! Following Nguyen,Jackels,Truhlar, JCP 1996
+        ! 
+        !  Hess' = (1-P G)Hess(1-G P) = (1-GP)^t Hess (1-GP)
+        !   where: P = gg^t/(g^tGg)
+        !
+        !-----------------------------------------------
+
+        real(8),dimension(:,:),intent(inout) :: Hess
+        integer,intent(in)                   :: Ns
+        integer,intent(in)                   :: icoord
+        real(8),dimension(:,:),intent(in)    :: G
+        logical,intent(in),optional          :: complement
+
+        !Local
+        integer :: i,j
+        real(8) :: t
+        real(8),dimension(Ns,Ns) :: P, Aux
+        logical :: complement_local
+
+        ! Optional argument.
+        if (present(complement)) then
+            complement_local = complement
+        else
+            !Default is true
+            complement_local = .true.
+        endif
+
+        !Compute the denominator, T=g^tGg = Gii
+        t = G(icoord,icoord)
+
+        ! Compute P
+        P(1:Ns,1:Ns) = 0.d0
+        P(icoord,icoord) = 1.d0/t
+
+        ! Compute P'=1-GP or GP
+        P(1:Ns,1:Ns) = matrix_product(Ns,Ns,Ns,G,P)
+        ! Take complement if required (default is YES)
+        if (complement_local) then
+            Aux(1:Ns,1:Ns) = identity_matrix(Ns) 
+            P(1:Ns,1:Ns) = Aux(1:Ns,1:Ns) - P(1:Ns,1:Ns)
+        endif
+
+        ! Project gradient out
+        Hess(1:Ns,1:Ns) = matrix_basisrot(Ns,Ns,P,Hess,counter=.true.)
+        
+        return
+
+    end subroutine prj_internalCoord
 
     !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%5
     
