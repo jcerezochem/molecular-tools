@@ -327,7 +327,7 @@ program normal_modes_cartesian
         close(I_INP)
         
         ! GRADIENT FILE
-        if (vertical.or.rm_gradcoord) then
+        if (adjustl(gradfile) /= "none") then
             call statement(6,"READING GRADIENT FILE...")
             open(I_INP,file=gradfile,status='old',iostat=IOstatus)
             if (IOstatus /= 0) call alert_msg( "fatal","Unable to open "//trim(adjustl(gradfile)) )

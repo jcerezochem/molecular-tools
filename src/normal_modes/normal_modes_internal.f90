@@ -67,6 +67,8 @@ program normal_modes_internal
                project_on_all=.false.,  &
                apply_projection_matrix=.false., &
                complementay_projection=.false., &
+               rm_gradcoord=.false.,            &
+               complementay_gradient = .false., &
                do_zmap
     !======================
 
@@ -107,7 +109,7 @@ program normal_modes_internal
     ! PES topology and normal mode things
     real(8),dimension(:),allocatable :: Hlt
     real(8),dimension(1:NDIM,1:NDIM) :: Hess, Hess_all, LL, LL_all, gBder, P, Fltr
-    real(8),dimension(NDIM) :: Freq, Freq_all, Factor, Grad, Grad_all, Vec1
+    real(8),dimension(NDIM) :: Freq, Freq_all, Factor, Grad, Grad_all, Vec1, Vec
     !Moving normal modes
     character(len=50) :: selection="none"
     real(8) :: Amplitude = 2.d0, qcoord
@@ -214,7 +216,7 @@ program normal_modes_internal
                      use_symmetry,def_internal,def_internal0,intfile,intfile0,&
                      apply_projection_matrix,complementay_projection,      &
                      rmzfile,scan_type,  &
-                     project_on_all,                                       &
+                     project_on_all,rm_gradcoord,complementay_gradient,    &
                      ! connectivity file
                      cnx_file,                                             &
                      ! thermochemical analysis
@@ -343,14 +345,21 @@ program normal_modes_internal
             if (project_on_all) Hess_all(1:3*Nat,1:3*Nat) = Hess(1:3*Nat,1:3*Nat)
            
             ! GRADIENT FILE
-            if (vertical) then
-                call statement(6,"READING GRADIENT...")
+            if (adjustl(gradfile) /= "none") then
+                call statement(6,"READING GRADIENT FILE...")
                 open(I_INP,file=gradfile,status='old',iostat=IOstatus)
-                if (IOstatus /= 0) call alert_msg( "fatal","Unable to open "//trim(adjustl(gradfile)))
+                if (IOstatus /= 0) call alert_msg( "fatal","Unable to open "//trim(adjustl(gradfile)) )
                 call generic_gradient_reader(I_INP,ftg,Nat,Grad,error)
                 close(I_INP)
-                if (project_on_all) Grad_all(1:3*Nat) = Grad(1:3*Nat)
+                if (error /= 0) then
+                    print*, "Error reading the Gradient. It will be set to zero"
+                    Grad(1:3*Nat) = 0.d0
+                endif
+            else
+                Grad(1:3*Nat) = 0.d0
             endif
+
+
         endif
     else
         !We need to provide a value for Nvib. Lets assume non-liear molecules
@@ -508,7 +517,7 @@ program normal_modes_internal
     !---------
     call heading(6,"GETTING INTERNAL SET TO DESCRIBE MODES")
     if (vertical) &
-     call statement(6,"This set can be different from the one used to get the additional terms")
+     call statement(6,"This set can be different from the one used to get the vertical corr")
     ! Refress connectivity
     call gen_bonded(molecule)
     ! Define internal set
@@ -751,21 +760,22 @@ program normal_modes_internal
         if (nmfile == "none") then
             !SOLVE GF METHOD TO GET NM AND FREQ
             call internal_Gmetric(Nat,Ns,molecule%atom(1:Nat)%mass,B,G)
-!             call MAT0(6,Fltr,Nf,Ns,"Filter")
-!             if (Nf /= 0) then
-!                 B(1:Nf,1:3*Nat) = matrix_product(Nf,3*Nat,Ns,Fltr,B)
-!                 G(1:Nf,1:Nf) = matrix_basisrot(Nf,Ns,Fltr(1:Nf,1:Ns),G,counter=.false.)          
-!                 Ns=Nf
-!             endif
-!             call MAT0(6,G,Nf,Nf,"GGGG")
-!             G(113,113)=0.d0
-!             G(114,113)=0.d0
-!             G(113,114)=0.d0
-!             G(114,114)=0.d0
-!             G(113,:)=0.d0
-!             G(:,113)=0.d0
-!             G(114,:)=0.d0
-!             G(:,114)=0.d0
+
+!             ! Test Gradient with projection
+!             call HessianCart2int_red(Nat,Ns,Hess,molecule%atom(:)%mass,B,G) 
+!             call MAT0(6,Hess,Ns,Ns,"Hessian(int)")    
+!             Vec1(1:Ns)=0.d0
+!             ! Define in the 
+!             Vec1(15) = 1.d0
+!             call prj_internalGrad(Hess,Ns,Vec1,G,complement=.true.)
+!             call MAT0(6,Hess,Ns,Ns,"Hessian(int)-Prj") 
+!             call gf_method(Ns,G,Hess,LL,Freq,X,Xinv)
+
+            ! Rotate with Fltr
+            ! Rotate Bmatrix
+            B(1:Nf,1:3*Nat) = matrix_product(Nf,3*Nat,Ns,Fltr,B)
+            G(1:Nf,1:Nf) = matrix_basisrot(Nf,Ns,Fltr(1:Nf,1:Ns),G,counter=.false.)   
+            Ns = Nf
 
             ! The diagonalization of the G matrix can be donne with all sets
             ! (either redundant or non-redundant), and it is the best way to 
@@ -818,7 +828,16 @@ program normal_modes_internal
             endif
 
             ! Get Hessian in initernal coordinates
+            ! If vertical, the Gradient is already in internal, otherwise do it
+            if (.not.vertical) then
+                call Gradcart2int(Nat,Nvib,Grad,molecule%atom(:)%mass,B,G)
+            endif
             call HessianCart2int(Nat,Nvib,Hess,molecule%atom(:)%mass,B,G)
+
+            if (rm_gradcoord) then
+                call prj_internalGrad(Hess,Nvib,Grad,G,complement=.not.complementay_gradient)
+            endif           
+
             ! Perform vibrational analysis (GF)
             call heading(6,"Final vibrational analysis (GF method)")
             call gf_method(Nvib,G,Hess,LL,Freq,X,Xinv)
@@ -1392,7 +1411,7 @@ program normal_modes_internal
                            use_symmetry,def_internal,def_internal0,intfile,intfile0,&
                            apply_projection_matrix,complementay_projection,  &
                            rmzfile,scan_type,  &
-                           project_on_all,                                       &
+                           project_on_all, rm_gradcoord,complementay_gradient,   &
                            ! connectivity file
                            cnx_file,                                             &
                            ! thermochemical analysis
@@ -1409,7 +1428,8 @@ program normal_modes_internal
                                           selection,cnx_file,def_internal0,conversion_i2c,mass_file
         real(8),intent(inout)          :: Amplitude,Tthermo
         logical,intent(inout)          :: call_vmd, include_hbonds,vertical, use_symmetry,movie_vmd,animate,&
-                                          analytic_Bder,project_on_all,apply_projection_matrix,complementay_projection
+                                          analytic_Bder,project_on_all,apply_projection_matrix,complementay_projection,&
+                                          rm_gradcoord,complementay_gradient
         integer,intent(inout)          :: movie_cycles
 
         ! Local
@@ -1464,6 +1484,16 @@ program normal_modes_internal
                 case ("-cnx") 
                     call getarg(i+1, cnx_file)
                     argument_retrieved=.true.
+
+                case ("-rmgrad")
+                    rm_gradcoord=.true.
+                case ("-normgrad")
+                    rm_gradcoord=.false.
+                case ("-rmgrad-c")
+                    complementay_gradient=.true.
+                    rm_gradcoord=.true.
+                case ("-normgrad-c")
+                    complementay_gradient=.false.
 
                 case ("-intfile") 
                     call getarg(i+1, intfile)
@@ -1646,6 +1676,10 @@ program normal_modes_internal
         write(6,*)       '               Projection P=B^+B, where the'
         write(6,*)       '-[no]prjS-c    Use the complentary projection ', complementay_projection
         write(6,*)       '               P=I - B^+B'
+        write(6,*)       '-[no]rmgrad    Remove coordinate along the    ', rm_gradcoord
+        write(6,*)       '               grandient                      '
+        write(6,*)       '-[no]rmgrad-c  Use complementary projection   ', rm_gradcoord
+        write(6,*)       '               (i.e., use project on grad)    '
         write(6,*)       '-intmode0      Internal set:[zmat|sel|all]    ', trim(adjustl(def_internal0))
         write(6,*)       '               to compute additional terms    '
         write(6,*)       '               (vertical method)              '
