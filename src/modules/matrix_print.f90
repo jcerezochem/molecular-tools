@@ -62,6 +62,49 @@ module matrix_print
 
       end subroutine print_vector
 
+      subroutine print_diag(unt,A,N,name)
+
+        !==================================
+        ! Description
+        ! -----------
+        ! Source: adapted from original FCclasses
+        !         code for matrix printing (MAT1)
+        ! Prints a vector diag(A)
+        !==================================
+
+        integer,intent(in) :: unt
+        real(8),dimension(:,:),intent(in) :: A
+        integer,intent(in) :: N
+        character(len=*),intent(in),optional :: name
+        !Local
+        real(8),dimension(N) :: v
+        integer :: i
+        integer :: len_line
+        character(len=100) :: line 
+
+         V(1:N) = (/(A(i,i), i=1,N)/)
+
+      !Set the table line accoring to its size
+      len_line = 18
+      len_line = max(len_line,len_trim(name)+6)
+      do i=1,len_line
+          line(i:i) = "-"
+      enddo
+
+      if (present(name)) then
+      write(unt,'(/,X,A)') line(1:len_line)
+      write(unt,'(3X,A)') name
+      endif 
+      write(unt,'(X,A)') line(1:len_line)
+
+      do i=1,N
+          write(unt,'(X,I5,F12.5)') i, V(i)
+      enddo
+      write(unt,'(X,A,/)') line(1:len_line)
+! C
+      return
+
+      end subroutine print_diag
 
       subroutine MAT0(unt,AA,NR,NC,name)
 

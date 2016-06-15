@@ -36,7 +36,7 @@ module vibrational_analysis
         ! Mass    (inp) real/vector   Atomic masses (AMU)
         ! Hlt     (inp) real/vector   Lower triangular part of the Hessian in MWCartesian coordinates (AU)
         ! Nvib    (out) int /scalar   Number of vibrational degrees of freedom
-        ! L       (out) real/matrix   Normal modes (vibrations only) in Cartesian coordinates (Dimless)
+        ! L       (out) real/matrix   Normal modes (vibrations only) in MWCartesian coordinates (Dimless)
         ! Freq    (out) real/vector   Frequencies (cm-1)
         ! Optional kwargs:
         ! error_flag (out) flag  0 : success
@@ -653,7 +653,7 @@ module vibrational_analysis
         !Arguments
         ! Nat     (inp) int /scalar   Number of atoms
         ! Nvib    (inp) int /scalar   Number of vibrational degrees of freedom
-        ! Lcart   (inp) real/matrix   Normal modes in mxc              (mass_AU^-1/2) (3Nat x Nvib)
+        ! Lcart   (inp) real/matrix   Normal modes in Cart     (mass_AU^-1/2) (3Nat x Nvib)
         ! mu      (out) real/vector   reduced mass array (AMU) (Nvib)
         ! error_flag (out) flag  0 : success
         !                        1 : 
@@ -680,7 +680,7 @@ module vibrational_analysis
                 mu(i) = mu(i) + Lcart(j,i)**2
             enddo
             !Reduced_mass(i) = 1.d0/Factor
-            mu(i) = 1.d0/dsqrt(mu(i)) / AMUtoAU
+            mu(i) = 1.d0/mu(i) / AMUtoAU
         enddo
         if (present(error_flag)) error_flag=error_local
 
