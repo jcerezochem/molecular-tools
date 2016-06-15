@@ -416,7 +416,9 @@ module generic_io
         select case (adjustl(filetype))
             case("log")
              call summary_parser(unt,6,section,error_local)
-             read(section,*) Hlt(1:3*Nat*(3*Nat+1)/2)
+             if (error_local == 0) then
+                 read(section,*) Hlt(1:3*Nat*(3*Nat+1)/2)
+             endif
             case("fchk")
              call read_fchk(unt,'Cartesian Force Constants',data_type,N,A,IA,error_local)
              if (error_local /= 0) then

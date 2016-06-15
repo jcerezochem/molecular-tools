@@ -188,8 +188,10 @@ module gaussian_manage
             endif
             if (line == "@") then
                 error_local = 1
-                write(section,'(I0)') isection
-                call alert_msg("fatal","End of summary while reading section "//trim(adjustl(section)))
+                write(msg,'(2(A,I0))') "Requested section ", isect, &
+                                       " but last section ", isection
+                call alert_msg("warning",trim(msg))
+                if (present(error_flag)) error_flag=error_local
                 return
             endif
         enddo
