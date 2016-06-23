@@ -189,7 +189,7 @@ internal_duschinsky_SOURCES = \
                              ../modules/internal.f90\
                              ../modules/vibrational_analysis.f90\
                              ../modules/vertical_model.f90\
-                             internal_duschinsky.f90
+                             internal_duschinsky_prjCrt.f90
 
 get_DeltaX_SOURCES = \
                              ../modules/alerts.f90\
