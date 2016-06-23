@@ -20,6 +20,7 @@ module generic_io
     use psi4_manage
     use molcas_manage
     use molpro_manage
+    use turbomol_manage
     use gmx_manage
     use pdb_manage
     use fcc_manage
@@ -93,6 +94,8 @@ module generic_io
              call read_molcasUnSym_natoms(unt,Nat,error_local)
             case("molpro")
              call read_molpro_natoms(unt,Nat,error_local)
+            case("turbomol")
+             call read_turbomol_natoms(unt,Nat,error_local)
             case("g96")
              call read_g96_natoms(unt,Nat)
             case("gro")
@@ -197,6 +200,9 @@ module generic_io
              call assign_masses(Nat,AtName,Mass)
             case("molpro")
              call read_molpro_geom(unt,Nat,AtName,X,Y,Z,error_local)
+             call assign_masses(Nat,AtName,Mass)
+            case("turbomol")
+             call read_turbomol_geom(unt,Nat,AtName,X,Y,Z,error_local)
              call assign_masses(Nat,AtName,Mass)
             case("g96")
              call read_g96_geom(unt,Nat,AtName,X,Y,Z)
@@ -365,7 +371,7 @@ module generic_io
              enddo
              deallocate(A)
             case default
-             call alert_msg("fatal","Unsupported filetype:"//trim(adjustl(filetype)))
+             call alert_msg("warning","Unsupported filetype:"//trim(adjustl(filetype)))
 !              call supported_filetype_list('grad')
              error_local = 99
          end select
@@ -437,6 +443,8 @@ module generic_io
              call read_molcasUnSym_hess(unt,Nat,Hlt,error_local)
             case("molpro")
              call read_molpro_hess(unt,Nat,Hlt,error_local)
+            case("turbomol")
+             call read_turbomol_hess(unt,Nat,Hlt,error_local)
             case("gmx")
              call read_gmx_hess(unt,Nat,Hlt,error_local)
             case default
@@ -582,6 +590,8 @@ module generic_io
         select case (adjustl(filetype))
             case("log")
              call read_glog_nm(unt,Nvib,Nat,Freq,L,error_local)
+            case("turbomol")
+             call read_turbomol_nm(unt,Nvib,Nat,Freq,L,error_local)
             case("fchk")
              call read_fchk(unt,'Number of Normal Modes',data_type,N,A,IA,error_local)
              if (error_local /= 0) then

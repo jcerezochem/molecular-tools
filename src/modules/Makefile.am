@@ -37,6 +37,7 @@ libmoleculartools_a_SOURCES =         \
     manage_molcas.f90                 \
     manage_molden.f90                 \
     manage_molpro.f90                 \
+    manage_turbomol.f90               \
     manage_pdb.f90                    \
     manage_psi4.f90                   \
 \

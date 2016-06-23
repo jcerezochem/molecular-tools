@@ -1415,7 +1415,8 @@ module internal_module
 
         if (Nred /= Nvib+kkk) then
             call sort_vec(Vec,Nred)
-            call print_vector(6,Vec*1e5,Nred,"A MATRIX Eigenvalues (x10^5)")
+            if (verbose>1) &
+              call print_vector(6,Vec*1e5,Nred,"A MATRIX Eigenvalues (x10^5)")
             if (kkk > Nred-Nvib) then
                 print*, "Internal-space dimension is reduced"
                 print*, " Deleted modes:    ", kkk - Nred + Nvib
@@ -1449,6 +1450,7 @@ module internal_module
     
         !IF WE USE ALL BONDED PARAMETERS,WE HAVE REDUNDANCY. WE SELECT A NON-REDUNDANT                                                                  
         !COMBINATION FROM THE NON-ZERO EIGENVALUES OF G (Reimers 2001, JCP) 
+        ! For squared matrix only
         ! *** Needs more checks ***
         ! Alternative: use redundant2nonredundant + matrix rotations  
 
@@ -1926,7 +1928,7 @@ module internal_module
     end subroutine Gradcart2int_red
 
     
-    subroutine gf_method(Nvib,G,Hess,L,Freq,X,Xinv)
+    subroutine gf_method(Ns,Nvib,G,Hess,L,Freq,X,Xinv)
 
         !==============================================================
         ! This code is part of MOLECULAR_TOOLS 
@@ -1938,6 +1940,8 @@ module internal_module
         ! *Symmetrize GF and diagonalize following Mizayawa (Sect. 4.6, Califano, Vibrational States)
         !
         ! Here: FOLLOWING FIRST ALTERNATIVE (similar to diagonalization of basis set)
+        !
+        ! In this subroutine, Ns=Nvib
         !------------------------------------------------------------------
     
         use structure_types
@@ -1955,7 +1959,8 @@ module internal_module
         !====================== 
         !ARGUMENTS
         !Input
-        integer,intent(in)                          :: Nvib      !Number of vib nm
+        integer,intent(in)                          :: Ns        !Number of internal coords
+        integer,intent(out)                         :: Nvib      !Number of vib nm
         real(8),dimension(1:NDIM,1:NDIM),intent(in) :: G         !Wilson metric matrix
         real(8),dimension(1:NDIM,1:NDIM),intent(in) :: Hess      !Hessian: internal
         !Output
@@ -1967,48 +1972,78 @@ module internal_module
         !LOCAL
         !Auxiliar matrices
         real(8),dimension(1:NDIM,1:NDIM) :: Aux,Aux3
+        real(8),dimension(1:NDIM)        :: Vec
         !Counters
         integer :: i,j,k, ii,jj,kk, iat
+        integer :: Nvib0
         !=============
-    
-    
-        call diagonalize_full(G(1:Nvib,1:Nvib),Nvib,Aux(1:Nvib,1:Nvib),Freq(1:Nvib),"lapack")
+
+        call diagonalize_full(G(1:Ns,1:Ns),Ns,Aux(1:Ns,1:Ns),Vec(1:Ns),"lapack")
     
         !The non-unitary rotation which orthogonalize G^-1 could be X=G^(1/2)  (inverse compared with the case of Roothan eqs)
         ! where G^{1/2} = Ug^{1/2}U^T
         !Store the rotation (X) in AuxT    !G. Note X=X^T
-        do i=1,Nvib
-            do j=1,Nvib
+        do i=1,Ns
+            do j=1,Ns
                 X(i,j) = 0.d0
-                do k=1,Nvib
-                    if (dabs(Freq(k))<ZEROp) cycle
-                    X(i,j) = X(i,j) + Aux(i,k)*dsqrt(Freq(k))*Aux(j,k)
+                do k=1,Ns
+                    if (dabs(Vec(k))<ZEROp) cycle
+                    X(i,j) = X(i,j) + Aux(i,k)*dsqrt(Vec(k))*Aux(j,k)
                 enddo
             enddo
         enddo
         !And the inverse
-!         do i=1,Nvib
-!             do j=1,Nvib
-!                 Xinv(i,j) = 0.d0
-!                 do k=1,Nvib
-!                     if (dabs(Freq(k))<ZEROp) cycle
-!                     Xinv(i,j) = Xinv(i,j) + Aux(i,k)/dsqrt(Freq(k))*Aux(j,k)
-!                 enddo
-!             enddo
-!         enddo
+        do i=1,Ns
+            do j=1,Ns
+                Xinv(i,j) = 0.d0
+                do k=1,Ns
+                    if (dabs(Vec(k))<ZEROp) cycle
+                    Xinv(i,j) = Xinv(i,j) + Aux(i,k)/dsqrt(Vec(k))*Aux(j,k)
+                enddo
+            enddo
+        enddo
     
         if (verbose>1) &
-            call MAT0(6,X,Nvib,Nvib,"X (G^1/2)")
+            call MAT0(6,X,Ns,Ns,"X (G^1/2)")
         if (verbose>1) &
-            call MAT0(6,Xinv,Nvib,Nvib,"Xinv (G^-1/2)")
+            call MAT0(6,Xinv,Ns,Ns,"Xinv (G^-1/2)")
 
     
         !Now rotate F, F'=X^TFX. Store the rotated matrix in Aux3 (temporary array)
-        Aux3(1:Nvib,1:Nvib) = matrix_basisrot(Nvib,Nvib,X,Hess,counter=.true.)
+        Aux3(1:Ns,1:Ns) = matrix_basisrot(Ns,Ns,X,Hess,counter=.true.)
     
         !We can now diagonalize F'
-        call diagonalize_full(Aux3(1:Nvib,1:Nvib),Nvib,L(1:Nvib,1:Nvib),Freq(1:Nvib),"lapack")
+        call diagonalize_full(Aux3(1:Ns,1:Ns),Ns,Aux(1:Ns,1:Ns),Vec(1:Ns),"lapack")
     
+        ! Check if any root is equal to ZERO (redundancies)
+        kk  = 0 
+        do k=1,Ns
+            if (dabs(Vec(k)) > ZEROp) then
+                kk=kk+1
+                ! Get non-redundant vectors and Freqs
+                L(1:Ns,kk)      = Aux(1:Ns,k)
+                Freq(kk)        = Vec(k)
+            endif
+        enddo
+        Nvib0 = kk
+        kk  = 0 
+        do k=1,Ns
+            if (dabs(Vec(k)) <= ZEROp) then
+                kk=kk+1
+                ! Get redundant vectors and Freqs
+                L(1:Ns,Nvib0+kk) = Aux(1:Ns,k)
+                Freq(Nvib0+kk)   = Vec(k)
+            endif
+        enddo
+        if (Nvib0<Ns) then
+            print*, "Number of internal coordinates   ", Ns
+            print*, "Number of normal mode coordinates", Nvib0
+            call alert_msg("note","Redundancies found when solving GF method")
+        endif
+        ! Now we can set Nvib, and it will not affect local Ns even if the same var is used when calling the sr 
+        Nvib = Nvib0
+            
+
         !Check FC
         if (verbose>1) &
             call print_vector(6,Freq*1.d6,Nvib,"FORCE CONSTANTS x 10^6 (A.U.)")
@@ -2020,7 +2055,7 @@ module internal_module
         enddo
         if (verbose>0) &
             call print_vector(6,Freq,Nvib,"Frequencies (cm-1)")
-stop
+
         !Normal mode matrix
         if (verbose>1) &
             call MAT0(6,L,Nvib,Nvib,"L' (ORTH NORMAL MODES)")
@@ -2822,6 +2857,7 @@ stop
             Aux(1:Ns,1:Ns) = identity_matrix(Ns) 
             P(1:Ns,1:Ns) = Aux(1:Ns,1:Ns) - P(1:Ns,1:Ns)
         endif
+call MAT0(6,P,Ns,Ns,"P")
 
         ! Project gradient out
         Hess(1:Ns,1:Ns) = matrix_basisrot(Ns,Ns,P,Hess,counter=.true.)

@@ -24,6 +24,7 @@ calcRMS_bonded_SOURCES = \
                          ../modules/manage_molcas.f90           \
                          ../modules/manage_molden.f90           \
                          ../modules/manage_molpro.f90           \
+                         ../modules/manage_turbomol.f90         \
                          ../modules/manage_pdb.f90              \
                          ../modules/manage_psi4.f90             \
                          ../modules/manage_xyz.f90              \
@@ -58,6 +59,7 @@ geom_param_list_SOURCES = \
                          ../modules/manage_molcas.f90           \
                          ../modules/manage_molden.f90           \
                          ../modules/manage_molpro.f90           \
+                         ../modules/manage_turbomol.f90         \
                          ../modules/manage_pdb.f90              \
                          ../modules/manage_psi4.f90             \
                          ../modules/manage_xyz.f90              \
@@ -92,6 +94,7 @@ get_com_SOURCES = \
                          ../modules/manage_molcas.f90           \
                          ../modules/manage_molden.f90           \
                          ../modules/manage_molpro.f90           \
+                         ../modules/manage_turbomol.f90         \
                          ../modules/manage_pdb.f90              \
                          ../modules/manage_psi4.f90             \
                          ../modules/manage_xyz.f90              \

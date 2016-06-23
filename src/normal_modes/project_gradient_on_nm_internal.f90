@@ -476,7 +476,7 @@ program internal_duschinski
     endif
 
     call HessianCart2int(Nat,Nvib,Hess,state1%atom(:)%mass,B1,G1)
-    call gf_method(Nvib,G1,Hess,L1,Freq1,X,X1inv)
+    call gf_method(Nvib,Nvib,G1,Hess,L1,Freq1,X,X1inv)
     if (verbose>0) then
         ! Analyze normal modes in terms of the redundant set
         Aux(1:Ns,1:Nvib) = matrix_product(Ns,Nvib,Nvib,Asel1,L1)

@@ -75,11 +75,11 @@ program normal_modes_internal
     !====================== 
     !System variables
     type(str_resmol) :: molecule, molec_aux
-    type(str_bonded) :: zmatgeom, allgeom, currentgeom, selgeom
+    type(str_bonded) :: zmatgeom, allgeom, currentgeom, inputgeom
     integer,dimension(1:NDIM) :: isym
     integer,dimension(4,1:NDIM,1:NDIM) :: Osym
     integer :: Nsym
-    integer :: Nat, Nvib, Ns, Nvib0, NvibP, NvibP2, Nf
+    integer :: Nat, Nvib, Ns, Nvib0, NvibP, NvibP2, Nf, N
     integer :: Ns_zmat, Ns_all, Nvib_all
     character(len=5) :: PG
     real(8) :: Tthermo=0.d0
@@ -107,9 +107,9 @@ program normal_modes_internal
 
     !====================== 
     ! PES topology and normal mode things
-    real(8),dimension(:),allocatable :: Hlt
+    real(8),dimension(:),allocatable :: Hlt, grdx
     real(8),dimension(1:NDIM,1:NDIM) :: Hess, Hess_all, LL, LL_all, gBder, P, Fltr
-    real(8),dimension(NDIM) :: Freq, Freq_all, Factor, Grad, Grad_all, Vec1, Vec
+    real(8),dimension(NDIM) :: Freq, Freq_all, Factor, Grad, Vec1, Vec
     !Moving normal modes
     character(len=50) :: selection="none"
     real(8) :: Amplitude = 2.d0, qcoord
@@ -333,30 +333,21 @@ program normal_modes_internal
             call vibrations_Cart(Nat,molecule%atom(:)%X,molecule%atom(:)%Y,molecule%atom(:)%Z,&
                                  molecule%atom(:)%Mass,Hlt,Nvib,LL,Freq,error_flag=error)
             Nvib_all=Nvib
-            k=0
-            do i=1,3*Nat
-            do j=1,i
-                k=k+1
-                Hess(i,j) = Hlt(k)
-                Hess(j,i) = Hlt(k)
-            enddo 
-            enddo
-            deallocate(Hlt)
-            if (project_on_all) Hess_all(1:3*Nat,1:3*Nat) = Hess(1:3*Nat,1:3*Nat)
            
             ! GRADIENT FILE
             if (adjustl(gradfile) /= "none") then
                 call statement(6,"READING GRADIENT FILE...")
                 open(I_INP,file=gradfile,status='old',iostat=IOstatus)
                 if (IOstatus /= 0) call alert_msg( "fatal","Unable to open "//trim(adjustl(gradfile)) )
-                call generic_gradient_reader(I_INP,ftg,Nat,Grad,error)
+                allocate(grdx(1:3*Nat))
+                call generic_gradient_reader(I_INP,ftg,Nat,grdx,error)
                 close(I_INP)
                 if (error /= 0) then
                     print*, "Error reading the Gradient. It will be set to zero"
-                    Grad(1:3*Nat) = 0.d0
+                    grdx(1:3*Nat) = 0.d0
                 endif
             else
-                Grad(1:3*Nat) = 0.d0
+                grdx(1:3*Nat) = 0.d0
             endif
 
 
@@ -367,7 +358,6 @@ program normal_modes_internal
         Nvib_all=Nvib
     endif
     
-
     !----------------------------------
     ! MANAGE INTERNAL COORDS
     ! ---------------------------------
@@ -400,94 +390,121 @@ program normal_modes_internal
         call symm_atoms(molecule,isym)
     endif
 
-    !Specific actions (for Nvib and Nvib0 sets)
-    !*****************
+    call set_geom_units(molecule,"BOHR")
+
+    !--------------------------------
+    ! Compute projection matrix
+    !--------------------------------
+    call heading(6,"COMPUTING PROJECTION MATRIX (CARTESIAN)")
+
+    !---------------------------------------
+    call subheading(6,"Internal Sets")
+
+    call statement(6,"Set with ALL internal coordinates from connectivity",keep_case=.true.)
+    call gen_bonded(molecule)
+    call define_internal_set(molecule,"ALL",intfile,rmzfile,use_symmetry,isym,S_sym,Ns,Nf,Fltr)
+    allgeom = molecule%geom
+
+    call statement(6,"Set indicated on INPUT: "//trim(def_internal),keep_case=.true.)
+    call gen_bonded(molecule)
+    call define_internal_set(molecule,def_internal,intfile,rmzfile,use_symmetry,isym,S_sym,Ns,Nf,Fltr)
+    ! If not using combinations, the Filter need to be reset to the identity matrix
+    if (Nf==0) then
+        Nf=Ns
+        Fltr(1:Nf,1:Ns) = identity_matrix(Nf)
+    endif
+    inputgeom = molecule%geom
+    !---------------------------------------
+
+    ! Relate input and all geoms
+    call internals_mapping(allgeom,inputgeom,IntMap)
+    ! Describe Fltr with respect to allset
+    N = allgeom%nbonds+allgeom%nangles+allgeom%ndihed
+    Aux(1:N,1:N) = 0.d0
+    do i=1,Ns
+        print*, i, IntMap(i)
+    enddo
+    do j=1,Nf
+        do i=1,Ns
+            ii=IntMap(i)
+            Aux(j,ii) = Fltr(j,i)
+        enddo
+    enddo
+    ! Get Ns from allgeom
+    Ns = allgeom%nbonds+allgeom%nangles+allgeom%ndihed
+    Fltr(1:Nf,1:Ns) = Aux(1:Nf,1:Ns)
+
+    ! Get back allgeom
+    call heading(6,"Computing modes with ALL set")
+    Ns = allgeom%nbonds+allgeom%nangles+allgeom%ndihed
+    molecule%geom = allgeom
+
+    ! Rotate gradient and Hessian
+    ! Get full Cartesian Hessian from Hlt
+    Hess(1:3*Nat,1:3*Nat) = Hlt_to_Hess(3*Nat,Hlt)
+    ! Get Cartesian gradient
+    Grad(1:3*Nat) = grdx
+
+    ! Compute B, G and, if needed, Bder
+    call statement(6,"Computing B, G (with ALL set)",keep_case=.true.)
+    call internal_Wilson(molecule,Ns,S,B,ModeDef)
+    call internal_Gmetric(Nat,Ns,molecule%atom(:)%mass,B,G)
     if (vertical) then
-        ! Nvib0 SET
-        !-----------
-        call heading(6,"COMPUTING TERMS FOR NON-STATIONARY POINTS")
-        ! The internal set for the correction does not need to be the same 
-        ! as the one to represent the normal modes
-        !Generate bonded info
-        call gen_bonded(molecule)
-
-        !---------------------------------------
-        call subheading(6,"Getting the internal set")
-        call statement(6,"First retrieve all internal coordinates for reference")
-        ! NOW, GET THE ACTUAL WORKING INTERNAL SET
-        call define_internal_set(molecule,"ALL",intfile,rmzfile,use_symmetry,isym,S_sym,Ns,Nf,Fltr)
-        allgeom = molecule%geom
-        call statement(6,"And now get the actual working set")
-        call define_internal_set(molecule,def_internal0,intfile0,rmzfile,use_symmetry,isym,S_sym,Ns,Nf,Fltr)
-        !---------------------------------------
-        
-        ! Compute B matrix in the selgeom for projection
-        if (apply_projection_matrix) then
-            call statement(6,"The working set will be used to construct a projecton matrix")
-            NvibP = Nvib
-            call internal_Wilson(molecule,Ns,S,Bprj)
-            call internal_Gmetric(Nat,Ns,molecule%atom(:)%mass,Bprj,G)
-            call subsubheading(6,"Getting the actual vibrational space dimension")
-            call redundant2nonredundant(Ns,NvibP,G,Asel)
-            Bprj(1:Nvib_all,1:3*Nat) = matrix_product(NvibP,3*Nat,Ns,Asel,Bprj,tA=.true.)
-            ! And get back allgeom
-            call statement(6,"Using all internal coordinates as working set")
-            Ns = allgeom%nbonds+allgeom%nangles+allgeom%ndihed
-            molecule%geom = allgeom
-        endif
-
-        ! Get G, B, and Bder 
-        call internal_Wilson(molecule,Ns,S,B0,ModeDef)
-        call internal_Gmetric(Nat,Ns,molecule%atom(:)%mass,B0,G0)
+        call statement(6,"...and Bder for non-stationary point calculation")
         call calc_Bder(molecule,Ns,Bder,analytic_Bder)
+    endif
 
-        ! The diagonalization of the G matrix can be donne with all sets
-        ! (either redundant or non-redundant), and it is the best way to 
-        ! set the number of vibrations. The following call also set Nvib0
-        Nvib0=Nvib !An input value is needed for checking
-        call subsubheading(6,"Getting the actual vibrational space dimension")
-        call redundant2nonredundant(Ns,Nvib0,G0,Asel)
-        ! Rotate Bmatrix
-        B0(1:Nvib0,1:3*Nat) = matrix_product(Nvib0,3*Nat,Ns,Asel,B0,tA=.true.)
-        ! Rotate Gmatrix
-        G0(1:Nvib0,1:Nvib0) = matrix_basisrot(Nvib0,Ns,Asel(1:Ns,1:Nvib0),G0,counter=.true.)
+!     ! Compute Projection matrix
+!     ! Project out each coordinate on input
+!     P(1:Ns,1:Ns) = identity_matrix(Ns)
+!     do i=1,Nf
+!         Aux(1:Ns,1:Ns) = projection_matrixInt(Ns,Fltr(i,1:Ns),G)
+!         P(1:Ns,1:Ns) = matrix_product(Ns,Ns,Ns,Aux,P)
+!     enddo
+
+    ! Get non-redundant space
+    call subsubheading(6,"Getting the actual vibrational space dimension")
+    call redundant2nonredundant(Ns,Nvib,G,Asel)
+    call statement(6,"Rotate B, G to non-redundant space", keep_case=.true.)
+    ! Rotate Bmatrix
+    B(1:Nvib,1:3*Nat) = matrix_product(Nvib,3*Nat,Ns,Asel,B,tA=.true.)
+    ! Rotate Gmatrix
+    G(1:Nvib,1:Nvib) = matrix_basisrot(Nvib,Ns,Asel(1:Ns,1:Nvib),G,counter=.true.)
+    if (vertical) then
+        call statement(6,"Also rotate Bder to non-redundant space", keep_case=.true.)
         ! Rotate Bders
         do j=1,3*Nat
-            Bder(1:Nvib0,j,1:3*Nat) =  matrix_product(Nvib0,3*Nat,Ns,Asel,Bder(1:Ns,j,1:3*Nat),tA=.true.)
+            Bder(1:Nvib,j,1:3*Nat) =  matrix_product(Nvib,3*Nat,Ns,Asel,Bder(1:Ns,j,1:3*Nat),tA=.true.)
         enddo
+    endif
+    ! Rotate coordinates to be removed
+    Fltr(1:Nf,1:Nvib) = matrix_product(Nf,Nvib,Ns,Fltr,Asel)
 
-        if (apply_projection_matrix) then
-            ! Get projection matrix 
-            call statement(6,"Projecting Cartesian Hessian and gradient")
-            P(1:3*Nat,1:3*Nat) = projection_matrix3(Nat,NvibP,Bprj,molecule%atom(:)%Mass)
-            if (complementay_projection) then
-                Aux(1:3*Nat,1:3*Nat) = identity_matrix(3*Nat)
-                P(1:3*Nat,1:3*Nat) =  Aux(1:3*Nat,1:3*Nat)-P(1:3*Nat,1:3*Nat)
-            endif
-            ! And rotate gradient
-            do i=1,3*Nat
-                Vec1(i) = 0.d0
-                do k=1,3*Nat
-                    Vec1(i) = Vec1(i) + P(i,k)*Grad(k)
-                enddo
-            enddo
-            Grad(1:3*Nat) = Vec1(1:3*Nat)
-        endif
+    ! Compute Projection matrix
+    call subsubheading(6,"Computing projection matrix")
+    ! Project out each coordinate on input
+    P(1:Nvib,1:Nvib) = identity_matrix(Nvib)
+    do i=1,Nf
+        Aux(1:Nvib,1:Nvib) = projection_matrixInt(Nvib,Fltr(i,1:Nvib),G)
+        P(1:Nvib,1:Nvib) = matrix_product(Nvib,Nvib,Nvib,Aux,P)
+    enddo
 
+    ! Get gradient in internal and project
+    call Gradcart2int(Nat,Nvib,Grad,molecule%atom(:)%mass,B,G)
+    ! Do NOT perfor the rotation of the gradient before the correction term
+!     Grad(1:Nvib) = matrix_vector_product(Nvib,Nvib,P,Grad)
+
+    if (vertical) then
         ! Get the Correction now
-        call statement(6," Getting the additional term for non-stationary: gs^t\beta")
+        call statement(6," Getting gs^t\beta term")
         ! The correction is applied with the Nvib0 SET
         ! Correct Hessian as
         ! Hx' = Hx - gs^t\beta
-        ! 1. Get gs from gx
-        call Gradcart2int(Nat,Nvib,Grad,molecule%atom(:)%mass,B0,G0)
-        ! 2. Multiply gs^t\beta and
-        ! 3. Apply the correction
         ! Bder(i,j,K)^t * gq(K)
         do i=1,3*Nat
         do j=1,3*Nat
             gBder(i,j) = 0.d0
-            do k=1,Nvib0
+            do k=1,Nvib
                 gBder(i,j) = gBder(i,j) + Bder(k,i,j)*Grad(k)
             enddo
         enddo
@@ -500,405 +517,52 @@ program normal_modes_internal
         if (check_symmetry) then
             call check_symm_gsBder(molecule,gBder)
         endif
+
+        ! Apply term to Hess
+        Hess(1:3*Nat,1:3*Nat) = Hess(1:3*Nat,1:3*Nat) - gBder(1:3*Nat,1:3*Nat)
+
     endif
 
-    ! Get the selection of normal modes to represent
-    if (adjustl(selection) == "all") then
-        Nsel=Nvib
-        nm(1:Nvib) = (/(i, i=1,Nvib)/)
-    else if (adjustl(selection) == "none") then
-        Nsel=0
-    else
-        call selection2intlist(selection,nm,Nsel)
-    endif
-    if (Nsel == 0) animate=.false.
+    ! Get Hessian in internal coordinates and project
+    call HessianCart2int(Nat,Nvib,Hess,molecule%atom(:)%mass,B,G)
+    Hess(1:Nvib,1:Nvib) = matrix_basisrot(Nvib,Nvib,P,Hess,counter=.true.)
+    ! The gradient would be rotated now (e.g. to perform a Newton-Raphson step) 
+    ! (but not needed int this program)
+!     Grad(1:Nvib) = matrix_vector_product(Nvib,Nvib,P,Grad)
 
-    !Nvib SET
-    !---------
-    call heading(6,"GETTING INTERNAL SET TO DESCRIBE MODES")
-    if (vertical) &
-     call statement(6,"This set can be different from the one used to get the vertical corr")
-    ! Refress connectivity
-    call gen_bonded(molecule)
-    ! Define internal set
-    Ns_zmat=0
-    ! Shortcut logical: whether or not do zmap 
-    !  1/ If -intmode zmat but we are removing coordinates
-    do_zmap = def_internal=="ZMAT".and.rmzfile/="none"
-    !  2/ If -intmode not equal zmat
-    do_zmap = do_zmap.or.def_internal/="ZMAT"
-    !  3/ But only do it if we want the animation
-    do_zmap = do_zmap.and.animate
-    ! 4/ And only if the algorithm for animation is ZMAT
-    do_zmap = do_zmap.and.conversion_i2c=="ZMAT"
-    if (do_zmap) then 
-        call subheading(6,"Preliminary Zmat analysis")
-        ! Get Zmat first
-        call statement(6,"Get Z-matrix set")
-        call define_internal_set(molecule,"ZMAT","none","none",use_symmetry,isym,S_sym,Ns,Nf,Fltr)
-        ! Get Ns at this point to latter form the proper Zmat
-        Ns_zmat = Ns
-        ! Get only the geom, and reuse molecule
-        zmatgeom=molecule%geom
-        ! Compute S values (to get initial values for frozen (rmzfile) ICs)
-        call verbose_mute()
-        call set_geom_units(molecule,"Bohr")
-        call internal_Wilson(molecule,Ns,Szmat,B)
-        call set_geom_units(molecule,"Angs")
-        call verbose_continue()
-        ! And reset bonded parameters
-        call gen_bonded(molecule)
-    endif
-
-
-    !---------------------------------------
-    ! NOW, GET THE ACTUAL WORKING INTERNAL SET
-    call subheading(6,"Getting the internal set")
-    call statement(6,"First retrieve all internal coordinates for reference")
-    call define_internal_set(molecule,"ALL",intfile,rmzfile,use_symmetry,isym,S_sym,Ns,Nf,Fltr)
-    allgeom = molecule%geom
-    Ns_all = Ns
-    call statement(6,"And now get the actual working set")
-    call define_internal_set(molecule,def_internal,intfile,rmzfile,use_symmetry,isym,S_sym,Ns,Nf,Fltr)
-    if (Nf==0) then
-        Nf=Ns
-        Fltr(1:Ns,1:Ns) = 0.d0
-        do i=1,Ns
-            Fltr(i,i) = 1.d0
-        enddo
-    endif
-
-    !---------------------------------------
-
-    ! Compute B matrix in the selgeom for projection
-    if (apply_projection_matrix) then
-        call statement(6,"The working set will be used to construct a projecton matrix")
-        NvibP = Nvib
-        call internal_Wilson(molecule,Ns,S,Bprj)
-
-        if (verbose>1) then
-            call MAT0(6,Fltr,Nf,Ns,"Filter Matrix")
-        endif
-        Bprj(1:Nf,1:3*Nat) = matrix_product(Nf,3*Nat,Ns,Fltr,Bprj)
-        Ns=Nf
-
-        call internal_Gmetric(Nat,Ns,molecule%atom(:)%mass,Bprj,G)
-        call subsubheading(6,"Getting the actual vibrational space dimension")
-        call redundant2nonredundant(Ns,NvibP,G,Asel)
-        if (NvibP==0) then
-            call alert_msg("warning","The vibrational space is void")
-        else
-            Bprj(1:NvibP,1:3*Nat) = matrix_product(NvibP,3*Nat,Ns,Asel,Bprj,tA=.true.)
-        endif
-        ! Get second set 
-        if (intfile /= intfile0) then
-            call gen_bonded(molecule)
-            call statement(6,"Using an additonal set to defined a second projection (P=P1*P2)",keep_case=.true.)
-            call define_internal_set(molecule,def_internal0,intfile0,rmzfile,use_symmetry,isym,S_sym,Ns,Nf,Fltr)
-            NvibP2 = Nvib
-            call internal_Wilson(molecule,Ns,S,Bprj2)
-            
-            if (verbose>1) then
-                call MAT0(6,Fltr,Nf,Ns,"Filter Matrix")
-            endif
-            Bprj2(1:Nf,1:3*Nat) = matrix_product(Nf,3*Nat,Ns,Fltr,Bprj2)
-            Ns=Nf
-            
-            call internal_Gmetric(Nat,Ns,molecule%atom(:)%mass,Bprj2,G)
-            call subsubheading(6,"Getting the actual vibrational space dimension")
-            call redundant2nonredundant(Ns,NvibP2,G,Asel)
-            if (NvibP2==0) then
-                call alert_msg("warning","The vibrational space is void")
-            else
-                Bprj2(1:NvibP2,1:3*Nat) = matrix_product(NvibP2,3*Nat,Ns,Asel,Bprj2,tA=.true.)
-            endif
-        endif
-        ! And get back allgeom
-        call statement(6,"The working set will be used to construct a projecton matrix")
-        Ns = allgeom%nbonds+allgeom%nangles+allgeom%ndihed
-        molecule%geom = allgeom
-    else if (scan_type == "IN") then
-        call statement(6,"Animation of internal coordinates. Using all internals for Zmapping")
-        ! Take use the allgeom to do the Zmapping
-        Ns = allgeom%nbonds+allgeom%nangles+allgeom%ndihed
-        molecule%geom = allgeom
-    endif
-
-
-    ! Set variables based on the working internal set 
-    if (molecule%geom%nimprop/=0) then
-        if (project_on_all) then
-            call alert_msg("note","Cannot perform the projection with impropers")
-            project_on_all=.false.
-        endif
-        if (do_zmap) then
-            call alert_msg("note","Cannot produce animations with impropers")
-            do_zmap=.false.
-        endif
-    endif
-    if (do_zmap) then
-        call statement(6,"Getting the mapping between all internals and Zmatrix")
-        call internals_mapping(molecule%geom,zmatgeom,Zmap)
-    endif
-
-    !From now on, we'll use atomic units
-    call set_geom_units(molecule,"Bohr")
-
-    ! JOBS
-    !Two possible jobs:
-    if (scan_type=="IN") then
-        call subheading(6,"Scanning internal coordinates. Selecting coordinates")
-        !--------------------------------------
-        ! 1. Internal Coordinates SCAN
-        !--------------------------------------
-        call gen_bonded(molecule)
-        call define_internal_set(molecule,"ALL",intfile,rmzfile,use_symmetry,isym,S_sym,Ns,Nf,Fltr)
-        ! We need to call Wilson to get ModeDef
-        call compute_internal(molecule,Ns,S,ModeDef)
-        call define_internal_set(molecule,def_internal,intfile,rmzfile,use_symmetry,isym,S_sym,Ns,Nf,Fltr)
-        call MAT0(6,Fltr,Nf,Ns,"Filter")
-        call internals_mapping(allgeom,molecule%geom,IntMap)
-        Ns = allgeom%nbonds+allgeom%nangles+allgeom%ndihed
-        molecule%geom =  allgeom
-        LL(1:Ns,1:Ns)=0.d0
-        if (def_internal == "SEL") then
-            do i=1,Nf
-                do j=1,Ns
-                    jj = IntMap(j)
-                    LL(jj,i) = Fltr(i,j)
-                    Freq(i)     = 1.d0
-                    Factor(i)   = 1.d0
-                enddo
-            enddo
-            Nvib = Nf
-        else
-            do i=1,Ns
-                LL(i,i)     = 1.d0
-                Freq(i)     = 1.d0
-                Factor(i)   = 1.d0
-            enddo
-            Nvib = Ns
-        endif
-    else
-        call heading(6,"Scanning Normal Modes. Preparing modes")
-        !--------------------------------------
-        ! 2. Normal Mode SCAN
-        !--------------------------------------
-        ! If requested, get the vibrations with the 'all' set
-        ! In this case, Nvib0=Nvib, and we evaluate here the correction terms
-        if (project_on_all) then
-            call subheading(6,"Computing modes with with 'all' set")
-            ! First get the geom for current state
-            currentgeom=molecule%geom
-            
-            ! Then make the whole analysis for 'All' set
-            molecule%geom=allgeom
-            call internal_Wilson(molecule,Ns_all,Sall,B,ModeDef)
-            !SOLVE GF METHOD TO GET NM AND FREQ
-            call internal_Gmetric(Nat,Ns_all,molecule%atom(:)%mass,B,G)
-
-            if (vertical) then
-                call calc_Bder(molecule,Ns_all,Bder,analytic_Bder)
-            endif
-
-            call subsubheading(6,"Getting the actual vibrational space dimension")
-            call redundant2nonredundant(Ns_all,Nvib_all,G,Asel_all)
-            ! Rotate Bmatrix
-            B(1:Nvib_all,1:3*Nat) = matrix_product(Nvib_all,3*Nat,Ns_all,Asel_all,B,tA=.true.)
-            ! Rotate Gmatrix
-            G(1:Nvib_all,1:Nvib_all) = matrix_basisrot(Nvib_all,Ns_all,Asel_all(1:Ns_all,1:Nvib_all),G,counter=.true.)
-            ! Rotate Bders
-            if (vertical) then
-                do j=1,3*Nat
-                    Bder(1:Nvib_all,j,1:3*Nat) =  &
-                     matrix_product(Nvib_all,3*Nat,Ns_all,Asel_all,Bder(1:Ns_all,j,1:3*Nat),tA=.true.)
-                enddo
-            endif
-
-            if (vertical) then
-                ! We saved the original gradient and Hessian on *_all
-                ! Correct Hessian as
-                ! Hx' = Hx - gs^t\beta
-                ! 1. Get gs from gx
-                call Gradcart2int(Nat,Nvib_all,Grad_all,molecule%atom(1:Nat)%mass,B,G)
-                ! 2. Multiply gs^t\beta and
-                ! 3. Apply the correction
-                ! Bder(i,j,K)^t * gq(K)
-                do i=1,3*Nat
-                do j=1,3*Nat
-                    Aux(i,j) = 0.d0
-                    do k=1,Nvib_all
-                        Aux(i,j) = Aux(i,j) + Bder(k,i,j)*Grad_all(k)
-                    enddo
-                    ! Apply correction to the Hessian term
-                    Hess_all(i,j) = Hess_all(i,j) - Aux(i,j)
-                enddo
-                enddo
-
-                if (verbose>2) then
-                    do i=1,Nvib_all
-                        write(tmpfile,'(A,I0,A)') "Bder, ic=",i
-                        call MAT0(6,Bder(i,:,:),3*Nat,3*Nat,trim(tmpfile))
-                    enddo
-                endif
-            endif
-            ! Get Hessian in internal
-            call HessianCart2int(Nat,Nvib_all,Hess_all,molecule%atom(:)%mass,B,G)
-            ! Di vibrational analysis
-            call gf_method(Nvib_all,Nvib_all,G,Hess_all,LL_all,Freq_all,X,Xinv)
-
-           ! Restore original geom
-           molecule%geom=currentgeom
-            
-            call statement(6,"Vibrational anlysis done. Ready for projection")
-
-        endif
-
-        call subheading(6,"Computing modes with the working set")
-        call internal_Wilson(molecule,Ns,S,B,ModeDef)
-        if (nmfile == "none") then
-            !SOLVE GF METHOD TO GET NM AND FREQ
-            call internal_Gmetric(Nat,Ns,molecule%atom(1:Nat)%mass,B,G)
-
-!             ! Test Gradient with projection
-!             call HessianCart2int_red(Nat,Ns,Hess,molecule%atom(:)%mass,B,G) 
-!             call MAT0(6,Hess,Ns,Ns,"Hessian(int)")    
-!             Vec1(1:Ns)=0.d0
-!             ! Define in the 
-!             Vec1(15) = 1.d0
-!             call prj_internalGrad(Hess,Ns,Vec1,G,complement=.true.)
-!             call MAT0(6,Hess,Ns,Ns,"Hessian(int)-Prj") 
-!             call gf_method(Ns,Nvib,G,Hess,LL,Freq,X,Xinv)
-
-            ! Rotate with Fltr
-            ! Rotate Bmatrix
-!             B(1:Nf,1:3*Nat) = matrix_product(Nf,3*Nat,Ns,Fltr,B)
-!             G(1:Nf,1:Nf) = matrix_basisrot(Nf,Ns,Fltr(1:Nf,1:Ns),G,counter=.false.)   
-!             Ns = Nf
-
-            ! The diagonalization of the G matrix can be donne with all sets
-            ! (either redundant or non-redundant), and it is the best way to 
-            ! set the number of vibrations. The following call also set Nvib
-            call subsubheading(6,"Getting the actual vibrational space dimension")
-            call redundant2nonredundant(Ns,Nvib,G,Asel)
-            ! Rotate Bmatrix
-            B(1:Nvib,1:3*Nat) = matrix_product(Nvib,3*Nat,Ns,Asel,B,tA=.true.)
-            ! Rotate Gmatrix
-            G(1:Nvib,1:Nvib) = matrix_basisrot(Nvib,Ns,Asel(1:Ns,1:Nvib),G,counter=.true.)
-
-            if (vertical) then
-                do i=1,3*Nat
-                do j=1,3*Nat
-                    ! Apply correction to the Hessian term
-                    Hess(i,j) = Hess(i,j) - gBder(i,j)
-                enddo
-                enddo
-            endif
-
-            if (apply_projection_matrix) then
-                call statement(6,"Projecting Cartesian Hessian")
-                ! Get projection matrix (again...)
-                if (NvibP == 0) then
-                    Aux(1:3*Nat,1:3*Nat) = 0.d0
-                else
-                    Aux(1:3*Nat,1:3*Nat) = projection_matrix3(Nat,NvibP,Bprj,molecule%atom(:)%Mass)
-                endif
-                if (NvibP2 == 0) then
-                    Aux2(1:3*Nat,1:3*Nat) = 0.d0
-                else
-                    Aux2(1:3*Nat,1:3*Nat) = projection_matrix3(Nat,NvibP2,Bprj2,molecule%atom(:)%Mass)
-                endif
-                ! Get P as composition of P1 and P2 only if the sets are different
-                if (intfile /= intfile0) then
-                    P(1:3*Nat,1:3*Nat) = matrix_product(3*Nat,3*Nat,3*Nat,Aux,Aux2)
-                else
-                    P(1:3*Nat,1:3*Nat) = Aux(1:3*Nat,1:3*Nat)
-                endif
-                if (complementay_projection) then
-                    Aux(1:3*Nat,1:3*Nat) = identity_matrix(3*Nat)
-                    P(1:3*Nat,1:3*Nat) =  Aux(1:3*Nat,1:3*Nat)-P(1:3*Nat,1:3*Nat)
-                endif
-                ! Project out rotation and translation
-                Hess(1:3*Nat,1:3*Nat) = matrix_basisrot(3*Nat,3*Nat,P,Hess,counter=.true.)
-!                 Nf=3*Nat
-!                 ! Call generalized Hessian to Check dimensionality
-!                 call generalized_inv(Nf,Nvib,Hess,Aux)
-
-            endif
-
-            ! Get Hessian in initernal coordinates
-            ! If vertical, the Gradient is already in internal, otherwise do it
-            if (.not.vertical) then
-                call Gradcart2int(Nat,Nvib,Grad,molecule%atom(:)%mass,B,G)
-            endif
-            call HessianCart2int(Nat,Nvib,Hess,molecule%atom(:)%mass,B,G)
-
-            if (rm_gradcoord) then
-                call prj_internalGrad(Hess,Nvib,Grad,G,complement=.not.complementay_gradient)
-            endif           
-
-            ! Perform vibrational analysis (GF)
-            call heading(6,"Final vibrational analysis (GF method)")
-            call gf_method(Nvib,Nvib0,G,Hess,LL,Freq,X,Xinv)
-            if (verbose>1) then
-                ! Analyze normal modes in terms of the redundant set
-                if (Nvib0<Ns) then
-                    Aux(1:Ns,1:Nvib0) = matrix_product(Ns,Nvib0,Nvib0,Asel,LL)
-                else
-                    Aux(1:Ns,1:Nvib0) = LL(1:Ns,1:Nvib0)
-                endif
-                if (use_symmetry) then
-                    call analyze_internal(Nvib0,Ns,Aux,Freq,ModeDef,S_sym)
-                else
-                    call analyze_internal(Nvib0,Ns,Aux,Freq,ModeDef)
-                endif
-            endif
-        else
-            Nvib0=Nvib
-            call statement(6,"Reading modes from file (non-tested feature")
-            ! Transform LcartNrm read from file to Ls (this is approximate if -vert!)
-            call Lcart_to_Ls(Nat,Nvib,B,LL,LL,error)
-        endif
-        !Define the Factor to convert shift into addimensional displacements
-        ! from the shift in SI units:
-        Factor(1:Nvib0) = dsqrt(dabs(Freq(1:Nvib0))*1.d2*clight*2.d0*PI/plankbar)
-        ! but we need it from au not SI
-        Factor(1:Nvib0)=Factor(1:Nvib0)*BOHRtoM*dsqrt(AUtoKG)
-    endif
+    ! Compute modes
+    call gf_method(Nvib,Nvib0,G,Hess,LL,Freq,X,Xinv)
 
     if (project_on_all) then
-        call subheading(6,"Projecting modes of working set on all internals")
-        ! Map 'all' modes with reduced space
-        if (.not.apply_projection_matrix) then
-            call internals_mapping(currentgeom,allgeom,IntMap)
-!             Asel(1:Ns,1:Nvib) = matrix_product(Ns,Nvib,Nf,Fltr,Asel,tA=.true.)
-            do i=1,Ns_all
-                j=IntMap(i) 
-                if (j/=0) then
-                    Aux2(i,1:Nvib) = Asel(j,1:Nvib)
-                else
-                    Aux2(i,1:Nvib) = 0.d0
-                endif
-            enddo
-        else
-            Aux2(1:Ns,1:Nvib) = Asel(1:Ns,1:Nvib)
-        endif
-        !
-        ! Prj1 = (LL)^-1 * (Asel)^t * Asel_all * LL_all
-        !
-        ! (Asel)^t * Asel_all
-        Aux(1:Nvib,1:Nvib_all) = matrix_product(Nvib,Nvib_all,Ns_all,Aux2,Asel_all,tA=.true.)
-        ! (LL)^-1 * [(Asel)^t * Asel_all]
-        Aux3(1:Nvib,1:Nvib) = inverse_realgen(Nvib,LL)
-        Aux(1:Nvib,1:Nvib_all) = matrix_product(Nvib,Nvib_all,Nvib,Aux3,Aux)
-        ! [(LL)^-1 * (Asel)^t * Asel_all] * LL_all
-        Aux(1:Nvib,1:Nvib_all) = matrix_product(Nvib,Nvib_all,Nvib_all,Aux,LL_all)
+        call subheading(6,"Projecting modes of INPUT set on modes of ALL set")
 
+        !
+        ! Prj1 = (LL)^-1 * LL_all
+        !
+        ! Compute inverse of LL simular to B: LL^+ = (LL^t*LL)^-1 LL^t
+!         Aux(1:Nvib0,1:Nvib0) = matrix_product(Nvib0,Nvib0,Nvib,LL,LL,tA=.true.)
+!         Aux(1:Nvib0,1:Nvib0) = inverse_realgen(Nvib0,Aux)
+!         Aux(1:Nvib0,1:Nvib)  = matrix_product(Nvib0,Nvib,Nvib0,Aux,LL,tB=.true.)
+!         call subsubheading(6,"Inverting L matrix")
+        call diagonalize_full(LL(1:Nvib,1:Nvib),Nvib,Aux(1:Nvib,1:Nvib),Vec(1:Nvib),"lapack")
+        call print_vector(6,Vec,Nvib,"Vec")
+        Vec(1:Nvib) = 1.d0/Vec(1:Nvib)
+        Aux2(1:Nvib,1:Nvib) = identity_matrix(Nvib)
+        do i=1,Nvib
+            Aux2(i,i) = Vec(i)
+        enddo
+        Aux3(1:Nvib,1:Nvib) = matrix_basisrot(Nvib,Nvib,Aux,Aux2,counter=.false.)
+!         call generalized_inv(Nvib,NvibP2,LL,Aux)
+        Aux(1:Nvib,1:Nvib) = inverse_realgen(Nvib,LL)
+        ! And now compute the projection
+        Aux(1:Nvib,1:NvibP) = matrix_product(Nvib,NvibP,Nvib,Aux,LL_all)
+
+        print*, ""
         print*, "Projection matrix written to 'Prj1_modes.dat':"
-        print'(X,A,I0,X,I0,/)', " Prj = (LL_current)^-1 * (LL_all). Size: ", Nvib, Nvib_all
+        print'(X,A,I0,X,I0,/)', " Prj = (LL_current)^-1 * (LL_all). Size: ", Nvib0, NvibP
         open(O_PRJ,file="Prj1_modes.dat")
-        do i=1,Nvib 
-        do j=1,Nvib_all
+        do i=1,Nvib0
+        do j=1,NvibP
             write(O_PRJ,*) Aux(i,j)
         enddo
         enddo
@@ -909,10 +573,10 @@ program normal_modes_internal
         print'(X,A)',   " Assignments of reduced set based on Prj"
         print'(X,A)',   "--------------------------------------------------------"
         print'(X,A)',   " Reduced/Freq     Complete/Freq      Coef^2     Norm"
-        do i=1,Nvib
+        do i=1,Nvib0
             Theta=0.d0
             Theta2=0.d0
-            do j=1,Nvib_all
+            do j=1,NvibP
                 if (Theta<=abs(Aux(i,j))) then
                     Theta=abs(Aux(i,j))
                     k=j
@@ -926,6 +590,8 @@ program normal_modes_internal
         
     endif
     Nvib = Nvib0
+
+    animate=.false.
 
     ! Check if we should continue
     if (molecule%geom%nimprop/=0) then

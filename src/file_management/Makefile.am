@@ -26,6 +26,7 @@ reform_fchk_SOURCES = \
                       ../modules/manage_molcas.f90           \
                       ../modules/manage_molden.f90           \
                       ../modules/manage_molpro.f90           \
+                      ../modules/manage_turbomol.f90         \
                       ../modules/manage_pdb.f90              \
                       ../modules/manage_psi4.f90             \
                       ../modules/manage_xyz.f90              \
@@ -61,6 +62,7 @@ rmsd_fit_SOURCES = \
                    ../modules/manage_molcas.f90           \
                    ../modules/manage_molden.f90           \
                    ../modules/manage_molpro.f90           \
+                   ../modules/manage_turbomol.f90         \
                    ../modules/manage_pdb.f90              \
                    ../modules/manage_psi4.f90             \
                    ../modules/manage_xyz.f90              \
@@ -96,6 +98,7 @@ fchk2gro_SOURCES = \
                    ../modules/manage_molcas.f90           \
                    ../modules/manage_molden.f90           \
                    ../modules/manage_molpro.f90           \
+                   ../modules/manage_turbomol.f90         \
                    ../modules/manage_pdb.f90              \
                    ../modules/manage_psi4.f90             \
                    ../modules/manage_xyz.f90              \
@@ -130,6 +133,7 @@ read_irc_SOURCES = \
                    ../modules/manage_molcas.f90           \
                    ../modules/manage_molden.f90           \
                    ../modules/manage_molpro.f90           \
+                   ../modules/manage_turbomol.f90         \
                    ../modules/manage_pdb.f90              \
                    ../modules/manage_psi4.f90             \
                    ../modules/manage_xyz.f90              \
@@ -164,6 +168,7 @@ read_scan_SOURCES = \
                    ../modules/manage_molcas.f90           \
                    ../modules/manage_molden.f90           \
                    ../modules/manage_molpro.f90           \
+                   ../modules/manage_turbomol.f90         \
                    ../modules/manage_pdb.f90              \
                    ../modules/manage_psi4.f90             \
                    ../modules/manage_xyz.f90              \
@@ -198,6 +203,7 @@ read_opt_SOURCES = \
                    ../modules/manage_molcas.f90           \
                    ../modules/manage_molden.f90           \
                    ../modules/manage_molpro.f90           \
+                   ../modules/manage_turbomol.f90         \
                    ../modules/manage_pdb.f90              \
                    ../modules/manage_psi4.f90             \
                    ../modules/manage_xyz.f90              \
@@ -234,6 +240,7 @@ get_symatoms_SOURCES = \
                       ../modules/manage_molcas.f90           \
                       ../modules/manage_molden.f90           \
                       ../modules/manage_molpro.f90           \
+                      ../modules/manage_turbomol.f90         \
                       ../modules/manage_pdb.f90              \
                       ../modules/manage_psi4.f90             \
                       ../modules/manage_xyz.f90              \

@@ -359,7 +359,7 @@ module vertical_model
         !   P = (BM^-1/2)^t  [(BM^-1/2)^t]^+  = (BM^-1/2)^+  (BM^-1/2)
         !    where: (BM^-1/2)^+ = (BM^-1/2)^t (BM^-1B^t)^-1
         !    And eventually tranformed to Cart,
-        !   P Hq P = P (M^-1/2HxM^-1/2) P, so we get P'=PM^1/2 (which is no longer symmetric),
+        !   P Hq P = P (M^-1/2HxM^-1/2) P, so we get P'=PM^-1/2 (which is no longer symmetric),
         !    and the projection is applied as:
         !   P' Hx (P')^t
         !
@@ -482,5 +482,61 @@ module vertical_model
         return
 
     end function projection_matrix4
+
+   function projection_matrixInt(Ns,Coord,G) result(P)
+
+        !-----------------------------------------------
+        ! Project out the gradient from the Hessian in 
+        ! internal coordinates.
+        ! Following Nguyen,Jackels,Truhlar, JCP 1996
+        ! 
+        !  Hess' = (1-P G)Hess(1-G P) = (1-GP)^t Hess (1-GP)
+        !   where: P = gg^t/(g^tGg)
+        !
+        ! if complement=.false. then, the projeciton is
+        !
+        !  Hess' = (P G)Hess(G P) = (GP)^t Hess (GP)
+        !
+        !-----------------------------------------------
+
+        integer,intent(in)                   :: Ns
+        real(8),dimension(:),intent(in)      :: Coord
+        real(8),dimension(:,:),intent(in)    :: G
+        real(8),dimension(Ns,Ns)             :: P
+
+        !Local
+        integer :: i,j
+        real(8) :: t
+        real(8),dimension(Ns,Ns) :: Aux
+        logical :: complement_local
+
+        complement_local=.true.
+
+        !Compute the denominator, T=g^tGg
+        t=0.d0
+        do i=1,Ns
+        do j=1,Ns
+            t = t + Coord(i)*G(i,j)*Coord(j)
+        enddo
+        enddo
+
+        ! Compute P
+        do i=1,Ns
+        do j=1,Ns
+            P(i,j) = Coord(i)*Coord(j)/t
+        enddo
+        enddo
+
+        ! Compute P'=1-GP or GP
+        P(1:Ns,1:Ns) = matrix_product(Ns,Ns,Ns,G,P)
+        ! Take complement if required (default is YES)
+        if (complement_local) then
+            Aux(1:Ns,1:Ns) = identity_matrix(Ns) 
+            P(1:Ns,1:Ns) = Aux(1:Ns,1:Ns) - P(1:Ns,1:Ns)
+        endif
+
+        return
+
+   end function projection_matrixInt
 
 end module vertical_model

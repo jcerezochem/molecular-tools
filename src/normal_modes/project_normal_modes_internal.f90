@@ -269,7 +269,7 @@ program projection_normal_modes_int
         enddo
     endif
     call HessianCart2int(Nat,Nvib,Hess,molecule%atom(:)%mass,B,G)
-    call gf_method(Nvib,G,Hess,LL,Freq,X,Xinv)
+    call gf_method(Nvib,Nvib,G,Hess,LL,Freq,X,Xinv)
     if (verbose>0) then
         ! Analyze normal modes
         if (use_symmetry) then

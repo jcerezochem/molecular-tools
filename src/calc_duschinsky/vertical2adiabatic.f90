@@ -485,7 +485,7 @@ program vertical2adiabatic
         Hess(1:3*Nat,1:3*Nat) = matrix_basisrot(3*Nat,3*Nat,P,Hess)
     endif
     call HessianCart2int(Nat,Nvib,Hess,state1%atom(:)%mass,B1,G1)
-    call gf_method(Nvib,G1,Hess,L1,Freq,X1,X1inv)
+    call gf_method(Nvib,Nvib,G1,Hess,L1,Freq,X1,X1inv)
 
     ! Get minimum in internal coordinates
     ! At this point
@@ -600,7 +600,7 @@ program vertical2adiabatic
     call MAT0(6,Aux,Nvib,Nvib,"G1 G2^-1")
 
     print*, "Redoing the Freq analysis"
-    call gf_method(Nvib,G2,Hess,L1,Freq,X1,X1inv)
+    call gf_method(Nvib,Nvib,G2,Hess,L1,Freq,X1,X1inv)
 
 
     !===================================

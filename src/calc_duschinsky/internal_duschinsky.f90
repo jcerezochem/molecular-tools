@@ -569,7 +569,8 @@ program internal_duschinski
     endif
 
     call HessianCart2int(Nat,Nvib,Hess,state1%atom(:)%mass,B1,G1)
-    call gf_method(Nvib,G1,Hess,L1,Freq1,X,X1inv)
+    call subheading(6,"Computing Frequencies (State1)")
+    call gf_method(Nvib,Nvib,G1,Hess,L1,Freq1,X,X1inv)
     do i=1,Nvib
         if (dabs(Freq1(i)) < 1d-1) Freq1(i)=0.d0
     enddo
@@ -664,8 +665,9 @@ program internal_duschinski
         call vibrations_Cart(Nat,state2%atom(:)%X,state2%atom(:)%Y,state2%atom(:)%Z,state2%atom(:)%Mass,A,&
                              NNvib,L2,Freq2,error_flag=error)
         if (NNvib /= 3*Nat-6) call alert_msg("warning","Linear molecule (at state2). Things can go very bad.")
-        if (NNvib > Nvib) then
+        if (NNvib > Nvib .and. .not.apply_projection_matrix) then
             print'(/,A,/)', "Using reduced space from State1"
+            NNvib = Nvib
         endif
         k=0
         do i=1,3*Nat
@@ -726,7 +728,7 @@ program internal_duschinski
             endif
         endif
         
-        !Specific actions (for Nvib and Nvib0 sets)
+        !Specific actions (for NNvib and Nvib0 sets)
         !*****************
         if (gradcorrectS2) then
             ! Nvib0 SET
@@ -738,48 +740,61 @@ program internal_duschinski
             !Generate bonded info
             call gen_bonded(state2)
         
-            !---------------------------------------
-            ! NOW, GET THE ACTUAL WORKING INTERNAL SET (from that of state1)
-            if (gradcorrectS1) then
-                state2%geom = geom0
-                Ns=Ns0
-            else
-                call define_internal_set(state2,def_internal0,intfile0,rmzfile,use_symmetry,isym,S_sym,Ns,Nf,Aux2)
+!==============================
+            ! Compute B matrix in the selgeom for projection
+            if (apply_projection_matrix) then
+                call statement(6,"The working set will be used to construct a projecton matrix")
+                NvibP2 = NNvib
+                call internal_Wilson(state2,Ns,S2,Bprj2)
+                call internal_Gmetric(Nat,Ns,state2%atom(:)%mass,Bprj2,G2)
+                call subsubheading(6,"Getting the actual vibrational space dimension")
+                call redundant2nonredundant(Ns,NvibP2,G2,Asel)
+                Bprj2(1:NNvib,1:3*Nat) = matrix_product(NvibP2,3*Nat,Ns,Asel,Bprj2,tA=.true.)
+                ! And get back allgeom
+                call statement(6,"Using all internal coordinates as working set")
+                Ns = allgeom%nbonds+allgeom%nangles+allgeom%ndihed
+                state2%geom = allgeom
             endif
-            !---------------------------------------
-        
+            
             ! Get G, B, and Bder 
             call internal_Wilson(state2,Ns,S2,B0,ModeDef)
             call internal_Gmetric(Nat,Ns,state2%atom(:)%mass,B0,G0)
             call calc_Bder(state2,Ns,Bder,analytic_Bder)
-        
+            
             ! The diagonalization of the G matrix can be donne with all sets
             ! (either redundant or non-redundant), and it is the best way to 
             ! set the number of vibrations. The following call also set Nvib0
-            ! Nvib0=Nvib <-- we need to use Nvib0 as is. Nvib might have changed to a reduced space
-            call redundant2nonredundant(Ns,Nvib0,G0,Asel2)
+            Nvib0=Nvib !An input value is needed for checking
+            call subsubheading(6,"Getting the actual vibrational space dimension")
+            call redundant2nonredundant(Ns,Nvib0,G0,Asel)
             ! Rotate Bmatrix
-            B0(1:Nvib0,1:3*Nat) = matrix_product(Nvib0,3*Nat,Ns,Asel2,B0,tA=.true.)
+            B0(1:Nvib0,1:3*Nat) = matrix_product(Nvib0,3*Nat,Ns,Asel,B0,tA=.true.)
             ! Rotate Gmatrix
             G0(1:Nvib0,1:Nvib0) = matrix_basisrot(Nvib0,Ns,Asel2(1:Ns,1:Nvib0),G0,counter=.true.)
             ! Rotate Bders
             do j=1,3*Nat
-                Bder(1:Nvib0,j,1:3*Nat) =  matrix_product(Nvib0,3*Nat,Ns,Asel2,Bder(1:Ns,j,1:3*Nat),tA=.true.)
+                Bder(1:Nvib0,j,1:3*Nat) =  matrix_product(Nvib0,3*Nat,Ns,Asel,Bder(1:Ns,j,1:3*Nat),tA=.true.)
             enddo
-        
+            
             if (apply_projection_matrix) then
-                ! Get projection matrix (again...)
-                P(1:3*Nat,1:3*Nat) = projection_matrix(Nat,Nvib0,B0)
+                ! Get projection matrix 
+                call statement(6,"Projecting Cartesian Hessian and gradient")
+                P(1:3*Nat,1:3*Nat) = projection_matrix3(Nat,NvibP2,Bprj2,state2%atom(:)%Mass)
+                if (complementay_projection) then
+                    Aux(1:3*Nat,1:3*Nat) = identity_matrix(3*Nat)
+                    P(1:3*Nat,1:3*Nat) =  Aux(1:3*Nat,1:3*Nat)-P(1:3*Nat,1:3*Nat)
+                endif
                 ! And rotate gradient
                 do i=1,3*Nat
                     Vec1(i) = 0.d0
-                    do k=1,Nvib0
+                    do k=1,3*Nat
                         Vec1(i) = Vec1(i) + P(i,k)*Grad(k)
                     enddo
                 enddo
                 Grad(1:3*Nat) = Vec1(1:3*Nat)
             endif
-        
+!==============================        
+
             ! Get the Correction now
             print*, " Getting the correction term: gs^t\beta"
             ! The correction is applied with the Nvib0 SET
@@ -834,7 +849,7 @@ program internal_duschinski
         
         if (apply_projection_matrix) then
             call statement(6,"The working set will be used to construct a projecton matrix")
-            NvibP = Nvib
+            NvibP = NNvib
             call internal_Wilson(state2,Ns,S2,Bprj)
         
             if (verbose>1) then
@@ -857,7 +872,7 @@ program internal_duschinski
                 call gen_bonded(state2)
                 call statement(6,"Using an additonal set to defined a second projection (P=P1*P2)",keep_case=.true.)
                 call define_internal_set(state2,def_internal0,intfile0,rmzfile,use_symmetry,isym,S_sym,Ns,Nf,Fltr)
-                NvibP2 = Nvib
+                NvibP2 = NNvib
                 call internal_Wilson(state2,Ns,S2,Bprj2)
                 
                 if (verbose>1) then
@@ -917,7 +932,7 @@ program internal_duschinski
             Hess(1:3*Nat,1:3*Nat) = matrix_basisrot(3*Nat,3*Nat,P,Hess,counter=.true.)
 !             Nf=3*Nat
 !             ! Call generalized Hessian to Check dimensionality
-!             call generalized_inv(Nf,Nvib,Hess,Aux)
+!             call generalized_inv(Nf,NNvib,Hess,Aux)
         
         endif
 
@@ -926,51 +941,51 @@ program internal_duschinski
         call internal_Gmetric(Nat,Ns,state2%atom(:)%mass,B2,G2)
         ! Handle redundant/symtrized sets
 !         if (symaddapt) then (implement in an analogous way as compared with the transformation from red to non-red
-        if (original_internal.and.Nvib==Ns) then
+        if (original_internal.and.NNvib==Ns) then
             print*, "Using internal without linear combination"
-            Asel2(1:Ns,1:Nvib) = 0.d0
-            do i=1,Nvib
+            Asel2(1:Ns,1:NNvib) = 0.d0
+            do i=1,NNvib
                 Asel2(i,i) = 1.d0 
             enddo
-            Asel2inv(1:Nvib,1:Ns) = Asel2(1:Ns,1:Nvib)
+            Asel2inv(1:NNvib,1:Ns) = Asel2(1:Ns,1:NNvib)
         else
             if (same_red2nonred_rotation) then
                 print*, "Using internal from eigevectors of G (state1)"
                 ! Using Asel1 (from state1)
-                Asel2(1:Ns,1:Nvib) = Asel1(1:Ns,1:Nvib)
-                Asel2inv(1:Nvib,1:Ns) = Asel1inv(1:Nvib,1:Ns)
+                Asel2(1:Ns,1:NNvib) = Asel1(1:Ns,1:NNvib)
+                Asel2inv(1:NNvib,1:Ns) = Asel1inv(1:NNvib,1:Ns)
                 ! Rotate Gmatrix
-                G2(1:Nvib,1:Nvib) = matrix_basisrot(Nvib,Ns,Asel2inv(1:Nvib,1:Ns),G2)
+                G2(1:NNvib,1:NNvib) = matrix_basisrot(NNvib,Ns,Asel2inv(1:NNvib,1:Ns),G2)
             else
                 print*, "Using internal from eigevectors of G (state2)"
-                call redundant2nonredundant(Ns,Nvib,G2,Asel2)
+                call redundant2nonredundant(Ns,NNvib,G2,Asel2)
                 ! Rotate Gmatrix
-                G2(1:Nvib,1:Nvib) = matrix_basisrot(Nvib,Ns,Asel2(1:Ns,1:Nvib),G2,&
+                G2(1:NNvib,1:NNvib) = matrix_basisrot(NNvib,Ns,Asel2(1:Ns,1:NNvib),G2,&
                                                     counter=.true.)
                 if (orthogonalize) then
                     print*, "Orthogonalyzing state2 internals..."
-                    X2inv(1:Nvib,1:Nvib) = 0.d0
-                    X(1:Nvib,1:Nvib)     = 0.d0
-                    do i=1,Nvib
+                    X2inv(1:NNvib,1:NNvib) = 0.d0
+                    X(1:NNvib,1:NNvib)     = 0.d0
+                    do i=1,NNvib
                         X(i,i)     = dsqrt(G2(i,i))
                         X2inv(i,i) = 1.d0/X(i,i)
                     enddo
                     ! Rotate Gmatrix (again)
-                    G2(1:Nvib,1:Nvib) = matrix_basisrot(Nvib,Nvib,X2inv(1:Nvib,1:Nvib),G2)
+                    G2(1:NNvib,1:NNvib) = matrix_basisrot(NNvib,NNvib,X2inv(1:NNvib,1:NNvib),G2)
                     ! Update Asel(inv)
-                    Asel2inv(1:Nvib,1:Ns) = matrix_product(Nvib,Ns,Nvib,X2inv,Asel2,tB=.true.)
-                    Asel2(1:Ns,1:Nvib)    = matrix_product(Ns,Nvib,Nvib,Asel2,X)
+                    Asel2inv(1:NNvib,1:Ns) = matrix_product(NNvib,Ns,NNvib,X2inv,Asel2,tB=.true.)
+                    Asel2(1:Ns,1:NNvib)    = matrix_product(Ns,NNvib,NNvib,Asel2,X)
                 else
-                    Asel2inv(1:Nvib,1:Ns) = transpose(Asel2(1:Ns,1:Nvib))
+                    Asel2inv(1:NNvib,1:Ns) = transpose(Asel2(1:Ns,1:NNvib))
                 endif
             endif
             ! Rotate Bmatrix
-            B2(1:Nvib,1:3*Nat) = matrix_product(Nvib,3*Nat,Ns,Asel2inv,B2)
+            B2(1:NNvib,1:3*Nat) = matrix_product(NNvib,3*Nat,Ns,Asel2inv,B2)
         endif
         
         ! Convert also the gradient to internal (for future use)
-        call Gradcart2int(Nat,Nvib,Grad,state2%atom(:)%mass,B2,G2)
-        call HessianCart2int(Nat,Nvib,Hess,state1%atom(:)%mass,B2,G2)
+        call Gradcart2int(Nat,NNvib,Grad,state2%atom(:)%mass,B2,G2)
+        call HessianCart2int(Nat,NNvib,Hess,state1%atom(:)%mass,B2,G2)
         
         if (move_to_min) then
             print*, "Displace to the minimum"
@@ -979,26 +994,26 @@ program internal_duschinski
             !  * Hess has the Hessian  of State2 in internal coords (output from HessianCart2int)
             !  * Grad has the gradient of State2 in internal coords (output from HessianCart2int)
             ! Inverse of the Hessian
-            Aux(1:Nvib,1:Nvib) = inverse_realgen(Nvib,Hess)
+            Aux(1:NNvib,1:NNvib) = inverse_realgen(NNvib,Hess)
             ! DeltaS0 = -Hs^1 * gs
-            do i=1,Nvib
+            do i=1,NNvib
                 Delta(i)=0.d0
-                do k=1,Nvib
+                do k=1,NNvib
                     Delta(i) = Delta(i)-Aux(i,k) * Grad(k)
                 enddo 
             enddo
 ! al    ways do redundant2nonredundant
-!             if (Nvib<Ns) then
+!             if (NNvib<Ns) then
                 !Transform Delta' into Delta (for control purposes only)
                 ! Delta = A Delta'
                 do i=1,Ns
                     Vec1(i) = 0.d0
-                    do k=1,Nvib
+                    do k=1,NNvib
                         Vec1(i) = Vec1(i) + Asel2(i,k)*Delta(k)
                     enddo
                 enddo
 !             else
-!                 Vec1(1:Nvib)=Delta(1:Nvib)
+!                 Vec1(1:NNvib)=Delta(1:NNvib)
 !             endif
         
             ! Get coordinates
@@ -1018,7 +1033,7 @@ program internal_duschinski
 !             ! 3. Get mapping Z-matrix <--> redundant set
 !             call internals_mapping(allgeom,zmatgeom,Zmap)
 !             ! 4. Map redundant set onto the Z-matrix
-!             S2(1:Nvib) = map_Zmatrix(Nvib,S2,Zmap)
+!             S2(1:NNvib) = map_Zmatrix(NNvib,S2,Zmap)
 !             ! 5. Construct structure from Z-matrix
 !             state2%geom = zmatgeom
 !             call zmat2cart(state2,S2)
@@ -1035,76 +1050,84 @@ program internal_duschinski
             call internal_Gmetric(Nat,Ns,state2%atom(:)%mass,B2,G2)
             ! Handle redundant/symtrized sets
 !             if (symaddapt) then (implement in an analogous way as compared with the transformation from red to non-red
-            if (original_internal.and.Nvib==Ns) then
+            if (original_internal.and.NNvib==Ns) then
                 print*, "Using internal without linear combination"
-                Asel2(1:Ns,1:Nvib) = 0.d0
-                do i=1,Nvib
+                Asel2(1:Ns,1:NNvib) = 0.d0
+                do i=1,NNvib
                     Asel2(i,i) = 1.d0 
                 enddo
-                Asel2inv(1:Nvib,1:Ns) = Asel2(1:Ns,1:Nvib)
+                Asel2inv(1:NNvib,1:Ns) = Asel2(1:Ns,1:NNvib)
             else
                 if (same_red2nonred_rotation) then
                     print*, "Using internal from eigevectors of G (state1)"
                     ! Using Asel1 (from state1)
-                    Asel2(1:Ns,1:Nvib) = Asel1(1:Ns,1:Nvib)
-                    Asel2inv(1:Nvib,1:Ns) = Asel1inv(1:Nvib,1:Ns)
+                    Asel2(1:Ns,1:NNvib) = Asel1(1:Ns,1:NNvib)
+                    Asel2inv(1:NNvib,1:Ns) = Asel1inv(1:NNvib,1:Ns)
                     ! Rotate Gmatrix
-                    G2(1:Nvib,1:Nvib) = matrix_basisrot(Nvib,Ns,Asel2inv(1:Nvib,1:Ns),G2)
+                    G2(1:NNvib,1:NNvib) = matrix_basisrot(NNvib,Ns,Asel2inv(1:NNvib,1:Ns),G2)
                 else
                     print*, "Using internal from eigevectors of G (state2)"
-                    call redundant2nonredundant(Ns,Nvib,G2,Asel2)
+                    call redundant2nonredundant(Ns,NNvib,G2,Asel2)
                     ! Rotate Gmatrix
-                    G2(1:Nvib,1:Nvib) = matrix_basisrot(Nvib,Ns,Asel2(1:Ns,1:Nvib),G2,&
+                    G2(1:NNvib,1:NNvib) = matrix_basisrot(NNvib,Ns,Asel2(1:Ns,1:NNvib),G2,&
                                                         counter=.true.)
                     if (orthogonalize) then
                         print*, "Orthogonalyzing state2 internals..."
-                        X2inv(1:Nvib,1:Nvib) = 0.d0
-                        X(1:Nvib,1:Nvib)     = 0.d0
-                        do i=1,Nvib
+                        X2inv(1:NNvib,1:NNvib) = 0.d0
+                        X(1:NNvib,1:NNvib)     = 0.d0
+                        do i=1,NNvib
                             X(i,i)     = dsqrt(G2(i,i))
                             X2inv(i,i) = 1.d0/X(i,i)
                         enddo
                         ! Rotate Gmatrix (again)
-                        G2(1:Nvib,1:Nvib) = matrix_basisrot(Nvib,Nvib,X2inv(1:Nvib,1:Nvib),G2)
+                        G2(1:NNvib,1:NNvib) = matrix_basisrot(NNvib,NNvib,X2inv(1:NNvib,1:NNvib),G2)
                         ! Update Asel(inv)
-                        Asel2inv(1:Nvib,1:Ns) = matrix_product(Nvib,Ns,Nvib,X2inv,Asel2,tB=.true.)
-                        Asel2(1:Ns,1:Nvib)    = matrix_product(Ns,Nvib,Nvib,Asel2,X)
+                        Asel2inv(1:NNvib,1:Ns) = matrix_product(NNvib,Ns,NNvib,X2inv,Asel2,tB=.true.)
+                        Asel2(1:Ns,1:NNvib)    = matrix_product(Ns,NNvib,NNvib,Asel2,X)
                     else
-                        Asel2inv(1:Nvib,1:Ns) = transpose(Asel2(1:Ns,1:Nvib))
+                        Asel2inv(1:NNvib,1:Ns) = transpose(Asel2(1:Ns,1:NNvib))
                     endif
                 endif
                 ! Rotate Bmatrix
-                B2(1:Nvib,1:3*Nat) = matrix_product(Nvib,3*Nat,Ns,Asel2inv,B2)
+                B2(1:NNvib,1:3*Nat) = matrix_product(NNvib,3*Nat,Ns,Asel2inv,B2)
             endif
             
             if (apply_projection_matrix) then
                 ! Get projection matrix (again...)
-                P(1:3*Nat,1:3*Nat) = projection_matrix(Nat,Nvib,B2)
+                P(1:3*Nat,1:3*Nat) = projection_matrix(Nat,NNvib,B2)
             endif
         
             ! From now, it is as if it were a adiabatic calculation
             vertical = .false.
         endif
         
-        call gf_method(Nvib,G2,Hess,L2,Freq2,X,X2inv)
-        do i=1,Nvib
+        call subheading(6,"Computing Frequencies (State2)")
+        ! Store the Nvib give by G eigenvectors in Nvib0
+        ! It can be different to Nvib obtaiend from GF method
+        ! if the Hessian is projected
+        Nvib0=NNvib
+        call gf_method(NNvib,NNvib,G2,Hess,L2,Freq2,X,X2inv)
+        do i=1,NNvib
             if (dabs(Freq2(i)) < 1d-1) Freq2(i)=0.d0
         enddo
         if (verbose>0) then
             ! Analyze normal modes in terms of the redundant set
 ! al    ways do redundant2nonredundant
-!             if (Nvib<Ns) then
-                Aux(1:Ns,1:Nvib) = matrix_product(Ns,Nvib,Nvib,Asel2,L2)
+!             if (NNvib<Ns) then
+                Aux(1:Ns,1:NNvib) = matrix_product(Ns,NNvib,NNvib,Asel2,L2)
 !             else
-!                 Aux(1:Ns,1:Nvib) = L2(1:Ns,1:Nvib)
+!                 Aux(1:Ns,1:NNvib) = L2(1:Ns,1:NNvib)
 !             endif
             if (use_symmetry) then
-                call analyze_internal(Nvib,Ns,Aux,Freq2,ModeDef,S_sym)
+                call analyze_internal(NNvib,Ns,Aux,Freq2,ModeDef,S_sym)
             else
-                call analyze_internal(Nvib,Ns,Aux,Freq2,ModeDef)
+                call analyze_internal(NNvib,Ns,Aux,Freq2,ModeDef)
             endif
         endif
         
+        if (Nvib /= NNvib) then
+            call alert_msg("fatal","State1 and State2 have different number of normal modes")
+        endif
         
         !==========================================
         ! CHECKS ON THE INTERNAL SETS
@@ -1260,11 +1283,16 @@ program internal_duschinski
         !  * Hess has the Hessian  of State2 in internal coords (output from HessianCart2int)
         !  * Grad has the gradient of State2 in internal coords (output from HessianCart2int)
         ! Inverse of the Hessian
-        Aux(1:Nvib,1:Nvib) = inverse_realgen(Nvib,Hess)
+        ! In order to support projected matrix where Nvib is reduced
+!         Aux(1:Nvib0,1:Nvib0) = inverse_realgen(Nvib0,Hess)
+        call generalized_inv(Nvib0,Nvib,Hess,Aux)
+        if (Nvib /= NNvib) then
+            call alert_msg("fatal","Non-zero eigenvales from generalized inverse do not match Nvib")
+        endif
         ! DeltaS0 = -Hs^1 * gs
-        do i=1,Nvib
+        do i=1,Nvib0
             Delta(i)=0.d0
-            do k=1,Nvib
+            do k=1,Nvib0
                 Delta(i) = Delta(i)-Aux(i,k) * Grad(k)
             enddo 
         enddo
@@ -1274,7 +1302,7 @@ program internal_duschinski
             ! Delta = A Delta'
             do i=1,Ns
                 Vec1(i) = 0.d0
-                do k=1,Nvib
+                do k=1,Nvib0
                     Vec1(i) = Vec1(i) + Asel1(i,k)*Delta(k)
                 enddo
             enddo
@@ -1320,13 +1348,13 @@ program internal_duschinski
 !         if (Nvib<Ns) then
             ! Need to transform Deltas into the non-redundant coordinates set
             ! Delta' = A^-1 Delta
-            do i=1,Nvib
+            do i=1,Nvib0
                 Vec2(i) = 0.d0
                 do k=1,Ns
                     Vec2(i) = Vec2(i) + Asel1inv(i,k)*Delta(k)
                 enddo
             enddo
-            Delta(1:Nvib) = Vec2(1:Nvib)
+            Delta(1:Nvib0) = Vec2(1:Nvib0)
 !         endif
 
     endif

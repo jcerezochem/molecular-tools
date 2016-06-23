@@ -34,6 +34,7 @@ nm_internal_SOURCES =   \
                         ../modules/manage_molcas.f90       \
                         ../modules/manage_molden.f90       \
                         ../modules/manage_molpro.f90       \
+                        ../modules/manage_turbomol.f90     \
                         ../modules/manage_pdb.f90          \
                         ../modules/manage_psi4.f90         \
                         ../modules/manage_xyz.f90          \
@@ -47,7 +48,7 @@ nm_internal_SOURCES =   \
                         ../modules/thermochemistry.f90     \
                         ../modules/vibrational_analysis.f90\
                         ../modules/vertical_model.f90\
-                        normal_modes_internal.f90
+                        normal_modes_internal_prjCrt.f90
 
 # ============
 # nm_cartesian
@@ -72,6 +73,7 @@ nm_cartesian_SOURCES =  \
                         ../modules/manage_molcas.f90       \
                         ../modules/manage_molden.f90       \
                         ../modules/manage_molpro.f90       \
+                        ../modules/manage_turbomol.f90     \
                         ../modules/manage_pdb.f90          \
                         ../modules/manage_psi4.f90         \
                         ../modules/manage_xyz.f90          \
@@ -128,6 +130,7 @@ prj_nm_internal_SOURCES =../modules/alerts.f90              \
                              ../modules/manage_molcas.f90       \
                              ../modules/manage_molden.f90       \
                              ../modules/manage_molpro.f90       \
+                             ../modules/manage_turbomol.f90     \
                              ../modules/manage_pdb.f90          \
                              ../modules/manage_psi4.f90         \
                              ../modules/manage_xyz.f90          \
@@ -163,6 +166,7 @@ prj_grad_on_nm_int_SOURCES = \
                              ../modules/manage_molcas.f90                 \
                              ../modules/manage_molden.f90                 \
                              ../modules/manage_molpro.f90                 \
+                             ../modules/manage_turbomol.f90     \
                              ../modules/manage_pdb.f90                    \
                              ../modules/manage_psi4.f90                   \
                              ../modules/manage_xyz.f90                    \

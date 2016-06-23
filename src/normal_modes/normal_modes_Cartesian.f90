@@ -269,7 +269,7 @@ program normal_modes_cartesian
     endif
         
     ! STRUCTURE FILE
-    call statement(6,"READING STATE1 FILE (STRUCTURE)...")
+    call statement(6,"READING MOLECULE FILE (STRUCTURE)...")
     open(I_INP,file=inpfile,status='old',iostat=IOstatus)
     if (IOstatus /= 0) call alert_msg( "fatal","Unable to open "//trim(adjustl(inpfile)) )
     call generic_strmol_reader(I_INP,ft,molecule,error)
@@ -323,6 +323,7 @@ program normal_modes_cartesian
         open(I_INP,file=hessfile,status='old',iostat=IOstatus)
         if (IOstatus /= 0) call alert_msg( "fatal","Unable to open "//trim(adjustl(hessfile)) )
         call generic_Hessian_reader(I_INP,fth,Nat,Hlt,error)
+            i=3*Nat*(3*Nat+1)/2
         if (error /= 0) call alert_msg("fatal","Error reading Hessian (State1)")
         close(I_INP)
         
@@ -475,7 +476,7 @@ program normal_modes_cartesian
                                                    counter=.true.)
                 B(1:Nvib0,1:3*Nat) = matrix_product(Nvib0,3*Nat,Ns,Aselinv,B)
                 call HessianCart2int(Nat,Nvib0,Hess,molecule%atom(:)%mass,B,G)
-                call gf_method(Nvib0,G,Hess,LL,Freq,X,Xinv)
+                call gf_method(Nvib0,Nvib0,G,Hess,LL,Freq,X,Xinv)
                 ! Save L(in LL) and Linv(in Aux)
                 Aux(1:Nvib0,1:Nvib0)= inverse_realgen(Nvib0,LL)
                 Aux(1:Nvib0,1:Ns)   = matrix_product(Nvib0,Ns,Nvib0,Aux,Asel,tB=.true.)
