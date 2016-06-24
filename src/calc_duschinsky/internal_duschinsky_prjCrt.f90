@@ -733,9 +733,9 @@ program internal_duschinski
     call gf_method(Nvib,Nvib2,G2,Hess,L2,Freq2,X,X2inv)
     
     if (Nvib1 /= Nvib2) then
-        call alert_msg("fatal","State1 and State2 have different number of normal modes")
+        call alert_msg("warning","State1 and State2 have different number of normal modes")
     endif
-    NvibP = Nvib1
+    NvibP = max(Nvib1,Nvib2)
     
     !==========================================
     ! CHECKS ON THE INTERNAL SETS
@@ -879,7 +879,7 @@ program internal_duschinski
 !         Aux(1:Nvib0,1:Nvib0) = inverse_realgen(Nvib0,Hess)
         call generalized_inv(Nvib,Nvib1,Hess,Aux)
         if (Nvib1 /= NvibP) then
-            call alert_msg("fatal","Non-zero eigenvales from generalized inverse do not match Nvib")
+            call alert_msg("warning","Non-zero eigenvales from generalized inverse do not match Nvib")
         endif
         ! DeltaS0 = -Hs^1 * gs
         do i=1,Nvib

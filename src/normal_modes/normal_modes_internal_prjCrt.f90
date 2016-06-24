@@ -520,6 +520,14 @@ program normal_modes_internal
     Hess(1:3*Nat,1:3*Nat) = matrix_basisrot(3*Nat,3*Nat,P,Hess,counter=.true.)
     call HessianCart2int(Nat,Nvib,Hess,molecule%atom(:)%mass,B,G)
     call gf_method(Nvib,Nvib0,G,Hess,LL,Freq,X,Xinv)
+    call print_vector(6,Freq,Nvib0,"Freq all")
+
+    if (Nvib0/=Nvib) then
+        print*, "Neglected freqcuencies"
+        do i=Nvib0+1,Nvib
+            print*, Freq(i)
+        enddo
+    endif
 
 
     if (project_on_all) then

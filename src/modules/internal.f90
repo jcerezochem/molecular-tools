@@ -1972,10 +1972,11 @@ module internal_module
         !LOCAL
         !Auxiliar matrices
         real(8),dimension(1:NDIM,1:NDIM) :: Aux,Aux3
-        real(8),dimension(1:NDIM)        :: Vec
+        real(8),dimension(1:NDIM)        :: Vec,Vtmp
+        real(8)                          :: Amax, Atmp
         !Counters
         integer :: i,j,k, ii,jj,kk, iat
-        integer :: Nvib0
+        integer :: Nvib0, imax
         !=============
 
         call diagonalize_full(G(1:Ns,1:Ns),Ns,Aux(1:Ns,1:Ns),Vec(1:Ns),"lapack")
@@ -2034,6 +2035,26 @@ module internal_module
                 L(1:Ns,Nvib0+kk) = Aux(1:Ns,k)
                 Freq(Nvib0+kk)   = Vec(k)
             endif
+        enddo
+        ! reorder 
+        do i=Nvib0+1,Ns-1
+            Amax = Freq(i)
+            imax = i
+            do j=i+1,Ns
+                if (abs(Freq(j)) > Amax) then
+                    Amax = Freq(j)
+                    imax = j
+                endif
+            enddo
+            ! temporary variables to store prev. value
+            Atmp        = Freq(i)
+            Vtmp(1:Ns)  = L(1:Ns,i)
+            ! set new value for the current position
+            Freq(i)     = Freq(imax)
+            L(1:Ns,i)   = L(1:Ns,imax)
+            ! And relocate the prev. value
+            Freq(imax)  = Atmp
+            L(1:Ns,imax)= Vtmp(1:Ns)
         enddo
         if (Nvib0<Ns) then
             print*, "Number of internal coordinates   ", Ns
@@ -2857,7 +2878,6 @@ module internal_module
             Aux(1:Ns,1:Ns) = identity_matrix(Ns) 
             P(1:Ns,1:Ns) = Aux(1:Ns,1:Ns) - P(1:Ns,1:Ns)
         endif
-call MAT0(6,P,Ns,Ns,"P")
 
         ! Project gradient out
         Hess(1:Ns,1:Ns) = matrix_basisrot(Ns,Ns,P,Hess,counter=.true.)
