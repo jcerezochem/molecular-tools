@@ -733,9 +733,10 @@ program internal_duschinski
     call gf_method(Nvib,Nvib2,G2,Hess,L2,Freq2,X,X2inv)
     
     if (Nvib1 /= Nvib2) then
-        call alert_msg("warning","State1 and State2 have different number of normal modes")
+        call alert_msg("fatal","State1 and State2 have different number of normal modes")
     endif
-    NvibP = max(Nvib1,Nvib2)
+!     NvibP = Nvib1
+    NvibP = Nvib
     
     !==========================================
     ! CHECKS ON THE INTERNAL SETS

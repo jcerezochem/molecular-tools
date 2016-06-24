@@ -558,8 +558,8 @@ program normal_modes_internal
     call define_internal_set(molecule,"ALL",intfile,rmzfile,use_symmetry,isym,S_sym,Ns,Nf,Fltr)
     allgeom = molecule%geom
     Ns_all = Ns
-    call statement(6,"And now get the actual working set")
-    call define_internal_set(molecule,def_internal,intfile,rmzfile,use_symmetry,isym,S_sym,Ns,Nf,Fltr)
+    call statement(6,"And now get the set projection")
+    call define_internal_set(molecule,def_internal,intfile0,rmzfile,use_symmetry,isym,S_sym,Ns,Nf,Fltr)
     if (Nf==0) then
         Nf=Ns
         Fltr(1:Ns,1:Ns) = 0.d0
@@ -591,28 +591,28 @@ program normal_modes_internal
             Bprj(1:NvibP,1:3*Nat) = matrix_product(NvibP,3*Nat,Ns,Asel,Bprj,tA=.true.)
         endif
         ! Get second set 
-        if (intfile /= intfile0) then
-            call gen_bonded(molecule)
-            call statement(6,"Using an additonal set to defined a second projection (P=P1*P2)",keep_case=.true.)
-            call define_internal_set(molecule,def_internal0,intfile0,rmzfile,use_symmetry,isym,S_sym,Ns,Nf,Fltr)
-            NvibP2 = Nvib
-            call internal_Wilson(molecule,Ns,S,Bprj2)
-            
-            if (verbose>1) then
-                call MAT0(6,Fltr,Nf,Ns,"Filter Matrix")
-            endif
-            Bprj2(1:Nf,1:3*Nat) = matrix_product(Nf,3*Nat,Ns,Fltr,Bprj2)
-            Ns=Nf
-            
-            call internal_Gmetric(Nat,Ns,molecule%atom(:)%mass,Bprj2,G)
-            call subsubheading(6,"Getting the actual vibrational space dimension")
-            call redundant2nonredundant(Ns,NvibP2,G,Asel)
-            if (NvibP2==0) then
-                call alert_msg("warning","The vibrational space is void")
-            else
-                Bprj2(1:NvibP2,1:3*Nat) = matrix_product(NvibP2,3*Nat,Ns,Asel,Bprj2,tA=.true.)
-            endif
-        endif
+!         if (intfile /= intfile0) then
+!             call gen_bonded(molecule)
+!             call statement(6,"Using an additonal set to defined a second projection (P=P1*P2)",keep_case=.true.)
+!             call define_internal_set(molecule,def_internal0,intfile0,rmzfile,use_symmetry,isym,S_sym,Ns,Nf,Fltr)
+!             NvibP2 = Nvib
+!             call internal_Wilson(molecule,Ns,S,Bprj2)
+!             
+!             if (verbose>1) then
+!                 call MAT0(6,Fltr,Nf,Ns,"Filter Matrix")
+!             endif
+!             Bprj2(1:Nf,1:3*Nat) = matrix_product(Nf,3*Nat,Ns,Fltr,Bprj2)
+!             Ns=Nf
+!             
+!             call internal_Gmetric(Nat,Ns,molecule%atom(:)%mass,Bprj2,G)
+!             call subsubheading(6,"Getting the actual vibrational space dimension")
+!             call redundant2nonredundant(Ns,NvibP2,G,Asel)
+!             if (NvibP2==0) then
+!                 call alert_msg("warning","The vibrational space is void")
+!             else
+!                 Bprj2(1:NvibP2,1:3*Nat) = matrix_product(NvibP2,3*Nat,Ns,Asel,Bprj2,tA=.true.)
+!             endif
+!         endif
         ! And get back allgeom
         call statement(6,"The working set will be used to construct a projecton matrix")
         Ns = allgeom%nbonds+allgeom%nangles+allgeom%ndihed
@@ -755,6 +755,15 @@ program normal_modes_internal
         endif
 
         call subheading(6,"Computing modes with the working set")
+        call statement(6,"And now get the actual working set")
+        call define_internal_set(molecule,def_internal,intfile,rmzfile,use_symmetry,isym,S_sym,Ns,Nf,Fltr)
+        if (Nf==0) then
+            Nf=Ns
+            Fltr(1:Ns,1:Ns) = 0.d0
+            do i=1,Ns
+                Fltr(i,i) = 1.d0
+            enddo
+        endif
         call internal_Wilson(molecule,Ns,S,B,ModeDef)
         if (nmfile == "none") then
             !SOLVE GF METHOD TO GET NM AND FREQ
@@ -772,9 +781,9 @@ program normal_modes_internal
 
             ! Rotate with Fltr
             ! Rotate Bmatrix
-!             B(1:Nf,1:3*Nat) = matrix_product(Nf,3*Nat,Ns,Fltr,B)
-!             G(1:Nf,1:Nf) = matrix_basisrot(Nf,Ns,Fltr(1:Nf,1:Ns),G,counter=.false.)   
-!             Ns = Nf
+            B(1:Nf,1:3*Nat) = matrix_product(Nf,3*Nat,Ns,Fltr,B)
+            G(1:Nf,1:Nf) = matrix_basisrot(Nf,Ns,Fltr(1:Nf,1:Ns),G,counter=.false.)   
+            Ns = Nf
 
             ! The diagonalization of the G matrix can be donne with all sets
             ! (either redundant or non-redundant), and it is the best way to 
@@ -803,17 +812,17 @@ program normal_modes_internal
                 else
                     Aux(1:3*Nat,1:3*Nat) = projection_matrix3(Nat,NvibP,Bprj,molecule%atom(:)%Mass)
                 endif
-                if (NvibP2 == 0) then
-                    Aux2(1:3*Nat,1:3*Nat) = 0.d0
-                else
-                    Aux2(1:3*Nat,1:3*Nat) = projection_matrix3(Nat,NvibP2,Bprj2,molecule%atom(:)%Mass)
-                endif
-                ! Get P as composition of P1 and P2 only if the sets are different
-                if (intfile /= intfile0) then
-                    P(1:3*Nat,1:3*Nat) = matrix_product(3*Nat,3*Nat,3*Nat,Aux,Aux2)
-                else
+!                 if (NvibP2 == 0) then
+!                     Aux2(1:3*Nat,1:3*Nat) = 0.d0
+!                 else
+!                     Aux2(1:3*Nat,1:3*Nat) = projection_matrix3(Nat,NvibP2,Bprj2,molecule%atom(:)%Mass)
+!                 endif
+!                 ! Get P as composition of P1 and P2 only if the sets are different
+!                 if (intfile /= intfile0) then
+!                     P(1:3*Nat,1:3*Nat) = matrix_product(3*Nat,3*Nat,3*Nat,Aux,Aux2)
+!                 else
                     P(1:3*Nat,1:3*Nat) = Aux(1:3*Nat,1:3*Nat)
-                endif
+!                 endif
                 if (complementay_projection) then
                     Aux(1:3*Nat,1:3*Nat) = identity_matrix(3*Nat)
                     P(1:3*Nat,1:3*Nat) =  Aux(1:3*Nat,1:3*Nat)-P(1:3*Nat,1:3*Nat)
