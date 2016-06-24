@@ -1954,7 +1954,11 @@ module internal_module
         implicit none
     
         integer,parameter :: NDIM = 600
-        real(8),parameter :: ZEROp=1.d-10
+        ! This threshold will take frequences < 0.001 as zero
+        ! so it is quite conservative
+        real(8),parameter :: ZEROp=2.076017E-17
+        ! To get thr at freq < 0.01cm-1
+!         real(8),parameter :: ZEROp=2.076017E-15
     
         !====================== 
         !ARGUMENTS
@@ -2061,9 +2065,11 @@ module internal_module
             print*, "Number of normal mode coordinates", Nvib0
             call alert_msg("note","Redundancies found when solving GF method")
         endif
-        ! Now we can set Nvib, and it will not affect local Ns even if the same var is used when calling the sr 
-        Nvib = Nvib0
-            
+        ! We use the full space at this stage (to be fixed) in order to also
+        ! get the "redundant" freqs. Note that this means that we expect Ns=Nvib(all)
+        ! To be fixed, using proper generalized inverses of truncated L matrices
+        ! in latter steps
+        Nvib=Ns
 
         !Check FC
         if (verbose>1) &
@@ -2111,6 +2117,9 @@ module internal_module
             Aux3(1:Nvib,1:Nvib) = matrix_basisrot(Nvib,Nvib,L,Aux3,counter=.true.)
             call MAT0(6,Aux3,Nvib,Nvib,"L^tG^-1L")
         endif
+
+        ! Now we can set Nvib, and it will not affect local Ns even if the same var is used when calling the sr 
+        Nvib = Nvib0
     
         return
     

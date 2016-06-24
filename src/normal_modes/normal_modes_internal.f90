@@ -131,7 +131,7 @@ program normal_modes_internal
     real(8),dimension(1:NDIM,1:NDIM) :: X,Xinv
     !Save definitio of the modes in character
     character(len=100),dimension(NDIM) :: ModeDef
-    character(len=400)                 :: CombDef
+    character(len=1000)                 :: CombDef
     !VECTORS
     real(8),dimension(NDIM) :: S, Sref, Szmat, Sall, DeltaS
     integer,dimension(NDIM) :: S_sym

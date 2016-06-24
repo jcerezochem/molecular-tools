@@ -94,7 +94,7 @@ module zmat_manage
         real(8),dimension(:,:),intent(out) :: Fltr
 
         character(len=100) :: coeff_char
-        character(len=1),dimension(600) :: group_id, group_id_known
+        character(len=2),dimension(600) :: group_id, group_id_known
         real(8),dimension(600,4) :: coeff
         integer,dimension(600)   :: ng, map_reorder
         logical :: is_known
