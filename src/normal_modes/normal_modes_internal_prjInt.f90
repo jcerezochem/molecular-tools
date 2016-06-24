@@ -525,13 +525,25 @@ program normal_modes_internal
 
     ! Get Hessian in internal coordinates and project
     call HessianCart2int(Nat,Nvib,Hess,molecule%atom(:)%mass,B,G)
-    Hess(1:Nvib,1:Nvib) = matrix_basisrot(Nvib,Nvib,P,Hess,counter=.true.)
+!     Hess(1:Nvib,1:Nvib) = matrix_basisrot(Nvib,Nvib,P,Hess,counter=.true.)
+    print*, "Coordinates to remove", Nf
+    do i=1,Nf
+        print*, "REMOVING", i
+        call prj_internalGrad(Hess,Nvib,Fltr(i,1:Nvib),G)
+        call gf_method(Nvib,Nvib0,G,Hess,LL,Freq,X,Xinv)
+    enddo
     ! The gradient would be rotated now (e.g. to perform a Newton-Raphson step) 
     ! (but not needed int this program)
 !     Grad(1:Nvib) = matrix_vector_product(Nvib,Nvib,P,Grad)
 
     ! Compute modes
     call gf_method(Nvib,Nvib0,G,Hess,LL,Freq,X,Xinv)
+    if (Nvib0/=Nvib) then
+        print*, "Neglected freqcuencies"
+        do i=Nvib0+1,Nvib
+            print*, Freq(i)
+        enddo
+    endif
 
     if (project_on_all) then
         call subheading(6,"Projecting modes of INPUT set on modes of ALL set")

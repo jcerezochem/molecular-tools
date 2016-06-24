@@ -41,6 +41,8 @@ src/file_management/read_scan
 src/file_management/read_irc
 src/normal_modes/nm_cartesian
 src/normal_modes/nm_internal
+src/normal_modes/nm_internal_prjCrt
+src/normal_modes/nm_internal_prjInt
 src/normal_modes/freq2fc
 src/normal_modes/prj_nm_internal
 src/vibrations/read_state_hess
