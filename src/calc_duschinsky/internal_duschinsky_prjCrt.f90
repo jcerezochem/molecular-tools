@@ -735,8 +735,8 @@ program internal_duschinski
     if (Nvib1 /= Nvib2) then
         call alert_msg("fatal","State1 and State2 have different number of normal modes")
     endif
-!     NvibP = Nvib1
-    NvibP = Nvib
+    NvibP = Nvib1
+!     NvibP = Nvib
     
     !==========================================
     ! CHECKS ON THE INTERNAL SETS
@@ -828,18 +828,23 @@ program internal_duschinski
     !--------------------------
     ! Orthogonal Duschinski (from orthogonalized ICs. Not used in this version)
     ! Get orthogonal modes:  L' = G^-1/2 L
-    Aux(1:Nvib,1:Nvib)  = matrix_product(Nvib,Nvib,Nvib,X1inv,L1)
-    Aux2(1:Nvib,1:Nvib) = matrix_product(Nvib,Nvib,Nvib,X2inv,L2)
+    Aux(1:Nvib,1:NvibP)  = matrix_product(Nvib,NvibP,Nvib,X1inv,L1)
+    Aux2(1:Nvib,1:NvibP) = matrix_product(Nvib,NvibP,Nvib,X2inv,L2)
     ! Duschinsky matrix (orth) stored in JdusO = L1'^t L2'
 !     JdusO(1:Nvib,1:Nvib) = matrix_product(Nvib,Nvib,Nvib,Aux,Aux2,tA=.true.)
     !Store L1' in Aux2 to later be used to get the displacement
-    Aux2(1:Nvib,1:Nvib)=Aux(1:Nvib,1:Nvib)
+    Aux2(1:Nvib,1:NvibP)=Aux(1:Nvib,1:NvibP)
     
     ! Non-Orthogonal Duschinski (the one we use)
     if (verbose>0) &
      print*, "Calculating Duschisky..."
     !Inverse of L1 (and store in L1inv)
-    L1inv(1:Nvib,1:Nvib) = inverse_realgen(Nvib,L1(1:Nvib,1:Nvib))
+!     L1inv(1:Nvib,1:Nvib) = inverse_realgen(Nvib,L1(1:Nvib,1:Nvib))
+    ! Generalized inverse: (L^t L)^-1 L^
+    Aux(1:NvibP,1:NvibP) = matrix_product(NvibP,NvibP,Nvib,L1,L1,tA=.true.)
+    Aux(1:NvibP,1:NvibP) = inverse_realgen(NvibP,Aux)
+    L1inv(1:NvibP,1:Nvib)  = matrix_product(NvibP,Nvib,NvibP,Aux,L1,tB=.true.) 
+
     ! Account for different rotations to non-redundant set 
     ! but preserve the inverse L1 matrix in L1
 ! always do redundant2nonredundant
@@ -854,10 +859,10 @@ program internal_duschinski
         Aux(1:Nvib,1:Nvib) = matrix_product(Nvib,Nvib,Nvib,L1inv,Aux)
     else
         print*, "  Using the same A rotation for both states"
-        Aux(1:Nvib,1:Nvib) = L1inv(1:Nvib,1:Nvib)
+        Aux(1:NvibP,1:Nvib) = L1inv(1:NvibP,1:Nvib)
     endif
     !J = L1^-1 [A1^t A2] L2 (stored in J).
-    Jdus(1:Nvib,1:Nvib) = matrix_product(Nvib,Nvib,Nvib,Aux,L2)
+    Jdus(1:NvibP,1:NvibP) = matrix_product(NvibP,NvibP,Nvib,Aux,L2)
 
 
     !--------------------------
@@ -941,13 +946,13 @@ program internal_duschinski
 !         if (Nvib<Ns) then
             ! Need to transform Deltas into the non-redundant coordinates set
             ! Delta' = A^-1 Delta
-            do i=1,Nvib0
+            do i=1,Nvib
                 Vec2(i) = 0.d0
                 do k=1,Ns
                     Vec2(i) = Vec2(i) + Asel1inv(i,k)*Delta(k)
                 enddo
             enddo
-            Delta(1:Nvib0) = Vec2(1:Nvib0)
+            Delta(1:Nvib) = Vec2(1:Nvib)
 !         endif
 
     endif
@@ -989,15 +994,15 @@ program internal_duschinski
         ! 
         ! K = -J * Lambda_f^-1 * L2^t * gs
         ! Convert Freq into FC. Store in FC for future use
-        do i=1,Nvib
+        do i=1,NvibP
             FC(i) = sign((Freq2(i)*2.d0*pi*clight*1.d2)**2/HARTtoJ*BOHRtoM**2*AUtoKG,Freq2(i))
         enddo
         ! Lambda_f^-1 * L2^t
-        do i=1,Nvib
+        do i=1,NvibP
             Aux(i,1:Nvib) = L2(1:Nvib,i) / FC(i)
         enddo
         ! -[Lambda_f^-1 * L2^t] * gs
-        do i=1,Nvib
+        do i=1,NvibP
             Q0(i)=0.d0
             do k=1,Nvib
                 Q0(i) = Q0(i) - Aux(i,k) * Grad(k)
@@ -1018,9 +1023,9 @@ program internal_duschinski
             endif
         enddo
         ! J * [-Lambda_f^-1 * L2^t * gs]
-        do i=1,Nvib
+        do i=1,NvibP
             Vec1(i)=0.d0
-            do k=1,Nvib
+            do k=1,NvibP
                 Vec1(i) = Vec1(i) + Jdus(i,k) * Q0(k)
             enddo
         enddo
@@ -1037,29 +1042,29 @@ program internal_duschinski
         !  H_Q' = L^t Hs L (also H_Q' = L^-1 G Hs L)
         ! Note:
         !  * L1 contains the normal matrix (now the inverse is in L1inv)
-        Hess(1:Nvib,1:Nvib) = matrix_basisrot(Nvib,Nvib,L1,Hess,counter=.true.)
+        Hess(1:NvibP,1:NvibP) = matrix_basisrot(NvibP,Nvib,L1,Hess,counter=.true.)
         !
         ! GRADIENT
         !  g_Q' = L^t gs
-        do i=1,Nvib
+        do i=1,NvibP
             Vec1(i) = 0.d0
             do k=1,Nvib
                 Vec1(i) = Vec1(i) + Aux2(k,i) * Grad(k)
             enddo
         enddo
-        Grad(1:Nvib) = Vec1
+        Grad(1:NvibP) = Vec1
 
         ! Diagonalize Hessian in Q1-space to get State2 FC and Duschinski rotation
-        call diagonalize_full(Hess(1:Nvib,1:Nvib),Nvib,Jdus(1:Nvib,1:Nvib),FC(1:Nvib),"lapack")
-        Freq2(1:Nvib) = FC2Freq(Nvib,FC)
-        call print_vector(6,Freq2,Nvib,"Frequencies (cm-1) -- from Q1-space")
+        call diagonalize_full(Hess(1:NvibP,1:NvibP),Nvib,Jdus(1:NvibP,1:NvibP),FC(1:NvibP),"lapack")
+        Freq2(1:NvibP) = FC2Freq(NvibP,FC)
+        call print_vector(6,Freq2,NvibP,"Frequencies (cm-1) -- from Q1-space")
 
         ! Get shift vector (also compute Qo'')
         ! First compute Qo''
         ! Q0 = - FC^-1 * J^t * gQ
-        do i=1,Nvib
+        do i=1,NvibP
             Q0(i) = 0.d0
-            do k=1,Nvib
+            do k=1,NvibP
                 Q0(i) = Q0(i) - Jdus(k,i) * Grad(k)
             enddo
             Q0(i) = Q0(i) / FC(i)
@@ -1084,9 +1089,9 @@ program internal_duschinski
             call print_vector(6,Q0,Nvib,"Q0 - int")
         endif
         ! K = J * Q0
-        do i=1,Nvib
+        do i=1,NvibP
             Vec1(i) = 0.d0
-            do k=1,Nvib
+            do k=1,NvibP
                 Vec1(i) = Vec1(i) + Jdus(i,k) * Q0(k)
             enddo
         enddo
@@ -1096,7 +1101,7 @@ program internal_duschinski
         ! Notes
         !   * L1inv stores the inverse
         !   * Delta in non-redundant IC set
-        do i=1,Nvib
+        do i=1,NvibP
             Vec1(i) = 0.d0
             do k=1,Nvib
                 Vec1(i) = Vec1(i) + L1inv(i,k)*Delta(k)
@@ -1117,7 +1122,7 @@ program internal_duschinski
     endif
 
     !Analyze Duschinsky matrix
-    call analyze_duschinsky(6,Nvib,Jdus,Vec1,Freq1,Freq2)
+    call analyze_duschinsky(6,NvibP,Jdus,Vec1,Freq1,Freq2)
 
 
     !===================================
@@ -1222,7 +1227,7 @@ program internal_duschinski
         call Ls_to_Lcart(Nat,Nvib,state2%atom(:)%mass,B2,G2,L2,L2,error)
         !  * L1: from rotation (Duschinski) of L2   L1 = L2*J^-1
         ! Need inverse of J
-        Aux(1:Nvib,1:Nvib) = inverse_realgen(Nvib,Jdus)
+        Aux(1:Nvib,1:Nvib) = inverse_realgen(NvibP,Jdus)
         L1(1:3*Nat,1:Nvib) = matrix_product(3*Nat,Nvib,Nvib,L2,Aux)
     endif
     ! STATE1
