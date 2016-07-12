@@ -257,7 +257,7 @@ module gro_manage
 
 !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-    subroutine write_top_new(unt,residue)
+    subroutine write_top(unt,residue)
        
        !======================================================
        ! Subrutina para el la estructura de la topología (itp)
@@ -382,7 +382,7 @@ module gro_manage
 303 format(i5,3x,i5,3x,i5,3x,i5,3x,i2)
 !201 format(3f10.5)
 
-    end subroutine write_top_new
+    end subroutine write_top
 
 !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 

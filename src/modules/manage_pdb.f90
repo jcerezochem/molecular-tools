@@ -10,9 +10,9 @@ module pdb_manage
 
     contains
 
-    subroutine read_pdb_geom(unt,Nat,AtName,X,Y,Z, &
+    subroutine read_pdb_geom(unt,Nat,AtName,X,Y,Z,ResName, &
                              !optional
-                             title,attype,resname,alter_loc,chain,ins_code,resseq)
+                             title,attype,alter_loc,chain,ins_code,resseq)
 
         !==============================================================
         ! This code is part of MOLECULAR_TOOLS
@@ -25,6 +25,7 @@ module pdb_manage
         ! unt     (inp) int /scalar    unit for the file 
         ! Nat     (out) int /scalar    Number of atoms
         ! AtName  (out) char/vertor    Atom names
+        ! ResName (out) char/vertor    Residue names (for each atom)
         ! X,Y,Z   (out) real/vectors   Coordinate vectors (ANGSTRONG)
         !
         !Notes
@@ -34,11 +35,10 @@ module pdb_manage
 
         integer,intent(in)  :: unt
         integer,intent(out) :: Nat
-        character(len=*), dimension(:), intent(out) :: AtName
+        character(len=*), dimension(:), intent(out) :: AtName, ResName
         real(kind=8), dimension(:), intent(out) :: X,Y,Z
         character(len=*),intent(out),optional :: title
-        character(len=*),dimension(:),intent(out),optional :: attype,    &
-                                                 resname,   &
+        character(len=*),dimension(:),intent(out),optional :: attype,  &
                                                  alter_loc, &
                                                  chain,     &
                                                  ins_code
@@ -50,8 +50,7 @@ module pdb_manage
         character :: dummy_char
         !pdb attributes 
         character(len=99):: title_local
-        character(len=6),dimension(1:size(X)) :: attype_local,    &
-                            resname_local
+        character(len=6),dimension(1:size(X)) :: attype_local
         character(len=1),dimension(1:size(X)) :: alter_loc_local, &
                                                  chain_local,     &
                                                  ins_code_local
@@ -74,7 +73,7 @@ module pdb_manage
                                !Serial
                                AtName(i),          &
                                alter_loc_local(i), &
-                               resname_local(i),   &
+                               ResName(i),         &
                                chain_local(i),     &
                                resseq_local(i),    &
                                ins_code_local(i),  &
@@ -95,7 +94,6 @@ module pdb_manage
         ! Take requested optional data
         if (present(title))     title = title_local
         if (present(attype))    attype = attype_local
-        if (present(resname))   resname = resname_local
         if (present(alter_loc)) alter_loc = alter_loc_local
         if (present(chain))     chain = chain_local
         if (present(ins_code))  ins_code = ins_code_local

@@ -28,7 +28,7 @@ module structure_types
 
     !SIZES
     integer,parameter:: MAX_ATOMS = 10000, &
-                        MAX_ATM_RES = 600,  &
+                        MAX_ATM_RES = 3000,  &
                         MAX_CONNEXIONS = 6, &
                         MAX_DERIVED_CNX = 1000
 

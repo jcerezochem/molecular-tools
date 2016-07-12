@@ -115,7 +115,7 @@ module generic_io
     end subroutine generic_natoms_reader
 
 
-    subroutine generic_structure_reader(unt,filetype,Nat,X,Y,Z,Mass,AtName,error_flag)
+    subroutine generic_structure_reader(unt,filetype,Nat,X,Y,Z,Mass,AtName,ResName,error_flag)
 
         !==============================================================
         ! This code is part of FCC_TOOLS
@@ -138,7 +138,7 @@ module generic_io
         integer,intent(inout)           :: Nat
         real(8),dimension(:),intent(out):: X,Y,Z
         ! Made inout to handle incomplete files (fcc)
-        character(len=*),dimension(:),intent(inout) :: AtName
+        character(len=*),dimension(:),intent(inout) :: AtName, ResName
         real(8),dimension(:),intent(inout):: Mass
         integer,intent(out),optional    :: error_flag
 
@@ -158,18 +158,21 @@ module generic_io
             case("log")
              call read_gauslog_geom(unt,Nat,AtName,X,Y,Z,error_local)
              call assign_masses(Nat,AtName,Mass)
+             ResName(1:Nat) = "UNK"
             case("log-inpori")
              call read_gauslog_stdori(unt,Nat,AtNum,X,Y,Z,"Input orientation",error_local)
              do i=1,Nat
                   AtName(i) = atname_from_atnum(AtNum(i))
                   Mass(i)   = atmass_from_atnum(AtNum(i))
              enddo
+             ResName(1:Nat) = "UNK"
             case("log-stdori")
              call read_gauslog_stdori(unt,Nat,AtNum,X,Y,Z,"Standard orientation",error_local)
              do i=1,Nat
                   AtName(i) = atname_from_atnum(AtNum(i))
                   Mass(i)   = atmass_from_atnum(AtNum(i))
              enddo
+             ResName(1:Nat) = "UNK"
             case("fchk")
              call read_fchk(unt,'Current cartesian coordinates',data_type,N,A,IA,error_local)
              do i=1,N,3
@@ -189,35 +192,43 @@ module generic_io
                  AtName(i) = adjustl(AtName(i))
              enddo
              deallocate(IA)
+             ResName(1:Nat) = "UNK"
             case("gms")
              call read_gamess_geom(unt,Nat,AtName,X,Y,Z,error_local)
              call assign_masses(Nat,AtName,Mass)
+             ResName(1:Nat) = "UNK"
             case("psi4")
              call read_psi4_geom(unt,Nat,AtName,X,Y,Z,error_local)
              call assign_masses(Nat,AtName,Mass)
+             ResName(1:Nat) = "UNK"
             case("molcas")
              call read_molcasUnSym_geom(unt,Nat,AtName,X,Y,Z,error_local)
              call assign_masses(Nat,AtName,Mass)
+             ResName(1:Nat) = "UNK"
             case("molpro")
              call read_molpro_geom(unt,Nat,AtName,X,Y,Z,error_local)
              call assign_masses(Nat,AtName,Mass)
+             ResName(1:Nat) = "UNK"
             case("turbomol")
              call read_turbomol_geom(unt,Nat,AtName,X,Y,Z,error_local)
              call assign_masses(Nat,AtName,Mass)
+             ResName(1:Nat) = "UNK"
             case("g96")
-             call read_g96_geom(unt,Nat,AtName,X,Y,Z)
+             call read_g96_geom(unt,Nat,AtName,X,Y,Z,ResName)
              call assign_masses(Nat,AtName,Mass)
             case("gro")
-             call read_gro_geom(unt,Nat,AtName,X,Y,Z)
+             call read_gro_geom(unt,Nat,AtName,X,Y,Z,ResName)
              call assign_masses(Nat,AtName,Mass)
             case("xyz")
              call read_xyz_geom(unt,Nat,AtName,X,Y,Z)
              call assign_masses(Nat,AtName,Mass)
+             ResName(1:Nat) = "UNK"
             case("pdb")
-             call read_pdb_geom(unt,Nat,AtName,X,Y,Z)
+             call read_pdb_geom(unt,Nat,AtName,X,Y,Z,ResName)
              call assign_masses(Nat,AtName,Mass)
             case("fcc")
              call read_fccstate_geom(unt,Nat,X,Y,Z)
+             ResName(1:Nat) = "UNK"
             case default
              call alert_msg("fatal","Unsupported filetype:"//trim(adjustl(filetype)))
 !              call supported_filetype_list('freq')

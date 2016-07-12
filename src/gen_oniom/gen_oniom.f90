@@ -30,19 +30,46 @@ program gen_oniom
     !  Use light types
     !==============================================================
 
-    use structure_types
-    use line_preprocess
-    use gro_manage_go
-    use gaussian_manage, only : parse_summary
-    use pdb_manage
+    !*****************
+    !   MODULE LOAD
+    !*****************
+    !============================================
+    !   Generic
+    !============================================
+    use io
     use alerts
+    use line_preprocess
+    use constants 
+    use verbosity
+    use matrix
+    use matrix_print
+    !============================================
+    !   Structure types module
+    !============================================
+    use structure_types
+    !============================================
+    !   File readers
+    !============================================
+    use generic_io
+    use generic_io_molec
+    use xyz_manage
+    !============================================
+    !  Structure-related modules
+    !============================================
     use molecular_structure
+    use ff_build
+    use atomic_geom
+    use symmetry
+    !============================================
+    !  Internal thingies
+    !============================================
+    use zmat_manage 
 
     implicit none
 
     !====================== 
     !System variables
-    type(str_resmol_light) :: molec 
+    type(str_resmol) :: molec 
     !Residues are different molecule types (there might be several of each kind in the system).
     ! E.g. Solvent and solute are only 2 type of molecules 
     type(str_resmol),dimension(1:2) :: residue
@@ -93,8 +120,6 @@ program gen_oniom
     character(len=260)  :: line
     !status
     integer :: IOstatus
-    !Control stdout
-    logical :: verbose=.false.
     !===================
 
     !Tuning output
@@ -114,7 +139,7 @@ program gen_oniom
 
     ! 0. GET COMMAND LINE ARGUMENTS AND OPEN FILES
     call parse_input(inpfile,filetype,topfile,ndxfile,frzfile,resname,jobspec,outgau,nproc,&
-                     mm_file,chrgspin_h,chrgspin_l,pointcharges,plain,verbose)
+                     mm_file,chrgspin_h,chrgspin_l,pointcharges,plain)
     !Check conflicts
     if (plain .and. pointcharges) then
         call alert_msg("warning","-plain and -pc cannot be call together. Setting -pc to false")
@@ -127,7 +152,7 @@ program gen_oniom
     if (filetype == "guess") then
         call split_line_back(inpfile,".",null,filetype)
     endif
-    call generic_strfile_read(I_INP,filetype,molec)
+    call generic_strmol_reader(I_INP,filetype,molec)
     close(I_INP)
 
     if (.not. plain) then
@@ -232,7 +257,7 @@ program gen_oniom
                 imap=0
                 do i=1,nelements
                     j=molmap(i)
-                    if (verbose) print'(A,I5,A)', "Adding atom ",j," to the QM layer"
+                    if (verbose>1) print'(A,I5,A)', "Adding atom ",j," to the QM layer"
                     molec%atom(j)%chain='H'
                     !Also unfreeze (to be generalized): why this freeze?
 !       !            frz(j) = 0
@@ -265,7 +290,7 @@ program gen_oniom
             imap=0
             do i=1,nelements
                 j=molmap(i)
-                if (verbose) print'(A,I5,A)', "Adding atom ",j," to the freeze group"
+                if (verbose>1) print'(A,I5,A)', "Adding atom ",j," to the freeze group"
                 molec%atom(j)%ins_code='1'
             enddo
         endif
@@ -339,9 +364,9 @@ program gen_oniom
 !     deallocate(residue)
     !Review notes and errors
     if (n_notes /= 0) &
-     print'(A,I0,A,/)', "There were ", n_notes, " NOTES in this run"
+     print'(/,A,I0,A,/)', "There were ", n_notes, " NOTES in this run"
     if (n_errors /= 0) &
-     print'(A,I0,A,/)', "There were ", n_errors, " WARNINGS in this run"
+     print'(/,A,I0,A,/)', "There were ", n_errors, " WARNINGS in this run"
 
     stop
 
@@ -351,7 +376,7 @@ program gen_oniom
     !=============================================
 
     subroutine parse_input(inpfile,filetype,topfile,ndxfile,frzfile,resname,jobspec,outfile,nproc,&
-                           mm_file,chrgspin_h,chrgspin_l,pointcharges,plain,verbose)
+                           mm_file,chrgspin_h,chrgspin_l,pointcharges,plain)
     !==================================================
     ! My input parser (gromacs style)
     !==================================================
@@ -360,14 +385,17 @@ program gen_oniom
         character(len=*),intent(inout) :: inpfile,topfile,filetype,ndxfile,frzfile,outfile,&
                                           resname,jobspec,nproc,mm_file,chrgspin_h,&
                                           chrgspin_l
-        logical,intent(inout) :: verbose, pointcharges, plain
+        logical,intent(inout) :: pointcharges, plain
         ! Local
+        character(len=500) :: input_command
         logical :: argument_retrieved,  &
                    need_help = .false.
         integer:: i
         character(len=200) :: arg
         ! iargc type must be specified with implicit none (strict compilation)
         integer :: iargc
+
+        call getarg(0,input_command)
 
         argument_retrieved=.false.
         do i=1,iargc()
@@ -430,8 +458,15 @@ program gen_oniom
                 case ("-plain")
                     plain=.true.
 
-                case ("-v") 
-                    verbose=.true.
+                ! Control verbosity
+                case ("-quiet")
+                    verbose=0
+                case ("-concise")
+                    verbose=1
+                case ("-v")
+                    verbose=2
+                case ("-vv")
+                    verbose=3
 
                 case ("-h")
                     need_help=.true.
@@ -442,65 +477,42 @@ program gen_oniom
         enddo 
           
 
-       !Print options (to stderr)
-        write(0,'(/,A)') '--------------------------------------------------'
-        write(0,'(/,A)') '              G E N _ O N I O M '    
-        write(0,'(/,A)') '         Revision: gen_oniom-141105              '           
-        write(0,'(/,A)') '--------------------------------------------------'
-        write(0,*) '-f              ', trim(adjustl(inpfile))
-        write(0,*) '-ft             ', trim(adjustl(filetype))
-        write(0,*) '-p              ', trim(adjustl(topfile))
-        write(0,*) '-n              ', trim(adjustl(ndxfile))
-        write(0,*) '-frz            ', trim(adjustl(frzfile))
-        write(0,*) '-o              ', trim(adjustl(outfile))
-        write(0,*) '-job            ', trim(adjustl(jobspec))
-        write(0,*) '-res            ', trim(adjustl(resname))
-        write(0,*) '-nproc          ', trim(adjustl(nproc))
-        write(0,*) '-mmf            ', trim(adjustl(mm_file))
-        write(0,*) '-cs-h           ', trim(adjustl(chrgspin_h))
-        write(0,*) '-cs-l           ', trim(adjustl(chrgspin_l))
-        write(0,*) '-pc            ',  pointcharges
-        write(0,*) '-v             ',  verbose
-        write(0,*) '-h             ',  need_help
-        write(0,*) '--------------------------------------------------'
+       !Print options (to stdout)    
+        write(6,'(/,A)') '========================================================'
+        write(6,'(/,A)') '               G E N _ O N I O M       '
+        write(6,'(/,A)') '        Generate ONIOM and other QMMM inputs         '
+        write(6,'(A,/)') '       from a structure and gmx topoogy files          '      
+        call print_version()
+        write(6,'(/,A)') '========================================================'
+        write(6,'(/,A)') '-------------------------------------------------------------------'
+        write(6,'(A)')   ' Flag         Description                   Value'
+        write(6,'(A)')   '-------------------------------------------------------------------'
+        write(6,*) '-f           Input file (structure)        ', trim(adjustl(inpfile))
+        write(6,*) '-ft          \_ FileType                   ', trim(adjustl(filetype))
+        write(6,*) '-p           Topology file                 ', trim(adjustl(topfile))
+        write(6,*) '-n           Index file                    ', trim(adjustl(ndxfile))
+        write(6,*) '-frz         Freeze atoms file             ', trim(adjustl(frzfile))
+        write(6,*) '-mmf         MM filename with g09 format   ', trim(adjustl(mm_file))
+        write(6,*) '-o           Output (com) file             ', trim(adjustl(outfile))
+        write(6,*) '-job         Job route section             ', trim(adjustl(jobspec))
+        write(6,*) '-res         Residue name for H layer      ', trim(adjustl(resname))
+        write(6,*) '-nproc       Number of processor in .com   ', trim(adjustl(nproc))
+        write(6,*) '-cs-h        Charge&Spin H layer           ', trim(adjustl(chrgspin_h))
+        write(6,*) '-cs-l        Charge&Spin L layer           ', trim(adjustl(chrgspin_l))
+        write(6,*) '-pc          Use pointcharges not ONIOM    ', pointcharges
+        write(6,*) '-h           Show this help and quit       ',  need_help
+        write(6,'(A)') '-------------------------------------------------------------------'
+        write(6,'(A)') 'Input command:'
+        write(6,'(A)') trim(adjustl(input_command))   
+        write(6,'(A)') '-------------------------------------------------------------------'
+        write(6,'(X,A,I0)') &
+                       'Verbose level:  ', verbose        
+        write(6,'(A)') '-------------------------------------------------------------------'
         if (need_help) call alert_msg("fatal", 'There is no manual (for the moment)' )
 
         return
     end subroutine parse_input
 
-
-    subroutine generic_strfile_read(unt,filetype,molec)
-
-        integer, intent(in) :: unt
-        character(len=*),intent(inout) :: filetype
-        type(str_resmol_light),intent(inout) :: molec
-
-        !Local
-        type(str_molprops) :: props
-
-        ! Guess file type
-        select case (adjustl(filetype))
-!             case("gro")
-!              call read_gro(unt,molec)
-            case("g96")
-             call read_g96(unt,molec)
-!             case("pdb")
-!              call read_pdb_new(unt,molec)
-!             case("log")
-!              call parse_summary(unt,molec,props,"struct_only")
-!             case("fchk")
-!              call read_fchk_geom(unt,molec)
-            case default
-             call alert_msg("fatal","Trying to guess, but file type but not known: "//adjustl(trim(filetype))&
-                        //". Try forcing the filetype with -ft flag (available: gro, g96, pdb)")
-        end select
-
-        call atname2element_light(molec)
-
-        return
-
-
-    end subroutine generic_strfile_read
 
 end program gen_oniom
 

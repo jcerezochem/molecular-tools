@@ -63,6 +63,8 @@ module generic_io_molec
                                                        molec%atom(:)%z,   &
                                                        molec%atom(:)%mass,&
                                                        molec%atom(:)%name,&
+                                                      ! Additional info (not available for all filetypes)
+                                                      molec%atom(:)%resname,&
                                           error_flag=error_local)
         endif
 

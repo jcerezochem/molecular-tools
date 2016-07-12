@@ -1,8 +1,0 @@
-This file tells configure that the distribution has been properly downloaded and extracted.
-
-gen_oniom is a program to convert snapshots (g96, xyz, pdb...) into G09 input files allowing the definition of ONIOM layers
-
-*WARNING* The program is very ineficient from the point of view of memory management. This can eventually collapse the computer
-          even at compilation time. Probably, the subroutine "read_top" (from gro_manage module) is the main weak point.
-          This should be fixed before this app is included in the GIT distribution
-

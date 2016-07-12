@@ -50,7 +50,7 @@ module gmx_manage
 
     end subroutine read_gro_natoms
 
-    subroutine read_gro_geom(unt,Nat,AtName,X,Y,Z,title)
+    subroutine read_gro_geom(unt,Nat,AtName,X,Y,Z,ResName,title)
 
         !==============================================================
         ! This code is part of FCC_TOOLS
@@ -63,6 +63,7 @@ module gmx_manage
         ! unt     (inp) int /scalar    unit for the file 
         ! Nat     (out) int /scalar    Number of atoms
         ! AtName  (out) char/vertor    Atom names
+        ! ResName (out) char/vertor    Residue names (for each atom)
         ! X,Y,Z   (out) real/vectors   Coordinate vectors (ANGSTRONG)
         !
         ! TODO
@@ -73,7 +74,7 @@ module gmx_manage
 
         integer,intent(in)  :: unt
         integer,intent(out) :: Nat
-        character(len=*), dimension(:), intent(out) :: AtName
+        character(len=*), dimension(:), intent(out) :: AtName, ResName
         real(kind=8), dimension(:), intent(out) :: X,Y,Z
         character(len=*),intent(out),optional   :: title
         !local
@@ -88,7 +89,7 @@ module gmx_manage
         do i=1,Nat
 
             read(unt,100) ii,           &
-                          dummy_char,   &
+                          ResName(i),   &
                           AtName(i),    &
                           !serial
                           X(i),         &
@@ -185,7 +186,7 @@ module gmx_manage
 
 
 
-    subroutine read_g96_geom(unt,Nat,AtName,X,Y,Z)
+    subroutine read_g96_geom(unt,Nat,AtName,X,Y,Z,ResName)
 
         !==============================================================
         ! This code is part of FCC_TOOLS
@@ -198,13 +199,14 @@ module gmx_manage
         ! unt     (inp) int /scalar    unit for the file 
         ! Nat     (out) int /scalar    Number of atoms
         ! AtName  (out) char/vertor    Atom names
+        ! ResName (out) char/vertor    Residue names (for each atom)
         ! X,Y,Z   (out) real/vectors   Coordinate vectors (ANGSTRONG)
         ! 
         !==============================================================
 
         integer,intent(in)  :: unt
         integer,intent(out) :: Nat
-        character(len=*), dimension(:), intent(out) :: AtName
+        character(len=*), dimension(:), intent(out) :: AtName, ResName
         real(kind=8), dimension(:), intent(out) :: X,Y,Z
         !local
         integer::i, natoms, ii, ios
@@ -236,7 +238,7 @@ module gmx_manage
                      if (adjustl(line) == "END" ) exit
                      i=i+1
                      read(line,*) ii,                    & !resseq, &
-                                  dummy_char,            & !resname,&
+                                  ResName(i),            & !resname,&
                                   AtName(i),             &
                                   ii,                    & !serial
                                   X(i),                  &
