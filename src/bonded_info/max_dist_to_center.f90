@@ -13,17 +13,38 @@ program max_dist_to_center
     !
     !============================================================================    
 
+    !*****************
+    !   MODULE LOAD
+    !*****************
+    !============================================
+    !   Generic
+    !============================================
     use alerts
-    use structure_types
     use line_preprocess
-    use gro_manage
-    use pdb_manage
-    use gaussian_manage
-    use gaussian_fchk_manage
+    use constants 
+    use verbosity
+    use matrix
+    use matrix_print
+    use io, only: uout
+    !============================================
+    !   Structure types module
+    !============================================
+    use structure_types
+    !============================================
+    !   File readers
+    !============================================
+    use generic_io
+    use generic_io_molec
     use xyz_manage
-    use molcas_unsym_manage
-    use ff_build
+    use gaussian_manage
+    !============================================
+    !  Structure-related modules
+    !============================================
     use molecular_structure
+    use ff_build
+    use metrics
+    use atomic_geom
+    use symmetry
 
     implicit none
 
@@ -69,6 +90,10 @@ program max_dist_to_center
     character(len=7) :: stat="new" !do not overwrite when writting
     !===================
 
+    !===========================
+    ! Set output unit to stderr
+    uout = 0
+    !===========================
 
     ! 0. GET COMMAND LINE ARGUMENTS
     call parse_input(inpfile,filetype_inp,filter)
@@ -80,13 +105,10 @@ program max_dist_to_center
     if (IOstatus /= 0) call alert_msg( "fatal","Unable to open "//trim(adjustl(inpfile)) )
 
     if (adjustl(filetype_inp) == "guess") call split_line_back(inpfile,".",null,filetype_inp)
-    call generic_strfile_read(I_INP,filetype_inp,molec)
+    call generic_strmol_reader(I_INP,filetype_inp,molec)
     close(I_INP)
     !Option to specify the resname from command line
     if (adjustl(resname) /= "read") molec%atom(:)%resname=resname
-    !Get massses
-    call atname2element(molec)
-    call assign_masses(molec)
 
     ! Filtering if needed
     if (adjustl(filter) == "all") then
@@ -122,7 +144,7 @@ program max_dist_to_center
     print*, molec_filt%cogX, molec_filt%cogY, molec_filt%cogZ
     print*, "MAX DISTANCE TO CENTER OF GEOMETRY"
     print*, dmax
-    print'(X,A,I0,A,I0,A)', "(atom: ", imax, "; residue: ", atom%resseq, ")"
+    print'(X,A,I0,A,I0,A)', "(atom: ", imax, ")"!; residue: ", atom%resseq, ")"
 
     stop
 
@@ -139,12 +161,15 @@ program max_dist_to_center
 
         character(len=*),intent(inout) :: inpfile,filetype_inp,filter
         ! Local
+        character(len=500) :: input_command
         logical :: argument_retrieved,  &
                    need_help = .false.
         integer:: i
         character(len=200) :: arg
         ! iargc type must be specified with implicit none (strict compilation)
         integer :: iargc
+
+        call getarg(0,input_command)
 
         argument_retrieved=.false.
         do i=1,iargc()
@@ -177,110 +202,74 @@ program max_dist_to_center
         !----------------------------
 
        !Print options (to stderr)
-        write(0,'(/,A)') '--------------------------------------------------'
-        write(0,'(/,A)') '      D I S T   T O   C E N T E R S '    
-        write(0,'(/,A)') '      Compute dist to COM and COG'  
-        write(0,'(/,A)') '        Revision: max_dist_to_center            '         
-        write(0,'(/,A)') '--------------------------------------------------'
-        write(0,*) '-f              ', trim(adjustl(inpfile))
-        write(0,*) '-fti            ', trim(adjustl(filetype_inp))
-        write(0,*) '-filter         ', trim(adjustl(filter))
-        write(0,*) '-h             ',  need_help
-        write(0,*) '--------------------------------------------------'
+        write(0,'(/,A)') '========================================================'
+        write(0,'(/,A)') '             D I S T   T O   C E N T E R S '    
+        write(0,'(/,A)') '      Compute COG of a selection (with -filter) and'        
+        write(0,'(/,A)') '       the largest distance to that point among all'
+        write(0,'(/,A)') '       (not only selection) the atoms in the system'  
+        call print_version()
+        write(0,'(/,A)') '========================================================'
+        write(0,'(/,A)') '-------------------------------------------------------------------'
+        write(0,'(A)')   ' Flag         Description                      Value'
+        write(0,'(A)')   '-------------------------------------------------------------------'
+        write(0,*)       '-f           Input file                       ', trim(adjustl(inpfile))
+        write(0,*)       '-ft          \_ FileType                      ', trim(adjustl(filetype_inp))
+        write(0,*)       '-filter      Filter atoms command (for COG)   ', trim(adjustl(inpfile))
+        write(0,*)       '-h           Show this help and quit       ',  need_help
+        write(0,'(A)') '-------------------------------------------------------------------'
+        write(0,'(A)') 'Input command:'
+        write(0,'(A)') trim(adjustl(input_command))   
+        write(0,'(A)') '-------------------------------------------------------------------'
+        write(0,'(X,A,I0)') &
+                       'Verbose level:  ', verbose        
+        write(0,'(A)') '-------------------------------------------------------------------'
         if (need_help) call alert_msg("fatal", 'There is no manual (for the moment)' )
 
         return
     end subroutine parse_input
 
-
-    subroutine generic_strfile_read(unt,filetype,molec)
-
-        integer, intent(in) :: unt
-        character(len=*),intent(inout) :: filetype
-        type(str_resmol),intent(inout) :: molec
-
-        !Local
-        type(str_molprops) :: props
-
-        ! Predefined filetypes
-        select case (adjustl(filetype))
-            case("gro")
-             call read_gro(unt,molec)
-            case("pdb")
-             call read_pdb_new(unt,molec)
-            case("g96")
-             call read_g96(unt,molec)
-            case("xyz")
-             call read_xyz(unt,molec)
-            case("log")
-             call parse_summary(unt,molec,props,"struct_only")
-             molec%atom(:)%resname = "UNK"
-             molec%atom(:)%resseq = 1
-            case("stdori")
-             call get_first_std_geom(unt,molec)
-             molec%atom(:)%resname = "UNK"
-             molec%atom(:)%resseq = 1
-            case("inpori")
-             call get_first_inp_geom(unt,molec)
-             molec%atom(:)%resname = "UNK"
-             molec%atom(:)%resseq = 1
-            case("fchk")
-             call read_fchk_geom(unt,molec)
-             molec%atom(:)%resname = "UNK"
-             molec%atom(:)%resseq = 1
-            case("UnSym")
-             call read_molcas_geom(unt,molec)
-            case default
-             call alert_msg("fatal","File type not supported: "//filetype)
-        end select
-
-        call atname2element(molec)
-
-        return
-
-    end subroutine generic_strfile_read
-
-    subroutine selection2intlist(selection,list,Nlist)
-
-        use line_preprocess
-
-        character(len=*), intent(in) :: selection
-        integer, intent(out) :: Nlist
-        integer,dimension(1:100) :: list
-        !local 
-        character(len=5),dimension(100) :: selection_split
-        integer :: i, j 
-        integer :: N, range_last, range_width
-        logical :: is_range
-
-        call string2vector_char_new(selection,selection_split,N," ")
-
-        is_range = .false.
-        j = 0
-        do i=1,N
-            if (selection_split(i) == "to") then
-                is_range =  .true.
-                cycle
-            endif
-            ! Read number
-            if (.not.is_range) then
-                j = j+1
-                read(selection_split(i),*) list(j)
-            else
-                read(selection_split(i),*) range_last
-                range_width = range_last - list(j)
-                do jj = 1, range_width
-                    j = j + 1
-                    list(j) = list(j-1) + 1
-                enddo
-                is_range = .false.
-            endif
-        enddo
-        Nlist = j
-
-        return
-
-    end subroutine selection2intlist
+! 
+!     subroutine selection2intlist(selection,list,Nlist)
+! 
+!         use line_preprocess
+! 
+!         character(len=*), intent(in) :: selection
+!         integer, intent(out) :: Nlist
+!         integer,dimension(1:100) :: list
+!         !local 
+!         character(len=5),dimension(100) :: selection_split
+!         integer :: i, j 
+!         integer :: N, range_last, range_width
+!         logical :: is_range
+! 
+!         call string2vector_char_new(selection,selection_split,N," ")
+! 
+!         is_range = .false.
+!         j = 0
+!         do i=1,N
+!             if (selection_split(i) == "to") then
+!                 is_range =  .true.
+!                 cycle
+!             endif
+!             ! Read number
+!             if (.not.is_range) then
+!                 j = j+1
+!                 read(selection_split(i),*) list(j)
+!             else
+!                 read(selection_split(i),*) range_last
+!                 range_width = range_last - list(j)
+!                 do jj = 1, range_width
+!                     j = j + 1
+!                     list(j) = list(j-1) + 1
+!                 enddo
+!                 is_range = .false.
+!             endif
+!         enddo
+!         Nlist = j
+! 
+!         return
+! 
+!     end subroutine selection2intlist
 
 
 end program max_dist_to_center
