@@ -396,6 +396,11 @@ program gen_oniom
         integer :: iargc
 
         call getarg(0,input_command)
+        !Get input flags
+        do i=1,iargc()
+            call getarg(i,arg)
+            input_command = trim(adjustl(input_command))//" "//trim(adjustl(arg))
+        enddo
 
         argument_retrieved=.false.
         do i=1,iargc()
