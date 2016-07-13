@@ -546,7 +546,7 @@ module gro_manage
         if ( len_trim(GMXLIB) == 0 ) then
             print'(/,A,/)', "WARNING: GMXDATA env. variable undefined"
         else
-            GMXLIB=trim(adjustl(GMXLIB))//"/gromacs/top"
+            GMXLIB=trim(adjustl(GMXLIB))//"/top"
         endif
 
         ires=-1 !Label for residues (as read in top)
