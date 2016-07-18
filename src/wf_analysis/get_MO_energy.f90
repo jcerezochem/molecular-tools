@@ -10,7 +10,7 @@ program get_MO_energy
     !
     !==============================================================
 
-    use gaussian_fchk_manage
+    use gaussian_manage
     use line_preprocess
 
 
@@ -20,7 +20,7 @@ program get_MO_energy
 
     !====================== 
     !Read fchk auxiliars
-    real(4),dimension(:),allocatable :: A
+    real(8),dimension(:),allocatable :: A
     integer,dimension(:),allocatable :: IA
     character(len=1) :: dtype
     integer :: error, N
@@ -29,7 +29,7 @@ program get_MO_energy
     character(len=150) :: fileinp 
     integer :: I_FCHK=10
 
-    real(4),dimension(1000) :: MO_E
+    real(8),dimension(1000) :: MO_E
     integer,dimension(1000) :: alpha, beta
     integer :: nalpha,nbeta
     integer :: i

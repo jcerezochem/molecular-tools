@@ -28,7 +28,7 @@ module structure_types
 
     !SIZES
     integer,parameter:: MAX_ATOMS = 10000, &
-                        MAX_ATM_RES = 3000,  &
+                        MAX_ATM_RES = 6000,  &
                         MAX_CONNEXIONS = 6, &
                         MAX_DERIVED_CNX = 1000
 
@@ -92,7 +92,7 @@ module structure_types
         character::PG*5="XX" !Default for unknown
         character::name*5="UNK"
         integer::natoms
-        type(str_atom),dimension(1:MAX_ATM_RES)::atom
+        type(str_atom),dimension(:),allocatable::atom
         integer::frst_atom,lst_atom
         !If connected to other residues
 !         integer,dimension(1:MAX_CONNEXIONS) :: connect
@@ -150,5 +150,26 @@ module structure_types
     end type str_internal
 
 
+    contains
+
+    subroutine allocate_atoms(molecule,natoms)
+        
+        type(str_resmol),intent(inout) :: molecule
+        integer,intent(in),optional    :: natoms
+
+        ! local
+        integer :: n
+
+        if (present(natoms)) then
+            n = natoms
+        else
+            n = MAX_ATM_RES
+        endif
+
+        allocate(molecule%atom(1:n))
+
+        return
+        
+    end subroutine allocate_atoms
 
 end module structure_types

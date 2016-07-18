@@ -67,6 +67,11 @@ program geom_param_list
     uout = 0
     !===========================
 
+    !===========================
+    ! Allocate atoms (default)
+    call allocate_atoms(molecule)
+    !===========================
+
     ! 0. GET COMMAND LINE ARGUMENTS
     call parse_input(inpfile,listfile,filetype,labels)
 

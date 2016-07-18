@@ -110,6 +110,13 @@ program rmsd_fit
     character(len=7) :: stat="new" !do not overwrite when writting
     !===================
 
+    !===========================
+    ! Allocate atoms (default)
+    call allocate_atoms(molec)
+    call allocate_atoms(molecRef)
+    call allocate_atoms(molec_filt)
+    call allocate_atoms(molecRef_filt)
+    !===========================
 
     ! 0. GET COMMAND LINE ARGUMENTS
     call parse_input(inpfile,filetype_inp,reffile,filetype_ref,  &

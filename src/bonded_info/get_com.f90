@@ -89,6 +89,11 @@ program get_centers_mg
     character(len=7) :: stat="new" !do not overwrite when writting
     !===================
 
+    !===========================
+    ! Allocate atoms (default)
+    call allocate_atoms(molec)
+    call allocate_atoms(molec_aux)
+    !===========================
 
     ! 0. GET COMMAND LINE ARGUMENTS
     call parse_input(inpfile,filetype,do_inertia)

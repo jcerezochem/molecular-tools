@@ -114,6 +114,12 @@ program vertical2adiabatic
 
     call cpu_time(ti)
 
+    !===========================
+    ! Allocate atoms (default)
+    call allocate_atoms(state1)
+    call allocate_atoms(state2)
+    !===========================
+
     ! 0. GET COMMAND LINE ARGUMENTS
 !     call generic_input_parser(inpfile, "-f" ,"c",&
 !                               filetype,"-ft","c",&

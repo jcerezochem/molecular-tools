@@ -101,6 +101,12 @@ program calcRMS_bonded
     integer :: nbonds
     real(8) :: calc, ref, dev, rmsd, dif
 
+    !===========================
+    ! Allocate atoms (default)
+    call allocate_atoms(molec)
+    call allocate_atoms(ref_molec)
+    !===========================
+
     ! 0. GET COMMAND LINE ARGUMENTS
     call parse_input(inpfile,reffile,ft,ft_ref,debug,nonH,include_hbonds,mwc)
 

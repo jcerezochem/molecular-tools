@@ -212,6 +212,12 @@ program get_deltaX
     alert_unt=6
     !--------------------------
 
+    !===========================
+    ! Allocate atoms (default)
+    call allocate_atoms(state1)
+    call allocate_atoms(state2)
+    !===========================
+
     ! 0. GET COMMAND LINE ARGUMENTS
     call parse_input(inpfile,ft,hessfile,fth,gradfile,ftg,&
                      inpfile2,ft2,hessfile2,fth2,gradfile2,ftg2,&

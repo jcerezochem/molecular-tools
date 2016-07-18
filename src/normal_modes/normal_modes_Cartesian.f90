@@ -199,6 +199,12 @@ program normal_modes_cartesian
     silent_notes = .false.
     !--------------------------
 
+    !===========================
+    ! Allocate atoms (default)
+    call allocate_atoms(molecule)
+    call allocate_atoms(molec_aux)
+    !===========================
+
     ! 0. GET COMMAND LINE ARGUMENTS
     call parse_input(&
                      ! input data

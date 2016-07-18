@@ -132,12 +132,12 @@ AC_CONFIG_FILES([Makefile
                  src/file_management/Makefile 
                  src/bonded_info/Makefile    
                  src/gen_oniom/Makefile    
+                 src/wf_analysis/Makefile
 ])        
 AC_OUTPUT    
                
 
 #                 src/vibrations/Makefile           
-#                 src/wf_analysis/Makefile
 #                 src/cube_tools/Makefile                                    
 #                 src/build_top/Makefile    
 #                 src/joyce_tools/Makefile    

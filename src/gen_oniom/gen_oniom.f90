@@ -72,17 +72,19 @@ program gen_oniom
     type(str_resmol) :: molec 
     !Residues are different molecule types (there might be several of each kind in the system).
     ! E.g. Solvent and solute are only 2 type of molecules 
-    type(str_resmol),dimension(1:2) :: residue
+    type(str_resmol),dimension(:),allocatable :: residue
     !
-    character(len=5),dimension(10000) :: molname
+    character(len=5),dimension(:),allocatable :: molname
+    integer,dimension(:),allocatable :: molnum
     integer :: nmol
     integer,dimension(50000) :: molmap, resdone=0
     integer,dimension(10000) :: frz
     !
-    integer :: ires, imap
+    integer :: ires, imap, nres
     !
     logical :: pointcharges=.false., &
                plain=.false.
+    integer :: natoms = -1
     !====================== 
 
     !====================== 
@@ -139,7 +141,15 @@ program gen_oniom
 
     ! 0. GET COMMAND LINE ARGUMENTS AND OPEN FILES
     call parse_input(inpfile,filetype,topfile,ndxfile,frzfile,resname,jobspec,outgau,nproc,&
-                     mm_file,chrgspin_h,chrgspin_l,pointcharges,plain)
+                     mm_file,chrgspin_h,chrgspin_l,pointcharges,plain,natoms)
+
+    ! Allocate atoms
+    if (natoms<0) then
+        call allocate_atoms(molec)
+    else
+        call allocate_atoms(molec,natoms)
+    endif
+
     !Check conflicts
     if (plain .and. pointcharges) then
         call alert_msg("warning","-plain and -pc cannot be call together. Setting -pc to false")
@@ -161,7 +171,19 @@ program gen_oniom
 !             residue(:) = molec
             open(I_TOP,file=topfile,iostat=IOstatus,status="old")
             if (IOstatus /= 0) call alert_msg("fatal","Unable to open "//trim(adjustl(topfile)))
+            allocate(molnum(1:10))
+            call read_top_nres(I_TOP,nres,molnum)
+            close(I_TOP)
+            ! Allocate stuff to read top
+            allocate(molname(1:molec%natoms))
+            allocate(residue(1:2))
+            do i=1,nres
+                call allocate_atoms(residue(i),molnum(i)+1000)
+            enddo
+            deallocate(molnum)
+            open(I_TOP,file=topfile,iostat=IOstatus,status="old")
             call read_top(I_TOP,residue,molname,nmol)
+!             call read_top(I_TOP,(/molec%atom(1:molnum(1)),molec%atom(molnum(1)+1:molnum(1)+molnum(2))/),molname,nmol)
             close(I_TOP)
             !========================0
             !should THIS be in read_top?
@@ -205,6 +227,9 @@ program gen_oniom
             enddo
             enddo
             molec%natoms = k
+!             do i=1,nres
+!                 call deallocate_atoms(residue)
+!             enddo
             !========================
         endif
 
@@ -376,7 +401,7 @@ program gen_oniom
     !=============================================
 
     subroutine parse_input(inpfile,filetype,topfile,ndxfile,frzfile,resname,jobspec,outfile,nproc,&
-                           mm_file,chrgspin_h,chrgspin_l,pointcharges,plain)
+                           mm_file,chrgspin_h,chrgspin_l,pointcharges,plain,natoms)
     !==================================================
     ! My input parser (gromacs style)
     !==================================================
@@ -386,6 +411,7 @@ program gen_oniom
                                           resname,jobspec,nproc,mm_file,chrgspin_h,&
                                           chrgspin_l
         logical,intent(inout) :: pointcharges, plain
+        integer :: natoms
         ! Local
         character(len=500) :: input_command
         logical :: argument_retrieved,  &
@@ -463,6 +489,11 @@ program gen_oniom
                 case ("-plain")
                     plain=.true.
 
+                case ("-alloc-atm")
+                    call getarg(i+1,arg)
+                    read(arg,*) natoms
+                    argument_retrieved=.true.
+
                 ! Control verbosity
                 case ("-quiet")
                     verbose=0
@@ -504,7 +535,9 @@ program gen_oniom
         write(6,*) '-nproc       Number of processor in .com   ', trim(adjustl(nproc))
         write(6,*) '-cs-h        Charge&Spin H layer           ', trim(adjustl(chrgspin_h))
         write(6,*) '-cs-l        Charge&Spin L layer           ', trim(adjustl(chrgspin_l))
-        write(6,*) '-pc          Use pointcharges not ONIOM    ', pointcharges
+        write(6,*) '-pc          Use pointcharges not ONIOM   ', pointcharges
+        write(6,'(X,A,I0)') &
+                   '-alloc-atm   Atoms to allocate(-1:default) ', natoms
         write(6,*) '-h           Show this help and quit       ',  need_help
         write(6,'(A)') '-------------------------------------------------------------------'
         write(6,'(A)') 'Input command:'

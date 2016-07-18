@@ -95,6 +95,12 @@ program max_dist_to_center
     uout = 0
     !===========================
 
+    !===========================
+    ! Allocate atoms (default)
+    call allocate_atoms(molec)
+    call allocate_atoms(molec_filt)
+    !===========================
+
     ! 0. GET COMMAND LINE ARGUMENTS
     call parse_input(inpfile,filetype_inp,filter)
 

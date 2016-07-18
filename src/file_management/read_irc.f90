@@ -162,6 +162,12 @@ program reorder_fchk
 !==================================================================================
     call cpu_time(ti)
 
+    !===========================
+    ! Allocate atoms (default)
+    call allocate_atoms(molecule)
+    call allocate_atoms(molec_aux)
+    !===========================
+
     ! 0. GET COMMAND LINE ARGUMENTS
     call parse_input(inpfile,filetype,outfile,filetype_out,overwrite)
 

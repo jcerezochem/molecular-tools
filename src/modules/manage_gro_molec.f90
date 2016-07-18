@@ -497,6 +497,108 @@ module gro_manage
     end subroutine write_rtp
 
 
+    subroutine read_top_nres(unt,nres,molnum)
+
+       !======================================================
+       ! Reads topology (top) files with the itp files therein
+       ! with the include-mechanism.
+       ! 
+       ! LIMITATIONS
+       ! Only system containing molecules with one residue are 
+       ! supported. Clarifications on the molecule/residue types
+       ! is needed to improve
+       !
+       ! CHANGES
+       ! Added GMXLIB to read standard itp if not found in current dir
+       ! Bug: some itp (e.g. ions.itp) contain more residues that are
+       !      not in the conf file. They must be selected by name!
+       !=======================================================
+
+        use line_preprocess
+        use alerts
+
+        integer,intent(in)::unt
+        integer,dimension(:),intent(out) :: molnum
+        integer,intent(out) :: nres
+        
+        !Counter
+        integer::i,j,k, imap, &
+                 ii, jj, kk, ll, ift
+
+        !OTher system features
+        integer :: ires, ires_new, imol
+
+        !Reading stuff
+        character(len=260) :: line, section
+        logical :: is_section
+        integer :: ios
+        character(len=200) :: itpfile, GMXLIB
+        integer :: S_TOP = 30
+
+        !Aux
+        character(len=1) :: cnull
+        integer :: inull
+        character(len=50) :: dummy_char 
+        real(8) :: a,b,c,d,e,f 
+
+        !Get GMX lib variable
+        call GET_ENVIRONMENT_VARIABLE("GMXDATA",GMXLIB)
+        if ( len_trim(GMXLIB) == 0 ) then
+            print'(/,A,/)', "WARNING: GMXDATA env. variable undefined"
+        else
+            GMXLIB=trim(adjustl(GMXLIB))//"/top"
+        endif
+
+        ! TO BE DONE:
+        ! Get number of moleculetypes first (so as to avoid reading extra itp files, as ions)
+        ! Asuming that this section is in the main top (not in a itp)
+!         call read_moleculetypes(nmoltypes,moltypes_name,moltypes_number)
+
+        ires=-1 !Label for residues (as read in top)
+        i=0     !Residue counter (no es muy buen nombre, la verdad)
+        k=0     !Atom counter
+        nres=0
+        do 
+
+            read(unt,'(A)',iostat=ios) line
+            if (ios /= 0) exit
+
+            call split_line(line,";",line,cnull)
+
+            !If blank line or all comment, ignore the line
+            line=adjustl(line)
+            if ( len_trim(line) == 0 ) cycle
+
+            !Is it a section, which one?
+            is_section=.false.
+            if (line(1:1) == "[") is_section=.true.
+
+            !Include file support
+            if (line(1:1) == "#") then
+                !Other post-processing options are ignored
+                cycle
+            endif
+
+
+            if (is_section) then
+                call split_line(line   ,"[",cnull,section)
+                call split_line(section,"]",section,cnull)
+            else if (adjustl(section) == "molecules") then
+                read(line,*) cnull, imol
+                nres = nres + 1
+                molnum(nres)=imol
+            else
+                cycle
+            endif
+
+        enddo
+        close(unt)
+                 
+        return
+
+    end subroutine read_top_nres
+
+
     subroutine read_top(unt,residue,molmap,nmol)
 
        !======================================================
@@ -515,6 +617,7 @@ module gro_manage
        !=======================================================
 
         use line_preprocess
+        use alerts
 
         integer,intent(in)::unt
         type(str_resmol),intent(inout),dimension(:)::residue
@@ -549,6 +652,11 @@ module gro_manage
             GMXLIB=trim(adjustl(GMXLIB))//"/top"
         endif
 
+        ! TO BE DONE:
+        ! Get number of moleculetypes first (so as to avoid reading extra itp files, as ions)
+        ! Asuming that this section is in the main top (not in a itp)
+!         call read_moleculetypes(nmoltypes,moltypes_name,moltypes_number)
+
         ires=-1 !Label for residues (as read in top)
         i=0     !Residue counter (no es muy buen nombre, la verdad)
         k=0     !Atom counter
@@ -581,8 +689,8 @@ module gro_manage
                     open(S_TOP,file=itpfile,iostat=ios,status="old")
                 endif
                 if (ios /= 0) then
-                    print*, "File "//trim(adjustl(itpfile))//" should be "//&
-                            "included but it was not found. Check the output!"
+                    call alert_msg("warning","File "//trim(adjustl(itpfile))//" should be "//&
+                            "included but it was not found. Check the output!")
                     cycle
                 endif
                 call read_top_recurs(S_TOP,residue,molmap,nmol,i)
@@ -601,8 +709,13 @@ module gro_manage
 ! print*, "Reading section: ", trim(adjustl(section))
             else if (adjustl(section) == "moleculetype") then
                 cycle
-!                 read(line,*) residue(i)%name, inull !nrexcl
+!                 read(line,*) molname, inull !nrexcl
+!                 read_molecule=.false.
+!                 do j=1,nmoltypes
+!                     if (adjustl(molname) == adjustl(moltype_name(j))) read_molecule=.true.
+!                 enddo
             else if (adjustl(section) == "atoms") then
+!                 if (.not.read_molecule) cycle
 !This will not work here!! (only in the recursive version) -- TO BE SOLVED
 !   !     1   CA_CR        1 BCR   C1        1   -0.100   12.011
                 read(line,*) inull,cnull,ires_new

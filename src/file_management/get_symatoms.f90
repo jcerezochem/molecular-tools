@@ -109,6 +109,11 @@ program get_symatoms
 !==================================================================================
     call cpu_time(ti)
 
+    !===========================
+    ! Allocate atoms (default)
+    call allocate_atoms(molecule)
+    !===========================
+
     ! 0. GET COMMAND LINE ARGUMENTS
     call parse_input(inpfile,filetype)
  

@@ -67,6 +67,11 @@ program get_gscan
     integer :: IOstatus
     !===================
 
+    !===========================
+    ! Allocate atoms (default)
+    call allocate_atoms(molec)
+    call allocate_atoms(molec_aux)
+    !===========================
 
     ! 0. GET COMMAND LINE ARGUMENTS
     call parse_input(inpfile,filetype_inp,outfile,filetype_out,swapfile)
