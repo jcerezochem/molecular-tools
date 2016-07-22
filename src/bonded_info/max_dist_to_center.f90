@@ -88,6 +88,9 @@ program max_dist_to_center
     !status
     integer :: IOstatus
     character(len=7) :: stat="new" !do not overwrite when writting
+
+    !
+    integer :: nalloc=-1
     !===================
 
     !===========================
@@ -95,15 +98,20 @@ program max_dist_to_center
     uout = 0
     !===========================
 
-    !===========================
-    ! Allocate atoms (default)
-    call allocate_atoms(molec)
-    call allocate_atoms(molec_filt)
-    !===========================
 
     ! 0. GET COMMAND LINE ARGUMENTS
-    call parse_input(inpfile,filetype_inp,filter)
+    call parse_input(inpfile,filetype_inp,filter,nalloc)
 
+    !===========================
+    ! Allocate atoms (default)
+    if (nalloc<1) then
+        call allocate_atoms(molec)
+        call allocate_atoms(molec_filt)
+    else
+        call allocate_atoms(molec,nalloc)
+        call allocate_atoms(molec_filt,nalloc)
+    endif 
+    !===========================
  
     ! 1. READ INPUT
     ! ---------------------------------
@@ -159,13 +167,14 @@ program max_dist_to_center
     contains
     !=============================================
 
-    subroutine parse_input(inpfile,filetype_inp,filter)
+    subroutine parse_input(inpfile,filetype_inp,filter,nalloc)
     !==================================================
     ! My input parser (gromacs style)
     !==================================================
         implicit none
 
         character(len=*),intent(inout) :: inpfile,filetype_inp,filter
+        integer,intent(inout) :: nalloc
         ! Local
         character(len=500) :: input_command
         logical :: argument_retrieved,  &
@@ -200,6 +209,11 @@ program max_dist_to_center
                 case ("-filter") 
                     call getarg(i+1, filter)
                     argument_retrieved=.true.
+
+                case ("-alloc-atm") 
+                    call getarg(i+1, arg)
+                    read(arg,*) nalloc
+                    argument_retrieved=.true.
         
                 case ("-h")
                     need_help=.true.
@@ -226,6 +240,7 @@ program max_dist_to_center
         write(0,*)       '-f           Input file                       ', trim(adjustl(inpfile))
         write(0,*)       '-ft          \_ FileType                      ', trim(adjustl(filetype_inp))
         write(0,*)       '-filter      Filter atoms command (for COG)   ', trim(adjustl(inpfile))
+        write(0,*)       '-alloc-atm   Atoms to allocate(-1=default)    ', nalloc
         write(0,*)       '-h           Show this help and quit       ',  need_help
         write(0,'(A)') '-------------------------------------------------------------------'
         write(0,'(A)') 'Input command:'
