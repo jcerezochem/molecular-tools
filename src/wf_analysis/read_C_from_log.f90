@@ -37,7 +37,7 @@ program read_C
             read(line,'(21X,1000F10.5)') C(j,i+1:i+Nc)
         enddo
         i = i + Nc
-        if (i == Nbasis) exit
+        if (i == Nbasis-1) exit
         read(I_LOG,'(A)') line
         call string2vector(line,vec,Nc,' ')
         read(I_LOG,'(A)') line ! O/V (type)
