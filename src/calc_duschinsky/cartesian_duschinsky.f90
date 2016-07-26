@@ -1394,9 +1394,9 @@ program cartesian_duschinsky
             Nvib0=Nvib
             j = 0
             do i=1,Nvib
-                ff = FC(i)**2*Vec1(i)**2*dexp(-2.d0*FC(i)*time)
+                ff = FC(i)**2*Vec1(i)**2*dexp(-2.d0*dabs(FC(i))*time)
                 f0 = f0 + ff
-                f1 = f1 + FC(i)**2*Vec1(i)**2*dexp(-2.d0*FC(i)*(time+dt))
+                f1 = f1 + FC(i)**2*Vec1(i)**2*dexp(-2.d0*dabs(FC(i))*(time+dt))
                 ! Discard modes that reached the baseline
                 if (ff < 5e-24) then
                     Nvib0=Nvib0-1

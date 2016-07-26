@@ -81,6 +81,9 @@ src/calc_duschinsky/substract_disps
 src/calc_duschinsky/rotate_disp
 src/calc_duschinsky/LHA_optimizer
 src/normal_modes/prj_grad_on_nm_int
+src/wf_analysis/get_MO_energy
+src/wf_analysis/read_C_from_log
+src/wf_analysis/read_S_from_log
 
 # output from test calcs
 *output.?
