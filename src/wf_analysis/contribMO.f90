@@ -38,8 +38,8 @@ program contribMO
 
     integer,parameter :: BASIS_SIZE = 2000
 
-    real(8),dimension(1:BASIS_SIZE,1:BASIS_SIZE) :: MO, S, MOc
-    integer,dimension(1:BASIS_SIZE) :: AOmap
+    real(8),dimension(:,:),allocatable :: MO, S, MOc
+    integer,dimension(:),allocatable :: AOmap
     
     integer :: IFCHK =11, &
                IMO   =12, &
@@ -62,7 +62,7 @@ program contribMO
     integer :: Nselect, Nselect_alpha, Nselect_beta, Nfrg
     integer,dimension(1:10) :: Nat
     integer,dimension(1:10,1:500) :: atom_index
-    integer,dimension(1:BASIS_SIZE) :: MO_select_alpha, MO_select_beta
+    integer,dimension(:),allocatable :: MO_select_alpha, MO_select_beta
 
     !NTO averaging
     integer :: Nel
@@ -86,6 +86,7 @@ program contribMO
     deallocate(IA)
     call read_fchk(IFCHK,"Alpha MO coefficients",dtype,N,A,IA,j)
     rewind(IFCHK)
+    allocate(MO(1:Nb,1:No),S(1:Nb,1:Nb),MOc(1:Nb,1:No))
     k=0
     do i=1,No
     do j=1,Nb
@@ -99,6 +100,8 @@ program contribMO
     call MAT0(98,MO,Nb,No,"C")
     !Compute overlap corrected MOs 
     MOc(1:Nb,1:No) = matrix_product(Nb,No,Nb,S,MO)
+    deallocate(S)
+    allocate(AOmap(1:Nb))
     call AO_atom_map(IFCHK,AOmap(1:Nb))
     
     !Atom selection
@@ -115,13 +118,13 @@ program contribMO
         enddo
     endif
     
-    
+    allocate(MO_select_alpha(1:No))
     !Enable OM selection (unless do_nto is enabled -- in this case only the first one is analyzed)
     if (adjustl(mo_file) == "all") then ! .or. nto_av) then
         Nselect_alpha = No
         Nselect_beta  = No
         MO_select_alpha(1:No) = (/(i,i=1,No)/)
-        MO_select_beta(1:No)  = (/(i,i=1,No)/)
+!         MO_select_beta(1:No)  = (/(i,i=1,No)/)
     else if (adjustl(mo_file) == "alpha") then
         Nselect_alpha = No
         Nselect_beta  = 0
@@ -138,7 +141,7 @@ program contribMO
                 MO_select_alpha(Nselect_alpha) = ii
             else if (adjustl(mo_type) == "beta") then
                 Nselect_beta  = Nselect_beta + 1
-                MO_select_beta(Nselect_beta)   = ii
+!                 MO_select_beta(Nselect_beta)   = ii
             endif
         enddo
     endif
@@ -148,6 +151,8 @@ program contribMO
     !NTO averaging: get NTO coefficients (W) (stored in MO energies section)
     ! note that after this call M=N --- disabled
     if (do_nto) then
+        print*, "NTO is disable for the moment"
+        stop
         write(0,*) "=============="
         write(0,*) " ANALISIS NTO"
         write(0,*) "=============="
@@ -223,7 +228,10 @@ program contribMO
 
     
     !If no beta requested, stop here!
+    deallocate(MO,MOc,MO_select_alpha)
     if ( Nselect_beta == 0 ) stop
+    print*, "Unrestricted calculation not yet supported"
+    stop
 !    print*, ""
     
     !Beta
