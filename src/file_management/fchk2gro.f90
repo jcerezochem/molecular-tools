@@ -58,7 +58,7 @@ program fchk2gro
                use_elements = .false. ,&
                remove_com   = .false.
     !Swap related counters
-    integer :: iat_new, iat_orig, nswap
+    integer :: iat_new, iat_orig, nswap, nbonds
     !=============
 
     !================
@@ -171,10 +171,22 @@ program fchk2gro
     !If PDB check if connections are requested
     if (make_connect .and. adjustl(filetype_out)=="pdb") then
         call guess_connect(molec)
-        filetype_out="pdb-c"
     endif
     if (adjustl(title) /= "read") molec%title = trim(adjustl(title))
     call generic_strmol_writer(O_OUT,filetype_out,molec)
+
+    ! Add connectivity if requested (PDB only)
+    if (make_connect .and. adjustl(filetype_out)=="pdb") then
+        do i=1,molec%natoms
+            nbonds=molec%atom(i)%nbonds
+            write(O_OUT,'(A6,10I5)') "CONECT", i,molec%atom(i)%connect(1:nbonds)
+!             do j=1,system%atom(i)%nbonds
+!                 k=system%atom(i)%connect(j)
+!                 if (k<i) cycle
+!                 write(unt,301) "CONECT", i,k
+!             enddo
+        enddo
+    endif
     close(O_OUT)
 
     stop

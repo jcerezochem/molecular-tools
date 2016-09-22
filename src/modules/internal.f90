@@ -1956,9 +1956,9 @@ module internal_module
         integer,parameter :: NDIM = 600
         ! This threshold will take frequences < 0.001 as zero
         ! so it is quite conservative
-        real(8),parameter :: ZEROp=2.076017E-17
+        !real(8),parameter :: ZEROp=2.076017E-17
         ! To get thr at freq < 0.01cm-1
-!         real(8),parameter :: ZEROp=2.076017E-15
+        real(8),parameter :: ZEROp=2.076017E-15
     
         !====================== 
         !ARGUMENTS
