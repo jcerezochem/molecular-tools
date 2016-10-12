@@ -156,9 +156,8 @@ module thermochemistry
             zpe  = zpe + 0.5d0 * Freq(i)
         enddo
         ! Sum tr+rot+vib (all quantitues need to be multiplied by kB)
-        Eint = Eint + 3.d0*Temp 
         S    = St+Sr+Sv 
-        H    = Eint + Temp
+        H    = (Eint + 3.d0*Temp) + Temp
         G    = H - S*Temp
 
         print'(2X,A)', "Partition Functions"
@@ -173,9 +172,17 @@ module thermochemistry
         print*, ""
         print'(2X,A)', "Thermal corrections (AU)"
         print'(2X,A,G15.6)', "Zero Point Energy =", zpe/autown
-        print'(2X,A,G15.6)', "Internal Energy   =", Eint*kbau 
+        print'(2X,A,G15.6)', "Internal Energy   =", (Eint+3.d0*Temp)*kbau 
         print'(2X,A,G15.6)', "Enthalpy          =", H*kbau         
-        print'(2X,A,G15.6)', "Gibbs Free Energy =", G*kbau                  
+        print'(2X,A,G15.6)', "Gibbs Free Energy =", G*kbau    
+        print*, ""       
+        print'(2X,A)', "Thermal corrections (AU) - vibrational only"
+        print'(2X,A,I8)', "Number of vibrations:", Nvib
+        H    = Eint + Temp
+        G    = H - Sv*Temp
+        print'(2X,A,G15.6)', "V-internal Energy   =", Eint*kbau
+        print'(2X,A,G15.6)', "V-enthalpy          =", H*kbau         
+        print'(2X,A,G15.6)', "V-gibbs Free Energy =", G*kbau   
 
         return
 

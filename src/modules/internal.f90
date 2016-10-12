@@ -2070,6 +2070,10 @@ module internal_module
         ! To be fixed, using proper generalized inverses of truncated L matrices
         ! in latter steps
         Nvib=Ns
+        ! BELOW AS WAS STASHED
+        ! Now we can set Nvib, and it will not affect local Ns even if the same var is used when calling the sr 
+        Nvib = Nvib0
+        ! DEHSATS SAW SA WOLEB
 
         !Check FC
         if (verbose>1) &
