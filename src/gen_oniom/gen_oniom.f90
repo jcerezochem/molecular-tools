@@ -188,6 +188,7 @@ program gen_oniom
             !========================0
             !should THIS be in read_top?
             !Identify different molecules (like that if splitted in [ molecules ] will not work.
+            ! THE MANAGEMENT OF MOLECULES SHOULD BE WITH A MOLID NOT WITH MOLNAME THAT MAY BE TOO SHORT (len=5 HERE)
             imap=1
             k=0
             molmap=1

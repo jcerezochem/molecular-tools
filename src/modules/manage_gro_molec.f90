@@ -629,11 +629,14 @@ module gro_manage
                  ii, jj, kk, ll, ift
 
         !OTher system features
-        integer :: ires, ires_new, imol
+        integer :: ires, ires_new, imol, isp
+        integer,dimension(50) :: nspecie
+        character(len=20),dimension(50) :: species
+        character(len=20) :: fullname
 
         !Reading stuff
         character(len=260) :: line, section
-        logical :: is_section
+        logical :: is_section, read_molecule
         integer :: ios
         character(len=200) :: itpfile, GMXLIB
         integer :: S_TOP = 30
@@ -655,14 +658,67 @@ module gro_manage
         ! TO BE DONE:
         ! Get number of moleculetypes first (so as to avoid reading extra itp files, as ions)
         ! Asuming that this section is in the main top (not in a itp)
-!         call read_moleculetypes(nmoltypes,moltypes_name,moltypes_number)
+!          call read_top_moleculetypes(nmoltypes,moltypes_name,moltypes_number)
+        ! Asume that [ molecules ] section is in the main file (TO BE GENERALIZED)
+        nmol=0
+        isp=0
+        do 
 
+            read(unt,'(A)',iostat=ios) line
+            if (ios /= 0) exit
+
+            call split_line(line,";",line,cnull)
+
+            !If blank line or all comment, ignore the line
+            line=adjustl(line)
+            if ( len_trim(line) == 0 ) cycle
+
+            !Is it a section, which one?
+            is_section=.false.
+            if (line(1:1) == "[") is_section=.true.
+
+            !Ignore includes (for the moment)
+            if (line(1:1) == "#") then
+                !Other post-processing options are ignored
+                cycle
+            endif
+
+
+            if (is_section) then
+                call split_line(line   ,"[",cnull,section)
+                call split_line(section,"]",section,cnull)
+            elseif (adjustl(section) == "molecules") then
+                ! Read the specific species in this first round
+                isp = isp + 1
+                read(line,*) species(isp), imol
+                nspecie(isp) = imol
+!                 do j=nmol+2,nmol+imol
+!                     molmap(j) = molmap(j-1)
+!                 enddo
+                nmol = nmol + imol
+            else
+                cycle
+            endif
+
+        enddo
+        rewind(unt)
+
+        !Ready to read the rest of the file
+        write(0,*) "******************"
+        write(0,*) " READING TOPOLOGY "
+        write(0,*) "******************"
+        write(0,*) "Number of species in the topology: ", isp
+        do i=1,isp
+            write(0,*) i, adjustl(species(i)), nspecie(i)
+        enddo
+!  stop
         ires=-1 !Label for residues (as read in top)
         i=0     !Residue counter (no es muy buen nombre, la verdad)
         k=0     !Atom counter
         imap=0
         nmol=0
-        do 
+        section=""
+        do
 
             read(unt,'(A)',iostat=ios) line
             if (ios /= 0) exit
@@ -692,8 +748,10 @@ module gro_manage
                     call alert_msg("warning","File "//trim(adjustl(itpfile))//" should be "//&
                             "included but it was not found. Check the output!")
                     cycle
+                else
+                    write(0,*) "Include-file found!"
                 endif
-                call read_top_recurs(S_TOP,residue,molmap,nmol,i)
+                call read_top_recurs(S_TOP,residue,molmap,nmol,i,species,isp)
                 ires = -1
 ! print*, "READ", i, residue(i)%name, residue(i)%atom(1)%name, residue(i)%natoms
                 close(S_TOP)
@@ -708,13 +766,15 @@ module gro_manage
                 call split_line(section,"]",section,cnull)
 ! print*, "Reading section: ", trim(adjustl(section))
             else if (adjustl(section) == "moleculetype") then
+                read(line,*) fullname, inull !nrexcl
+                read_molecule=.false.
+                do j=1,isp
+                    if (fullname == species(j)) read_molecule=.true.
+                enddo
+                if (.not.read_molecule) write(0,*) "Excluding "//trim(adjustl(fullname))
                 cycle
-!                 read(line,*) molname, inull !nrexcl
-!                 read_molecule=.false.
-!                 do j=1,nmoltypes
-!                     if (adjustl(molname) == adjustl(moltype_name(j))) read_molecule=.true.
-!                 enddo
             else if (adjustl(section) == "atoms") then
+                if (.not.read_molecule) cycle
 !                 if (.not.read_molecule) cycle
 !This will not work here!! (only in the recursive version) -- TO BE SOLVED
 !   !     1   CA_CR        1 BCR   C1        1   -0.100   12.011
@@ -737,13 +797,16 @@ module gro_manage
             else if (adjustl(section) == "atomtypes") then
                 write(20,*) line
             else if (adjustl(section) == "bonds") then
+                if (.not.read_molecule) cycle
                 read(line,*) ii, jj, ift, a, b
                 write(21,*) residue(i)%atom(ii)%attype//" "//residue(i)%atom(jj)%attype//" ",ift, a, b 
             else if (adjustl(section) == "angles") then
+                if (.not.read_molecule) cycle
                 read(line,*) ii, jj, kk, ift, a, b
                 write(22,*) residue(i)%atom(ii)%attype//" "//residue(i)%atom(jj)%attype//" "//residue(i)%atom(kk)%attype//&
                             " ",ift, a, b 
             else if (adjustl(section) == "dihedrals") then
+                if (.not.read_molecule) cycle
                 read(line,*) ii, jj, kk, ll, ift!, a, b, c, d, e, f
                 write(23,*) residue(i)%atom(ii)%attype//" "//residue(i)%atom(jj)%attype//" "//residue(i)%atom(kk)%attype//&
                             " "//residue(i)%atom(ll)%attype//"",ift!, a, b, c, d, e, f 
@@ -759,18 +822,20 @@ module gro_manage
 
         enddo
         close(unt)
+        write(0,*) "******************"
                  
         return
 
         contains
         !Recursive read (to support include files)
 
-        subroutine read_top_recurs(unt,residue,molmap,imol,irs)
+        subroutine read_top_recurs(unt,residue,molmap,imol,irs,species,isp)
 
             integer,intent(in)::unt
             type(str_resmol),intent(inout),dimension(:)::residue
             character(len=*),dimension(:),intent(inout) :: molmap
-            integer,intent(inout) :: imol, irs
+            integer,intent(inout) :: imol, irs, isp
+            character(len=*),intent(in),dimension(:) :: species
             
             !Counter
             integer::i, k, imap
@@ -780,8 +845,9 @@ module gro_manage
 
             !Reading stuff
             character(len=260) :: line, section
-            logical :: is_section
+            logical :: is_section, read_molecule
             integer :: ios
+            character(len=20) :: fullname
 
             !Aux
             character(len=1) :: cnull
@@ -821,12 +887,20 @@ module gro_manage
                     call split_line(section,"]",section,cnull)
 ! print*, "Reading section(itp): ", trim(adjustl(section)), i
                 else if (adjustl(section) == "moleculetype") then
+                    read(line,*) fullname, inull !nrexcl
+                    read_molecule=.false.
+                    do j=1,isp
+                        if (fullname == species(j)) read_molecule=.true.
+                    enddo
+                    if (.not.read_molecule) write(0,*) "Excluding "//trim(adjustl(fullname))
+                    if (.not.read_molecule) cycle
                     i=i+1
                     k=0
                     cycle
                     !Was trying to read resid(i_not-updated). Now read resname from [atoms]
                     !read(line,*) residue(i)%name, inull !nrexcl
                 else if (adjustl(section) == "atoms") then
+                    if (.not.read_molecule) cycle
 !   !   !     1   CA_CR        1 BCR   C1        1   -0.100   12.011
                     k=k+1
 ! print*, trim(adjustl(line))
