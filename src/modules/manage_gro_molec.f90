@@ -711,6 +711,7 @@ module gro_manage
         do i=1,isp
             write(0,*) i, adjustl(species(i)), nspecie(i)
         enddo
+        write(0,*) " "
 !  stop
         ires=-1 !Label for residues (as read in top)
         i=0     !Residue counter (no es muy buen nombre, la verdad)
@@ -749,7 +750,7 @@ module gro_manage
                             "included but it was not found. Check the output!")
                     cycle
                 else
-                    write(0,*) "Include-file found!"
+                    write(0,*) "Include file found: "//trim(adjustl(itpfile))
                 endif
                 call read_top_recurs(S_TOP,residue,molmap,nmol,i,species,isp)
                 ires = -1

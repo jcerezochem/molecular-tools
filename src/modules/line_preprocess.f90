@@ -436,10 +436,14 @@ module line_preprocess
        ! Syntaxis of the selection:
        !  #  1 to 3   => (1,2,3)
        !  #  1,3,5-7  => (1,3,5,6,7)
+       !
+       ! NOTE: list takes the dimension from the caller
+       !       but it can be smaller that the number of
+       !       elements to read in
 
         character(len=*), intent(in) :: selection
         integer, intent(out) :: Nlist
-        integer,dimension(1:100) :: list
+        integer,dimension(:) :: list
         !local 
         character(len=5),dimension(100) :: selection_split
         integer :: i, j, jj
@@ -486,6 +490,9 @@ module line_preprocess
             endif
         enddo
         Nlist = j
+
+        if ( Nlist > size(list) ) &
+         write(0,*) "WARNING: list is too small (in line_preprocess)"
 
         return
 

@@ -94,7 +94,7 @@ program geom_param_list
     read(IList,*) nlines
     do i=1,nlines
         read(IList,'(A)') list_item
-        call string2vector_int(list_item,atlabels,nitems,",")
+        call selection2intlist(list_item,atlabels,nitems)
         if (nitems == 2) then
             param=calc_atm_dist(molecule%atom(atlabels(1)),molecule%atom(atlabels(2)))
             if (.not.labels) print'(F9.4,2X)', param
