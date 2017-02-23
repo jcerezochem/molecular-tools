@@ -7,30 +7,11 @@ program read_scan
     !
     ! Description:
     ! -----------
-    ! Program to analyse vibrations in term of internal coordinates.
-    !
-    ! Compilation instructions (for mymake script):
-    !make$ echo "COMPILER: $FC"; sleep 1; $FC ../modules/alerts.f90 ../modules/structure_types_v3.f90 ../modules/line_preprocess.f90 ../modules/ff_build_module_v3.f90 ../modules/gro_manage_v2.f90 ../modules/pdb_manage_v2.f90 ../modules/constants_mod.f90 ../modules/atomic_geom_v2.f90 ../modules/gaussian_manage_v2.f90 ../modules/gaussian_fchk_manage_v2.f90 ../modules/symmetry_mod.f90 ../modules/MatrixMod.f90 internal_SR_v6.f90 internal_duschinski_v5.f90 -llapack -o internal_duschinski_v5.exe -cpp -DDOUBLE
-    !
-    ! Change log:
-    !
-    ! TODO:
-    ! ------
-    !
-    ! History
-    ! V3: Internal analysis is based on internal_duschinski_v5 (never finished...)
-    ! V4: Internal analysis is based on internal_duschinski_v7
-    !  V4b (not in the main streamline!): includes the generation of scans calc. for Gaussian.
-    !  V4c: the same as 4b. Bug fixes on guess_connect (ff_build module_v3 was buggy)
-    !
-    !Addapted to v4 release (distribution upgrade). Feb '14
-    !v4 releases:
-    !v4.0.1:
-    ! -use redundant coordinates
-    !v4.0.1.1:
-    ! - include UnSym (MOLCAS) file as input (freqs and nm)
-    !v4.0.1.2:
-    ! - if the calculation is only a internal scan, do not need the hessian (so do not try to read it)
+    ! Program to extract individuated information from the FCHK of
+    ! a Scan job. For each scan point, it generates:
+    !  * xyz file with the last geom in the scan point (contraint opt)
+    !  * com file with an input for further jobs on each point
+    !  * fchk file with geom, energy and gradient (at each contraint opt point)
     !
     !============================================================================    
 
@@ -268,12 +249,12 @@ program read_scan
         ! Print to files
         label = int20char(i_scan,2)
         write(title,'(A,I0,5X,A,F15.6,X,A,F10.4)') "Scan step ", i_scan, "E=", E(i_scan)
-        outfile=trim(adjustl(basefile))//trim(adjustl(label))//"."//trim(adjustl(extension))
+        outfile=trim(adjustl(basefile))//"_"//trim(adjustl(label))//"."//trim(adjustl(extension))
         open(O_STR,file=outfile)
         call generic_strmol_writer(O_STR,filetype_out,molecule,title=title)
         close(O_STR)
         ! Write g09 input
-        outfile=trim(adjustl(basefile))//trim(adjustl(label))//".com"
+        outfile=trim(adjustl(basefile))//"_"//trim(adjustl(label))//".com"
         open(O_GAU,file=outfile)
         call write_gcom(O_GAU,molecule,&
                               !Optional args
@@ -285,7 +266,7 @@ program read_scan
         close(O_GAU)
         
         ! Write FCHK
-        outfile=trim(adjustl(basefile))//trim(adjustl(label))//".fchk"
+        outfile=trim(adjustl(basefile))//"_"//trim(adjustl(label))//".fchk"
         open(O_FCHK,file=outfile)
         ! Title and job info
         write(O_FCHK,'(A)') "FCHK created with read_scan from "//trim(adjustl(inpfile))
