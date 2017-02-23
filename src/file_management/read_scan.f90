@@ -91,6 +91,8 @@ program read_scan
     character(len=5) :: PG
     ! Energies
     real(8) :: E_scf, E_td, E_tot
+    ! FCHK data
+    real(8),dimension(1:NDIM) :: Grad
     !======================
 
     !=====================
@@ -142,7 +144,8 @@ program read_scan
     !units
     integer :: I_INP=10,  &
                O_STR=20,  &
-               O_GAU=21
+               O_GAU=21,  &
+               O_FCHK=22
     !files
     character(len=10) :: filetype="guess", filetype_out="guess"
     character(len=200):: inpfile ="input.fchk", &
@@ -234,7 +237,7 @@ program read_scan
         R(i_scan) = A(N)
         deallocate(A)
         
-        ! Read all geoms and write to files
+        ! Read all geoms at the scan point, and get the last point (constraint minimum)
         write(line,'(A9,I8,X,A10)') "Opt point",i_scan,"Geometries"
         call read_fchk(I_INP,adjustl(line),dtype,N,A,IA,error)
         if (error /= 0) call alert_msg("fatal","Looking for Scan info (Geometries)")
@@ -249,6 +252,20 @@ program read_scan
             k=k+1
             molecule%atom(j)%z = A(k)*BOHRtoANGS
         enddo
+        
+        ! Read all Grads at the scan point, and get the last point (constraint minimum)
+        write(line,'(A9,I8,X,A22)') "Opt point",i_scan,"Gradient at each geome"
+        call read_fchk(I_INP,adjustl(line),dtype,N,A,IA,error)
+        if (error /= 0) call alert_msg("fatal","Looking for Scan info (Gradient)")
+        if (nsteps /= N/(3*Nat)) call alert_msg("fatal","Inconsistency in the number of steps")
+
+        k=(nsteps-1)*Nat*3
+        do j=1,3*Nat
+            Grad(j) = A(j)
+        enddo
+        deallocate(A)
+        
+        ! Print to files
         label = int20char(i_scan,2)
         write(title,'(A,I0,5X,A,F15.6,X,A,F10.4)') "Scan step ", i_scan, "E=", E(i_scan)
         outfile=trim(adjustl(basefile))//trim(adjustl(label))//"."//trim(adjustl(extension))
@@ -267,7 +284,41 @@ program read_scan
                               title=title      )
         close(O_GAU)
         
-        deallocate(A)
+        ! Write FCHK
+        outfile=trim(adjustl(basefile))//trim(adjustl(label))//".fchk"
+        open(O_FCHK,file=outfile)
+        ! Title and job info
+        write(O_FCHK,'(A)') "FCHK created with read_scan from "//trim(adjustl(inpfile))
+        write(O_FCHK,'(A10,A60,A10)') adjustl(calc_type), adjustl(method), adjustl(basis)
+        call write_fchk(O_FCHK,"Number of atoms","I",0,A,(/Nat/),error)
+        call write_fchk(O_FCHK,"Charge","I",0,A,(/charge/),error)
+        call write_fchk(O_FCHK,"Multiplicity","I",0,A,(/mult/),error)
+        N=molecule%natoms
+        call write_fchk(O_FCHK,"Atomic numbers",'I',N,A,molecule%atom(1:N)%AtNum,error)
+        N=molecule%natoms
+        allocate(IA(1:1),A(1:N))
+        A(1:N) = float(molecule%atom(1:N)%AtNum)
+        call write_fchk(O_FCHK,"Nuclear charges",'R',N,A,IA,error)
+        deallocate(A,IA)
+        !Coordinates
+        N=3*molecule%natoms
+        allocate(IA(1:1),A(1:N))
+        do i=1,N/3
+            j=3*i
+            A(j-2) = molecule%atom(i)%x/BOHRtoANGS
+            A(j-1) = molecule%atom(i)%y/BOHRtoANGS
+            A(j)   = molecule%atom(i)%z/BOHRtoANGS
+        enddo
+        call write_fchk(O_FCHK,"Current cartesian coordinates",'R',N,A,IA,error)
+        deallocate(A,IA)
+        !Atomic weights
+        call write_fchk(O_FCHK,"Integer atomic weights",'I',3*Nat,A,int(molecule%atom(:)%mass),error)
+        call write_fchk(O_FCHK,"Real atomic weights",'R',3*Nat,molecule%atom(:)%mass,IA,error)
+        !Energy 
+        call write_fchk(O_FCHK,"Total Energy",'R',0,(/E(i_scan)/),IA,error)
+        !Gradient
+        call write_fchk(O_FCHK,"Cartesian Gradient",'R',3*Nat,Grad,IA,error)
+        close(O_FCHK)
     enddo
 
     write(0,*) 'Number of scan points', i_scan
