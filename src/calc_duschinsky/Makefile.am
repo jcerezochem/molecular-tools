@@ -233,6 +233,7 @@ generate_internals_SOURCES = ../modules/alerts.f90\
                              ../modules/constants.f90\
                              ../modules/verbosity.f90\
                              ../modules/io.f90\
+                             ../modules/version.f90\
                              ../modules/matrix.f90\
                              ../modules/matrix_print.f90\
                              ../modules/structure_types.f90\

@@ -51,7 +51,7 @@ program vertical2adiabatic
 
     !====================== 
     !System variables
-    type(str_resmol) :: state1,state2
+    type(str_resmol) :: state1
     integer,dimension(1:NDIM) :: isym
     integer :: Nat, Nvib, Ns, N, Nf
     !====================== 
@@ -113,6 +113,11 @@ program vertical2adiabatic
 !==================================================================================
 
     call cpu_time(ti)
+    
+    !===========================
+    ! Allocate atoms (default)
+    call allocate_atoms(state1)
+    !===========================
 
     ! 0. GET COMMAND LINE ARGUMENTS
 !     call generic_input_parser(inpfile, "-f" ,"c",&
@@ -135,6 +140,7 @@ program vertical2adiabatic
     ! Shortcuts
     Nat = state1%natoms
 
+
     ! MANAGE INTERNAL COORDS
     ! ---------------------------------
     ! Get connectivity 
@@ -150,7 +156,7 @@ program vertical2adiabatic
     ! Manage symmetry
     if (.not.use_symmetry) then
         state1%PG="C1"
-    else if (trim(adjustl(symm_file)) /= "NONE") then
+    else if (trim(adjustl(symm_file)) /= "none") then
         msg = "Using custom symmetry file: "//trim(adjustl(symm_file)) 
         call alert_msg("note",msg)
         open(I_SYM,file=symm_file)
@@ -244,9 +250,18 @@ program vertical2adiabatic
                    need_help = .false.
         integer:: i
         character(len=200) :: arg
+        character(len=500) :: input_command
         ! iargc type must be specified with implicit none (strict compilation)
         integer :: iargc
-
+        
+        !Initialize input_command
+        call getarg(0,input_command)
+        !Get input flags
+        do i=1,iargc()
+            call getarg(i,arg)
+            input_command = trim(adjustl(input_command))//" "//trim(adjustl(arg))
+        enddo
+        
         argument_retrieved=.false.
         do i=1,iargc()
             if (argument_retrieved) then
@@ -326,25 +341,36 @@ program vertical2adiabatic
                     call alert_msg("fatal","Unkown command line argument: "//adjustl(arg))
             end select
         enddo 
+        
+        write(6,'(/,A)') '========================================================'
+        write(6,'(/,A)') '      G E N E R A T E    I N T E R N A L S        '
+        write(6,'(/,A)') '       Get internal set from structure file        '
+        write(6,'(A,/)') '          (for a given type of set)          '      
+        call print_version()
+        write(6,'(/,A)') '========================================================'
+        write(6,'(/,A)') '-------------------------------------------------------------------'
+        write(6,'(A)')   ' Flag         Description                   Value'
+        write(6,'(A)')   '-------------------------------------------------------------------'
+        write(6,*) '-f           Input file (State1)           ', trim(adjustl(inpfile))
 
-
-       !Print options (to stderr)
-        write(6,'(/,A)') '--------------------------------------------------'
-        write(6,'(/,A)') '                   ZMAT2INTERNALSET '    
-        write(6,'(/,A)') '  Get internal set from the automatically generated Zmat  '
-        write(6,'(/,A)') '           '        
-        write(6,'(/,A)') '--------------------------------------------------'
-        write(6,*) '-f              ', trim(adjustl(inpfile))
-        write(6,*) '-ft             ', trim(adjustl(ft))
-        write(6,*) '-o              ', trim(adjustl(intfile))
-        write(6,*) '-cnx            ', trim(adjustl(cnx_file))
-        write(6,*) '-reorder        ', trim(adjustl(order_file))
-        write(6,*) '-intmode        ', trim(adjustl(def_internal))
-        write(6,*) '-zmatfile       ', trim(adjustl(zmatfile))
-        write(6,*) '-rmzfile        ', trim(adjustl(rmzfile))
-        write(6,*) '-ow            ',  overwrite
-        write(6,*) '-h             ',  need_help
-        write(6,*) '--------------------------------------------------'
+        
+        write(6,*) '-f           Input structure file          ', trim(adjustl(inpfile))
+        write(6,*) '-ft          \_FileType                    ', trim(adjustl(ft))
+        write(6,*) '-o           Output internal file          ', trim(adjustl(intfile))
+        write(6,*) '-cnx         Connectivity file             ', trim(adjustl(cnx_file))
+        write(6,*) '-reorder     Reorder file                  ', trim(adjustl(order_file))
+        write(6,*) '-intmode     Type of internal set          ', trim(adjustl(def_internal))
+        write(6,*) '-zmatfile    Input Zmat file               ', trim(adjustl(zmatfile))
+        write(6,*) '-rmzfile     Removal Zmat file             ', trim(adjustl(rmzfile))
+        write(6,*) '-ow          Overwrite                    ',  overwrite
+        write(6,*) '-h           Help                         ',  need_help
+        write(6,'(A)') '-------------------------------------------------------------------'
+        write(6,'(A)') 'Input command:'
+        write(6,'(A)') trim(adjustl(input_command))   
+        write(6,'(A)') '-------------------------------------------------------------------'
+        write(6,'(X,A,I0)') &
+                       'Verbose level:  ', verbose        
+        write(6,'(A)') '-------------------------------------------------------------------'     
         if (need_help) call alert_msg("fatal", 'There is no manual (for the moment)' )
 
         return
