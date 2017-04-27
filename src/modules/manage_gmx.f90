@@ -78,7 +78,7 @@ module gmx_manage
         real(kind=8), dimension(:), intent(out) :: X,Y,Z
         character(len=*),intent(out),optional   :: title
         !local
-        integer::i, natoms, ii, ios
+        integer::i, ii, ios
         character(len=260) :: line
         character :: dummy_char
 
@@ -99,9 +99,9 @@ module gmx_manage
 !             system%atom(i)%name = adjustl(system%atom(i)%name)
 
         enddo
-        X(1:natoms) = X(1:natoms)*10.d0
-        Y(1:natoms) = Y(1:natoms)*10.d0
-        Z(1:natoms) = Z(1:natoms)*10.d0
+        X(1:Nat) = X(1:Nat)*10.d0
+        Y(1:Nat) = Y(1:Nat)*10.d0
+        Z(1:Nat) = Z(1:Nat)*10.d0
 
 !         read(unt,101) system%boxX, system%boxY, system%boxZ
 
