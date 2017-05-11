@@ -81,15 +81,22 @@ program build_top
     !====================== 
     !Auxiliar variables
     integer :: id, ih
-    character(len=1) :: null
+    character(len=1) :: cnull
     character(len=4) :: atname
     character(len=16) :: dummy_char
     integer :: dummy_int
     !====================== 
+    
+    !=================
+    !hbd stuff
+    integer :: hdb_type
+    integer :: numH, numNH
+    integer,dimension(5) :: hhs,nhs !(hydrogens and non-hydrogens)
+    !=================
 
     !=============
     !Counters
-    integer :: i,j
+    integer :: i,j,k,l, ii,jj,kk,ll
     !=============
 
     !================
@@ -97,16 +104,18 @@ program build_top
     !units
     integer :: I_INP=10,  &
                I_MUL=11,  & 
-               I_DB=0,    & !zero means no external DB
+               I_DB =12,  & !zero means no external DB
                S_SPDB=30, &
                O_GRO=20,  &
-               O_TOP=21
+               O_TOP=21,  &
+               O_HDB=22
     !files
     character(len=10) :: filetype="guess"
     character(len=200):: inpfile="input.log",          &
                          outgro="out.gro",             &
                          outtop="out.top",             &
-                         database="default"               
+                         outhdb,                       &
+                         database="charmm" ! hybrid or <filename>              
     !status
     integer :: IOstatus
     !===================
@@ -138,7 +147,7 @@ program build_top
     !Load atomic coordinates on "molecule"
     if (adjustl(filetype) == "guess") then
         ! Guess file type
-        call split_line(inpfile,".",null,filetype)
+        call split_line(inpfile,".",cnull,filetype)
     endif
     
     call generic_strmol_reader(I_INP,filetype,molec)
@@ -150,8 +159,11 @@ program build_top
     ! -----------------------------------------
     if ( adjustl(outtop) /= "none" )  then
         !Attypes DataBase
-        if ( adjustl(database) /= "default" ) then
-            I_DB=12
+        if ( adjustl(database) == "charmm" ) then
+            I_DB = 0
+        elseif ( adjustl(database) == "hybrid" ) then
+            I_DB = -1
+        else
             open(I_DB, file=database, status="old", IOSTAT=IOstatus)
             if (IOstatus /= 0) call alert_msg( "fatal","Unable to open "//trim(adjustl(database)) )
         endif
@@ -162,10 +174,10 @@ program build_top
         !Only one residue supported (for the momenfor the moment)
         if (molec%nres /= 1) call alert_msg("fatal","Only structures with one residue are currently supported")
         call guess_connect(residue(1))
-        call build_ff(residue(1))
+        call build_ff(residue(1),I_DB)
         call gen_bonded(residue(1))
 
-        if (I_DB /= 0) close(I_DB)
+        if (I_DB>0) close(I_DB)
     endif
 
     !United atoms model:
@@ -191,7 +203,7 @@ program build_top
         !The topology builder uses residue as input:
 !         call sist2res(molec,residue)
         open(O_TOP,file=outtop,status='replace')
-        call split_line(outtop,".",null,filetype)
+        call split_line(outtop,".",cnull,filetype)
         select case (adjustl(filetype))
             case("itp")
              call write_top(O_TOP,residue(1))
@@ -206,6 +218,103 @@ program build_top
         end select
         close(O_TOP)
     endif
+    
+    ! Get hcb
+    call split_line_back(outtop,'.',outhdb,cnull)
+    outhdb=trim(adjustl(outhdb))//'.hdb'
+    open(O_HDB,file=outhdb)
+    kk=0
+    do i=1,residue(1)%natoms
+        numH=0
+        do j=1,residue(1)%atom(i)%nbonds
+            jj=residue(1)%atom(i)%connect(j)
+            if (residue(1)%atom(jj)%element == 'H') numH=numH+1
+        enddo
+        if (numH==0) cycle
+        kk=kk+1
+    enddo
+    write(O_HDB,'(A6,4X,I5)') resname, kk
+    do i=1,residue(1)%natoms
+        numH=0
+        numNH=0
+        do j=1,residue(1)%atom(i)%nbonds
+            jj=residue(1)%atom(i)%connect(j)
+            if (residue(1)%atom(jj)%element == 'H') then
+                numH=numH+1
+                hhs(numH)=jj
+            else
+                numNH=numNH+1
+                nhs(numNH)=jj
+            endif
+        enddo
+        if (numH==0) cycle
+        call fftype_db(residue(1)%atom(i),numH, &
+                       dummy_char,cnull,        &
+                       -2, i)
+        read(dummy_char,*) hdb_type
+        
+        ll=0
+        select case(hdb_type)
+            case(1)
+                !j-i-k (i-H)
+                jj=nhs(1)
+                kk=nhs(2)
+            case(2)
+                !k-j-i (i-H)
+                jj=nhs(1)
+                do k=1,residue(1)%atom(jj)%nbonds
+                    kk = residue(1)%atom(jj)%connect(k)
+                    if (kk == i) cycle
+                    if (residue(1)%atom(kk)%element /= 'H') exit 
+                enddo
+            case(3)
+                !k-j-i (i-H1,H2)
+                jj=nhs(1)
+                do k=1,residue(1)%atom(jj)%nbonds
+                    kk = residue(1)%atom(jj)%connect(k)
+                    if (kk == i) cycle
+                    if (residue(1)%atom(kk)%element /= 'H') exit 
+                enddo
+            case(4)
+                !k-j-i (i-H1,H2,[H3])
+                jj=nhs(1)
+                do k=1,residue(1)%atom(jj)%nbonds
+                    kk = residue(1)%atom(jj)%connect(k)
+                    if (kk == i) cycle
+                    if (residue(1)%atom(kk)%element /= 'H') exit 
+                enddo
+            case(5)
+                !  l
+                !  |
+                !k-i-j (i-H)
+                jj=nhs(1)
+                kk=nhs(2)
+                ll=nhs(3)
+            case(6)
+                !j-i-k (i-H1,H2)
+                jj=nhs(1)
+                kk=nhs(2)
+            case default
+                write(dummy_char,'(i0)') hdb_type
+                call alert_msg('warning','Unkown hdb type: '//trim(adjustl(dummy_char)))
+                jj=0
+                kk=0
+            end select
+            
+            if (ll==0) then
+                write(O_HDB,'(10X,I5,X,I3,X,5(A5,X))') numH,hdb_type,residue(1)%atom(hhs(1))%name,&
+                                                                     residue(1)%atom(i )%name,&
+                                                                     residue(1)%atom(jj)%name,&
+                                                                     residue(1)%atom(kk)%name
+            else
+                write(O_HDB,'(10X,I5,X,I3,X,5(A5,X))') numH,hdb_type,residue(1)%atom(hhs(1))%name,&
+                                                                     residue(1)%atom(i )%name,&
+                                                                     residue(1)%atom(jj)%name,&
+                                                                     residue(1)%atom(kk)%name,&
+                                                                     residue(1)%atom(ll)%name
+            endif
+                        
+    enddo
 
 
     ! 9999. CHECK ERROR/NOTES
@@ -222,7 +331,8 @@ program build_top
 
     ! Summary output files
     if ( trim(adjustl(outtop)) /= "none" ) then
-        write(6,'(/,A,/)') "2 output files generated: "//trim(adjustl(outgro))//",  "//trim(adjustl(outtop))
+        write(6,'(/,A,/)') "3 output files generated: "//trim(adjustl(outgro))//",  "//trim(adjustl(outtop))//&
+                                                  ",  "//trim(adjustl(outhdb))
     else
         write(6,'(/,A,/)') "1 output file generated: "//trim(adjustl(outgro))
     endif

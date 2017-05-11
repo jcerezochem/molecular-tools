@@ -136,8 +136,25 @@ module ff_build
                        "N   3  1   SP2   XX  ",      & !8 ;planar
                        "N   3  2   SP2   XX  ",      & !9 ;planar
                        "N   3  3   SP3   XX  ",      & !10
-                       "MG -1 -1   SP3   XX  "       & !11
-                     /)                       
+                       "MG -1 -1   D     XX  "       & !11
+                     /)       
+        else if (I_DB == -2) then
+           !hdb file types
+            n_entries=10
+            database(1:n_entries)=                   &
+                    (/                               &
+                     !Elem  nb nH fftype H_fftype
+                       "C   4  1   5   XX  ",      & !1
+                       "C   4  2   6   XX  ",      & !2
+                       "C   4  3   4   XX  ",      & !3
+                       "C   3  1   1   XX  ",      & !4
+                       "C   3  2   3   XX  ",      & !5
+                       "C   3  3   5   XX  ",      & !6
+                       "N   2  1   2   XX  ",      & !7
+                       "N   3  1   1   XX  ",      & !8 (planar)
+                       "N   3  2   3   XX  ",      & !9 (planar)
+                       "O   2  1   2   XX  "       & !10
+                     /)     
         else
             ! Default implementation
             ! CHARMM27
@@ -209,6 +226,7 @@ module ff_build
 
         return
     end subroutine fftype_db
+
 
 !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
@@ -435,12 +453,13 @@ module ff_build
 
 !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-    subroutine build_ff(residue)
+    subroutine build_ff(residue,I_DB)
 
           !The commons are set to fix values..
 !         common /GLOBAL_OPTS/ do_refine_charges, I_DB, rename_atoms
 
         type(str_resmol),intent(inout) :: residue
+        integer,intent(in)             :: I_DB
 
         !Mantained for easy life
         integer,dimension(1000,6) :: connect
@@ -450,7 +469,6 @@ module ff_build
         integer,dimension(1000) :: non_H, list_H
         integer,dimension(6) :: hbond
         integer :: n_nonH, n_H, imp_bonds, numH
-        integer :: I_DB=0
         !Contadores
         integer :: i,j,k, jj
         !Aux
@@ -664,8 +682,6 @@ module ff_build
                 residuo(i)%atom(ii) = sistema%atom(iat)
             enddo
         enddo
-
-print*, sistema%nres
 
        return
     end subroutine sist2res
