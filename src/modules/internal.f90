@@ -2115,8 +2115,8 @@ module internal_module
             !L^tFL (should provide the FC, in this case Freq)
             Aux3(1:Nvib,1:Nvib) = matrix_basisrot(Nvib,Nvib,L,Hess,counter=.true.)
             Aux3(1:Nvib,1:Nvib) = dsqrt(dabs(Aux3(1:Nvib,1:Nvib))*HARTtoJ/BOHRtoM**2/AUtoKG)/2.d0/pi/clight/1.d2
-            call MAT0(6,Aux3,Nvib,Nvib,"L^t L (cm-1)")
-            !L^tG^-1L (this test only works if G has dimension Nvib x Nvib
+            call MAT0(6,Aux3,Nvib,Nvib,"L^t F L (cm-1)")
+            !L^tG^-1L = 1 (this test only works if G has dimension Nvib x Nvib
             Aux3(1:Nvib,1:Nvib) = inverse_realsym(Nvib,G)
             Aux3(1:Nvib,1:Nvib) = matrix_basisrot(Nvib,Nvib,L,Aux3,counter=.true.)
             call MAT0(6,Aux3,Nvib,Nvib,"L^tG^-1L")
@@ -2709,6 +2709,7 @@ module internal_module
             enddo
             rmsd = dsqrt(rmsd/dfloat(Nat))
             if (iter==1) rmsd0=rmsd 
+            print*, rmsd
             if (rmsd>rmsd0) then
                 exit
             endif

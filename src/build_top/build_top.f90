@@ -21,15 +21,40 @@ program build_top
     ! Version 4: Uses v4 modules (allocation disabled)
     !============================================================================    
 
-    use structure_types
-    use line_preprocess
-    use ff_build
-    use molecular_structure
-    use gro_manage
-    use gaussian_manage
-    use pdb_manage
-    use molpro_manage
+    !*****************
+    !   MODULE LOAD
+    !*****************
+    !============================================
+    !   Generic
+    !============================================
+    use io
     use alerts
+    use line_preprocess
+    use constants 
+    use verbosity
+    use matrix
+    use matrix_print
+    !============================================
+    !   Structure types module
+    !============================================
+    use structure_types
+    !============================================
+    !   File readers
+    !============================================
+    use generic_io
+    use generic_io_molec
+    use xyz_manage
+    !============================================
+    !  Structure-related modules
+    !============================================
+    use molecular_structure
+    use ff_build
+    use atomic_geom
+    use symmetry
+    !============================================
+    !  Internal thingies
+    !============================================
+    use zmat_manage 
 
     implicit none
 
@@ -50,6 +75,7 @@ program build_top
     character(len=6) :: resname="UNK"
     character(len=8) :: q_type="mulliken"
     real :: charge
+    integer :: nat_alloc=-1
     !====================== 
 
     !====================== 
@@ -87,8 +113,23 @@ program build_top
 
 
     ! 0. GET COMMAND LINE ARGUMENTS
-    call parse_input(inpfile,filetype,outgro,outtop,q_type,resname,call_vmd,database,united_atom)
+    call parse_input(inpfile,filetype,outgro,outtop,q_type,resname,database,united_atom,nat_alloc)
 
+    ! Allocate atoms
+    if (nat_alloc<0) then
+        call allocate_atoms(molec)
+        do i=1,10
+            call allocate_atoms(residue(i))
+            call allocate_atoms(residueUA(i))
+        enddo
+    else 
+        call allocate_atoms(molec,nat_alloc)
+        do i=1,10
+            call allocate_atoms(residue(i),nat_alloc)
+            call allocate_atoms(residueUA(i),nat_alloc)
+        enddo
+    endif
+    
     ! 1. READ DATA
     ! ---------------------------------
     open(I_INP,file=inpfile,status='old',iostat=IOstatus)
@@ -99,9 +140,9 @@ program build_top
         ! Guess file type
         call split_line(inpfile,".",null,filetype)
     endif
+    
+    call generic_strmol_reader(I_INP,filetype,molec)
 
-    call generic_strfile_read(I_INP,filetype,molec)
-         
     close(I_INP)
 
 
@@ -153,24 +194,18 @@ program build_top
         call split_line(outtop,".",null,filetype)
         select case (adjustl(filetype))
             case("itp")
-             call write_top_new(O_TOP,residue(1))
+             call write_top(O_TOP,residue(1))
             case("top")
-             call write_top_new(O_TOP,residue(1))
+             call write_top(O_TOP,residue(1))
             case("rtp")
              call write_rtp(O_TOP,residue(1))
             case default
              !By default a top format is use
-             call write_top_new(O_TOP,residue(1))
+             call write_top(O_TOP,residue(1))
              call alert_msg("note","Topology file written in *.top format")
         end select
         close(O_TOP)
     endif
-
-
-    ! 4. REPRESENT THE MOLECULE (using VMD)
-    !----------------------------------------------
-    if (call_vmd) &
-        call system( "vmd "//outgro )
 
 
     ! 9999. CHECK ERROR/NOTES
@@ -200,19 +235,28 @@ program build_top
     contains
     !=============================================
 
-    subroutine parse_input(inpfile,filetype,outfile,outfile2,q_type,resname,call_vmd,database,united_atom)
+    subroutine parse_input(inpfile,filetype,outfile,outfile2,q_type,resname,database,united_atom,nat_alloc)
     !==================================================
     ! My input parser (gromacs style)
     !==================================================
         implicit none
 
         character(len=*),intent(inout) :: inpfile,filetype,outfile,outfile2,resname,q_type,database
-        logical,intent(inout) :: call_vmd, united_atom
+        logical,intent(inout) :: united_atom
+        integer :: nat_alloc
         ! Local
+        character(len=500) :: input_command
         logical :: argument_retrieved,  &
                    need_help = .false.
         integer:: i
         character(len=200) :: arg
+        
+        call getarg(0,input_command)
+        !Get input flags
+        do i=1,iargc()
+            call getarg(i,arg)
+            input_command = trim(adjustl(input_command))//" "//trim(adjustl(arg))
+        enddo
 
         argument_retrieved=.false.
         do i=1,iargc()
@@ -244,9 +288,6 @@ program build_top
                 case ("-res") 
                     call getarg(i+1, resname)
                     argument_retrieved=.true.
-
-                case ("-vmd")
-                    call_vmd=.true.
         
                 case ("-db")
                     call getarg(i+1, database)
@@ -254,9 +295,27 @@ program build_top
 
                 case ("-ua")
                      united_atom = .true.
+                     
+                case ("-alloc-atm")
+                    call getarg(i+1,arg)
+                    read(arg,*) nat_alloc
+                    argument_retrieved=.true.
+                     
 
                 case ("-h")
                     need_help=.true.
+                    
+                    
+                ! Control verbosity
+                case ("-quiet")
+                    verbose=0
+                case ("-concise")
+                    verbose=1
+                case ("-v")
+                    verbose=2
+                case ("-vv")
+                    verbose=3
+                    
 
                 case default
                     call alert_msg("fatal","Unkown command line argument: "//adjustl(arg))
@@ -284,67 +343,42 @@ program build_top
 !         if ( q_type == "all_zero" ) do_refine_charges=.false.
           
 
-       !Print options (to stderr)
-        write(0,'(/,A)') '--------------------------------------------------'
-        write(0,'(/,A)') '              B U I L D _ T O P '    
-        write(0,'(/,A)') '     A connectivity based topology builder '        
-        write(0,'(A)')   '                for GROMACS'    
-        write(0,'(/,A)') '--------------------------------------------------'
-        write(0,*) '-f              ', trim(adjustl(inpfile))
-        write(0,*) '-ft             ', trim(adjustl(filetype))
-        write(0,*) '-o              ', trim(adjustl(outgro))
-        write(0,*) '-p              ', trim(adjustl(outtop))
-        write(0,*) '-chrg           ', trim(adjustl(q_type))
-        write(0,*) '-res            ', trim(adjustl(resname))
-        write(0,*) '-db             ', trim(adjustl(database))
-        write(0,*) '-vmd           ',  call_vmd
+       !Print options (to stdout)    
+        write(6,'(/,A)') '========================================================'
+        write(6,'(/,A)') '              B U I L D _ T O P '    
+        write(6,'(/,A)') '     A connectivity based topology builder '        
+        write(6,'(A)')   '                for GROMACS'     
+        call print_version()
+        write(6,'(/,A)') '========================================================'
+        write(6,'(/,A)') '-------------------------------------------------------------------'
+        write(6,'(A)')   ' Flag         Description                   Value'
+        write(6,'(A)')   '-------------------------------------------------------------------'
+
+
         write(0,*) '-h             ',  need_help
-        write(0,*) '--------------------------------------------------'
+        
+        write(6,*) '-f           Input file (structure)        ', trim(adjustl(inpfile))
+        write(6,*) '-ft          \_ FileType                   ', trim(adjustl(filetype))
+        write(6,*) '-o           Output (com) file             ', trim(adjustl(outgro))
+        write(6,*) '-p           Topology file                 ', trim(adjustl(outtop))
+        write(6,*) '-chrg        Charge type (mulliken...)     ', trim(adjustl(q_type))
+        
+        write(6,*) '-res         Reside name                   ', trim(adjustl(resname))
+        write(6,*) '-db          Database to set atom types    ', trim(adjustl(database))
+        write(6,'(X,A,I0)') &
+                   '-alloc-atm   Atoms to allocate(-1:default) ', nat_alloc
+        write(6,*) '-h           Show this help and quit       ',  need_help
+        write(6,'(A)') '-------------------------------------------------------------------'
+        write(6,'(A)') 'Input command:'
+        write(6,'(A)') trim(adjustl(input_command))   
+        write(6,'(A)') '-------------------------------------------------------------------'
+        write(6,'(X,A,I0)') &
+                       'Verbose level:  ', verbose        
+        write(6,'(A)') '-------------------------------------------------------------------'
         if (need_help) call alert_msg("fatal", 'There is no manual (for the moment)' )
 
         return
     end subroutine parse_input
-
-    subroutine generic_strfile_read(unt,filetype,molec)
-
-        integer, intent(in) :: unt
-        character(len=*),intent(inout) :: filetype
-        type(str_resmol),intent(inout) :: molec
-
-        !local axu
-        !Read gaussian log auxiliars
-        type(str_molprops),allocatable :: props
-        character :: null
-
-        select case (adjustl(filetype))
-            case("molpro")
-             call get_log_xyz(I_INP,molec)
-             call read_charge(I_INP,molec,"all_zero")
-             call alert_msg("note","No charges available in a MOLRPO log file. Setting all of them to zero")
-             rename_atoms = .true.
-            case("log")
-             allocate(props)
-             call parse_summary(I_INP,molec,props,"struct_only")
-             deallocate(props)
-             call read_charge(I_INP,molec,q_type)
-             rename_atoms = .true.
-            case("gro")
-             call read_gro(I_INP,molec)
-             call read_charge(I_INP,molec,"all_zero")
-             call alert_msg("note","No charges available in a GRO file. Setting all of them to zero")
-            case("pdb")
-             call read_pdb_new(I_INP,molec)
-             call read_charge(I_INP,molec,"all_zero")
-             call alert_msg("note","No charges available in a PDB file. Setting all of them to zero")
-            case default
-             call alert_msg("fatal","File type not supported: "//filetype)
-        end select
-
-        call atname2element(molec)
-
-        return
-
-    end subroutine generic_strfile_read
 
 end program build_top
 

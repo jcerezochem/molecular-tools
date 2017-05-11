@@ -29,25 +29,6 @@ module generic_io
 
     contains
 
-    subroutine assign_masses(Nat,AtName,Mass)
-
-        integer,intent(in) :: Nat
-        character(len=*),dimension(:),intent(in) ::  AtName
-        real(8),dimension(:),intent(out) ::  Mass
-
-        !Local
-        integer :: i
-        character(len=len(AtName(1))) :: element
-        
-        do i=1,Nat
-            element = element_from_AtName(AtName(i))
-            Mass(i) = atmass_from_atname(element) 
-        enddo
-
-        return
-
-    end subroutine assign_masses
-
     subroutine generic_natoms_reader(unt,filetype,Nat,error_flag)
 
         !==============================================================
@@ -215,17 +196,18 @@ module generic_io
              ResName(1:Nat) = "UNK"
             case("g96")
              call read_g96_geom(unt,Nat,AtName,X,Y,Z,ResName)
-             call assign_masses(Nat,AtName,Mass)
+             !call assign_masses(Nat,AtName,Mass)
             case("gro")
              call read_gro_geom(unt,Nat,AtName,X,Y,Z,ResName)
-             call assign_masses(Nat,AtName,Mass)
+             ! Masses must be assigned later with the "molec-type" routine
+             !call assign_masses(Nat,AtName,Mass)
             case("xyz")
              call read_xyz_geom(unt,Nat,AtName,X,Y,Z)
              call assign_masses(Nat,AtName,Mass)
              ResName(1:Nat) = "UNK"
             case("pdb")
              call read_pdb_geom(unt,Nat,AtName,X,Y,Z,ResName)
-             call assign_masses(Nat,AtName,Mass)
+             !call assign_masses(Nat,AtName,Mass)
             case("fcc")
              call read_fccstate_geom(unt,Nat,X,Y,Z)
              ResName(1:Nat) = "UNK"
@@ -643,6 +625,13 @@ module generic_io
 
     end subroutine generic_nm_reader
 
+    
+    
+    !==============================================================
+    ! The following code is repeated (see molecular_structure.f90)
+    ! and need to be removed!
+    !==============================================================
+    
     function element_from_AtName(AtomName) result(element)
 
         character(len=*),intent(in) :: AtomName
@@ -958,6 +947,26 @@ module generic_io
         return
 
     end function element_from_AtName
+    
+    
+    subroutine assign_masses(Nat,AtName,Mass)
+
+        integer,intent(in) :: Nat
+        character(len=*),dimension(:),intent(in) ::  AtName
+        real(8),dimension(:),intent(out) ::  Mass
+
+        !Local
+        integer :: i
+        character(len=len(AtName(1))) :: element
+        
+        do i=1,Nat
+            element = element_from_AtName(AtName(i))
+            Mass(i) = atmass_from_atname(element) 
+        enddo
+
+        return
+
+    end subroutine assign_masses
 
 
 end module generic_io

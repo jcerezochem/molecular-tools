@@ -6,9 +6,9 @@ SUBDIRS =                        \
           src/file_management    \
           src/gen_oniom          \
           src/bonded_info        \
-          src/wf_analysis       
+          src/wf_analysis        \
+          src/build_top          
 
-#          src/build_top          \
 #          src/vibrations         \
 #          src/joyce_tools
 

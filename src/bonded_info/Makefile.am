@@ -32,7 +32,6 @@ calcRMS_bonded_SOURCES = \
                          ../modules/zmat_manage.f90             \
                          ../modules/generic_io.f90              \
                          ../modules/generic_io_molec.f90        \
-                         ../modules/ff_build.f90                \
                          ../modules/internal.f90                \
                          calcRMS_bonded.f90
 calcRMS_bonded_LDFLAGS = @LIBS@
@@ -67,7 +66,6 @@ geom_param_list_SOURCES = \
                          ../modules/zmat_manage.f90             \
                          ../modules/generic_io.f90              \
                          ../modules/generic_io_molec.f90        \
-                         ../modules/ff_build.f90                \
                          ../modules/internal.f90                \
                          geom_param_list.f90
 geom_param_list_LDFLAGS = @LIBS@
@@ -102,7 +100,6 @@ get_com_SOURCES = \
                          ../modules/zmat_manage.f90             \
                          ../modules/generic_io.f90              \
                          ../modules/generic_io_molec.f90        \
-                         ../modules/ff_build.f90                \
                          ../modules/internal.f90                \
                          get_com.f90
 get_com_LDFLAGS = @LIBS@
@@ -137,7 +134,6 @@ max_dist_to_center_SOURCES = \
                          ../modules/zmat_manage.f90             \
                          ../modules/generic_io.f90              \
                          ../modules/generic_io_molec.f90        \
-                         ../modules/ff_build.f90                \
                          ../modules/internal.f90                \
                       max_dist_to_center.f90
 max_dist_to_center_LDFLAGS = @LIBS@

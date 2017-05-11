@@ -10,7 +10,6 @@ program prepare_fcinput
 
     use structure_types
     use line_preprocess
-    use ff_build
     use molecular_structure
     use alerts
     use constants

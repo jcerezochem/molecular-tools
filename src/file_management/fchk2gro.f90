@@ -39,7 +39,6 @@ program fchk2gro
     !  Structure-related modules
     !============================================
     use molecular_structure
-    use ff_build
 
     implicit none
 

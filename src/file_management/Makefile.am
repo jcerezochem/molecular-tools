@@ -1,7 +1,46 @@
 AUTOMAKE_OPTIONS = subdir-objects
 
-bin_PROGRAMS = reform_fchk rmsd_fit fchk2gro read_irc read_scan read_opt get_symatoms
-#get_gscan fchk2gro get_symatoms reform_fchk numderX
+bin_PROGRAMS = reform_fchk rmsd_fit fchk2gro read_irc read_scan read_opt get_symatoms mod_topology get_reordering
+#get_gscan numderX
+
+# =============
+# mod_topology
+# =============
+mod_topology_SOURCES = \
+                        ../modules/alerts.f90\
+                        ../modules/line_preprocess.f90\
+                        ../modules/constants.f90\
+                        ../modules/verbosity.f90\
+                        ../modules/io.f90                      \
+                        ../modules/version.f90                 \
+                        ../modules/matrix.f90\
+                        ../modules/matrix_print.f90\
+                        ../modules/structure_types.f90\
+                        ../modules/molecular_structure.f90\
+                        ../modules/metrics.f90             \
+                        ../modules/atomic_geom.f90\
+                        ../modules/manage_fcc.f90                    \
+                        ../modules/manage_gamess.f90                 \
+                        ../modules/manage_gaussian.f90               \
+                        ../modules/manage_gmx.f90                    \
+                        ../modules/manage_molcas.f90                 \
+                        ../modules/manage_molden.f90                 \
+                        ../modules/manage_molpro.f90                 \
+                        ../modules/manage_turbomol.f90               \
+                        ../modules/manage_pdb.f90                    \
+                        ../modules/manage_psi4.f90                   \
+                        ../modules/manage_xyz.f90                    \
+                        ../modules/manage_xyz_molec.f90              \
+                        ../modules/manage_gro_molec.f90              \
+                        ../modules/zmat_manage.f90                   \
+                        ../modules/generic_io.f90\
+                        ../modules/generic_io_molec.f90\
+                        ../modules/symmetry.f90\
+                        ../modules/internal.f90\
+                        ../modules/vibrational_analysis.f90\
+                        ../modules/vertical_model.f90\
+                      mod_topology.f90
+mod_topology_LDFLAGS = @LIBS@
 
 # ============
 # reform_fchk
@@ -35,7 +74,6 @@ reform_fchk_SOURCES = \
                       ../modules/zmat_manage.f90             \
                       ../modules/generic_io.f90              \
                       ../modules/generic_io_molec.f90        \
-                      ../modules/ff_build.f90                \
                       ../modules/symmetry.f90                \
                       ../modules/internal.f90                \
                       ../modules/vibrational_analysis.f90    \
@@ -71,7 +109,6 @@ rmsd_fit_SOURCES = \
                    ../modules/zmat_manage.f90             \
                    ../modules/generic_io.f90              \
                    ../modules/generic_io_molec.f90        \
-                   ../modules/ff_build.f90                \
                    ../modules/symmetry.f90                \
                    ../modules/internal.f90                \
                    rmsd_fit.f90
@@ -107,7 +144,6 @@ fchk2gro_SOURCES = \
                    ../modules/zmat_manage.f90             \
                    ../modules/generic_io.f90              \
                    ../modules/generic_io_molec.f90        \
-                   ../modules/ff_build.f90                \
                    ../modules/internal.f90                \
                    fchk2gro.f90
 fchk2gro_LDFLAGS = @LIBS@
@@ -142,7 +178,6 @@ read_irc_SOURCES = \
                    ../modules/zmat_manage.f90             \
                    ../modules/generic_io.f90              \
                    ../modules/generic_io_molec.f90        \
-                   ../modules/ff_build.f90                \
                    ../modules/internal.f90                \
                    read_irc.f90
 read_irc_LDFLAGS = @LIBS@
@@ -177,7 +212,6 @@ read_scan_SOURCES = \
                    ../modules/zmat_manage.f90             \
                    ../modules/generic_io.f90              \
                    ../modules/generic_io_molec.f90        \
-                   ../modules/ff_build.f90                \
                    ../modules/internal.f90                \
                    read_scan.f90
 read_scan_LDFLAGS = @LIBS@
@@ -212,7 +246,6 @@ read_opt_SOURCES = \
                    ../modules/zmat_manage.f90             \
                    ../modules/generic_io.f90              \
                    ../modules/generic_io_molec.f90        \
-                   ../modules/ff_build.f90                \
                    ../modules/internal.f90                \
                    read_opt.f90
 read_opt_LDFLAGS = @LIBS@
@@ -249,11 +282,47 @@ get_symatoms_SOURCES = \
                       ../modules/zmat_manage.f90             \
                       ../modules/generic_io.f90              \
                       ../modules/generic_io_molec.f90        \
-                      ../modules/ff_build.f90                \
                       ../modules/symmetry.f90                \
                       ../modules/internal.f90                \
                       get_symatoms.f90
 get_symatoms_LDFLAGS = @LIBS@
+
+# ============
+# get_reordering
+# ============
+get_reordering_SOURCES = \
+                      ../modules/alerts.f90                  \
+                      ../modules/line_preprocess.f90         \
+                      ../modules/constants.f90               \
+                      ../modules/verbosity.f90               \
+                      ../modules/io.f90                      \
+                      ../modules/version.f90                 \
+                      ../modules/matrix.f90                  \
+                      ../modules/matrix_print.f90            \
+                      ../modules/structure_types.f90         \
+                      ../modules/molecular_structure.f90     \
+                      ../modules/metrics.f90                 \
+                      ../modules/atomic_geom.f90             \
+                      ../modules/manage_fcc.f90              \
+                      ../modules/manage_gamess.f90           \
+                      ../modules/manage_gaussian.f90         \
+                      ../modules/manage_gmx.f90              \
+                      ../modules/manage_molcas.f90           \
+                      ../modules/manage_molden.f90           \
+                      ../modules/manage_molpro.f90           \
+                      ../modules/manage_turbomol.f90         \
+                      ../modules/manage_pdb.f90              \
+                      ../modules/manage_psi4.f90             \
+                      ../modules/manage_xyz.f90              \
+                      ../modules/manage_xyz_molec.f90        \
+                      ../modules/manage_gro_molec.f90        \
+                      ../modules/zmat_manage.f90             \
+                      ../modules/generic_io.f90              \
+                      ../modules/generic_io_molec.f90        \
+                      ../modules/symmetry.f90                \
+                      ../modules/internal.f90                \
+                      get_reordering.f90
+get_reordering_LDFLAGS = @LIBS@
 
 # 
 # numderX_SOURCES = ../modules/alerts.f90\

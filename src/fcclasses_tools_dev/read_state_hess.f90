@@ -58,7 +58,6 @@ program read_state_hess
     use gamess_manage
 !   Structural parameters
     use molecular_structure
-    use ff_build
 !   Bond/angle/dihed meassurement
     use atomic_geom
 !   Symmetry support

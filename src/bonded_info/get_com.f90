@@ -47,7 +47,6 @@ program get_centers_mg
     !  Structure-related modules
     !============================================
     use molecular_structure
-    use ff_build
     use metrics
     use atomic_geom
     use symmetry

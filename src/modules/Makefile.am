@@ -50,7 +50,6 @@ libmoleculartools_a_SOURCES =         \
     generic_io.f90                    \
     generic_io_molec.f90              \
 \
-    ff_build.f90                      \
     internal.f90                      \
     thermochemistry.f90               \
     vibrational_analysis.f90          \

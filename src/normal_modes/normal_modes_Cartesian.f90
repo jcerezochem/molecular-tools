@@ -40,7 +40,6 @@ program normal_modes_cartesian
     !  Structure-related modules
     !============================================
     use molecular_structure
-    use ff_build
     use atomic_geom
     use symmetry
     !============================================
@@ -1164,8 +1163,17 @@ program normal_modes_cartesian
                    need_help = .false.
         integer:: i
         character(len=200) :: arg
+        character(len=500) :: input_command
         ! iargc type must be specified with implicit none (strict compilation)
         integer :: iargc
+        
+        !Initialize input_command
+        call getarg(0,input_command)
+        !Get input flags
+        do i=1,iargc()
+            call getarg(i,arg)
+            input_command = trim(adjustl(input_command))//" "//trim(adjustl(arg))
+        enddo
 
         argument_retrieved=.false.
         do i=1,iargc()
@@ -1434,6 +1442,9 @@ program normal_modes_cartesian
 !         write(6,*)       '-rmzfile       File deleting ICs from Zmat     ', trim(adjustl(rmzfile))
         write(6,*)       ''
         write(6,*)       '-h             Display this help              ',  need_help
+        write(6,'(A)') '-------------------------------------------------------------------'
+        write(6,'(A)') 'Input command:'
+        write(6,'(A)') trim(adjustl(input_command))   
         write(6,'(A)') '-------------------------------------------------------------------'
         write(6,'(X,A,I0)') &
                        'Verbose level:  ', verbose        

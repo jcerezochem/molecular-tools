@@ -45,7 +45,6 @@ program fchk2gro
     use molcas_unsym_manage
     use psi4_manage
     use gamess_manage
-    use ff_build
     use molecular_structure
 
     implicit none

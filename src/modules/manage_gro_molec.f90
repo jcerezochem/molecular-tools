@@ -636,6 +636,8 @@ module gro_manage
 
         !Reading stuff
         character(len=260) :: line, section
+        character(len=20),dimension(10) :: line_items
+        integer :: n_items
         logical :: is_section, read_molecule
         integer :: ios
         character(len=200) :: itpfile, GMXLIB
@@ -797,18 +799,45 @@ module gro_manage
                 residue(i)%name = residue(i)%atom(k)%resname
             else if (adjustl(section) == "atomtypes") then
                 write(20,*) line
+            else if (adjustl(section) == "bondtypes") then
+                read(line,*) line_items(1), line_items(2), cnull, a, b
+                
             else if (adjustl(section) == "bonds") then
                 if (.not.read_molecule) cycle
-                read(line,*) ii, jj, ift, a, b
+                call string2vector_char(line,line_items,n_items," ")
+                if (n_items == 3) then
+                    read(line,*) ii, jj, ift
+                    ! Get a and b from database...
+                    a=0
+                    b=0
+                    !call get_bond_r(residue(i)%atom(ii)%attype,residue(i)%atom(jj)%attype,a)
+                    !call get_bond_k(residue(i)%atom(ii)%attype,residue(i)%atom(jj)%attype,b)
+                else
+                    read(line,*) ii, jj, ift, a, b
+                endif
                 write(21,*) residue(i)%atom(ii)%attype//" "//residue(i)%atom(jj)%attype//" ",ift, a, b 
             else if (adjustl(section) == "angles") then
                 if (.not.read_molecule) cycle
-                read(line,*) ii, jj, kk, ift, a, b
+                call string2vector_char(line,line_items,n_items," ")
+                if (n_items == 4) then
+                    read(line,*) ii, jj, kk, ift
+                    ! Get a and b from database...
+                    a=0
+                    b=0
+                else
+                    read(line,*) ii, jj, kk, ift, a, b
+                endif
                 write(22,*) residue(i)%atom(ii)%attype//" "//residue(i)%atom(jj)%attype//" "//residue(i)%atom(kk)%attype//&
                             " ",ift, a, b 
             else if (adjustl(section) == "dihedrals") then
                 if (.not.read_molecule) cycle
-                read(line,*) ii, jj, kk, ll, ift!, a, b, c, d, e, f
+                call string2vector_char(line,line_items,n_items," ")
+                if (n_items == 5) then
+                    read(line,*) ii, jj, ift
+                    ! Get a and b from database...
+                else
+                    read(line,*) ii, jj, kk, ll, ift!, a, b, c, d, e, f
+                endif
                 write(23,*) residue(i)%atom(ii)%attype//" "//residue(i)%atom(jj)%attype//" "//residue(i)%atom(kk)%attype//&
                             " "//residue(i)%atom(ll)%attype//"",ift!, a, b, c, d, e, f 
             else if (adjustl(section) == "molecules") then

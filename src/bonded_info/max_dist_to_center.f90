@@ -41,7 +41,6 @@ program max_dist_to_center
     !  Structure-related modules
     !============================================
     use molecular_structure
-    use ff_build
     use metrics
     use atomic_geom
     use symmetry

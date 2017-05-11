@@ -28,7 +28,6 @@ program cartesian_duschinsky
     !  Structure-related modules
     !============================================
     use molecular_structure
-    use ff_build
     use atomic_geom
     use symmetry
     !============================================
@@ -1104,6 +1103,7 @@ program cartesian_duschinsky
                 Vec(i) = Vec(i) + L1(k,i) * Grad(k) / dsqrt(state1%atom(kk)%mass*AMUtoAU)
             enddo
         enddo
+        call print_vector(6,Vec*1.e5,Nvib,"Gradient Q1 x1e5")
         Grad(1:Nvib) = Vec(1:Nvib)
         ! Q0 = - FC^-1 * J^t * gQ
         print'(X,A,/)', "COMPUTE SHIFT VECTOR..."

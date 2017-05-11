@@ -57,7 +57,6 @@ program gen_oniom
     !  Structure-related modules
     !============================================
     use molecular_structure
-    use ff_build
     use atomic_geom
     use symmetry
     !============================================
@@ -402,7 +401,7 @@ program gen_oniom
     !=============================================
 
     subroutine parse_input(inpfile,filetype,topfile,ndxfile,frzfile,resname,jobspec,outfile,nproc,&
-                           mm_file,chrgspin_h,chrgspin_l,pointcharges,plain,natoms)
+                           mm_file,chrgspin_h,chrgspin_l,pointcharges,plain,nat_alloc)
     !==================================================
     ! My input parser (gromacs style)
     !==================================================
@@ -412,7 +411,7 @@ program gen_oniom
                                           resname,jobspec,nproc,mm_file,chrgspin_h,&
                                           chrgspin_l
         logical,intent(inout) :: pointcharges, plain
-        integer :: natoms
+        integer :: nat_alloc
         ! Local
         character(len=500) :: input_command
         logical :: argument_retrieved,  &
@@ -492,7 +491,7 @@ program gen_oniom
 
                 case ("-alloc-atm")
                     call getarg(i+1,arg)
-                    read(arg,*) natoms
+                    read(arg,*) nat_alloc
                     argument_retrieved=.true.
 
                 ! Control verbosity
@@ -538,7 +537,7 @@ program gen_oniom
         write(6,*) '-cs-l        Charge&Spin L layer           ', trim(adjustl(chrgspin_l))
         write(6,*) '-pc          Use pointcharges not ONIOM   ', pointcharges
         write(6,'(X,A,I0)') &
-                   '-alloc-atm   Atoms to allocate(-1:default) ', natoms
+                   '-alloc-atm   Atoms to allocate(-1:default) ', nat_alloc
         write(6,*) '-h           Show this help and quit       ',  need_help
         write(6,'(A)') '-------------------------------------------------------------------'
         write(6,'(A)') 'Input command:'

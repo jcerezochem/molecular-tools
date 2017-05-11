@@ -34,6 +34,139 @@ module molecular_structure
     ! is not a problem if gets undefined out of scope
 
     contains
+    
+    subroutine gen_bonded(residue)
+
+        !Generates the bonded info. That is:
+        ! * geom%angle(nr angle,atom_index[1:3])
+        ! * geom%dihed(nr dihed,atom_index[1:4])
+        !
+        ! History
+        ! 18/02/14. Included:
+        ! * geom%bond (nr bond, atom_index[1:2]) 
+        ! 26/02/14
+        ! *BUG solved: for 3-membered rings, a dihedral could contain the same atom twice
+
+        type(str_resmol),intent(inout) ::  residue
+        
+        !Counters
+        integer :: i_1, i_2, i_3, i_4, &
+                   j, k, l
+        integer :: n_angle, n_dihed
+
+        !Ordering stuff
+        integer :: i, min_dihed_index, imin
+        integer,dimension(1:4) :: aux
+
+        residue=residue
+
+        ! Stepwise walk along the connection network to retrieve
+        ! bonding relations (angle, dihedral and 1-4 interaction)
+        ! 13/02/12: angles, dihedrals and pairs do not belong to str_atom anymore (now are part of "geom", and then atom%geom)
+        n_angle=0
+        n_dihed=0
+        do i_1=1,residue%natoms 
+            ! i_1 is the epicenter-atom
+
+            !Step 1 (bond)
+            do j=1,residue%atom(i_1)%nbonds
+                i_2=residue%atom(i_1)%connect(j)
+
+                !Step 2 (angle)
+                do k=1,residue%atom(i_2)%nbonds
+                    i_3=residue%atom(i_2)%connect(k)
+                    if ( i_3 == i_1 ) cycle !do not go back!
+                    n_angle=n_angle + 1
+                    !Get the angle
+                    residue%geom%angle(n_angle,1)=i_1
+                    residue%geom%angle(n_angle,2)=i_2
+                    residue%geom%angle(n_angle,3)=i_3
+                    !Remove repeated angles (take just those with incremental index)
+                    if ( residue%geom%angle(n_angle,1) > residue%geom%angle(n_angle,3) ) &
+                       n_angle=n_angle - 1
+
+                    !Step 3 (for dihedral and 1-4 int)
+                    do l=1,residue%atom(i_3)%nbonds
+                        i_4=residue%atom(i_3)%connect(l)
+                        if ( i_4 == i_2 ) cycle !do not go back!
+                        !Avoid counting the same atom twice in 3-membered rings
+                        if ( i_4 == i_1 ) cycle
+                        n_dihed=n_dihed + 1 ! = n_pair
+                        !Get the dihedral&pair
+                        residue%geom%dihed(n_dihed,1)=i_1
+                        residue%geom%dihed(n_dihed,2)=i_2
+                        residue%geom%dihed(n_dihed,3)=i_3
+                        residue%geom%dihed(n_dihed,4)=i_4
+                        residue%geom%pair(n_dihed,1)=i_1 !1-4 int
+                        residue%geom%pair(n_dihed,2)=i_4 !1-4 int
+                    if ( residue%geom%dihed(n_dihed,2) > residue%geom%dihed(n_dihed,3) ) &
+                       n_dihed=n_dihed - 1
+
+                    enddo !... leaving step 3
+
+                enddo !... leaving step 2
+
+
+            enddo !... leaving step 1
+
+        enddo !... leaving step 0 (I'm free!)
+        residue%geom%nangles=n_angle
+        residue%geom%ndihed=n_dihed
+        residue%geom%npairs=n_dihed
+
+        !==================================
+        !Sort dihedrals by rotated bond index (set to second element of the dihed):
+        !==================================
+        do i=1,n_dihed-1
+            min_dihed_index=residue%geom%dihed(i,2)
+            imin=i
+            do j=i+1,n_dihed
+                if (residue%geom%dihed(j,2) < min_dihed_index) then
+                    min_dihed_index=residue%geom%dihed(j,2)
+                    imin=j
+                endif
+            enddo
+        
+            aux=residue%geom%dihed(i,1:4)
+            residue%geom%dihed(i,1:4)=residue%geom%dihed(imin,1:4)
+            residue%geom%dihed(imin,1:4)=aux
+        enddo   
+
+        do i=1,n_dihed-1
+            min_dihed_index=residue%geom%dihed(i,3)
+            imin=i
+            do j=i+1,n_dihed
+                if (residue%geom%dihed(j,2) /= residue%geom%dihed(i,2)) exit
+                if (residue%geom%dihed(j,3) < min_dihed_index) then
+                    min_dihed_index=residue%geom%dihed(j,3)
+                    imin=j
+                endif
+             enddo
+        
+             aux=residue%geom%dihed(i,1:4)
+             residue%geom%dihed(i,1:4)=residue%geom%dihed(imin,1:4)
+             residue%geom%dihed(imin,1:4)=aux
+
+        enddo   
+
+        !================================
+        !Bonds (from connectivity)
+        !================================
+        k = 0
+        do i=1,residue%natoms-1
+            do j=1,residue%atom(i)%nbonds
+                if ( residue%atom(i)%connect(j) > i )  then
+                    k = k + 1
+                    residue%geom%bond(k,1) = i
+                    residue%geom%bond(k,2) = residue%atom(i)%connect(j)
+                endif 
+            enddo
+        enddo
+        residue%geom%nbonds = k
+                    
+        return
+
+    end subroutine gen_bonded
 
     subroutine set_geom_units(molec,units)
 
@@ -966,6 +1099,24 @@ module molecular_structure
         ! The rotation is computed by default in mwc coordinates (use_mwc=.true.)
         ! This variable can be used to change to Cartesian coordinates
         !
+        ! BUG TO BE FIXED (low priority)
+        ! ---------------
+        ! ROTATA1 is designed to work in MWC, so the rotation is defined as:
+        !
+        !   qr = R q
+        !
+        ! By using the relation q = M^1/2 x, one gets to
+        !
+        !   xr = [M^-1/2 R M^1/2] x
+        !
+        ! where we can identify the rotation in Cartesian coordinates directly as
+        !
+        !   Rx = M^-1/2 R M^1/2
+        !
+        ! This is low priority as normally, one uses use_mwc and finally transform
+        ! back to Cartesian out of ROTATA1 (with such a 2-step procedure, the  masses 
+        ! are used properly at the end)
+        !
         !============================================================
 
         use matrix
@@ -1251,5 +1402,6 @@ module molecular_structure
         return
 
     end subroutine translate_molec
+    
 
 end module molecular_structure

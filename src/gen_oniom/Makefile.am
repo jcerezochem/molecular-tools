@@ -31,7 +31,6 @@ gen_oniom_SOURCES = \
                         ../modules/zmat_manage.f90                   \
                         ../modules/generic_io.f90\
                         ../modules/generic_io_molec.f90\
-                        ../modules/ff_build.f90\
                         ../modules/symmetry.f90\
                         ../modules/internal.f90\
                         ../modules/vibrational_analysis.f90\

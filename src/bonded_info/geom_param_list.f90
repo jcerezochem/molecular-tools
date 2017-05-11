@@ -37,7 +37,6 @@ program geom_param_list
     !  Structure-related modules
     !============================================
     use molecular_structure
-    use ff_build
     use metrics
     use atomic_geom
     use symmetry

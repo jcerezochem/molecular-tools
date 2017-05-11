@@ -40,7 +40,6 @@ state2hessian_SOURCES = \
                         ../modules/zmat_manage.f90                   \
                         ../modules/generic_io.f90\
                         ../modules/generic_io_molec.f90\
-                        ../modules/ff_build.f90\
                         ../modules/symmetry.f90\
                         ../modules/internal.f90\
                         ../modules/vibrational_analysis.f90\
@@ -76,7 +75,6 @@ vertical2adiabatic_SOURCES = \
                              ../modules/zmat_manage.f90                   \
                              ../modules/generic_io.f90\
                              ../modules/generic_io_molec.f90\
-                             ../modules/ff_build.f90\
                              ../modules/symmetry.f90\
                              ../modules/internal.f90\
                              ../modules/vibrational_analysis.f90\
@@ -112,7 +110,6 @@ NewtonRaphson_step_SOURCES = \
                              ../modules/zmat_manage.f90                   \
                              ../modules/generic_io.f90\
                              ../modules/generic_io_molec.f90\
-                             ../modules/ff_build.f90\
                              ../modules/symmetry.f90\
                              ../modules/internal.f90\
                              ../modules/vibrational_analysis.f90\
@@ -148,7 +145,6 @@ cartesian_duschinsky_SOURCES = \
                              ../modules/zmat_manage.f90                   \
                              ../modules/generic_io.f90\
                              ../modules/generic_io_molec.f90\
-                             ../modules/ff_build.f90\
                              ../modules/symmetry.f90\
                              ../modules/internal.f90\
                              ../modules/vibrational_analysis.f90\
@@ -184,7 +180,6 @@ internal_duschinsky_SOURCES = \
                              ../modules/zmat_manage.f90                   \
                              ../modules/generic_io.f90\
                              ../modules/generic_io_molec.f90\
-                             ../modules/ff_build.f90\
                              ../modules/symmetry.f90\
                              ../modules/internal.f90\
                              ../modules/vibrational_analysis.f90\
@@ -220,7 +215,6 @@ get_DeltaX_SOURCES = \
                              ../modules/zmat_manage.f90                   \
                              ../modules/generic_io.f90\
                              ../modules/generic_io_molec.f90\
-                             ../modules/ff_build.f90\
                              ../modules/symmetry.f90\
                              ../modules/internal.f90\
                              ../modules/vibrational_analysis.f90\
@@ -256,7 +250,6 @@ generate_internals_SOURCES = ../modules/alerts.f90\
                              ../modules/zmat_manage.f90                   \
                              ../modules/generic_io.f90\
                              ../modules/generic_io_molec.f90\
-                             ../modules/ff_build.f90\
                              ../modules/symmetry.f90\
                              ../modules/internal.f90\
                              generate_internals.f90 
@@ -288,7 +281,6 @@ generate_connetivity_SOURCES = ../modules/alerts.f90\
                              ../modules/zmat_manage.f90                   \
                              ../modules/generic_io.f90\
                              ../modules/generic_io_molec.f90\
-                             ../modules/ff_build.f90\
                              ../modules/symmetry.f90\
                              ../modules/internal.f90\
                              generate_connetivity.f90 

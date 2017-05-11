@@ -27,7 +27,6 @@ program NewtonRaphson_step
     !  Structure-related modules
     !============================================
     use molecular_structure
-    use ff_build
     use atomic_geom
     use symmetry
     !============================================
@@ -458,7 +457,7 @@ program NewtonRaphson_step
         endif
 
     P(1:Ns,1:Ns) = matrix_product(Ns,Ns,Nvib,Asel1,Asel1,tB=.true.)
-    call MAT0(6,P,Ns,Ns,"Prj(1)")
+    if (Ns<10 .or. verbose>1) call MAT0(6,P,Ns,Ns,"Prj(1)")
 !     endif
 
     if (apply_projection_matrix) then
@@ -639,6 +638,7 @@ program NewtonRaphson_step
     state2%geom = allgeom
     state1=state2
 
+    print*, "Get cartesian shift (1)"
     call intshif2cart(state2,Vec)
 
 
@@ -985,6 +985,7 @@ program NewtonRaphson_step
     ! From scratch
     state1%geom = allgeom
 
+    print*, "Get cartesian shift (2)"
     call intshif2cart(state1,Vec,maxiter_set=100)
 
 

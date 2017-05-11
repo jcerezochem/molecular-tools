@@ -25,7 +25,6 @@ program get_gscan
     use gaussian_fchk_manage
     use xyz_manage
 !     use molcas_unsym_manage
-    use ff_build
     use molecular_structure
     use atomic_geom
     use symmetry_mod
