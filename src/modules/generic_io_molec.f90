@@ -70,6 +70,11 @@ module generic_io_molec
 
         call atname2element(molec)
         call assign_atnum_molec(molec)
+        ! Assign masses for formats where the name can be different from the element (so the assigment
+        ! is not possible at generic_structure_reader)
+        if (adjustl(filetype) == 'gro' .or. adjustl(filetype) == 'pdb' .or. adjustl(filetype) == 'g96') then
+            call assign_masses_molec(molec)
+        endif
 
         ! Reader provides coordiantes in Angstrong
         molec%units = "Angs"
