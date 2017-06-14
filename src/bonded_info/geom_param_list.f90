@@ -93,6 +93,8 @@ program geom_param_list
     read(IList,*) nlines
     do i=1,nlines
         read(IList,'(A)') list_item
+        ! Remove comments
+        call split_line(list_item,';',list_item,null)
         call selection2intlist(list_item,atlabels,nitems)
         if (nitems == 2) then
             param=calc_atm_dist(molecule%atom(atlabels(1)),molecule%atom(atlabels(2)))
