@@ -161,6 +161,7 @@ program normal_modes_cartesian
                O_Q  =23,  &
                O_NUM=24,  &
                O_MOV=25,  &
+               O_FCHK=26, &
                S_VMD=30
 
     !files
@@ -175,12 +176,21 @@ program normal_modes_cartesian
                          cnx_file ="guess",&
                          mass_file="none", &
                          rm_custom_coord="none", &
-                         rm_custom_mode ="none"
+                         rm_custom_mode ="none", &
+                         outfchkfile='none'
     !Structure files to be created
     character(len=100) :: g09file,qfile, tmpfile, g96file, grofile,numfile
     !status
     integer :: IOstatus
     !===================
+
+    !====================== 
+    !Read fchk auxiliars
+    real(8),dimension(:),allocatable :: A
+    integer,dimension(:),allocatable :: IA
+    character(len=1) :: dtype
+    integer :: lenght, N
+    !====================== 
 
     !===================
     !CPU time 
@@ -210,6 +220,7 @@ program normal_modes_cartesian
                      inpfile,ft,hessfile,fth,gradfile,ftg,nmfile,ftn,mass_file,&
                      ! Options (general)
                      Amplitude,call_vmd,include_hbonds,selection,vertical, &
+                     outfchkfile,                                          &
                      ! Options (Cartesian)
                      full_diagonalize,                                     &
                      ! Remove coordinate along gradient
@@ -643,6 +654,78 @@ program normal_modes_cartesian
             call HessianCart2int(Nat,Nvib0,Hess,molecule%atom(:)%mass,B,G)
             ! B^t Hs B [~Hx]
             Hess(1:3*Nat,1:3*Nat) = matrix_basisrot(3*Nat,Nvib0,B,Hess,counter=.true.)
+            
+            if (adjustl(outfchkfile) /= 'none') then
+                
+                !================
+                !REWRITE FCHK
+                !================
+                
+                print'(X,A)', "WRITTING FCHK..."
+                print'(X,A)', "  Output file: "//trim(adjustl(outfchkfile))
+                open(O_FCHK,file=outfchkfile,status="unknown",iostat=IOstatus)
+!                 if (overwrite) then
+!                     open(O_FCHK,file=outfchkfile,status="replace",iostat=IOstatus)
+!                 else
+!                     open(O_FCHK,file=outfchkfile,status="new",iostat=IOstatus)
+!                     if (IOstatus /= 0) &
+!                      call alert_msg("fatal","Cannot open output for writting. Use -ow to force overwrite")
+!                 endif
+                ! Title and job info
+                write(O_FCHK,'(A)') "FCHK created with reform_fchk from "//trim(adjustl(inpfile))
+!                 write(O_FCHK,'(A10,A60,A10)') adjustl(calc_type), adjustl(method), adjustl(basis)
+                call write_fchk(O_FCHK,"Number of atoms","I",0,A,(/Nat/),error)
+!                 call write_fchk(O_FCHK,"Charge","I",0,A,(/charge/),error)
+!                 call write_fchk(O_FCHK,"Multiplicity","I",0,A,(/mult/),error)
+                
+                !Atomic Numbers and Nuclear charges
+                N=molecule%natoms
+                call write_fchk(O_FCHK,"Atomic numbers",'I',N,A,molecule%atom(1:N)%AtNum,error)
+                N=molecule%natoms
+                allocate(IA(1:1),A(1:N))
+                A(1:N) = float(molecule%atom(1:N)%AtNum)
+                call write_fchk(O_FCHK,"Nuclear charges",'R',N,A,IA,error)
+                deallocate(A,IA)
+                !Coordinates
+                N=3*molecule%natoms
+                allocate(IA(1:1),A(1:N))
+                do i=1,N/3
+                    j=3*i
+                    A(j-2) = molecule%atom(i)%x/BOHRtoANGS
+                    A(j-1) = molecule%atom(i)%y/BOHRtoANGS
+                    A(j)   = molecule%atom(i)%z/BOHRtoANGS
+                enddo
+                call write_fchk(O_FCHK,"Current cartesian coordinates",'R',N,A,IA,error)
+                deallocate(A,IA)
+                !Atomic weights
+                call write_fchk(O_FCHK,"Integer atomic weights",'I',3*Nat,A,int(molecule%atom(:)%mass),error)
+                call write_fchk(O_FCHK,"Real atomic weights",'R',3*Nat,molecule%atom(:)%mass,IA,error)
+!                 !Energy 
+!                 if (have_SCF) &
+!                     call write_fchk(O_FCHK,"SCF Energy",'R',0,(/E_scf/),IA,error)
+!                 if (have_TD) &
+!                     call write_fchk(O_FCHK,"CIS Energy",'R',0,(/E_td/),IA,error)
+!                 if (have_TOT) &
+!                     call write_fchk(O_FCHK,"Total Energy",'R',0,(/E_tot/),IA,error)
+!                 !Gradient
+!                 if (have_gradient) then
+!                     call write_fchk(O_FCHK,"Cartesian Gradient",'R',3*Nat,Grad,IA,error)
+!                 endif
+                !Hessian
+!                 if (have_hessian) then
+                    ! Transform the Hess into Hlt 
+                    N=3*Nat*(3*Nat+1)/2
+                    Hlt(1:N) = Hess_to_Hlt(3*Nat,Hess)
+                    call write_fchk(O_FCHK,"Cartesian Force Constants",'R',N,Hlt,IA,error)
+!                 endif
+                
+                print'(X,A,/)', "Done"
+                
+                
+                
+                
+                
+            endif
         endif
 !         if (apply_projection_matrix) then
 !             ! Project out rotation and translation
@@ -1122,6 +1205,7 @@ program normal_modes_cartesian
                            inpfile,ft,hessfile,fth,gradfile,ftg,nmfile,ftn,mass_file,&
                            ! Options (general)
                            Amplitude,call_vmd,include_hbonds,selection,vertical, &
+                           outfchkfile,                                          &
                            ! Options (Cartesian)
                            full_diagonalize,                                     &
                            ! Remove coordinate along gradient
@@ -1147,7 +1231,7 @@ program normal_modes_cartesian
         character(len=*),intent(inout) :: inpfile,ft,hessfile,fth,gradfile,ftg,nmfile,ftn,selection, &
                                           !Internal
                                           def_internal,intfile,rmzfile,cnx_file, &
-                                          rm_custom_coord,rm_custom_mode, mass_file
+                                          rm_custom_coord,rm_custom_mode, mass_file, outfchkfile
         real(8),intent(inout)          :: Amplitude, Tthermo
         logical,intent(inout)          :: call_vmd, include_hbonds,vertical,movie_vmd,full_diagonalize,animate,&
                                           rm_gradcoord, &
@@ -1286,6 +1370,10 @@ program normal_modes_cartesian
                     vertical=.true.
                 case ("-novert")
                     vertical=.false.
+                    
+                case ("-writefchk") 
+                    call getarg(i+1, outfchkfile)
+                    argument_retrieved=.true.
 
                 case ("-sym")
                     use_symmetry=.true.
@@ -1435,6 +1523,7 @@ program normal_modes_cartesian
         write(6,*)       ' ** Options for correction non-stationary points **'
         write(6,*)       '-[no]vert      Correct with B derivatives for ',  vertical
         write(6,*)       '               non-stationary points'
+        write(6,*)       '-writefchk     Write "corrected" fchk file     ', trim(adjustl(outfchkfile))
         write(6,*)       '-cnx           Connectivity [filename|guess]   ', trim(adjustl(cnx_file))
         write(6,*)       '-intmode       Internal set:[zmat|sel|all]     ', trim(adjustl(def_internal))
         write(6,*)       '-intfile       File with ICs (for "sel")       ', trim(adjustl(intfile))
