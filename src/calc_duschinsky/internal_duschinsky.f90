@@ -1460,7 +1460,11 @@ program internal_duschinski
             enddo
         enddo
         Grad(1:Nvib) = Vec1
-
+    
+        if (verbose>1) then
+            call print_vector(6,Vec1*1.d3,Nvib,"Grad2 in Q1-space x1.d3 (AU)")
+        endif
+            
         ! Diagonalize Hessian in Q1-space to get State2 FC and Duschinski rotation
         call diagonalize_full(Hess(1:Nvib,1:Nvib),Nvib,Jdus(1:Nvib,1:Nvib),FC(1:Nvib),"lapack")
         Freq2(1:Nvib) = FC2Freq(Nvib,FC)

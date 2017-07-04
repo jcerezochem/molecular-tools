@@ -1105,6 +1105,11 @@ program cartesian_duschinsky
         enddo
         call print_vector(6,Vec*1.e5,Nvib,"Gradient Q1 x1e5")
         Grad(1:Nvib) = Vec(1:Nvib)
+
+        if (verbose>1) then
+            call print_vector(6,Vec*1.d3,Nvib,"Grad2 in Q1-space x1.d3 (AU)")
+        endif
+        
         ! Q0 = - FC^-1 * J^t * gQ
         print'(X,A,/)', "COMPUTE SHIFT VECTOR..."
         do i=1,Nvib
