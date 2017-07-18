@@ -10,7 +10,7 @@ program get_NTO_coef
     !
     !==============================================================
 
-    use gaussian_fchk_manage
+    use gaussian_manage
 
 
     implicit none
