@@ -19,6 +19,7 @@ build_top_SOURCES = \
                         ../modules/manage_fcc.f90                    \
                         ../modules/manage_gamess.f90                 \
                         ../modules/manage_gaussian.f90               \
+                        ../modules/manage_cfour.f90                  \
                         ../modules/manage_gmx.f90                    \
                         ../modules/manage_molcas.f90                 \
                         ../modules/manage_molden.f90                 \

@@ -27,6 +27,7 @@ state2hessian_SOURCES = \
                         ../modules/manage_fcc.f90                    \
                         ../modules/manage_gamess.f90                 \
                         ../modules/manage_gaussian.f90               \
+                        ../modules/manage_cfour.f90                  \
                         ../modules/manage_gmx.f90                    \
                         ../modules/manage_molcas.f90                 \
                         ../modules/manage_molden.f90                 \
@@ -62,6 +63,7 @@ vertical2adiabatic_SOURCES = \
                              ../modules/manage_fcc.f90                    \
                              ../modules/manage_gamess.f90                 \
                              ../modules/manage_gaussian.f90               \
+                             ../modules/manage_cfour.f90                  \
                              ../modules/manage_gmx.f90                    \
                              ../modules/manage_molcas.f90                 \
                              ../modules/manage_molden.f90                 \
@@ -97,6 +99,7 @@ NewtonRaphson_step_SOURCES = \
                              ../modules/manage_fcc.f90                    \
                              ../modules/manage_gamess.f90                 \
                              ../modules/manage_gaussian.f90               \
+                             ../modules/manage_cfour.f90                  \
                              ../modules/manage_gmx.f90                    \
                              ../modules/manage_molcas.f90                 \
                              ../modules/manage_molden.f90                 \
@@ -132,6 +135,7 @@ cartesian_duschinsky_SOURCES = \
                              ../modules/manage_fcc.f90                    \
                              ../modules/manage_gamess.f90                 \
                              ../modules/manage_gaussian.f90               \
+                             ../modules/manage_cfour.f90                  \
                              ../modules/manage_gmx.f90                    \
                              ../modules/manage_molcas.f90                 \
                              ../modules/manage_molden.f90                 \
@@ -167,6 +171,7 @@ internal_duschinsky_SOURCES = \
                              ../modules/manage_fcc.f90                    \
                              ../modules/manage_gamess.f90                 \
                              ../modules/manage_gaussian.f90               \
+                             ../modules/manage_cfour.f90                  \
                              ../modules/manage_gmx.f90                    \
                              ../modules/manage_molcas.f90                 \
                              ../modules/manage_molden.f90                 \
@@ -202,6 +207,7 @@ get_DeltaX_SOURCES = \
                              ../modules/manage_fcc.f90                    \
                              ../modules/manage_gamess.f90                 \
                              ../modules/manage_gaussian.f90               \
+                             ../modules/manage_cfour.f90                  \
                              ../modules/manage_gmx.f90                    \
                              ../modules/manage_molcas.f90                 \
                              ../modules/manage_molden.f90                 \
@@ -237,6 +243,7 @@ generate_internals_SOURCES = ../modules/alerts.f90\
                              ../modules/manage_fcc.f90                    \
                              ../modules/manage_gamess.f90                 \
                              ../modules/manage_gaussian.f90               \
+                             ../modules/manage_cfour.f90                  \
                              ../modules/manage_gmx.f90                    \
                              ../modules/manage_molcas.f90                 \
                              ../modules/manage_molden.f90                 \
@@ -268,6 +275,7 @@ generate_connetivity_SOURCES = ../modules/alerts.f90\
                              ../modules/manage_fcc.f90                    \
                              ../modules/manage_gamess.f90                 \
                              ../modules/manage_gaussian.f90               \
+                             ../modules/manage_cfour.f90                  \
                              ../modules/manage_gmx.f90                    \
                              ../modules/manage_molcas.f90                 \
                              ../modules/manage_molden.f90                 \

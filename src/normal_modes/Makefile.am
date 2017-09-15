@@ -31,6 +31,7 @@ cartesian2internal_forces_SOURCES =   \
                         ../modules/manage_fcc.f90          \
                         ../modules/manage_gamess.f90       \
                         ../modules/manage_gaussian.f90     \
+                        ../modules/manage_cfour.f90        \
                         ../modules/manage_gmx.f90          \
                         ../modules/manage_molcas.f90       \
                         ../modules/manage_molden.f90       \
@@ -70,6 +71,7 @@ nm_internal_SOURCES =   \
                         ../modules/manage_fcc.f90          \
                         ../modules/manage_gamess.f90       \
                         ../modules/manage_gaussian.f90     \
+                        ../modules/manage_cfour.f90        \
                         ../modules/manage_gmx.f90          \
                         ../modules/manage_molcas.f90       \
                         ../modules/manage_molden.f90       \
@@ -108,6 +110,7 @@ nm_internal_prjInt_SOURCES =   \
                         ../modules/manage_fcc.f90          \
                         ../modules/manage_gamess.f90       \
                         ../modules/manage_gaussian.f90     \
+                        ../modules/manage_cfour.f90        \
                         ../modules/manage_gmx.f90          \
                         ../modules/manage_molcas.f90       \
                         ../modules/manage_molden.f90       \
@@ -146,6 +149,7 @@ nm_internal_prjCrt_SOURCES =   \
                         ../modules/manage_fcc.f90          \
                         ../modules/manage_gamess.f90       \
                         ../modules/manage_gaussian.f90     \
+                        ../modules/manage_cfour.f90        \
                         ../modules/manage_gmx.f90          \
                         ../modules/manage_molcas.f90       \
                         ../modules/manage_molden.f90       \
@@ -184,6 +188,7 @@ nm_cartesian_SOURCES =  \
                         ../modules/manage_fcc.f90          \
                         ../modules/manage_gamess.f90       \
                         ../modules/manage_gaussian.f90     \
+                        ../modules/manage_cfour.f90        \
                         ../modules/manage_gmx.f90          \
                         ../modules/manage_molcas.f90       \
                         ../modules/manage_molden.f90       \
@@ -240,6 +245,7 @@ prj_nm_internal_SOURCES =../modules/alerts.f90              \
                              ../modules/manage_fcc.f90          \
                              ../modules/manage_gamess.f90       \
                              ../modules/manage_gaussian.f90     \
+                             ../modules/manage_cfour.f90        \
                              ../modules/manage_gmx.f90          \
                              ../modules/manage_molcas.f90       \
                              ../modules/manage_molden.f90       \
@@ -275,6 +281,7 @@ prj_grad_on_nm_int_SOURCES = \
                              ../modules/manage_fcc.f90                    \
                              ../modules/manage_gamess.f90                 \
                              ../modules/manage_gaussian.f90               \
+                             ../modules/manage_cfour.f90                  \
                              ../modules/manage_gmx.f90                    \
                              ../modules/manage_molcas.f90                 \
                              ../modules/manage_molden.f90                 \

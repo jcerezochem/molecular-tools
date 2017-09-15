@@ -33,6 +33,7 @@ libmoleculartools_a_SOURCES =         \
     manage_fcc.f90                    \
     manage_gamess.f90                 \
     manage_gaussian.f90               \
+    manage_cfour.f90                  \
     manage_gmx.f90                    \
     manage_molcas.f90                 \
     manage_molden.f90                 \

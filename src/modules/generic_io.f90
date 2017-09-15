@@ -16,6 +16,7 @@ module generic_io
     use constants
     use line_preprocess
     use gaussian_manage
+    use cfour_manage
     use gamess_manage
     use psi4_manage
     use molcas_manage
@@ -69,6 +70,8 @@ module generic_io
              deallocate(IA)
             case("gms")
              call read_gamess_natoms(unt,Nat,error_local)
+            case("cfour")
+             call read_cfour_natoms(unt,Nat,error_local)
             case("psi4")
              call read_psi4_natoms(unt,Nat,error_local)
             case("molcas")
@@ -176,6 +179,10 @@ module generic_io
              ResName(1:Nat) = "UNK"
             case("gms")
              call read_gamess_geom(unt,Nat,AtName,X,Y,Z,error_local)
+             call assign_masses(Nat,AtName,Mass)
+             ResName(1:Nat) = "UNK"
+            case("cfour")
+             call read_cfour_geom(unt,Nat,AtName,X,Y,Z,error_local)
              call assign_masses(Nat,AtName,Mass)
              ResName(1:Nat) = "UNK"
             case("psi4")
@@ -363,6 +370,8 @@ module generic_io
                  Grad(i) = A(i)
              enddo
              deallocate(A)
+            case("cfour")
+             call read_cfour_grad(unt,Nat,Grad,error_local)
             case default
              call alert_msg("warning","Unsupported filetype:"//trim(adjustl(filetype)))
 !              call supported_filetype_list('grad')
@@ -430,6 +439,8 @@ module generic_io
              deallocate(A)
             case("gms")
              call read_gamess_hess(unt,Nat,Hlt,error_local)
+            case("cfour")
+             call read_cfour_hess(unt,Nat,Hlt,error_local)
             case("psi4")
              call read_psi4_hess(unt,Nat,Hlt,error_local)
             case("molcas")
@@ -514,6 +525,8 @@ module generic_io
              call read_gaussfchk_dip(unt,Si,Sf,derivatives,dip_type,Dip,DipD,error_local)
             case("gms")
              call alert_msg("fatal","Filetype not supported")
+            case("cfour")
+             call alert_msg("fatal","Filetype not yet supported")
             case("psi4")
              call read_psi4_dip(unt,Si,Sf,dip_type,Dip,error_local)
              if (derivatives) then

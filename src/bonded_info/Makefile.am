@@ -19,6 +19,7 @@ calcRMS_bonded_SOURCES = \
                          ../modules/manage_fcc.f90              \
                          ../modules/manage_gamess.f90           \
                          ../modules/manage_gaussian.f90         \
+                         ../modules/manage_cfour.f90            \
                          ../modules/manage_gmx.f90              \
                          ../modules/manage_molcas.f90           \
                          ../modules/manage_molden.f90           \
@@ -53,6 +54,7 @@ geom_param_list_SOURCES = \
                          ../modules/manage_fcc.f90              \
                          ../modules/manage_gamess.f90           \
                          ../modules/manage_gaussian.f90         \
+                         ../modules/manage_cfour.f90            \
                          ../modules/manage_gmx.f90              \
                          ../modules/manage_molcas.f90           \
                          ../modules/manage_molden.f90           \
@@ -87,6 +89,7 @@ get_com_SOURCES = \
                          ../modules/manage_fcc.f90              \
                          ../modules/manage_gamess.f90           \
                          ../modules/manage_gaussian.f90         \
+                         ../modules/manage_cfour.f90            \
                          ../modules/manage_gmx.f90              \
                          ../modules/manage_molcas.f90           \
                          ../modules/manage_molden.f90           \
@@ -121,6 +124,7 @@ max_dist_to_center_SOURCES = \
                          ../modules/manage_fcc.f90              \
                          ../modules/manage_gamess.f90           \
                          ../modules/manage_gaussian.f90         \
+                         ../modules/manage_cfour.f90            \
                          ../modules/manage_gmx.f90              \
                          ../modules/manage_molcas.f90           \
                          ../modules/manage_molden.f90           \
