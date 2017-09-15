@@ -48,9 +48,11 @@ program NewtonRaphson_step
                tswitch=.false.      ,&
                symaddapt=.false.    ,&
                vertical=.true.      ,&
+               vg_model=.false.     ,&
                analytic_Bder=.true. ,&
                apply_projection_matrix=.false.
     character(len=4) :: def_internal='zmat', def_internal_aux
+    character(len=2) :: model="VH"
     !======================
 
     !====================== 
@@ -178,9 +180,20 @@ program NewtonRaphson_step
 !                               filetype,"-ft","c",&
 !                               )
     call parse_input(inpfile,ft,hessfile,fth,gradfile,ftg,cnx_file,&
-                     intfile,rmzfile,def_internal,use_symmetry,vertical,apply_projection_matrix,analytic_Bder)
+                     intfile,rmzfile,def_internal,use_symmetry,model,apply_projection_matrix,analytic_Bder)
     call set_word_upper_case(def_internal)
     call set_word_upper_case(symm_file)
+    call set_word_upper_case(model)
+    
+    if (model=="VH") then
+        vertical=.true.
+        vg_model=.false.
+    elseif (model=="VG") then
+        vertical=.true.
+        vg_model=.false.
+    else
+        call alert_msg("fatal","Allowed models are: VH and VG")
+    endif
 
     ! READ DATA (each element from a different file is possible)
     ! ---------------------------------
@@ -482,6 +495,7 @@ program NewtonRaphson_step
         ! 2. Multiply gs^t\beta and
         ! 3. Apply the correction
         ! Bder(i,j,K)^t * gq(K)
+        if (.not.vg_model) then
         do i=1,3*Nat
         do j=1,3*Nat
             Aux2(i,j) = 0.d0
@@ -491,6 +505,7 @@ program NewtonRaphson_step
             Hess(i,j) = Hess(i,j) - Aux2(i,j)
         enddo
         enddo
+        endif
     endif
     if (apply_projection_matrix) then
         ! Project out rotation and translation
@@ -913,6 +928,7 @@ program NewtonRaphson_step
         ! 2. Multiply gs^t\beta and
         ! 3. Apply the correction
         ! Bder(i,j,K)^t * gq(K)
+        if (.not.vg_model) then
         do i=1,3*Nat
         do j=1,3*Nat
             Aux2(i,j) = 0.d0
@@ -922,6 +938,7 @@ program NewtonRaphson_step
             Hess(i,j) = Hess(i,j) - Aux2(i,j)
         enddo
         enddo
+        endif
     endif
     print'(/,X,A)', "Convert Hessian from Cart to Int(red)"
     call HessianCart2int_red(Nat,Ns,Hess,state1%atom(:)%mass,B1,G1)
@@ -1064,7 +1081,7 @@ program NewtonRaphson_step
     !=============================================
 
     subroutine parse_input(inpfile,ft,hessfile,fth,gradfile,ftg,cnx_file,& 
-                           intfile,rmzfile,def_internal,use_symmetry,vertical,apply_projection_matrix,analytic_Bder)
+                           intfile,rmzfile,def_internal,use_symmetry,model,apply_projection_matrix,analytic_Bder)
     !==================================================
     ! My input parser (gromacs style)
     !==================================================
@@ -1072,8 +1089,9 @@ program NewtonRaphson_step
 
         character(len=*),intent(inout) :: inpfile,ft,hessfile,fth,gradfile,ftg,&
                                           intfile,rmzfile,def_internal,cnx_file
-        logical,intent(inout)          :: use_symmetry, vertical,apply_projection_matrix
+        logical,intent(inout)          :: use_symmetry,apply_projection_matrix
         logical,intent(inout)          :: analytic_Bder
+        character(len=*),intent(inout) :: model
         ! Local
         logical :: argument_retrieved,  &
                    need_help = .false.
@@ -1111,11 +1129,10 @@ program NewtonRaphson_step
                     call getarg(i+1, ftg)
                     argument_retrieved=.true.
 
-                case ("-vert")
-                    vertical=.true.
-                case ("-novert")
-                    vertical=.false.
-
+                case ("-model")
+                    call getarg(i+1, model)
+                    argument_retrieved=.true.
+                
                 case ("-cnx") 
                     call getarg(i+1, cnx_file)
                     argument_retrieved=.true.
@@ -1206,7 +1223,7 @@ program NewtonRaphson_step
         write(6,*)       '-cnx           Connectivity [filename|guess] ', trim(adjustl(cnx_file))
         write(6,*)       '-intfile        File with ICs (for "sel")    ', trim(adjustl(intfile))
         write(6,*)       '-rmzfile        File deleting ICs from Zmat  ', trim(adjustl(rmzfile))
-        write(6,*)       '-[no]vert       Vertical model              ',  vertical
+        write(6,*)       '-model          Vertical model: VH or VG     ', model
         write(6,*)       '-[no]prj-tr     Apply projection matrix     ',  apply_projection_matrix
         write(6,*)       '-sym            Use symmetry                ',  use_symmetry
         write(6,*)       '-h              Display this help           ',  need_help
