@@ -85,7 +85,7 @@ program read_scan
     !====================== 
     !MATRICES
     !Other matrices
-    real(8),dimension(:),allocatable :: R, E
+    real(8) :: R, E
     !====================== 
 
     !====================== 
@@ -129,12 +129,13 @@ program read_scan
     !files
     character(len=10) :: filetype="guess", filetype_out="guess"
     character(len=200):: inpfile ="input.fchk", &
-                         outfile="default"
+                         outfile="default",     &
+                         path
     character(len=200) :: basefile, title
     character(len=10)  :: extension, label
     !status
     integer :: IOstatus
-    integer :: maxpoints=100
+    integer :: maxpoints=10000
     !===================
 
     !===================
@@ -153,10 +154,16 @@ program read_scan
     !===========================
 
     ! 0. GET COMMAND LINE ARGUMENTS
-    call parse_input(inpfile,filetype,outfile,filetype_out,overwrite,maxpoints)
+    call parse_input(inpfile,filetype,outfile,filetype_out,overwrite)
 
     ! Output names are labeled with steps
     call split_line_back(outfile,".",basefile,extension)
+    ! Files are generated on the folder where they are called, so remove relative path if any
+    if (index(basefile,'/') /= 0) then
+        call split_line_back(basefile,"/",path,basefile)
+    else
+        path='.'
+    endif
  
     !================
     ! READ DATA
@@ -192,6 +199,7 @@ program read_scan
 
     ! Scan iNFO
     !-----------
+    print'(X,A)', "READING SCAN INFO..."
     ! Data info
     call read_fchk(I_INP,"Optimization Num results per geometry",dtype,N,A,IA,error)
     if (error /= 0) call alert_msg("fatal","Looking for Scan info")
@@ -203,10 +211,9 @@ program read_scan
     if (IA(1) /= 3*Nat) call alert_msg("fatal","Atoms in Scan are not consisntent")
     deallocate(IA)
     ! Run over all scan geoms (Unkown number of steps)
-    ! Allocate for at most 100 points
-    allocate(E(1:maxpoints),R(1:maxpoints))
     i_scan = 0
     do icount=1,maxpoints
+        if (mod(icount,10) == 0) print*, "Step: ", i_scan+1
         write(line,'(A9,I8,X,A22)') "Opt point",i_scan+1,"Results for each geome"
         ! Energies and Distances
         call read_fchk(I_INP,adjustl(line),dtype,N,A,IA,error)
@@ -214,8 +221,8 @@ program read_scan
         i_scan = i_scan + 1
         nsteps = N/ninfo
         ! Read last point
-        E(i_scan) = A(N-1)
-        R(i_scan) = A(N)
+        E = A(N-1)
+        R = A(N)
         deallocate(A)
         
         ! Read all geoms at the scan point, and get the last point (constraint minimum)
@@ -249,7 +256,7 @@ program read_scan
         
         ! Print to files
         label = int20char(i_scan,3)
-        write(title,'(A,I0,5X,A,F15.6,X,A,F10.4)') "Scan step ", i_scan, "E=", E(i_scan)
+        write(title,'(A,I0,5X,A,F15.6,X,A,F10.4)') "Scan step ", i_scan, "E=", E
         outfile=trim(adjustl(basefile))//"_"//trim(adjustl(label))//"."//trim(adjustl(extension))
         open(O_STR,file=outfile)
         call generic_strmol_writer(O_STR,filetype_out,molecule,title=title)
@@ -309,7 +316,7 @@ program read_scan
         call write_fchk(O_FCHK,"Real atomic weights",'R',3*Nat,A,(/0/),error)
         deallocate(A,IA)
         !Energy 
-        call write_fchk(O_FCHK,"Total Energy",'R',0,(/E(i_scan)/),(/0/),error)
+        call write_fchk(O_FCHK,"Total Energy",'R',0,(/E/),(/0/),error)
         !Gradient
         call write_fchk(O_FCHK,"Cartesian Gradient",'R',3*Nat,Grad,(/0/),error)
         close(O_FCHK)
@@ -317,6 +324,7 @@ program read_scan
     if (icount==maxpoints+1) call alert_msg('warning','Number of scan points reached maxpoints value')
 
     write(0,*) 'Number of scan points', i_scan
+    print'(X,A,/)', "Done"
 
     call cpu_time(tf)
     write(0,'(/,A,X,F12.3,/)') "CPU time (s)", tf-ti
@@ -328,7 +336,7 @@ program read_scan
     contains
     !=============================================
 
-    subroutine parse_input(inpfile,filetype,outfile,filetype_out,overwrite,maxpoints)
+    subroutine parse_input(inpfile,filetype,outfile,filetype_out,overwrite)
     !==================================================
     ! My input parser (gromacs style)
     !==================================================
@@ -336,7 +344,6 @@ program read_scan
 
         character(len=*),intent(inout) :: inpfile,filetype,outfile,filetype_out
         logical,intent(inout)          :: overwrite
-        integer,intent(inout)          :: maxpoints
         ! Local
         logical :: argument_retrieved,  &
                    need_help = .false.
@@ -366,11 +373,7 @@ program read_scan
                     call getarg(i+1, filetype_out)
                     argument_retrieved=.true.  
                 case("-ow")
-                    overwrite=.true.
-                case ("-maxpoints") 
-                    call getarg(i+1, arg)
-                    read(arg,*) maxpoints
-                    argument_retrieved=.true.  
+                    overwrite=.true. 
                 case ("-h")
                     need_help=.true.
 
@@ -399,8 +402,6 @@ program read_scan
         write(0,*)       '-o           Output file                      ', trim(adjustl(outfile))
         write(0,*)       '-fto         \_ FileTyep                      ', trim(adjustl(filetype_out))
         write(0,*)       '-ow          Force overwrite output          ',  overwrite
-        write(0,'(X,A,I0)') &
-                         '-maxpoints   Max scan points (allocated mem)  ',  maxpoints
         write(0,*)       '-h           This help                       ',  need_help
         write(0,*)       '-------------------------------------------------------------------'
         if (need_help) call alert_msg("fatal", 'There is no manual (for the moment)' )

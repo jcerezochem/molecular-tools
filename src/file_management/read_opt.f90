@@ -102,7 +102,7 @@ program read_opt
     !====================== 
     !MATRICES
     !Other matrices
-    real(8),dimension(:),allocatable :: R, E
+    real(8) :: R, E
     !====================== 
 
     !====================== 
@@ -146,7 +146,7 @@ program read_opt
     character(len=10) :: filetype="guess", filetype_out="guess"
     character(len=200):: inpfile ="input.fchk", &
                          outfile="default"
-    character(len=200) :: basefile, title
+    character(len=200) :: basefile, title, path
     character(len=10)  :: extension, label
     !status
     integer :: IOstatus
@@ -172,6 +172,12 @@ program read_opt
 
     ! Output names are labeled with steps
     call split_line_back(outfile,".",basefile,extension)
+    ! Files are generated on the folder where they are called, so remove relative path if any
+    if (index(basefile,'/') /= 0) then
+        call split_line_back(basefile,"/",path,basefile)
+    else
+        path='.'
+    endif
  
     !================
     ! READ DATA
@@ -207,6 +213,7 @@ program read_opt
 
     ! Opt iNFO
     !-----------
+    print'(X,A)', "READING OPT INFO..."
     ! Data info
     call read_fchk(I_INP,"Optimization Num results per geometry",dtype,N,A,IA,error)
     if (error /= 0) call alert_msg("fatal","Looking for Scan info")
@@ -227,13 +234,12 @@ program read_opt
         i_scan = i_scan + 1
         nsteps = N/ninfo
         ! Read all points
-        allocate(E(1:nsteps),R(1:nsteps))
         j=0
         do i=1,nsteps
             j=j+1
-            E(i) = A(j)
+            E = A(j)
             j=j+1
-            R(i) = A(j)
+            R = A(j)
         enddo
         deallocate(A)
         
@@ -254,7 +260,7 @@ program read_opt
                 molecule%atom(j)%z = A(k)*BOHRtoANGS
             enddo
             label = int20char(i,2)
-            write(title,'(A,I0,5X,A,F15.6,X,A,F10.4)') "Opt step ", i, "E=", E(i)
+            write(title,'(A,I0,5X,A,F15.6,X,A,F10.4)') "Opt step ", i, "E=", E
             outfile=trim(adjustl(basefile))//trim(adjustl(label))//"."//trim(adjustl(extension))
             open(O_STR,file=outfile)
             call generic_strmol_writer(O_STR,filetype_out,molecule,title=title)
@@ -276,6 +282,8 @@ program read_opt
     enddo
 
     write(0,*) 'Number of opt points', i_scan
+    print'(X,A,/)', "Done"
+    
 
     call cpu_time(tf)
     write(0,'(/,A,X,F12.3,/)') "CPU time (s)", tf-ti
