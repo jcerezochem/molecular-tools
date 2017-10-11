@@ -116,7 +116,7 @@ program read_scan
 
     !=============
     !Counters
-    integer :: i,j,k,l, ii,jj,kk, iat, nn, imin, imax, iii, i_scan
+    integer :: i,j,k,l, ii,jj,kk, iat, nn, imin, imax, iii, i_scan, icount
     !=============
 
     !================
@@ -134,6 +134,7 @@ program read_scan
     character(len=10)  :: extension, label
     !status
     integer :: IOstatus
+    integer :: maxpoints=100
     !===================
 
     !===================
@@ -152,7 +153,7 @@ program read_scan
     !===========================
 
     ! 0. GET COMMAND LINE ARGUMENTS
-    call parse_input(inpfile,filetype,outfile,filetype_out,overwrite)
+    call parse_input(inpfile,filetype,outfile,filetype_out,overwrite,maxpoints)
 
     ! Output names are labeled with steps
     call split_line_back(outfile,".",basefile,extension)
@@ -203,9 +204,9 @@ program read_scan
     deallocate(IA)
     ! Run over all scan geoms (Unkown number of steps)
     ! Allocate for at most 100 points
-    allocate(E(1:100),R(1:100))
+    allocate(E(1:maxpoints),R(1:maxpoints))
     i_scan = 0
-    do 
+    do icount=1,maxpoints
         write(line,'(A9,I8,X,A22)') "Opt point",i_scan+1,"Results for each geome"
         ! Energies and Distances
         call read_fchk(I_INP,adjustl(line),dtype,N,A,IA,error)
@@ -232,6 +233,7 @@ program read_scan
             k=k+1
             molecule%atom(j)%z = A(k)*BOHRtoANGS
         enddo
+        deallocate(A)
         
         ! Read all Grads at the scan point, and get the last point (constraint minimum)
         write(line,'(A9,I8,X,A22)') "Opt point",i_scan,"Gradient at each geome"
@@ -246,7 +248,7 @@ program read_scan
         deallocate(A)
         
         ! Print to files
-        label = int20char(i_scan,2)
+        label = int20char(i_scan,3)
         write(title,'(A,I0,5X,A,F15.6,X,A,F10.4)') "Scan step ", i_scan, "E=", E(i_scan)
         outfile=trim(adjustl(basefile))//"_"//trim(adjustl(label))//"."//trim(adjustl(extension))
         open(O_STR,file=outfile)
@@ -270,36 +272,49 @@ program read_scan
         ! Title and job info
         write(O_FCHK,'(A)') "FCHK created with read_scan from "//trim(adjustl(inpfile))
         write(O_FCHK,'(A10,A60,A10)') adjustl(calc_type), adjustl(method), adjustl(basis)
-        call write_fchk(O_FCHK,"Number of atoms","I",0,A,(/Nat/),error)
-        call write_fchk(O_FCHK,"Charge","I",0,A,(/charge/),error)
-        call write_fchk(O_FCHK,"Multiplicity","I",0,A,(/mult/),error)
+        call write_fchk(O_FCHK,"Number of atoms","I",0,(/0.d0/),(/Nat/),error)
+        call write_fchk(O_FCHK,"Charge","I",0,(/0.d0/),(/charge/),error)
+        call write_fchk(O_FCHK,"Multiplicity","I",0,(/0.d0/),(/mult/),error)
         N=molecule%natoms
-        call write_fchk(O_FCHK,"Atomic numbers",'I',N,A,molecule%atom(1:N)%AtNum,error)
+        call write_fchk(O_FCHK,"Atomic numbers",'I',N,(/0.d0/),molecule%atom(1:N)%AtNum,error)
         N=molecule%natoms
-        allocate(IA(1:1),A(1:N))
+        allocate(A(1:N))
         A(1:N) = float(molecule%atom(1:N)%AtNum)
-        call write_fchk(O_FCHK,"Nuclear charges",'R',N,A,IA,error)
-        deallocate(A,IA)
+        call write_fchk(O_FCHK,"Nuclear charges",'R',N,A,(/0/),error)
+        deallocate(A)
         !Coordinates
         N=3*molecule%natoms
-        allocate(IA(1:1),A(1:N))
+        allocate(A(1:N))
         do i=1,N/3
             j=3*i
             A(j-2) = molecule%atom(i)%x/BOHRtoANGS
             A(j-1) = molecule%atom(i)%y/BOHRtoANGS
             A(j)   = molecule%atom(i)%z/BOHRtoANGS
         enddo
-        call write_fchk(O_FCHK,"Current cartesian coordinates",'R',N,A,IA,error)
-        deallocate(A,IA)
+        call write_fchk(O_FCHK,"Current cartesian coordinates",'R',N,A,(/0/),error)
+        deallocate(A)
         !Atomic weights
-        call write_fchk(O_FCHK,"Integer atomic weights",'I',3*Nat,A,int(molecule%atom(:)%mass),error)
-        call write_fchk(O_FCHK,"Real atomic weights",'R',3*Nat,molecule%atom(:)%mass,IA,error)
+        N=3*molecule%natoms
+        allocate(A(1:N),IA(1:N))
+        do i=1,N/3
+            j=3*i
+            A(j-2) = molecule%atom(i)%x/BOHRtoANGS
+            A(j-1) = molecule%atom(i)%y/BOHRtoANGS
+            A(j)   = molecule%atom(i)%z/BOHRtoANGS
+            IA(j-2)= int(molecule%atom(i)%x/BOHRtoANGS)
+            IA(j-1)= int(molecule%atom(i)%y/BOHRtoANGS)
+            IA(j)  = int(molecule%atom(i)%z/BOHRtoANGS)
+        enddo
+        call write_fchk(O_FCHK,"Integer atomic weights",'I',3*Nat,(/0.d0/),IA,error)
+        call write_fchk(O_FCHK,"Real atomic weights",'R',3*Nat,A,(/0/),error)
+        deallocate(A,IA)
         !Energy 
-        call write_fchk(O_FCHK,"Total Energy",'R',0,(/E(i_scan)/),IA,error)
+        call write_fchk(O_FCHK,"Total Energy",'R',0,(/E(i_scan)/),(/0/),error)
         !Gradient
-        call write_fchk(O_FCHK,"Cartesian Gradient",'R',3*Nat,Grad,IA,error)
+        call write_fchk(O_FCHK,"Cartesian Gradient",'R',3*Nat,Grad,(/0/),error)
         close(O_FCHK)
     enddo
+    if (icount==maxpoints+1) call alert_msg('warning','Number of scan points reached maxpoints value')
 
     write(0,*) 'Number of scan points', i_scan
 
@@ -313,7 +328,7 @@ program read_scan
     contains
     !=============================================
 
-    subroutine parse_input(inpfile,filetype,outfile,filetype_out,overwrite)
+    subroutine parse_input(inpfile,filetype,outfile,filetype_out,overwrite,maxpoints)
     !==================================================
     ! My input parser (gromacs style)
     !==================================================
@@ -321,6 +336,7 @@ program read_scan
 
         character(len=*),intent(inout) :: inpfile,filetype,outfile,filetype_out
         logical,intent(inout)          :: overwrite
+        integer,intent(inout)          :: maxpoints
         ! Local
         logical :: argument_retrieved,  &
                    need_help = .false.
@@ -351,6 +367,10 @@ program read_scan
                     argument_retrieved=.true.  
                 case("-ow")
                     overwrite=.true.
+                case ("-maxpoints") 
+                    call getarg(i+1, arg)
+                    read(arg,*) maxpoints
+                    argument_retrieved=.true.  
                 case ("-h")
                     need_help=.true.
 
@@ -379,6 +399,8 @@ program read_scan
         write(0,*)       '-o           Output file                      ', trim(adjustl(outfile))
         write(0,*)       '-fto         \_ FileTyep                      ', trim(adjustl(filetype_out))
         write(0,*)       '-ow          Force overwrite output          ',  overwrite
+        write(0,'(X,A,I0)') &
+                         '-maxpoints   Max scan points (allocated mem)  ',  maxpoints
         write(0,*)       '-h           This help                       ',  need_help
         write(0,*)       '-------------------------------------------------------------------'
         if (need_help) call alert_msg("fatal", 'There is no manual (for the moment)' )
