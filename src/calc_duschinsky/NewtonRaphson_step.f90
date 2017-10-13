@@ -450,7 +450,7 @@ program NewtonRaphson_step
     !SOLVE GF METHOD TO GET NM AND FREQ
     call internal_Wilson(state1,Ns,S1,B1,ModeDef)
     call internal_Gmetric(Nat,Ns,state1%atom(:)%mass,B1,G1)
-    if (vertical) then
+    if (vertical .and. .not. vg_model) then
         call calc_Bder(state1,Ns,Bder,analytic_Bder)
     endif
 
@@ -463,7 +463,7 @@ program NewtonRaphson_step
         ! Rotate Gmatrix
         G1(1:Nvib,1:Nvib) = matrix_basisrot(Nvib,Ns,Asel1(1:Ns,1:Nvib),G1,counter=.true.)
         ! Rotate Bders
-        if (vertical) then
+        if (vertical .and. .not. vg_model) then
             do j=1,3*Nat
                 Bder(1:Nvib,j,1:3*Nat) =  matrix_product(Nvib,3*Nat,Ns,Asel1,Bder(1:Ns,j,1:3*Nat),tA=.true.)
             enddo
@@ -892,7 +892,7 @@ program NewtonRaphson_step
     Grad(1:3*Nat) = Grad0(1:3*Nat)
     call internal_Wilson(state1,Ns,S1,B1,ModeDef)
     call internal_Gmetric(Nat,Ns,state1%atom(:)%mass,B1,G1)
-    if (vertical) then
+    if (vertical .and. .not. vg_model) then
         call calc_Bder(state1,Ns,Bder,analytic_Bder)
     endif
     print*, "Get Ginv and P and alpha(1-P)"
