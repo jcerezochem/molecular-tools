@@ -90,6 +90,8 @@ program read_opt
     character(len=5) :: PG
     ! Energies
     real(8) :: E_scf, E_td, E_tot
+    ! FCHK data
+    real(8),dimension(1:NDIM) :: Grad
     !======================
 
     !=====================
@@ -107,7 +109,7 @@ program read_opt
 
     !====================== 
     !Read fchk auxiliars
-    real(8),dimension(:),allocatable :: A
+    real(8),dimension(:),allocatable :: A, GEOMS
     integer,dimension(:),allocatable :: IA
     character(len=1) :: dtype
     integer :: error, N, lenght
@@ -139,13 +141,14 @@ program read_opt
     !================
     !I/O stuff 
     !units
-    integer :: I_INP=10,  &
-               O_STR=20,  &
-               O_GAU=21
+    integer :: I_INP =10,  &
+               O_STR =20,  &
+               O_GAU =21,  &
+               O_FCHK=22
     !files
-    character(len=10) :: filetype="guess", filetype_out="guess"
-    character(len=200):: inpfile ="input.fchk", &
-                         outfile="default"
+    character(len=10)  :: filetype="guess", filetype_out="guess"
+    character(len=200) :: inpfile ="input.fchk", &
+                          outfile="default"
     character(len=200) :: basefile, title, path
     character(len=10)  :: extension, label
     !status
@@ -226,7 +229,7 @@ program read_opt
     deallocate(IA)
     ! Run over the only Opt step (Kown number of steps)
     i_scan = 0
-    do ii=1,1
+    do iii=1,1
         write(line,'(A9,I8,X,A22)') "Opt point",i_scan+1,"Results for each geome"
         ! Energies and Distances
         call read_fchk(I_INP,adjustl(line),dtype,N,A,IA,error)
@@ -248,25 +251,28 @@ program read_opt
         call read_fchk(I_INP,adjustl(line),dtype,N,A,IA,error)
         if (error /= 0) call alert_msg("fatal","Looking for Scan info (Geometries)")
         if (nsteps /= N/(3*Nat)) call alert_msg("fatal","Inconsistency in the number of steps")
+        allocate(GEOMS(N))
+        GEOMS=A
+        deallocate(A)
 
         do i=1,nsteps
             k=(i-1)*Nat*3
             do j=1,Nat 
                 k=k+1
-                molecule%atom(j)%x = A(k)*BOHRtoANGS
+                molecule%atom(j)%x = GEOMS(k)*BOHRtoANGS
                 k=k+1
-                molecule%atom(j)%y = A(k)*BOHRtoANGS
+                molecule%atom(j)%y = GEOMS(k)*BOHRtoANGS
                 k=k+1
-                molecule%atom(j)%z = A(k)*BOHRtoANGS
+                molecule%atom(j)%z = GEOMS(k)*BOHRtoANGS
             enddo
-            label = int20char(i,2)
+            label = int20char(i,3)
             write(title,'(A,I0,5X,A,F15.6,X,A,F10.4)') "Opt step ", i, "E=", E
-            outfile=trim(adjustl(basefile))//trim(adjustl(label))//"."//trim(adjustl(extension))
+            outfile=trim(adjustl(basefile))//"_"//trim(adjustl(label))//"."//trim(adjustl(extension))
             open(O_STR,file=outfile)
             call generic_strmol_writer(O_STR,filetype_out,molecule,title=title)
             close(O_STR)
             ! Write g09 input
-            outfile=trim(adjustl(basefile))//trim(adjustl(label))//".com"
+            outfile=trim(adjustl(basefile))//"_"//trim(adjustl(label))//".com"
             open(O_GAU,file=outfile)
             call write_gcom(O_GAU,molecule,&
                                   !Optional args
@@ -276,12 +282,59 @@ program read_opt
                                   basis=basis,     &!
                                   title=title      )
             close(O_GAU)
+            ! Write FCHK
+            outfile=trim(adjustl(basefile))//"_"//trim(adjustl(label))//".fchk"
+            open(O_FCHK,file=outfile)
+            ! Title and job info
+            write(O_FCHK,'(A)') "FCHK created with read_scan from "//trim(adjustl(inpfile))
+            write(O_FCHK,'(A10,A60,A10)') adjustl(calc_type), adjustl(method), adjustl(basis)
+            call write_fchk(O_FCHK,"Number of atoms","I",0,(/0.d0/),(/Nat/),error)
+            call write_fchk(O_FCHK,"Charge","I",0,(/0.d0/),(/charge/),error)
+            call write_fchk(O_FCHK,"Multiplicity","I",0,(/0.d0/),(/mult/),error)
+            N=molecule%natoms
+            call write_fchk(O_FCHK,"Atomic numbers",'I',N,(/0.d0/),molecule%atom(1:N)%AtNum,error)
+            N=molecule%natoms
+            allocate(A(1:N))
+            A(1:N) = float(molecule%atom(1:N)%AtNum)
+            call write_fchk(O_FCHK,"Nuclear charges",'R',N,A,(/0/),error)
+            deallocate(A)
+            !Coordinates
+            N=3*molecule%natoms
+            allocate(A(1:N))
+            do ii=1,N/3
+                j=3*ii
+                A(j-2) = molecule%atom(ii)%x/BOHRtoANGS
+                A(j-1) = molecule%atom(ii)%y/BOHRtoANGS
+                A(j)   = molecule%atom(ii)%z/BOHRtoANGS
+            enddo
+            call write_fchk(O_FCHK,"Current cartesian coordinates",'R',N,A,(/0/),error)
+            deallocate(A)
+            !Atomic weights
+            N=3*molecule%natoms
+            allocate(A(1:N),IA(1:N))
+            do ii=1,N/3
+                j=3*ii
+                A(j-2) = molecule%atom(ii)%x/BOHRtoANGS
+                A(j-1) = molecule%atom(ii)%y/BOHRtoANGS
+                A(j)   = molecule%atom(ii)%z/BOHRtoANGS
+                IA(j-2)= int(molecule%atom(ii)%x/BOHRtoANGS)
+                IA(j-1)= int(molecule%atom(ii)%y/BOHRtoANGS)
+                IA(j)  = int(molecule%atom(ii)%z/BOHRtoANGS)
+            enddo
+            call write_fchk(O_FCHK,"Integer atomic weights",'I',3*Nat,(/0.d0/),IA,error)
+            call write_fchk(O_FCHK,"Real atomic weights",'R',3*Nat,A,(/0/),error)
+            deallocate(A,IA)
+            !Energy 
+            call write_fchk(O_FCHK,"Total Energy",'R',0,(/E/),(/0/),error)
+            !Gradient
+            call write_fchk(O_FCHK,"Cartesian Gradient",'R',3*Nat,Grad,(/0/),error)
+            close(O_FCHK)
         enddo
         
-        deallocate(A)
+        deallocate(GEOMS)
     enddo
 
-    write(0,*) 'Number of opt points', i_scan
+    write(0,*) 'Number of opt steps', nsteps
     print'(X,A,/)', "Done"
     
 

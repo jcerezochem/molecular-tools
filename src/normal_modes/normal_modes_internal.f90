@@ -954,6 +954,22 @@ program normal_modes_internal
     if (.not.animate) then
         Nsel=0
     endif
+    
+    ! Get extra data (g_Q...)
+    if (verbose>1) then
+        ! Gradient
+        ! Intenal
+        call print_vector(6,Grad,Nvib,"Grad_Int (a.u.)")
+        ! Q-space
+        ! gQ = L^t gx
+        do i=1,Nvib
+            Vec(i) = 0.d0
+            do k=1,Nvib
+                Vec(i) = Vec(i) + LL(k,i) * Grad(k)
+            enddo
+        enddo
+        call print_vector(6,Vec*1e5,Nvib,"Grad_Q (a.u.) x10^5")
+    endif
 
     ! If redundant set, transform from orthogonal non-redundant
     if (scan_type/="IN") then

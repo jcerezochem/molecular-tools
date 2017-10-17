@@ -83,28 +83,42 @@ module xyz_manage_molec
 
         use structure_types
 
-        integer,intent(in)::unt
+        integer,intent(in)            ::unt
         type(str_resmol),intent(inout)::system
+!         logical,intent(in),optional   :: std_format
 
         !local
         integer::i
+        character(len=5)  :: name
+        character(len=50) :: fmt='(A5,3X,3(F10.5,5X))'
 
 
-        write(unt,*) system%natoms
+        write(unt,'(I0)') system%natoms
         if (len_trim(system%title) == 0) then
             write(unt,*) "File generated with write_xyz subroutine"
         else
             write(unt,'(A)') system%title
         endif
 
+!         if (present(std_format) .and. std_format) the
         do i=1,system%natoms   
-
-            write(unt,*) system%atom(i)%name,      &
-                         system%atom(i)%x,         &
-                         system%atom(i)%y,         &
-                         system%atom(i)%z
-
+            name=adjustl(system%atom(i)%name)
+            write(unt,fmt) name,                     &
+                           system%atom(i)%x,         &
+                           system%atom(i)%y,         &
+                           system%atom(i)%z
         enddo
+        
+!         else
+!         
+!         do i=1,system%natoms   
+! 
+!             write(unt,*) system%atom(i)%name,      &
+!                          system%atom(i)%x,         &
+!                          system%atom(i)%y,         &
+!                          system%atom(i)%z
+! 
+!         enddo
 
         return
 
