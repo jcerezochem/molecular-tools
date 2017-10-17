@@ -52,7 +52,7 @@ module xyz_manage
         if (present(title)) then
             read(unt,'(A)') title
         else
-            read(unt,*) test_name
+            read(unt,'(A)') test_name
         endif
 
         do i=1,Nat   
