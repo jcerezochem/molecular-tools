@@ -63,8 +63,8 @@ program read_scan
     !====================== 
     !System variables
     type(str_resmol)  :: molecule, molec_aux
-    character(len=50) :: calc_type,basis
-    character(len=60) :: method
+    character(len=100):: calc_type,basis
+    character(len=100):: method
     integer           :: charge, mult
     integer,dimension(1:NDIM) :: iord
     integer :: Nat, Nvib
@@ -196,7 +196,6 @@ program read_scan
     print'(X,A,I0)', " Charge  : ", charge
     print'(X,A,I0)', " Mult.   : ", mult
     print'(X,A,/)', "Done"
-
     ! Scan iNFO
     !-----------
     print'(X,A)', "READING SCAN INFO..."

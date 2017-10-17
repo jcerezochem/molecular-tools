@@ -1468,7 +1468,7 @@ module gaussian_manage
         integer :: error_local
         character(len=500) :: info_section
         character :: null, sep
-        character(len=20),dimension(4) :: char_array
+        character(len=100),dimension(20) :: char_array
         ! Counters
         integer :: i
 
@@ -1492,16 +1492,14 @@ module gaussian_manage
              read(unt,*) null ! skip first line
              read(unt,'(A)') info_section
              call string2vector_char(info_section,char_array,n_elem," ")
-             if ( n_elem == 3) then
-                 calc   = char_array(1)
-                 method = char_array(2)
-                 basis  = char_array(3)
-             elseif (n_elem == 4) then
-                 calc   = char_array(1)
-                 method = trim(adjustl(char_array(2)))//" "//adjustl(char_array(3))
-                 basis  = char_array(4)
-             endif
-
+             i=1
+             calc   = trim(adjustl(char_array(i)))
+             method=""
+             do i=2,n_elem-1
+                 method = adjustl(trim(method))//" "//trim(adjustl(char_array(i)))
+             enddo
+             basis  = trim(adjustl(char_array(i)))
+             
             case default 
              call alert_msg("fatal","API error: Unkonwn filetype in this context (read_gauss_job):"//ft)
         end select
