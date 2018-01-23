@@ -109,7 +109,7 @@ program read_opt
 
     !====================== 
     !Read fchk auxiliars
-    real(8),dimension(:),allocatable :: A, GEOMS
+    real(8),dimension(:),allocatable :: A, GEOMS, GRADS
     integer,dimension(:),allocatable :: IA
     character(len=1) :: dtype
     integer :: error, N, lenght
@@ -249,13 +249,22 @@ program read_opt
         ! Read all geoms and write to files
         write(line,'(A9,I8,X,A10)') "Opt point",i_scan,"Geometries"
         call read_fchk(I_INP,adjustl(line),dtype,N,A,IA,error)
-        if (error /= 0) call alert_msg("fatal","Looking for Scan info (Geometries)")
+        if (error /= 0) call alert_msg("fatal","Looking for Opt info (Geometries)")
         if (nsteps /= N/(3*Nat)) call alert_msg("fatal","Inconsistency in the number of steps")
         allocate(GEOMS(N))
         GEOMS=A
         deallocate(A)
+        ! Read all grads
+        write(line,'(A9,I8,X,A22)') "Opt point",i_scan,"Gradient at each geome"
+        call read_fchk(I_INP,adjustl(line),dtype,N,A,IA,error)
+        if (error /= 0) call alert_msg("fatal","Looking for Opt info (Gradient)")
+        if (nsteps /= N/(3*Nat)) call alert_msg("fatal","Inconsistency in the number of steps")
+        allocate(GRADS(N))
+        GRADS=A
+        deallocate(A)
 
         do i=1,nsteps
+            ! Get Geom and Grad for current step
             k=(i-1)*Nat*3
             do j=1,Nat 
                 k=k+1
@@ -264,6 +273,11 @@ program read_opt
                 molecule%atom(j)%y = GEOMS(k)*BOHRtoANGS
                 k=k+1
                 molecule%atom(j)%z = GEOMS(k)*BOHRtoANGS
+            enddo
+            k=(i-1)*Nat*3
+            do j=1,3*Nat
+                k=k+1
+                Grad(j) = GRADS(k)
             enddo
             label = int20char(i,3)
             write(title,'(A,I0,5X,A,F15.6,X,A,F10.4)') "Opt step ", i, "E=", E
@@ -298,17 +312,6 @@ program read_opt
             A(1:N) = float(molecule%atom(1:N)%AtNum)
             call write_fchk(O_FCHK,"Nuclear charges",'R',N,A,(/0/),error)
             deallocate(A)
-            !Coordinates
-            N=3*molecule%natoms
-            allocate(A(1:N))
-            do ii=1,N/3
-                j=3*ii
-                A(j-2) = molecule%atom(ii)%x/BOHRtoANGS
-                A(j-1) = molecule%atom(ii)%y/BOHRtoANGS
-                A(j)   = molecule%atom(ii)%z/BOHRtoANGS
-            enddo
-            call write_fchk(O_FCHK,"Current cartesian coordinates",'R',N,A,(/0/),error)
-            deallocate(A)
             !Atomic weights
             N=3*molecule%natoms
             allocate(A(1:N),IA(1:N))
@@ -324,6 +327,17 @@ program read_opt
             call write_fchk(O_FCHK,"Integer atomic weights",'I',3*Nat,(/0.d0/),IA,error)
             call write_fchk(O_FCHK,"Real atomic weights",'R',3*Nat,A,(/0/),error)
             deallocate(A,IA)
+            !Coordinates
+            N=3*molecule%natoms
+            allocate(A(1:N))
+            do ii=1,N/3
+                j=3*ii
+                A(j-2) = molecule%atom(ii)%x/BOHRtoANGS
+                A(j-1) = molecule%atom(ii)%y/BOHRtoANGS
+                A(j)   = molecule%atom(ii)%z/BOHRtoANGS
+            enddo
+            call write_fchk(O_FCHK,"Current cartesian coordinates",'R',N,A,(/0/),error)
+            deallocate(A)
             !Energy 
             call write_fchk(O_FCHK,"Total Energy",'R',0,(/E/),(/0/),error)
             !Gradient

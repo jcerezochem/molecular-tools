@@ -38,6 +38,7 @@ cartesian2internal_forces_SOURCES =   \
                         ../modules/manage_molpro.f90       \
                         ../modules/manage_turbomol.f90     \
                         ../modules/manage_pdb.f90          \
+../modules/manage_orca.f90             \
                         ../modules/manage_psi4.f90         \
                         ../modules/manage_xyz.f90          \
                         ../modules/manage_xyz_molec.f90    \
@@ -78,6 +79,7 @@ nm_internal_SOURCES =   \
                         ../modules/manage_molpro.f90       \
                         ../modules/manage_turbomol.f90     \
                         ../modules/manage_pdb.f90          \
+../modules/manage_orca.f90             \
                         ../modules/manage_psi4.f90         \
                         ../modules/manage_xyz.f90          \
                         ../modules/manage_xyz_molec.f90    \
@@ -117,6 +119,7 @@ nm_internal_prjInt_SOURCES =   \
                         ../modules/manage_molpro.f90       \
                         ../modules/manage_turbomol.f90     \
                         ../modules/manage_pdb.f90          \
+../modules/manage_orca.f90             \
                         ../modules/manage_psi4.f90         \
                         ../modules/manage_xyz.f90          \
                         ../modules/manage_xyz_molec.f90    \
@@ -156,6 +159,7 @@ nm_internal_prjCrt_SOURCES =   \
                         ../modules/manage_molpro.f90       \
                         ../modules/manage_turbomol.f90     \
                         ../modules/manage_pdb.f90          \
+../modules/manage_orca.f90             \
                         ../modules/manage_psi4.f90         \
                         ../modules/manage_xyz.f90          \
                         ../modules/manage_xyz_molec.f90    \
@@ -195,6 +199,7 @@ nm_cartesian_SOURCES =  \
                         ../modules/manage_molpro.f90       \
                         ../modules/manage_turbomol.f90     \
                         ../modules/manage_pdb.f90          \
+../modules/manage_orca.f90             \
                         ../modules/manage_psi4.f90         \
                         ../modules/manage_xyz.f90          \
                         ../modules/manage_xyz_molec.f90    \
@@ -252,6 +257,7 @@ prj_nm_internal_SOURCES =../modules/alerts.f90              \
                              ../modules/manage_molpro.f90       \
                              ../modules/manage_turbomol.f90     \
                              ../modules/manage_pdb.f90          \
+../modules/manage_orca.f90             \
                              ../modules/manage_psi4.f90         \
                              ../modules/manage_xyz.f90          \
                              ../modules/manage_xyz_molec.f90    \
@@ -288,6 +294,7 @@ prj_grad_on_nm_int_SOURCES = \
                              ../modules/manage_molpro.f90                 \
                              ../modules/manage_turbomol.f90     \
                              ../modules/manage_pdb.f90                    \
+../modules/manage_orca.f90             \
                              ../modules/manage_psi4.f90                   \
                              ../modules/manage_xyz.f90                    \
                              ../modules/manage_xyz_molec.f90              \
@@ -321,6 +328,7 @@ prj_grad_on_nm_int_SOURCES = \
 #                              ../modules/manage_molden.f90                 \
 #                              ../modules/manage_molpro.f90                 \
 #                              ../modules/manage_pdb.f90                    \
+../modules/manage_orca.f90             \
 #                              ../modules/manage_psi4.f90                   \
 #                              ../modules/manage_xyz.f90                    \
 #                              ../modules/manage_xyz_molec.f90              \

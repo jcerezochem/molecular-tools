@@ -74,7 +74,8 @@ program fchk2gro
     character(len=200):: inpfile="input.fchk",&
                          addfile="none",      &
                          outfile="default"   ,&
-                         swapfile="none"  
+                         swapfile="none"     ,&
+                         massfile="none"
     !status
     integer :: IOstatus
     character(len=7) :: stat="new" !do not overwrite when writting
@@ -87,8 +88,8 @@ program fchk2gro
     !===========================
 
     ! 0. GET COMMAND LINE ARGUMENTS
-    call parse_input(inpfile,filetype_inp,outfile,filetype_out,addfile,overwrite,make_connect,&
-                     use_elements,remove_com,resname,swapfile,title)
+    call parse_input(inpfile,filetype_inp,outfile,filetype_out,addfile,massfile,overwrite,&
+                     make_connect,use_elements,remove_com,resname,swapfile,title)
 
  
     ! 1. READ INPUT
@@ -161,6 +162,14 @@ program fchk2gro
 
     ! 3. WRITE OUTPUT
     ! ---------------------------------
+    if (adjustl(massfile) /= "none" ) then
+        open(O_OUT,file=massfile,status='unknown',iostat=IOstatus)
+        if (IOstatus /= 0) call alert_msg( "fatal","Cannot write in "//trim(adjustl(massfile)))
+        do i=1,molec%natoms
+            write(O_OUT,*) molec%atom(i)%mass
+        enddo
+        close(O_OUT)
+    endif
     if (overwrite) stat="unknown"
     open(O_OUT,file=outfile,status=stat,iostat=IOstatus)
     if (IOstatus /= 0) call alert_msg( "fatal","Cannot write in "//trim(adjustl(outfile))//&
@@ -195,8 +204,8 @@ program fchk2gro
     contains
     !=============================================
 
-    subroutine parse_input(inpfile,filetype_inp,outfile,filetype_out,addfile,overwrite,make_connect,&
-                           use_elements,remove_com,resname,swapfile,title)
+    subroutine parse_input(inpfile,filetype_inp,outfile,filetype_out,addfile,massfile,overwrite,&
+                           make_connect,use_elements,remove_com,resname,swapfile,title)
     !==================================================
     ! My input parser (gromacs style)
     !==================================================
@@ -204,7 +213,7 @@ program fchk2gro
 
         character(len=*),intent(inout) :: inpfile,outfile,addfile,&
                                           filetype_inp,filetype_out, &
-                                          resname,swapfile,title
+                                          resname,swapfile,title,massfile
         logical,intent(inout) :: overwrite, make_connect, use_elements, &
                                  remove_com
         ! Local
@@ -239,6 +248,10 @@ program fchk2gro
                     argument_retrieved=.true.
                 case ("-fto") 
                     call getarg(i+1, filetype_out)
+                    argument_retrieved=.true.
+                    
+                case ("-mass") 
+                    call getarg(i+1, massfile)
                     argument_retrieved=.true.
 
                 case ("-r")
@@ -298,6 +311,7 @@ program fchk2gro
         write(0,*)       '-add         Additional file (fcc: inputfile) ', trim(adjustl(addfile))
         write(0,*)       '-o           Output structure file            ', trim(adjustl(outfile))
         write(0,*)       '-fto         \_ FileTyep                      ', trim(adjustl(filetype_out))
+        write(0,*)       '-mass        Output a mass file (opt)         ', trim(adjustl(massfile))
         write(0,*)       '-ow          Overwrite output if exists       ',  overwrite
         write(0,*)       '-swap        File with reordering instruction ',  trim(adjustl(swapfile))
         write(0,*)       '-rn          Residue name                     ',  trim(adjustl(resname))

@@ -40,7 +40,9 @@ libmoleculartools_a_SOURCES =         \
     manage_molpro.f90                 \
     manage_turbomol.f90               \
     manage_pdb.f90                    \
+../modules/manage_orca.f90             \
     manage_psi4.f90                   \
+    manage_orca.f90                   \
 \
     manage_pdb.f90                    \
     manage_xyz.f90                    \

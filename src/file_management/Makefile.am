@@ -1,6 +1,7 @@
 AUTOMAKE_OPTIONS = subdir-objects
 
-bin_PROGRAMS = reform_fchk rmsd_fit fchk2gro read_irc read_scan read_opt get_symatoms mod_topology get_reordering
+bin_PROGRAMS = reform_fchk rmsd_fit fchk2gro read_irc read_scan read_opt get_symatoms mod_topology get_reordering \
+               prepare_numder_coms numder_dipoles
 #get_gscan numderX
 
 # =============
@@ -29,6 +30,7 @@ mod_topology_SOURCES = \
                         ../modules/manage_molpro.f90                 \
                         ../modules/manage_turbomol.f90               \
                         ../modules/manage_pdb.f90                    \
+                   ../modules/manage_orca.f90             \
                         ../modules/manage_psi4.f90                   \
                         ../modules/manage_xyz.f90                    \
                         ../modules/manage_xyz_molec.f90              \
@@ -69,6 +71,7 @@ reform_fchk_SOURCES = \
                       ../modules/manage_molpro.f90           \
                       ../modules/manage_turbomol.f90         \
                       ../modules/manage_pdb.f90              \
+                   ../modules/manage_orca.f90             \
                       ../modules/manage_psi4.f90             \
                       ../modules/manage_xyz.f90              \
                       ../modules/manage_xyz_molec.f90        \
@@ -105,6 +108,7 @@ rmsd_fit_SOURCES = \
                    ../modules/manage_molpro.f90           \
                    ../modules/manage_turbomol.f90         \
                    ../modules/manage_pdb.f90              \
+                   ../modules/manage_orca.f90             \
                    ../modules/manage_psi4.f90             \
                    ../modules/manage_xyz.f90              \
                    ../modules/manage_xyz_molec.f90        \
@@ -141,6 +145,7 @@ fchk2gro_SOURCES = \
                    ../modules/manage_molpro.f90           \
                    ../modules/manage_turbomol.f90         \
                    ../modules/manage_pdb.f90              \
+                   ../modules/manage_orca.f90             \
                    ../modules/manage_psi4.f90             \
                    ../modules/manage_xyz.f90              \
                    ../modules/manage_xyz_molec.f90        \
@@ -176,6 +181,7 @@ read_irc_SOURCES = \
                    ../modules/manage_molpro.f90           \
                    ../modules/manage_turbomol.f90         \
                    ../modules/manage_pdb.f90              \
+                   ../modules/manage_orca.f90             \
                    ../modules/manage_psi4.f90             \
                    ../modules/manage_xyz.f90              \
                    ../modules/manage_xyz_molec.f90        \
@@ -211,6 +217,7 @@ read_scan_SOURCES = \
                    ../modules/manage_molpro.f90           \
                    ../modules/manage_turbomol.f90         \
                    ../modules/manage_pdb.f90              \
+                   ../modules/manage_orca.f90             \
                    ../modules/manage_psi4.f90             \
                    ../modules/manage_xyz.f90              \
                    ../modules/manage_xyz_molec.f90        \
@@ -246,6 +253,7 @@ read_opt_SOURCES = \
                    ../modules/manage_molpro.f90           \
                    ../modules/manage_turbomol.f90         \
                    ../modules/manage_pdb.f90              \
+                   ../modules/manage_orca.f90             \
                    ../modules/manage_psi4.f90             \
                    ../modules/manage_xyz.f90              \
                    ../modules/manage_xyz_molec.f90        \
@@ -256,6 +264,78 @@ read_opt_SOURCES = \
                    ../modules/internal.f90                \
                    read_opt.f90
 read_opt_LDFLAGS = @LIBS@
+
+prepare_numder_coms_SOURCES = \
+                   ../modules/alerts.f90                  \
+                   ../modules/line_preprocess.f90         \
+                   ../modules/constants.f90               \
+                   ../modules/verbosity.f90               \
+                   ../modules/io.f90                      \
+                   ../modules/version.f90                 \
+                   ../modules/matrix.f90                  \
+                   ../modules/matrix_print.f90            \
+                   ../modules/structure_types.f90         \
+                   ../modules/molecular_structure.f90     \
+                   ../modules/symmetry.f90                \
+                   ../modules/metrics.f90                 \
+                   ../modules/atomic_geom.f90             \
+                   ../modules/manage_fcc.f90              \
+                   ../modules/manage_gamess.f90           \
+                   ../modules/manage_gaussian.f90         \
+                   ../modules/manage_cfour.f90            \
+                   ../modules/manage_gmx.f90              \
+                   ../modules/manage_molcas.f90           \
+                   ../modules/manage_molden.f90           \
+                   ../modules/manage_molpro.f90           \
+                   ../modules/manage_turbomol.f90         \
+                   ../modules/manage_pdb.f90              \
+                   ../modules/manage_orca.f90             \
+                   ../modules/manage_psi4.f90             \
+                   ../modules/manage_xyz.f90              \
+                   ../modules/manage_xyz_molec.f90        \
+                   ../modules/manage_gro_molec.f90        \
+                   ../modules/zmat_manage.f90             \
+                   ../modules/generic_io.f90              \
+                   ../modules/generic_io_molec.f90        \
+                   ../modules/internal.f90                \
+                   prepare_numder_coms.f90
+prepare_numder_coms_LDFLAGS = @LIBS@
+
+numder_dipoles_SOURCES = \
+                   ../modules/alerts.f90                  \
+                   ../modules/line_preprocess.f90         \
+                   ../modules/constants.f90               \
+                   ../modules/verbosity.f90               \
+                   ../modules/io.f90                      \
+                   ../modules/version.f90                 \
+                   ../modules/matrix.f90                  \
+                   ../modules/matrix_print.f90            \
+                   ../modules/structure_types.f90         \
+                   ../modules/molecular_structure.f90     \
+                   ../modules/symmetry.f90                \
+                   ../modules/metrics.f90                 \
+                   ../modules/atomic_geom.f90             \
+                   ../modules/manage_fcc.f90              \
+                   ../modules/manage_gamess.f90           \
+                   ../modules/manage_gaussian.f90         \
+                   ../modules/manage_cfour.f90            \
+                   ../modules/manage_gmx.f90              \
+                   ../modules/manage_molcas.f90           \
+                   ../modules/manage_molden.f90           \
+                   ../modules/manage_molpro.f90           \
+                   ../modules/manage_turbomol.f90         \
+                   ../modules/manage_pdb.f90              \
+                   ../modules/manage_orca.f90             \
+                   ../modules/manage_psi4.f90             \
+                   ../modules/manage_xyz.f90              \
+                   ../modules/manage_xyz_molec.f90        \
+                   ../modules/manage_gro_molec.f90        \
+                   ../modules/zmat_manage.f90             \
+                   ../modules/generic_io.f90              \
+                   ../modules/generic_io_molec.f90        \
+                   ../modules/internal.f90                \
+                   numder_dipoles.f90
+numder_dipoles_LDFLAGS = @LIBS@
 
 # ============
 # get_symatoms
@@ -283,6 +363,7 @@ get_symatoms_SOURCES = \
                       ../modules/manage_molpro.f90           \
                       ../modules/manage_turbomol.f90         \
                       ../modules/manage_pdb.f90              \
+                   ../modules/manage_orca.f90             \
                       ../modules/manage_psi4.f90             \
                       ../modules/manage_xyz.f90              \
                       ../modules/manage_xyz_molec.f90        \
@@ -321,6 +402,7 @@ get_reordering_SOURCES = \
                       ../modules/manage_molpro.f90           \
                       ../modules/manage_turbomol.f90         \
                       ../modules/manage_pdb.f90              \
+                   ../modules/manage_orca.f90             \
                       ../modules/manage_psi4.f90             \
                       ../modules/manage_xyz.f90              \
                       ../modules/manage_xyz_molec.f90        \

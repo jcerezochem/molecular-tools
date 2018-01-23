@@ -942,9 +942,10 @@ program normal_modes_internal
     Nvib = Nvib0
 
     ! Check if we should continue
-    if (molecule%geom%nimprop/=0) then
+    if (molecule%geom%nimprop/=0 .and. conversion_i2c=="ZMAT") then
         if (Nsel/=0) call alert_msg("warning","Animations not yet possible "//&
-                                              "when impropers are selected")
+                                              "when impropers are selected "//&
+                                              "and alg=zmat")
         Nsel=0
     endif
     if (def_internal=="SEL") then
@@ -999,6 +1000,7 @@ program normal_modes_internal
         nbonds = molecule%geom%nbonds
         nangles= molecule%geom%nangles
         ndihed = molecule%geom%ndihed
+        nimprop = molecule%geom%nimprop
         ! Initialization
         Sref = S
         DeltaS = S
@@ -1102,13 +1104,14 @@ program normal_modes_internal
             ! Displace (displace always from reference to avoid error propagation)
             i=istep
             S=Sref
-            call displace_Scoord(LL(:,j),nbonds,nangles,ndihed,Qstep/Factor(j)*i,S)
+            call displace_Scoord(LL(:,j),nbonds,nangles,ndihed,nimprop,Qstep/Factor(j)*i,S)
             ! Get Cart coordinates
             if (conversion_i2c=="ZMAT") then
                 if (Ns /= Ns_zmat) then
                     S(1:Ns_zmat) = map_Zmatrix(Ns_zmat,S,Zmap,Szmat)
                 endif
                 call zmat2cart(molecule,S)
+!                 call zmat2cart_improp(molecule,S)
                 !call rmsd_fit_frame(state,ref): efficient but not always works. If so, it uses rmsd_fit_frame_brute(state,ref)
                 call rmsd_fit_frame(molecule,molec_aux,info)
                 if (info /= 0) then
@@ -1139,13 +1142,21 @@ program normal_modes_internal
                         DeltaS(l) = DeltaS(l)+2*PI
                     endif
                 enddo
+                do i=1,nimprop
+                    l=l+1
+                    DeltaS(l) = S(l)-DeltaS(l)
+                    if (abs(DeltaS(l)) > abs(DeltaS(l)-2*PI) ) then
+                        DeltaS(l) = DeltaS(l)-2*PI
+                    else if (abs(DeltaS(l)) > abs(DeltaS(l)+2*PI) ) then
+                        DeltaS(l) = DeltaS(l)+2*PI
+                    endif
+                enddo
                 call verbose_mute()
                 call intshif2cart(molecule,DeltaS,thr_set=1d-4,maxiter_set=10)
                 ! Compute current ICs for the next step 
                 call compute_internal(molecule,Ns,DeltaS)
                 call verbose_continue()
             endif
-
             ! PRINT
             !Transform to AA and comparae with last step (stored in state)  -- this should be detected and fix by the subroutines
             call set_geom_units(molecule,"Angs")
@@ -1174,7 +1185,7 @@ program normal_modes_internal
             ! Displace (displace always from reference to avoid error propagation)
             i=(nsteps-1)/2-istep
             S=Sref
-            call displace_Scoord(LL(:,j),nbonds,nangles,ndihed,Qstep/Factor(j)*i,S)
+            call displace_Scoord(LL(:,j),nbonds,nangles,ndihed,nimprop,Qstep/Factor(j)*i,S)
             if (conversion_i2c=="ZMAT") then
                 ! Get Cart coordinates
                 if (Ns /= Ns_zmat) then
@@ -1251,7 +1262,7 @@ program normal_modes_internal
             ! Displace (displace always from reference to avoid error propagation)
             i=-(nsteps-1)/2+istep
             S=Sref
-            call displace_Scoord(LL(:,j),nbonds,nangles,ndihed,Qstep/Factor(j)*i,S)
+            call displace_Scoord(LL(:,j),nbonds,nangles,ndihed,nimprop,Qstep/Factor(j)*i,S)
             if (conversion_i2c=="ZMAT") then
                 ! Get Cart coordinates
                 if (Ns /= Ns_zmat) then
@@ -1788,11 +1799,11 @@ program normal_modes_internal
 
     end subroutine prepare_files
 
-    subroutine displace_Scoord(Lc,nbonds,nangles,ndihed,Qstep,S)
+    subroutine displace_Scoord(Lc,nbonds,nangles,ndihed,nimprop,Qstep,S)
 
         real(8),dimension(:),intent(in)   :: Lc
         real(8),intent(in)                :: Qstep 
-        integer,intent(in)                :: nbonds,nangles,ndihed
+        integer,intent(in)                :: nbonds,nangles,ndihed,nimprop
         real(8),dimension(:),intent(inout):: S
 
         !Local
@@ -1811,6 +1822,13 @@ program normal_modes_internal
         enddo
         ! "Dihedrals"
         do i=1,ndihed
+            k=k+1
+            S(k) = S(k) + Lc(k) * Qstep
+            if (S(k) >  PI) S(k)=S(k)-2.d0*PI
+            if (S(k) < -PI) S(k)=S(k)+2.d0*PI
+        enddo
+        ! "Impropers"
+        do i=1,nimprop
             k=k+1
             S(k) = S(k) + Lc(k) * Qstep
             if (S(k) >  PI) S(k)=S(k)-2.d0*PI

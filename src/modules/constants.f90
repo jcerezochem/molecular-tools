@@ -261,7 +261,7 @@ module constants
         name = "XX"
         n = size(atmass_from_atnum)
         do i=1,n
-            if (abs(mass-atmass_from_atnum(i)) < 1.d-2) then
+            if (abs(mass-atmass_from_atnum(i)) < 1.d-1) then
                 name = atname_from_atnum(i)
                 Zat  = i
             endif

@@ -989,6 +989,222 @@ module zmat_manage
     
     end subroutine zmat2cart
     
+    
+    subroutine zmat2cart_improp(molec,S)
+    
+        ! Transform z-matrix to cartesian coordinates
+        ! Run with atomic coordinates (for S)
+        !  * input : bohr (length) and radians (angles)
+        !  * outout: bohr (cartesian coods)
+        ! NOTES
+        ! Molec has to include the ic information (atom%geom)
+    
+        use structure_types
+        use constants
+        use matrix
+        use verbosity
+    
+        integer,parameter :: NDIM = 600
+    
+        !Arguments
+        type(str_resmol),intent(inout) :: molec
+        real(8),dimension(NDIM),intent(in) :: S
+       
+        !Local
+        integer,dimension(1:NDIM,1:4) :: bond_s,angle_s,improp_s
+        real(8) :: det
+
+        real(8) :: R,angle,improp, xcom,ycom,zcom, MASS,xaux,yaux,zaux
+    
+        real(8),dimension(3,3) :: PIner,Aux, Aux3
+        real(8),dimension(3) :: Vec
+    
+        real(8),dimension(NDIM,NDIM) :: work
+        integer,dimension(NDIM) :: ipiv
+        integer :: info
+    
+        integer :: Nat
+    
+        integer :: i, i_at, i_b,i_a,i_d
+
+        !----------------------------------------------
+        ! UNITS MANAGEMENT
+        ! This subroutine returns data in Atomic Units
+        !------------------------------------------------
+    
+        ! Setup things 
+        Nat = molec%natoms
+        bond_s(2:Nat,1:2)  = molec%geom%bond(1:Nat-1,1:2)
+        angle_s(3:Nat,1:3) = molec%geom%angle(1:Nat-2,1:3)
+        improp_s(4:Nat,1:4) = molec%geom%improp(1:Nat-3,1:4)
+    
+        !Atom1
+    !     i_at = atom_order(1)
+        i_at = bond_s(2,1)
+        i1 = bond_s(2,1)
+        molec%atom(i_at)%x = 0.d0
+        molec%atom(i_at)%y = 0.d0
+        molec%atom(i_at)%z = 0.d0
+        !Atom2
+        R0 = S(1)*BOHRtoAMS
+    !     i_at = atom_order(2)
+        i_at = bond_s(2,2)
+        molec%atom(i_at)%x = -R0
+        molec%atom(i_at)%y = 0.d0
+        molec%atom(i_at)%z = 0.d0
+        !Atom3
+        R = S(2)*BOHRtoAMS
+        angle = S(Nat)
+        i_a = angle_s(3,1)
+        i_b = angle_s(3,2)
+    !     i_at = atom_order(3)
+        i_at = angle_s(3,3) !<-- this info is here!
+        if (i_b == i1 ) then !atom_order(1)) then
+    ! print*, "connected to i1", R
+            molec%atom(i_at)%x = R*dcos(PI-angle)
+            molec%atom(i_at)%y = R*dsin(PI-angle)
+            molec%atom(i_at)%z = 0.d0
+        else
+    ! print*, i_at, "connected to other than i1",i_b, R
+            molec%atom(i_at)%x = -R*dcos(PI-angle)-R0
+            molec%atom(i_at)%y = R*dsin(PI-angle)
+            molec%atom(i_at)%z = 0.d0
+        endif
+    
+        !COLOCACIÓN DEL RESTO DE ÁTOMOS
+        k=0
+        do i=4,molec%natoms
+            k=k+1
+            i_d = improp_s(i,1)
+            i_a = improp_s(i,2)
+            i_b = improp_s(i,3)
+            i_at = improp_s(i,4)
+            R = S(2+k)*BOHRtoAMS
+            angle = S(Nat+k)
+            improp = S(2*Nat-3+k)
+    ! print'(A,4I3,A,F8.2)', "Setting", i_at, i_b, i_a, i_d, " with dihed =", dihed*180./PI
+    ! print*, "Atom", i_at, "conected to", i_b, i_a, i_d, R, angle*180./PI, dihed*180./PI
+            call addcart_improp(molec%atom(i_b),molec%atom(i_a),molec%atom(i_d),&
+                         R,angle,improp, molec%atom(i_at))
+        enddo
+    
+        !THE FOLLOWING PLACES ALL IN  STD ORI (IS NOT FIX!
+        !Place on COM
+        xcom = 0.d0
+        ycom = 0.d0
+        zcom = 0.d0
+        MASS = 0.d0
+        do i=1,molec%natoms
+            xcom = xcom + molec%atom(i)%x*molec%atom(i)%mass
+            ycom = ycom + molec%atom(i)%y*molec%atom(i)%mass
+            zcom = zcom + molec%atom(i)%z*molec%atom(i)%mass
+            MASS = MASS + molec%atom(i)%mass
+        enddo
+        xcom = xcom/MASS
+        ycom = ycom/MASS
+        zcom = zcom/MASS
+        do i=1,molec%natoms
+            molec%atom(i)%x = molec%atom(i)%x - xcom
+            molec%atom(i)%y = molec%atom(i)%y - ycom
+            molec%atom(i)%z = molec%atom(i)%z - zcom
+        enddo
+        !Calculate the intertia tensor
+        PIner(1,1) = 0.d0
+        do i=1,molec%natoms
+            PIner(1,1) = PIner(1,1) + molec%atom(i)%mass*&
+                         (molec%atom(i)%y**2+molec%atom(i)%z**2)
+        enddo
+        PIner(2,2) = 0.d0
+        do i=1,molec%natoms
+            PIner(2,2) = PIner(2,2) + molec%atom(i)%mass*&
+                         (molec%atom(i)%x**2+molec%atom(i)%z**2)
+        enddo
+        PIner(3,3) = 0.d0
+        do i=1,molec%natoms
+            PIner(3,3) = PIner(3,3) + molec%atom(i)%mass*&
+                         (molec%atom(i)%y**2+molec%atom(i)%x**2)
+        enddo
+        PIner(1,2) = 0.d0
+        do i=1,molec%natoms
+            PIner(1,2) = PIner(1,2) - molec%atom(i)%mass*&
+                         (molec%atom(i)%x*molec%atom(i)%y)
+        enddo
+        PIner(2,1) = PIner(1,2)
+        PIner(1,3) = 0.d0
+        do i=1,molec%natoms
+            PIner(1,3) = PIner(1,3) - molec%atom(i)%mass*&
+                         (molec%atom(i)%x*molec%atom(i)%z)
+        enddo
+        PIner(3,1) = PIner(1,3)
+        PIner(2,3) = 0.d0
+        do i=1,molec%natoms
+            PIner(2,3) = PIner(2,3) - molec%atom(i)%mass*&
+                         (molec%atom(i)%y*molec%atom(i)%z)
+        enddo
+        PIner(3,2) = PIner(2,3)
+        !Obtein the trasformation to principal axis of inertia
+        call diagonalize_full(PIner(1:3,1:3),3,Aux(1:3,1:3),Vec(1:3),"lapack")
+        if (verbose>1) then
+        write(6,*) ""
+        write(6,*) "I"
+        do i=1,3
+            write(6,'(100(F9.5,X))') PIner(i,1:3)
+        enddo
+        write(6,*) ""
+        write(6,*) "Xrot"
+        do i=1,3
+            write(6,'(100(F9.5,X))') Aux(i,1:3)
+        enddo
+        endif
+        !Check Determinant of the rotation
+        det = Aux(1,1)*Aux(2,2)*Aux(3,3)
+        det = det + Aux(1,2)*Aux(2,3)*Aux(3,1)
+        det = det + Aux(2,1)*Aux(3,2)*Aux(1,3)
+        det = det - Aux(3,1)*Aux(2,2)*Aux(1,3)
+        det = det - Aux(2,1)*Aux(1,2)*Aux(3,3)
+        det = det - Aux(3,2)*Aux(2,3)*Aux(1,1)
+    !     print*, "DETERMINANT=", det
+        
+        !Rotate the structure_types to the principal axis of inertia frame
+        !Using the traspose of the eigenvalue matrix. Right?!
+        do i=1,molec%natoms
+            xaux = molec%atom(i)%x
+            yaux = molec%atom(i)%y
+            zaux = molec%atom(i)%z
+            molec%atom(i)%x = Aux(1,1)*xaux+Aux(2,1)*yaux+zaux*Aux(3,1)
+            molec%atom(i)%y = Aux(1,2)*xaux+Aux(2,2)*yaux+zaux*Aux(3,2)
+            molec%atom(i)%z = Aux(1,3)*xaux+Aux(2,3)*yaux+zaux*Aux(3,3)
+    !         molec%atom(i)%x = Aux(1,1)*xaux+Aux(1,2)*yaux+zaux*Aux(1,3)
+    !         molec%atom(i)%y = Aux(2,1)*xaux+Aux(2,2)*yaux+zaux*Aux(2,3)
+    !         molec%atom(i)%z = Aux(3,1)*xaux+Aux(3,2)*yaux+zaux*Aux(3,3)
+        enddo
+    
+        if (det < 0) then
+        do i=1,molec%natoms
+            molec%atom(i)%x = -molec%atom(i)%x 
+            molec%atom(i)%y = -molec%atom(i)%y 
+            molec%atom(i)%z = -molec%atom(i)%z 
+        enddo
+        endif
+    
+        do i=1,molec%natoms
+            !Convert back to a.u.
+            molec%atom(i)%x = molec%atom(i)%x/BOHRtoAMS
+            molec%atom(i)%y = molec%atom(i)%y/BOHRtoAMS
+            molec%atom(i)%z = molec%atom(i)%z/BOHRtoAMS
+        enddo
+    
+        !----------------------------------------------
+        ! UNITS MANAGEMENT
+        ! This subroutine get data in Atomin Units
+        molec%units="Bohr"
+        !----------------------------------------------
+    
+        return
+    
+    
+    end subroutine zmat2cart_improp
+    
     !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%5
     
     subroutine addcart(atom_1,atom_2,atom_3,&
@@ -1097,6 +1313,116 @@ module zmat_manage
         return
     
     end subroutine addcart
+    
+    subroutine addcart_improp(atom_1,atom_2,atom_3,&
+                       bond,angle,improp,atom_New)
+    
+        !Description: add the cartesian coordinates of atom_New given the position of atoms 1,2&3, so that
+        ! the connectivity is:
+        !  atom_1 -- atom_2 -- atom_3
+        !             |
+        !            atom_New
+    ! Angles in radians
+    
+        use structure_types
+        use constants
+        use matrix
+    
+        implicit none
+    
+        integer,parameter :: NDIM = 600
+        real(8),parameter :: ZERO = 1.d-10
+    
+        type(str_atom),intent(in) :: atom_1,atom_2,atom_3
+        type(str_atom),intent(inout) :: atom_New 
+        real(8),intent(in) :: bond,angle,improp
+    
+        type(str_atom) :: aux_atom_1,aux_atom_2,aux_atom_3
+        real(8) :: v1,v2,v3,sinTheta,Theta,baux,baux2,dihed_aux
+    
+        integer :: i
+    
+        !New frame (only for the atoms involved)
+        !1. Traslate to have atom i_b (atom2) at origin
+    !     aux_atom_2%x = atom_2%x - atom_2%x
+    !     aux_atom_2%y = atom_2%y - atom_2%y
+    !     aux_atom_2%z = atom_2%z - atom_2%z
+    ! !======
+        aux_atom_1%x = atom_1%x - atom_2%x
+        aux_atom_1%y = atom_1%y - atom_2%y
+        aux_atom_1%z = atom_1%z - atom_2%z
+        aux_atom_3%x = atom_3%x - atom_2%x
+        aux_atom_3%y = atom_3%y - atom_2%y
+        aux_atom_3%z = atom_3%z - atom_2%z
+        !2. Rotate to place atom i_a on -x axis
+        ! Find rotation axis and angle with vector product of position(atom i_a) X (-1,0,0)
+        v1 =  0.d0
+        v2 = -aux_atom_1%z
+        v3 =  aux_atom_1%y
+        !If v2=v3=0, any arbitray vector perpedicular to xaxis is valid
+        if (v3==0.d0 .and. v2==0.d0) v3=1.d0
+        baux     = dsqrt(aux_atom_1%x**2+aux_atom_1%y**2+aux_atom_1%z**2)
+        sinTheta = dsqrt(aux_atom_1%y**2+aux_atom_1%z**2)/baux
+        Theta    = dasin(sinTheta)
+        !Fix rotation
+    
+        if (aux_atom_1%x > 0) Theta = PI-Theta
+    !     if (aux_atom_2%x > 0) Theta = Theta+PI
+    !     if (aux_atom_2%x > 0) then
+    !         Theta = Theta+PI
+    !         print*, "In int2cart. WARNING: rotation angle changed to:", theta*180./PI 
+    !     endif
+    
+    
+        !Rotate
+        call rotation_3D(aux_atom_3%x,&
+                         aux_atom_3%y,&
+                         aux_atom_3%z,&
+                         v1,v2,v3,Theta)
+        call rotation_3D(aux_atom_1%x,&
+                         aux_atom_1%y,&
+                         aux_atom_1%z,&
+                         v1,v2,v3,Theta)
+        if (aux_atom_1%x>0.d0) then
+            print*, "ERROR IN int2cart_improp"
+            stop
+        endif
+    
+        ! Place new atom coplanar to atom1,atom2,atom3
+        atom_New%x = bond * dcos(PI-angle)
+        baux  = bond * dsin(PI-angle)
+        baux2 = dsqrt(aux_atom_3%y**2+aux_atom_3%z**2)
+        !This will be unstable for linear molecules
+        atom_New%y = -aux_atom_3%y/baux2*baux
+        atom_New%z = -aux_atom_3%z/baux2*baux
+        !Rotation around axis parallel to atom1--atom3 but passing over atom2
+        ! (the sign of the rotation is adjusted empirically! Caution!!!)
+    !     dihed_aux = dsign(dihed,aux_atom_3%z)
+!         call rotation_3D(atom_New%x,&
+!                          atom_New%y,&
+!                          atom_New%z,&
+!                          1.d0,0.d0,0.d0,improp)
+    
+        !Rotate and traslate back
+        !Only rotate if needed
+    !     if (Theta == PI) then
+    !         atom_New%x = -atom_New%x
+    !         atom_New%y = -atom_New%y
+    !         atom_New%z = -atom_New%z
+    !     else if (Theta /= 0.d0) then
+        call rotation_3D(atom_New%x,&
+                         atom_New%y,&
+                         atom_New%z,&
+                         v1,v2,v3,-Theta)
+    !     endif
+        atom_New%x = atom_New%x + atom_1%x
+        atom_New%y = atom_New%y + atom_1%y
+        atom_New%z = atom_New%z + atom_1%z
+    
+    
+        return
+    
+    end subroutine addcart_improp
 
     !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%5
 

@@ -77,7 +77,7 @@ module xyz_manage_molec
     end subroutine read_xyz
 
 
-    subroutine write_xyz(unt,system)
+    subroutine write_xyz(unt,system,free_format)
 
         !Write standard xyz files
 
@@ -85,7 +85,7 @@ module xyz_manage_molec
 
         integer,intent(in)            ::unt
         type(str_resmol),intent(inout)::system
-!         logical,intent(in),optional   :: std_format
+        logical,intent(in),optional   :: free_format
 
         !local
         integer::i
@@ -100,25 +100,23 @@ module xyz_manage_molec
             write(unt,'(A)') system%title
         endif
 
-!         if (present(std_format) .and. std_format) the
-        do i=1,system%natoms   
-            name=adjustl(system%atom(i)%name)
-            write(unt,fmt) name,                     &
-                           system%atom(i)%x,         &
-                           system%atom(i)%y,         &
-                           system%atom(i)%z
-        enddo
-        
-!         else
-!         
-!         do i=1,system%natoms   
-! 
-!             write(unt,*) system%atom(i)%name,      &
-!                          system%atom(i)%x,         &
-!                          system%atom(i)%y,         &
-!                          system%atom(i)%z
-! 
-!         enddo
+        if (present(free_format) .and. free_format) then
+            do i=1,system%natoms   
+                name=adjustl(system%atom(i)%name)
+                write(unt,*)   name,                     &
+                               system%atom(i)%x,         &
+                               system%atom(i)%y,         &
+                               system%atom(i)%z
+            enddo
+        else
+            do i=1,system%natoms   
+                name=adjustl(system%atom(i)%name)
+                write(unt,fmt) name,                     &
+                               system%atom(i)%x,         &
+                               system%atom(i)%y,         &
+                               system%atom(i)%z
+            enddo
+        endif
 
         return
 
@@ -130,7 +128,8 @@ module xyz_manage_molec
                                      calc,   &! e.g. SP, Freq, Opt...
                                      method, &!
                                      basis,  &!
-                                     title   )!
+                                     title,  &!
+                                     free_format)!
 
         !Write gaussian com file (in cartesian coord)
 
@@ -144,6 +143,7 @@ module xyz_manage_molec
         character(len=*),intent(in),optional :: method
         character(len=*),intent(in),optional :: basis
         character(len=*),intent(in),optional :: title
+        logical,intent(in),optional          :: free_format
 
         !local
         integer::i, natoms
@@ -188,9 +188,15 @@ module xyz_manage_molec
         !Charge and multiplicity (TODO: read from system attributes)
         write(unt,'(A)') "0 1"
         !Geomertry
-        do i=1,system%natoms
-            write(unt,'(A10,X,3(F15.6,X))') system%atom(i)%name, system%atom(i)%x,system%atom(i)%y,system%atom(i)%z
-        enddo
+        if (present(free_format) .and. free_format) then
+            do i=1,system%natoms
+                write(unt,*) system%atom(i)%name, system%atom(i)%x,system%atom(i)%y,system%atom(i)%z
+            enddo
+        else
+            do i=1,system%natoms
+                write(unt,'(A10,X,3(F15.6,X))') system%atom(i)%name, system%atom(i)%x,system%atom(i)%y,system%atom(i)%z
+            enddo
+        endif
         write(unt,'(A)') ""
 
         return

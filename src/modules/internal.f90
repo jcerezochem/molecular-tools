@@ -2638,7 +2638,8 @@ module internal_module
         ! Local
         real(8),dimension(NDIM,NDIM) :: A, B, G, Ginv
         real(8),dimension(NDIM) :: S0, S1, DSx, DStarget, DX, Snull
-        real(8)                 :: Theta, Theta2, Theta3, thr, rmsd,rmsd0, Sbond,Sangle,Sdihed
+        real(8)                 :: Theta, Theta2, Theta3, Theta4, thr, rmsd,rmsd0, &
+                                   Sbond,Sangle,Sdihed,Simprop
         integer                 :: Nat, Ns, Nvib
         integer                 :: i,j,k, ii,jj,kk, iter, maxiter
 
@@ -2658,7 +2659,8 @@ module internal_module
         ! shortcuts
         Ns  = molecule%geom%nbonds +&
               molecule%geom%nangles+&
-              molecule%geom%ndihed
+              molecule%geom%ndihed +&
+              molecule%geom%nimprop
         Nat = molecule%natoms
       
         if (verbose>0) then  
@@ -2775,10 +2777,25 @@ module internal_module
                 Sdihed = max(Sdihed,dabs(DStarget(k)))
                 Theta3 = Theta3+DStarget(k)**2
             enddo
-            Theta3 = dsqrt(Theta3/Nat)
+            Theta3  = dsqrt(Theta3/Nat)
+            Theta4  = 0.d0
+            Simprop = 0.d0
+            do i=1,molecule%geom%nimprop
+                k=k+1
+                DSx(k) = S1(k)-S0(k)
+                if (abs(DSx(k)) > abs(DSx(k)-2*PI) ) then
+                    DSx(k) = DSx(k)-2*PI
+                else if (abs(DSx(k)) > abs(DSx(k)+2*PI) ) then
+                    DSx(k) = DSx(k)+2*PI
+                endif
+                DStarget(k) = DStarget(k) - DSx(k)
+                Simprop= max(Simprop,dabs(DStarget(k)))
+                Theta4 = Theta4+DStarget(k)**2
+            enddo
+            Theta4 = dsqrt(Theta4/Nat)
         
             if (verbose>1) then
-                print'(X,I4,2X,4(ES16.6,X))', iter, rmsd, Theta, Theta2, Theta3
+                print'(X,I4,2X,4(ES16.6,X))', iter, rmsd, Theta, Theta2, Theta3, Theta4
             endif
         
         enddo
@@ -2790,6 +2807,7 @@ module internal_module
             print'(X,A,F12.6)',  "MaxDev-bond(AA) = ", Sbond * BOHRtoANGS
             print'(X,A,F12.6)',  "MaxDev-angl(deg)= ", Sangle* 180.d0/PI
             print'(X,A,F12.6)',  "MaxDev-dihe(deg)= ", Sdihed* 180.d0/PI
+            print'(X,A,F12.6)',  "MaxDev-dihe(deg)= ", Simprop* 180.d0/PI
             print*, ""
             call alert_msg("warning","DeltaS to DeltaX not converged")
             if (present(converged)) converged=.false.
@@ -2800,6 +2818,7 @@ module internal_module
             print'(X,A,F12.6)',  "MaxDev-bond(AA) = ", Sbond * BOHRtoANGS
             print'(X,A,F12.6)',  "MaxDev-angl(deg)= ", Sangle* 180.d0/PI
             print'(X,A,F12.6)',  "MaxDev-dihe(deg)= ", Sdihed* 180.d0/PI
+            print'(X,A,F12.6)',  "MaxDev-dihe(deg)= ", Simprop* 180.d0/PI
             print*, ""
             call alert_msg("warning","DeltaS to DeltaX diverged. Iter 1 taken")
         elseif (rmsd0<rmsd) then
@@ -2809,6 +2828,7 @@ module internal_module
             print'(X,A,F12.6)',  "MaxDev-bond(AA) = ", Sbond * BOHRtoANGS
             print'(X,A,F12.6)',  "MaxDev-angl(deg)= ", Sangle* 180.d0/PI
             print'(X,A,F12.6)',  "MaxDev-dihe(deg)= ", Sdihed* 180.d0/PI
+            print'(X,A,F12.6)',  "MaxDev-dihe(deg)= ", Simprop* 180.d0/PI
             print*, ""
             call alert_msg("fatal","DeltaS to DeltaX diverged after second iter")
         else
@@ -2819,6 +2839,7 @@ module internal_module
                 print'(X,A,F12.6)',  "MaxDev-bond(AA) = ", Sbond * BOHRtoANGS
                 print'(X,A,F12.6)',  "MaxDev-angl(deg)= ", Sangle* 180.d0/PI
                 print'(X,A,F12.6)',  "MaxDev-dihe(deg)= ", Sdihed* 180.d0/PI
+                print'(X,A,F12.6)',  "MaxDev-dihe(deg)= ", Simprop* 180.d0/PI
                 print*, ""
             endif
             if (present(converged)) converged=.true.
@@ -2954,6 +2975,126 @@ module internal_module
         return
 
     end subroutine prj_internalCoord
+    
+    
+    subroutine prjSs_from_Hs3(unt,Hess,Grad,Ns,Nrm,Ss,G)
+
+        !-----------------------------------------------
+        ! Project out the gradient (in general combination
+        ! of S coordintates) from the Hessian in 
+        ! internal coordinates.
+        ! Following Nguyen,Jackels,Truhlar, JCP 1996
+        ! 
+        !  Hess' = (1-P G)Hess(1-G P) = (1-GP)^t Hess (1-GP)
+        !   where: P = gg^t/(g^tGg)
+        !
+        !-----------------------------------------------
+        
+        integer,intent(in)                   :: unt
+        real(8),dimension(:,:),intent(inout) :: Hess
+        real(8),dimension(:),intent(inout)   :: Grad
+        integer,intent(in)                   :: Ns, Nrm
+        real(8),dimension(:,:),intent(in)    :: Ss
+        real(8),dimension(:,:),intent(inout) :: G
+
+        !Local
+        integer :: i,j, irm, k
+        real(8) :: t, tt
+        real(8),dimension(Ns)    :: Vec
+        real(8),dimension(Ns,Ns) :: P, Aux, Paux
+
+        write(unt,'(/,A)') "REMOVAL OF IC SPACE"
+        write(unt,'(X,A,I0,/)') "N. coord to remove: ", Nrm
+        
+        write(unt,'(X,A,I0)') " Coord         Rank(G)"
+        write(unt,'(X,A,I0)') "---------------------------"
+        write(unt,'(I5,10X,I5)') 0, matrix_rank(Ns,G)
+        
+        do irm = 1,Nrm
+            ! Get coordinate to remove
+            Vec(1:Ns) = Ss(1:Ns,irm)
+        
+        do k=1,1
+            !Compute the denominator, T=g^tGg
+            t=0.d0
+            tt=0.d0
+            Aux(1:Ns,1:Ns) = identity_matrix(Ns)
+            do i=1,Ns
+            do j=1,Ns
+                t = t + Vec(i)*G(i,j)  *Vec(j)
+                tt= tt+ Vec(i)*Aux(i,j)*Vec(j)
+            enddo
+            enddo
+            
+            ! Compute P
+            do i=1,Ns
+            do j=1,Ns
+                P(i,j)    = Vec(i)*Vec(j)/t
+                Paux(i,j) = Vec(i)*Vec(j)/tt
+            enddo
+            enddo
+            Paux=identity_matrix(Ns) - Paux
+            
+            ! Compute P'=1-GP or GP
+            P(1:Ns,1:Ns) = matrix_product(Ns,Ns,Ns,G,P)
+            ! Take complement
+            P(1:Ns,1:Ns) = identity_matrix(Ns) - P(1:Ns,1:Ns) 
+            
+            ! Project gradient out
+            Hess(1:Ns,1:Ns) = matrix_basisrot(Ns,Ns,P,Hess,counter=.true.)
+            ! and gradient
+            Grad(1:Ns)      = matrix_vector_product(Ns,Ns,P,Grad,tA=.true.)
+            
+            ! G matrix needs to be updated at each iteration to account
+            ! for the new space
+            G(1:Ns,1:Ns) = matrix_basisrot(Ns,Ns,Paux,G,counter=.true.)
+            
+            !Check rank of G
+            write(unt,'(I5,10X,I5)') irm, matrix_rank(Ns,G)
+        enddo
+        enddo
+        
+        return
+
+    end subroutine prjSs_from_Hs3
+    
+    function matrix_rank(NA,A) result(n)
+    
+        real(8),parameter :: ZEROp = 1.d-10 !practically zero
+    
+        integer,intent(in)                :: NA
+        real(8),dimension(:,:),intent(in) :: A
+        ! result
+        integer :: n
+        real(8),dimension(NA,NA)        :: Aux, Aux2, Aux3
+        real(8),dimension(NA)           :: Vec, Vec2, Vec3
+        integer                         :: k,kk,kkk
+        
+        !Get a non-redundant set from the non-zero eigenvalues of G
+        call diagonalize_full(A(1:NA,1:NA),NA,Aux,Vec,"lapack")
+ 
+        ! The non-redundant set is formed by eigenvectors with non-zero eigenvalue
+        kk=0 
+        kkk=0
+        do k=1,NA
+            if (dabs(Vec(k)) > ZEROp) then
+                kk=kk+1
+                !The eigenvectors are stored in columns (since D = P^-1 A P)
+                Aux2(1:NA,kk) = Aux(1:NA,k)
+                Vec2(kk)      = Vec(k)
+            else
+                !Redudant eigenvectors
+                kkk=kkk+1
+                Aux3(1:NA,kkk) = Aux(1:NA,k)
+                Vec3(kkk)      = Vec(k)
+            endif
+        enddo
+        
+        n= NA-kkk
+                
+        return
+    
+    end function matrix_rank
 
     !%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%5
     

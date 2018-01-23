@@ -34,6 +34,7 @@ state2hessian_SOURCES = \
                         ../modules/manage_molpro.f90                 \
                         ../modules/manage_turbomol.f90               \
                         ../modules/manage_pdb.f90                    \
+../modules/manage_orca.f90             \
                         ../modules/manage_psi4.f90                   \
                         ../modules/manage_xyz.f90                    \
                         ../modules/manage_xyz_molec.f90              \
@@ -70,6 +71,7 @@ vertical2adiabatic_SOURCES = \
                              ../modules/manage_molpro.f90                 \
                              ../modules/manage_turbomol.f90               \
                              ../modules/manage_pdb.f90                    \
+../modules/manage_orca.f90             \
                              ../modules/manage_psi4.f90                   \
                              ../modules/manage_xyz.f90                    \
                              ../modules/manage_xyz_molec.f90              \
@@ -106,6 +108,7 @@ NewtonRaphson_step_SOURCES = \
                              ../modules/manage_molpro.f90                 \
                              ../modules/manage_turbomol.f90               \
                              ../modules/manage_pdb.f90                    \
+../modules/manage_orca.f90             \
                              ../modules/manage_psi4.f90                   \
                              ../modules/manage_xyz.f90                    \
                              ../modules/manage_xyz_molec.f90              \
@@ -142,6 +145,7 @@ cartesian_duschinsky_SOURCES = \
                              ../modules/manage_molpro.f90                 \
                              ../modules/manage_turbomol.f90               \
                              ../modules/manage_pdb.f90                    \
+../modules/manage_orca.f90             \
                              ../modules/manage_psi4.f90                   \
                              ../modules/manage_xyz.f90                    \
                              ../modules/manage_xyz_molec.f90              \
@@ -178,6 +182,7 @@ internal_duschinsky_SOURCES = \
                              ../modules/manage_molpro.f90                 \
                              ../modules/manage_turbomol.f90               \
                              ../modules/manage_pdb.f90                    \
+../modules/manage_orca.f90             \
                              ../modules/manage_psi4.f90                   \
                              ../modules/manage_xyz.f90                    \
                              ../modules/manage_xyz_molec.f90              \
@@ -214,6 +219,7 @@ get_DeltaX_SOURCES = \
                              ../modules/manage_molpro.f90                 \
                              ../modules/manage_turbomol.f90               \
                              ../modules/manage_pdb.f90                    \
+../modules/manage_orca.f90             \
                              ../modules/manage_psi4.f90                   \
                              ../modules/manage_xyz.f90                    \
                              ../modules/manage_xyz_molec.f90              \
@@ -250,6 +256,7 @@ generate_internals_SOURCES = ../modules/alerts.f90\
                              ../modules/manage_molpro.f90                 \
                              ../modules/manage_turbomol.f90               \
                              ../modules/manage_pdb.f90                    \
+../modules/manage_orca.f90             \
                              ../modules/manage_psi4.f90                   \
                              ../modules/manage_xyz.f90                    \
                              ../modules/manage_xyz_molec.f90              \
@@ -282,6 +289,7 @@ generate_connetivity_SOURCES = ../modules/alerts.f90\
                              ../modules/manage_molpro.f90                 \
                              ../modules/manage_turbomol.f90               \
                              ../modules/manage_pdb.f90                    \
+../modules/manage_orca.f90             \
                              ../modules/manage_psi4.f90                   \
                              ../modules/manage_xyz.f90                    \
                              ../modules/manage_xyz_molec.f90              \

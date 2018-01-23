@@ -149,6 +149,9 @@ module generic_io_molec
         elseif (adjustl(filetype)=="xyz") then
             molec%title=title_local
             call write_xyz(unt,molec)
+        elseif (adjustl(filetype)=="xyz-free") then
+            molec%title=title_local
+            call write_xyz(unt,molec,free_format=.true.)
 
         ! any other format is assumed to be supported
         else 

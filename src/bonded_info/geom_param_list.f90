@@ -98,8 +98,8 @@ program geom_param_list
         call selection2intlist(list_item,atlabels,nitems)
         if (nitems == 2) then
             param=calc_atm_dist(molecule%atom(atlabels(1)),molecule%atom(atlabels(2)))
-            if (.not.labels) print'(F9.4,2X)', param
-            if (labels)      print'(2I5,11X,F9.4)', atlabels(1), atlabels(2), param
+            if (.not.labels) print'(F11.6,2X)', param
+            if (labels)      print'(2I5,11X,F12.6)', atlabels(1), atlabels(2), param
         elseif (nitems == 3) then
             param=calc_atm_angle(molecule%atom(atlabels(1)),molecule%atom(atlabels(2)),molecule%atom(atlabels(3)))
             if (.not.labels) print'(F9.2,2X)', param*180.d0/pi

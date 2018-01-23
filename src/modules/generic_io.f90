@@ -19,6 +19,7 @@ module generic_io
     use cfour_manage
     use gamess_manage
     use psi4_manage
+    use orca_manage
     use molcas_manage
     use molpro_manage
     use turbomol_manage
@@ -74,6 +75,8 @@ module generic_io
              call read_cfour_natoms(unt,Nat,error_local)
             case("psi4")
              call read_psi4_natoms(unt,Nat,error_local)
+            case("orca")
+             call read_orca_natoms(unt,Nat,error_local)
             case("molcas")
              call read_molcasUnSym_natoms(unt,Nat,error_local)
             case("molpro")
@@ -184,6 +187,9 @@ module generic_io
             case("cfour")
              call read_cfour_geom(unt,Nat,AtName,X,Y,Z,error_local)
              call assign_masses(Nat,AtName,Mass)
+            case("orca")
+             call read_orca_geom(unt,Nat,AtName,X,Y,Z,Mass,error_local)
+             !call assign_masses(Nat,AtName,Mass)
              ResName(1:Nat) = "UNK"
             case("psi4")
              call read_psi4_geom(unt,Nat,AtName,X,Y,Z,error_local)
@@ -441,6 +447,10 @@ module generic_io
              call read_gamess_hess(unt,Nat,Hlt,error_local)
             case("cfour")
              call read_cfour_hess(unt,Nat,Hlt,error_local)
+            case("fcm")
+             call read_FCM_hess(unt,Nat,Hlt,error_local)
+            case("orca")
+             call read_orca_hess(unt,Nat,Hlt,error_local)
             case("psi4")
              call read_psi4_hess(unt,Nat,Hlt,error_local)
             case("molcas")

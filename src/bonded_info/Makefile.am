@@ -26,6 +26,7 @@ calcRMS_bonded_SOURCES = \
                          ../modules/manage_molpro.f90           \
                          ../modules/manage_turbomol.f90         \
                          ../modules/manage_pdb.f90              \
+../modules/manage_orca.f90             \
                          ../modules/manage_psi4.f90             \
                          ../modules/manage_xyz.f90              \
                          ../modules/manage_xyz_molec.f90        \
@@ -61,6 +62,7 @@ geom_param_list_SOURCES = \
                          ../modules/manage_molpro.f90           \
                          ../modules/manage_turbomol.f90         \
                          ../modules/manage_pdb.f90              \
+../modules/manage_orca.f90             \
                          ../modules/manage_psi4.f90             \
                          ../modules/manage_xyz.f90              \
                          ../modules/manage_xyz_molec.f90        \
@@ -96,6 +98,7 @@ get_com_SOURCES = \
                          ../modules/manage_molpro.f90           \
                          ../modules/manage_turbomol.f90         \
                          ../modules/manage_pdb.f90              \
+../modules/manage_orca.f90             \
                          ../modules/manage_psi4.f90             \
                          ../modules/manage_xyz.f90              \
                          ../modules/manage_xyz_molec.f90        \
@@ -131,6 +134,7 @@ max_dist_to_center_SOURCES = \
                          ../modules/manage_molpro.f90           \
                          ../modules/manage_turbomol.f90         \
                          ../modules/manage_pdb.f90              \
+../modules/manage_orca.f90             \
                          ../modules/manage_psi4.f90             \
                          ../modules/manage_xyz.f90              \
                          ../modules/manage_xyz_molec.f90        \
