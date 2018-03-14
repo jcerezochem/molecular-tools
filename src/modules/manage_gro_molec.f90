@@ -774,6 +774,8 @@ module gro_manage
                 do j=1,isp
                     if (fullname == species(j)) read_molecule=.true.
                 enddo
+                ! Ensure that we make a new residue
+                ires=-1
                 if (.not.read_molecule) write(0,*) "Excluding "//trim(adjustl(fullname))
                 cycle
             else if (adjustl(section) == "atoms") then
@@ -922,6 +924,8 @@ module gro_manage
                     do j=1,isp
                         if (fullname == species(j)) read_molecule=.true.
                     enddo
+                    ! Ensure that we make a new residue
+                    ires=-1
                     if (.not.read_molecule) write(0,*) "Excluding "//trim(adjustl(fullname))
                     if (.not.read_molecule) cycle
                     i=i+1
