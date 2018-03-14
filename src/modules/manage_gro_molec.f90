@@ -636,7 +636,7 @@ module gro_manage
 
         !Reading stuff
         character(len=260) :: line, section
-        character(len=20),dimension(10) :: line_items
+        character(len=20),dimension(100) :: line_items
         integer :: n_items
         logical :: is_section, read_molecule
         integer :: ios
