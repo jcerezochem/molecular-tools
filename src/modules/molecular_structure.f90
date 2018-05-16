@@ -421,7 +421,7 @@ module molecular_structure
                 av_len=bond_length_db(molec%atom(i)%AtNum,molec%atom(j)%AtNum,include_hbond)
                 ! Criterium: dist < av. length +10% --increased from 5% (17/12/12) due to H2O2
                 ! a more sophiticated data base might include hibridization
-                av_len=av_len*1.1
+                av_len=av_len*1.15
 
                 if (dist < av_len) then
                     i_cnx=i_cnx+1
