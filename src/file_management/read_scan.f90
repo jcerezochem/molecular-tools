@@ -254,7 +254,7 @@ program read_scan
         deallocate(A)
         
         ! Print to files
-        label = int20char(i_scan,3)
+        label = int20char(i_scan,4)
         write(title,'(A,I0,5X,A,F15.6,X,A,F10.4)') "Scan step ", i_scan, "E=", E
         outfile=trim(adjustl(basefile))//"_"//trim(adjustl(label))//"."//trim(adjustl(extension))
         open(O_STR,file=outfile)
