@@ -49,6 +49,7 @@ program geom_param_list
     character(len=30) :: list_item
     integer,dimension(1:4) :: atlabels
     character(len=10) :: filetype="guess"
+    character(len=1) :: dihed_mod
     character(len=1) :: null
     logical :: labels = .true.
     !I/O
@@ -95,6 +96,8 @@ program geom_param_list
         read(IList,'(A)') list_item
         ! Remove comments
         call split_line(list_item,';',list_item,null)
+        ! Get modifies (for improper dihedrals)
+        call split_line(list_item,'(',list_item,dihed_mod)
         call selection2intlist(list_item,atlabels,nitems)
         if (nitems == 2) then
             param=calc_atm_dist(molecule%atom(atlabels(1)),molecule%atom(atlabels(2)))
@@ -104,11 +107,16 @@ program geom_param_list
             param=calc_atm_angle(molecule%atom(atlabels(1)),molecule%atom(atlabels(2)),molecule%atom(atlabels(3)))
             if (.not.labels) print'(F9.2,2X)', param*180.d0/pi
             if (labels)      print'(3I5,6X,F9.2)', atlabels(1), atlabels(2), atlabels(3), param*180.d0/pi
-        elseif (nitems == 4) then
+        elseif (nitems == 4 .and. dihed_mod /= 'I') then
             param=calc_atm_dihed_new(molecule%atom(atlabels(1)),molecule%atom(atlabels(2)),molecule%atom(atlabels(3)),&
                              molecule%atom(atlabels(4)))
             if (.not.labels) print'(F9.2,2X)', param*180.d0/pi
             if (labels)      print'(4I5,X,F9.2)', atlabels(1), atlabels(2), atlabels(3), atlabels(4), param*180.d0/pi
+        elseif (nitems == 4  .and. dihed_mod == 'I') then
+            param=calc_atm_improper(molecule%atom(atlabels(1)),molecule%atom(atlabels(2)),molecule%atom(atlabels(3)),&
+                             molecule%atom(atlabels(4)))
+            if (.not.labels) print'(F9.2,2X)', param*180.d0/pi
+            if (labels)      print'(4I5,A3,X,F9.2)', atlabels(1), atlabels(2), atlabels(3), atlabels(4),'(I)', param*180.d0/pi
         endif
         
     enddo
