@@ -1391,7 +1391,7 @@ program normal_modes_internal
         write(S_VMD,'(A)') "# Start movies"
         write(S_VMD,'(A)') "#====================="
         !Set length of the movie
-        movie_steps = movie_cycles*20
+        movie_steps = movie_cycles*100
         do i=0,Nsel-1
             j = nm(i+1)
             write(S_VMD,'(A,I4)') "# Mode", j
@@ -1401,14 +1401,14 @@ program normal_modes_internal
             write(S_VMD,*) "set figfile "//trim(adjustl(tmpfile))
             write(S_VMD,'(A,I3,A)') "for {set xx 0} {$xx <=", movie_steps,&
                                     "} {incr xx} {"
-            write(S_VMD,*) "set x [expr {($xx-($xx/20)*20)*10}]"
+            write(S_VMD,*) "set x [expr {($xx-($xx/100)*100)*2}]"
             write(S_VMD,*) 'echo "step $x"'
             write(S_VMD,*) "animate goto $x"
             write(S_VMD,*) "render Tachyon $figfile-$xx.dat"
-            write(S_VMD,'(A)') '"/usr/local/lib/vmd/tachyon_LINUX" -aasamples 12 '//& 
+            write(S_VMD,'(A)') '"/usr/local/lib/vmd/tachyon_LINUXAMD64" -aasamples 12 '//& 
                            '$figfile-$xx.dat -format TARGA -o $figfile-$xx.tga'
             write(S_VMD,'(A)') 'convert -font URW-Palladio-Roman -pointsize 30 -draw '//&
-                           '"text 30,70 '//"'"//trim(adjustl(tmpfile))//"'"//&
+                           '"text 30,70 '//"'"//trim(adjustl(dummy_char))//"'"//&
                            '" $figfile-$xx.tga $figfile-$xx.jpg'
             write(S_VMD,'(A)') "}"
             !Updated ffmpeg call. The output is now loadable from ipynb
