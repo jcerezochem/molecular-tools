@@ -58,6 +58,9 @@ program fchk2gro
                remove_com   = .false.
     !Swap related counters
     integer :: iat_new, iat_orig, nswap, nbonds
+    !Rotation/translation
+    real(8),dimension(3)   :: Tr
+    real(8),dimension(3,3) :: R
     !=============
 
     !================
@@ -65,6 +68,8 @@ program fchk2gro
     !units
     integer :: I_INP=10, &
                I_SWP=11, &
+               I_ROT=12, &
+               I_TRA=13, &
                O_OUT=20  
     !files
     character(len=5)   :: resname="read"
@@ -75,7 +80,9 @@ program fchk2gro
                          addfile="none",      &
                          outfile="default"   ,&
                          swapfile="none"     ,&
-                         massfile="none"
+                         massfile="none"     ,&
+                         rotfile="none",        &
+                         trasfile="none"
     !status
     integer :: IOstatus
     character(len=7) :: stat="new" !do not overwrite when writting
@@ -89,7 +96,7 @@ program fchk2gro
 
     ! 0. GET COMMAND LINE ARGUMENTS
     call parse_input(inpfile,filetype_inp,outfile,filetype_out,addfile,massfile,overwrite,&
-                     make_connect,use_elements,remove_com,resname,swapfile,title)
+                     make_connect,use_elements,remove_com,resname,swapfile,rotfile,trasfile,title)
 
  
     ! 1. READ INPUT
@@ -149,6 +156,41 @@ program fchk2gro
     endif
     !Forcing element names (no FF labels)
     if (use_elements) molec%atom(:)%name = molec%atom(:)%element
+    ! Rotation/translation
+    !================
+    !ROTATE (if needed)
+    !================
+    if (adjustl(rotfile)/="none") then
+        print'(X,A)', "ROTATING:"
+        open(I_ROT,file=rotfile,status="old")
+        ! Read rotation matrix.
+        do i=1,3
+            read(I_ROT,*) R(i,1:3)
+        enddo
+        close(I_ROT)
+        print'(X,A)', "  STRUCTURE..."
+        print'(X,A)', "  (from the Center of Mass)"
+        call get_com(molec)
+        Tr = (/molec%comX,molec%comY,molec%comZ/)
+        call translate_molec(molec,-Tr)
+        call rotate_molec(molec,R)
+        call translate_molec(molec,Tr)
+        print'(X,A,/)', "Done"
+    endif
+    !================
+    !TRANSLATING (if needed)
+    !================
+    if (adjustl(trasfile)/="none") then
+        print'(X,A)', "TRANSLATING:"
+        open(I_TRA,file=trasfile,status="old")
+        ! Read translation vector (AA)
+        read(I_TRA,*) Tr(1:3)
+        close(I_TRA)
+        print'(X,A)', "  STRUCTURE..."
+        ! At this point the molecule in AA (it comes from generic readers)
+        call translate_molec(molec,Tr)
+        print'(X,A,/)', "Done"
+    endif
     !Removing center of gravity
     if (remove_com) then
         call atname2element(molec)
@@ -205,7 +247,7 @@ program fchk2gro
     !=============================================
 
     subroutine parse_input(inpfile,filetype_inp,outfile,filetype_out,addfile,massfile,overwrite,&
-                           make_connect,use_elements,remove_com,resname,swapfile,title)
+                           make_connect,use_elements,remove_com,resname,swapfile,rotfile,trasfile,title)
     !==================================================
     ! My input parser (gromacs style)
     !==================================================
@@ -213,7 +255,8 @@ program fchk2gro
 
         character(len=*),intent(inout) :: inpfile,outfile,addfile,&
                                           filetype_inp,filetype_out, &
-                                          resname,swapfile,title,massfile
+                                          resname,swapfile,title,massfile,&
+                                          rotfile,trasfile
         logical,intent(inout) :: overwrite, make_connect, use_elements, &
                                  remove_com
         ! Local
@@ -252,6 +295,14 @@ program fchk2gro
                     
                 case ("-mass") 
                     call getarg(i+1, massfile)
+                    argument_retrieved=.true.
+                    
+                case ("-tr") 
+                    call getarg(i+1, trasfile)
+                    argument_retrieved=.true.
+                    
+                case ("-rot") 
+                    call getarg(i+1, rotfile)
                     argument_retrieved=.true.
 
                 case ("-r")
@@ -314,6 +365,8 @@ program fchk2gro
         write(0,*)       '-mass        Output a mass file (opt)         ', trim(adjustl(massfile))
         write(0,*)       '-ow          Overwrite output if exists       ',  overwrite
         write(0,*)       '-swap        File with reordering instruction ',  trim(adjustl(swapfile))
+        write(0,*)       '-tr          File with translation vector     ',  trim(adjustl(trasfile))
+        write(0,*)       '-rot         File with rotation matrix        ',  trim(adjustl(rotfile))
         write(0,*)       '-rn          Residue name                     ',  trim(adjustl(resname))
         write(0,*)       '-connect     Add connectivity (pdb files)     ',  make_connect
         write(0,*)       '-use-elems   Use elements not FF names        ',  use_elements
