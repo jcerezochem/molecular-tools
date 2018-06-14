@@ -80,7 +80,7 @@ program build_top
 
     !====================== 
     !Auxiliar variables
-    integer :: id, ih
+    integer :: id, ih, iat, iiat
     character(len=1) :: cnull
     character(len=4) :: atname
     character(len=16) :: dummy_char
@@ -92,6 +92,7 @@ program build_top
     integer :: hdb_type
     integer :: numH, numNH
     integer,dimension(5) :: hhs,nhs !(hydrogens and non-hydrogens)
+    logical :: reorder_hyd
     !=================
 
     !=============
@@ -122,7 +123,8 @@ program build_top
 
 
     ! 0. GET COMMAND LINE ARGUMENTS
-    call parse_input(inpfile,filetype,outgro,outtop,q_type,resname,database,united_atom,nat_alloc)
+    call parse_input(inpfile,filetype,outgro,outtop,q_type,resname,database,united_atom,nat_alloc, &
+                    reorder_hyd)
 
     ! Allocate atoms
     if (nat_alloc<0) then
@@ -169,13 +171,50 @@ program build_top
         endif
 
         call sist2res(molec,residue)
-!         call sist_nres(molec)
 
         !Only one residue supported (for the momenfor the moment)
         if (molec%nres /= 1) call alert_msg("fatal","Only structures with one residue are currently supported")
         call guess_connect(residue(1))
         call build_ff(residue(1),I_DB)
         call gen_bonded(residue(1))
+        
+        if (reorder_hyd) then
+            ! Rewrite structure with reordered hydrogens
+            iat  = 0
+            iiat = 0
+            do i=1,residue(1)%natoms
+                if (residue(1)%atom(i)%element == 'H') cycle
+                numH=0
+                do j=1,residue(1)%atom(i)%nbonds
+                    jj=residue(1)%atom(i)%connect(j)
+                    if (residue(1)%atom(jj)%element == 'H') then
+                        numH = numH + 1
+                    endif
+                enddo
+                ih   = 0
+                iat  = iat  + 1
+                iiat = iiat + 1
+                molec%atom(iat) = residue(1)%atom(i)
+                do j=1,residue(1)%atom(i)%nbonds
+                    jj=residue(1)%atom(i)%connect(j)
+                    if (residue(1)%atom(jj)%element == 'H') then
+                        iat = iat + 1
+                        ih = ih + 1
+                        molec%atom(iat) = residue(1)%atom(jj)
+                        if (numH>1) then
+                            write(atname,'(A,I0,I0)') "H", iiat, ih
+                        else
+                            write(atname,'(A,I0,I0)') "H", iiat
+                        endif
+                        molec%atom(iat)%name = atname
+                    endif
+                enddo
+            enddo
+            call sist2res(molec,residue)
+            call guess_connect(residue(1))
+            call build_ff(residue(1),I_DB)
+            call gen_bonded(residue(1))
+        endif
 
         if (I_DB>0) close(I_DB)
     endif
@@ -192,7 +231,8 @@ program build_top
 
 
     ! 3. WRITE COORDINATES (.gro) AND TOPOLOGY (.top)
-    ! -------------------------------------------------
+    ! -------------------------------------------------  
+    
     !GROFILE:
     open(O_GRO,file=outgro,status='replace')
     call write_gro(O_GRO,molec)
@@ -219,6 +259,25 @@ program build_top
         close(O_TOP)
     endif
     
+    if (reorder_hyd) then
+        ! Rewrite structure with reordered hydrogens
+        iat  = 0
+        iiat = 0
+        do i=1,residue(1)%natoms
+            if (residue(1)%atom(i)%element == 'H') cycle
+            numH=0
+            iiat = iiat + 1
+            do j=1,residue(1)%atom(i)%nbonds
+                jj=residue(1)%atom(i)%connect(j)
+                if (residue(1)%atom(jj)%element == 'H') then
+                    numH = numH + 1
+                    write(atname,'(A,I0,I0)') "H", iiat
+                    residue(1)%atom(jj)%name = atname
+                endif
+            enddo
+        enddo
+    endif
+    
     ! Get hcb
     call split_line_back(outtop,'.',outhdb,cnull)
     outhdb=trim(adjustl(outhdb))//'.hdb'
@@ -234,6 +293,7 @@ program build_top
         kk=kk+1
     enddo
     write(O_HDB,'(A6,4X,I5)') resname, kk
+    iiat = 0
     do i=1,residue(1)%natoms
         numH=0
         numNH=0
@@ -316,7 +376,6 @@ program build_top
                         
     enddo
 
-
     ! 9999. CHECK ERROR/NOTES
     ! -------------------------------------------------
     if (n_notes > 0) then 
@@ -345,14 +404,15 @@ program build_top
     contains
     !=============================================
 
-    subroutine parse_input(inpfile,filetype,outfile,outfile2,q_type,resname,database,united_atom,nat_alloc)
+    subroutine parse_input(inpfile,filetype,outfile,outfile2,q_type,resname,database,united_atom,nat_alloc,&
+                           reorder_hyd)
     !==================================================
     ! My input parser (gromacs style)
     !==================================================
         implicit none
 
         character(len=*),intent(inout) :: inpfile,filetype,outfile,outfile2,resname,q_type,database
-        logical,intent(inout) :: united_atom
+        logical,intent(inout) :: united_atom, reorder_hyd
         integer :: nat_alloc
         ! Local
         character(len=500) :: input_command
@@ -405,6 +465,9 @@ program build_top
 
                 case ("-ua")
                      united_atom = .true.
+                     
+                case ("-reorder-hyd")
+                     reorder_hyd = .true.
                      
                 case ("-alloc-atm")
                     call getarg(i+1,arg)
@@ -477,7 +540,8 @@ program build_top
         write(6,*) '-db          Database to set atom types    ', trim(adjustl(database))
         write(6,'(X,A,I0)') &
                    '-alloc-atm   Atoms to allocate(-1:default) ', nat_alloc
-        write(6,*) '-h           Show this help and quit       ',  need_help
+        write(6,*) '-reorder-hyd Reorder hydrogens            ',  reorder_hyd
+        write(6,*) '-h           Show this help and quit      ',  need_help
         write(6,'(A)') '-------------------------------------------------------------------'
         write(6,'(A)') 'Input command:'
         write(6,'(A)') trim(adjustl(input_command))   
