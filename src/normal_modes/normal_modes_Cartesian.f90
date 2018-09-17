@@ -84,7 +84,7 @@ program normal_modes_cartesian
     character(len=5) :: PG
     real(8) :: Tthermo=0.d0
     !Job info
-    character(len=20) :: calc, method, basis
+    character(len=20) :: calc, method, basis, method_
     character(len=150):: title
     !====================== 
 
@@ -160,6 +160,7 @@ program normal_modes_cartesian
                O_G96=22,  &
                O_Q  =23,  &
                O_NUM=24,  &
+               O_NUMD=27, &
                O_MOV=25,  &
                O_FCHK=26, &
                S_VMD=30
@@ -179,7 +180,7 @@ program normal_modes_cartesian
                          rm_custom_mode ="none", &
                          outfchkfile='none'
     !Structure files to be created
-    character(len=100) :: g09file,qfile, tmpfile, g96file, grofile,numfile
+    character(len=100) :: g09file,qfile, tmpfile, g96file, grofile,numfile,numfwfile,numbwfile
     !status
     integer :: IOstatus
     !===================
@@ -968,7 +969,7 @@ program normal_modes_cartesian
         qcoord = 0.d0 
 
         ! Prepare and open files
-        call prepare_files(j,grofile,g09file,g96file,numfile,qfile,title,full_diagonalize)
+        call prepare_files(j,grofile,g09file,g96file,numfile,numfwfile,numbwfile,qfile,title,full_diagonalize)
         open(O_GRO,file=grofile)
         open(O_G09,file=g09file)
         open(O_G96,file=g96file)
@@ -1050,6 +1051,18 @@ program normal_modes_cartesian
             if (k>=nsteps-3.and.k<=nsteps+1) then
                 call write_gcom(O_NUM,molecule,numfile,calc,method,basis,molecule%title)
             endif
+            if (k==nsteps-2) then
+                open(O_NUMD,file=numfwfile)
+                method_=adjustl(method)//" TD NoSym"
+                call write_gcom(O_NUMD,molecule,numfwfile,calc,method_,basis,molecule%title)
+                close(O_NUMD)
+            endif
+            if (k==nsteps) then
+                open(O_NUMD,file=numbwfile)
+                method_=adjustl(method)//" TD NoSym"
+                call write_gcom(O_NUMD,molecule,numbwfile,calc,method_,basis,molecule%title)
+                close(O_NUMD)
+            endif
         enddo
         !=======================================
         ! Reached amplitude. Half Forward oscillation (till one step before equilibrium, so that we concatenate well)
@@ -1115,7 +1128,7 @@ program normal_modes_cartesian
         do i=1,Nsel
             j = nm(i)
             ! Get filenames (we want grofile name)
-            call prepare_files(j,grofile,g09file,g96file,numfile,qfile,title,full_diagonalize)
+            call prepare_files(j,grofile,g09file,g96file,numfile,numfwfile,numbwfile,qfile,title,full_diagonalize)
             vmdcall = trim(adjustl(vmdcall))//" "//trim(adjustl(grofile))
         enddo
         vmdcall = trim(adjustl(vmdcall))//" -e vmd_conf.dat"
@@ -1136,7 +1149,7 @@ program normal_modes_cartesian
         do i=0,Nsel-1
             j = nm(i+1)
             ! Get filenames (we want grofile name)
-            call prepare_files(j,grofile,g09file,g96file,numfile,qfile,title,full_diagonalize)
+            call prepare_files(j,grofile,g09file,g96file,numfile,numfwfile,numbwfile,qfile,title,full_diagonalize)
             write(S_VMD,*) "mol representation CPK"
             write(S_VMD,*) "molinfo ", i, " set drawn 0"
             write(S_VMD,*) "mol addrep ", i
@@ -1543,10 +1556,10 @@ program normal_modes_cartesian
         return
     end subroutine parse_input
 
-    subroutine prepare_files(icoord,grofile,g09file,g96file,numfile,qfile,title,fulldiag)
+    subroutine prepare_files(icoord,grofile,g09file,g96file,numfile,numfwfile,numbwfile,qfile,title,fulldiag)
 
         integer,intent(in) :: icoord
-        character(len=*),intent(out) :: grofile,g09file,g96file,numfile,qfile,title
+        character(len=*),intent(out) :: grofile,g09file,g96file,numfile,numfwfile,numbwfile,qfile,title
         logical,intent(in) :: fulldiag
 
         !Local
@@ -1566,6 +1579,8 @@ program normal_modes_cartesian
         qfile   = "Mode"//trim(adjustl(dummy_char))//"_"//trim(full_label)//"Cart_steps.dat"
         grofile = "Mode"//trim(adjustl(dummy_char))//"_"//trim(full_label)//"Cart.gro"
         numfile = "Mode"//trim(adjustl(dummy_char))//"_"//trim(full_label)//"Cart_num.com"
+        numfwfile= "Mode"//trim(adjustl(dummy_char))//"_"//trim(full_label)//"Cart_numder_fw.com"
+        numbwfile= "Mode"//trim(adjustl(dummy_char))//"_"//trim(full_label)//"Cart_numder_bw.com"
 
         return
 
