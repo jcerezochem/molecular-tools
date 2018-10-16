@@ -257,10 +257,10 @@ program normal_modes_cartesian
     call split_line_back(nmfile,".",null,ftn)
 
     ! Manage special files (fcc) 
-    if (adjustl(ft) == "fcc" .or. adjustl(ftn) == "fcc") then
-        call alert_msg("note","fcc files needs fcc-input as -f and statefile as -ftn")
-        ft ="fcc"
-        ftn="fcc"
+    if (adjustl(ft) == "fcc-state" .or. adjustl(ftn) == "fcc-state") then
+        call alert_msg("note","fcc-state files needs fcc-input as -f and statefile as -ftn")
+        ft ="fcc-state"
+        ftn="fcc-state"
         ! inpfile has Nat, Nvib, and Masses          <= in inpfile
         ! statefile has coordinates and normal modes <= in hessfile
         ! Generic generic readers parse the state (not the inpfile)

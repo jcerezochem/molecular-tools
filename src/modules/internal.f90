@@ -1393,7 +1393,7 @@ module internal_module
         if (verbose>2) &
          call MAT0(6,Aux,Nred,Nred,"A MATRIX (before reordering)")
         if (verbose>1) &
-         call print_vector(6,Vec,Nred,"A MATRIX Eigenvalues (before reordering)")
+         call print_vector(6,Vec*1.d5,Nred,"A MATRIX Eigenvalues x10^5 (before reordering)")
  
         ! The non-redundant set is formed by eigenvectors with non-zero eigenvalue
         kk=0 

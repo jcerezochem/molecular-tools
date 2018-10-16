@@ -89,6 +89,8 @@ module generic_io
              call read_gro_natoms(unt,Nat)
             case("xyz")
              call read_xyz_natoms(unt,Nat)
+            case("fcc")
+             call read_fcc_natoms(unt,Nat,error_local)
             case default
              call alert_msg("fatal","Unsupported filetype:"//trim(adjustl(filetype)))
 !              call supported_filetype_list('freq')
@@ -221,8 +223,12 @@ module generic_io
             case("pdb")
              call read_pdb_geom(unt,Nat,AtName,X,Y,Z,ResName)
              !call assign_masses(Nat,AtName,Mass)
-            case("fcc")
+            case("fcc-state")
              call read_fccstate_geom(unt,Nat,X,Y,Z)
+             ResName(1:Nat) = "UNK"
+            case("fcc")
+             call read_fcc_geom(unt,Nat,AtName,X,Y,Z,error_local)
+             call assign_masses(Nat,AtName,Mass)
              ResName(1:Nat) = "UNK"
             case default
              call alert_msg("fatal","Unsupported filetype:"//trim(adjustl(filetype)))
@@ -378,6 +384,8 @@ module generic_io
              deallocate(A)
             case("cfour")
              call read_cfour_grad(unt,Nat,Grad,error_local)
+            case("fcc")
+             call read_fcc_grad(unt,Nat,Grad,error_local)
             case default
              call alert_msg("warning","Unsupported filetype:"//trim(adjustl(filetype)))
 !              call supported_filetype_list('grad')
@@ -461,6 +469,8 @@ module generic_io
              call read_turbomol_hess(unt,Nat,Hlt,error_local)
             case("gmx")
              call read_gmx_hess(unt,Nat,Hlt,error_local)
+            case("fcc")
+             call read_fcc_hess(unt,Nat,Hlt,error_local)
             case default
              call alert_msg("fatal","Unsupported filetype:"//trim(adjustl(filetype)))
 !              call supported_filetype_list('freq')
