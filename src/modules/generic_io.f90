@@ -644,7 +644,7 @@ module generic_io
              call read_fchk(unt,'Vib-E2',data_type,N,A,IA,error_local)
              Freq(1:Nvib) = A(1:Nvib)
              deallocate(A)
-            case("fcc")
+            case("fcc-state")
              call read_fccstate_nm(unt,Nvib,Nat,Freq,L)
             case default
              call alert_msg("fatal","Unsupported filetype:"//trim(adjustl(filetype)))
