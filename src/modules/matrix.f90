@@ -737,7 +737,7 @@ module matrix
         !-----------------------------------
         !Multiply A array by v vector
         ! A(M,N) (in any case)
-        ! v(N) (if tA=.false.)
+        ! v(N) (if tA=.false.) -default
         ! v(M) (if tA=.true.)
         !-----------------------------------
 
