@@ -61,6 +61,7 @@ program fchk2gro
     !Rotation/translation
     real(8),dimension(3)   :: Tr
     real(8),dimension(3,3) :: R
+    character(len=100) :: rotcenter_str='COM'
     !=============
 
     !================
@@ -96,7 +97,8 @@ program fchk2gro
 
     ! 0. GET COMMAND LINE ARGUMENTS
     call parse_input(inpfile,filetype_inp,outfile,filetype_out,addfile,massfile,overwrite,&
-                     make_connect,use_elements,remove_com,resname,swapfile,rotfile,trasfile,title)
+                     make_connect,use_elements,remove_com,resname,swapfile,rotfile,trasfile,&
+                     title,rotcenter_str)
 
  
     ! 1. READ INPUT
@@ -169,9 +171,15 @@ program fchk2gro
         enddo
         close(I_ROT)
         print'(X,A)', "  STRUCTURE..."
-        print'(X,A)', "  (from the Center of Mass)"
-        call get_com(molec)
-        Tr = (/molec%comX,molec%comY,molec%comZ/)
+        if (rotcenter_str == 'COM') then
+            print'(X,A)', "  (from the Center of Mass)"
+            call get_com(molec)
+            Tr = (/molec%comX,molec%comY,molec%comZ/)
+        else 
+            print'(X,A)', "  (from reference point: "//trim(adjustl(rotcenter_str))//")"
+            call string2vector(rotcenter_str,Tr,i,',')
+            if ( i/=3 ) call alert_msg('fatal','Reference rotation point is not well defined')
+        endif
         call translate_molec(molec,-Tr)
         call rotate_molec(molec,R)
         call translate_molec(molec,Tr)
@@ -247,7 +255,8 @@ program fchk2gro
     !=============================================
 
     subroutine parse_input(inpfile,filetype_inp,outfile,filetype_out,addfile,massfile,overwrite,&
-                           make_connect,use_elements,remove_com,resname,swapfile,rotfile,trasfile,title)
+                           make_connect,use_elements,remove_com,resname,swapfile,rotfile,&
+                           trasfile,title,rotcenter_str)
     !==================================================
     ! My input parser (gromacs style)
     !==================================================
@@ -256,7 +265,7 @@ program fchk2gro
         character(len=*),intent(inout) :: inpfile,outfile,addfile,&
                                           filetype_inp,filetype_out, &
                                           resname,swapfile,title,massfile,&
-                                          rotfile,trasfile
+                                          rotfile,trasfile,rotcenter_str
         logical,intent(inout) :: overwrite, make_connect, use_elements, &
                                  remove_com
         ! Local
@@ -303,6 +312,10 @@ program fchk2gro
                     
                 case ("-rot") 
                     call getarg(i+1, rotfile)
+                    argument_retrieved=.true.
+                    
+                case ("-refrot")
+                    call getarg(i+1, rotcenter_str)
                     argument_retrieved=.true.
 
                 case ("-r")
@@ -367,6 +380,7 @@ program fchk2gro
         write(0,*)       '-swap        File with reordering instruction ',  trim(adjustl(swapfile))
         write(0,*)       '-tr          File with translation vector     ',  trim(adjustl(trasfile))
         write(0,*)       '-rot         File with rotation matrix        ',  trim(adjustl(rotfile))
+        write(0,*)       '-refrot      Location of the rotation point   ',  trim(adjustl(rotcenter_str))
         write(0,*)       '-rn          Residue name                     ',  trim(adjustl(resname))
         write(0,*)       '-connect     Add connectivity (pdb files)     ',  make_connect
         write(0,*)       '-use-elems   Use elements not FF names        ',  use_elements
