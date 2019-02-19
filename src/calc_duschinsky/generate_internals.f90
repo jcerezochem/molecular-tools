@@ -90,7 +90,7 @@ program vertical2adiabatic
                I_ORD=18,  &
                O_ICF=20
     !files
-    character(len=10) :: ft ="guess"
+    character(len=10) :: ft ="guess", ftcnx
     character(len=200):: inpfile  ="input.fchk",     &
                          intfile  ="int_coords.dat", &
                          rmzfile  ="none",           &
@@ -148,7 +148,8 @@ program vertical2adiabatic
     else
         print'(/,A,/)', "Reading connectivity from file: "//trim(adjustl(cnx_file))
         open(I_CNX,file=cnx_file,status='old')
-        call read_connect(I_CNX,state1)
+        call split_line_back(cnx_file,".",null,ftcnx) 
+        call read_connect(I_CNX,state1,ftcnx)
         close(I_CNX)
     endif
 

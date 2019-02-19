@@ -348,7 +348,7 @@ module molecular_structure
             if (verbose>0) then
                 print'(/,X,A,/)', "Reading connectivity from gview format"
             endif
-            molec%atom(1:molec%natoms)%nbonds=0
+            molec%atom(1:)%nbonds=0
             do
                 read(unt,'(A)',iostat=IOstatus) line 
                 if (IOstatus /= 0) exit

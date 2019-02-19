@@ -12,17 +12,17 @@ src/normal_modes/deprecated
 # ac/am things
 config.status
 config.log
-missing
-install-sh
+#missing
+#install-sh
 Makefile
-Makefile.in
-configure
+#Makefile.in
+#configure
 depcomp
 .dirstamp
 
 # m4 things
 autom4te.cache
-aclocal.m4
+# aclocal.m4
 
 # binaries
 src/bonded_info/calcRMS_bonded
@@ -87,7 +87,7 @@ src/wf_analysis/read_S_from_log
 
 # output from test calcs
 *output.?
-*m4
+#*m4
 
 # The tar files are not in the repo
 *gz
