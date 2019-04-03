@@ -45,7 +45,7 @@ program vertical2adiabatic
                tswitch=.false.      ,&
                symaddapt=.false.    ,&
                overwrite=.false.
-    character(len=4) :: def_internal='zmat'
+    character(len=4) :: def_internal='all'
     !======================
 
     !====================== 

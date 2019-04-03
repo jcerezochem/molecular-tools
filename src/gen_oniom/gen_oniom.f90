@@ -175,7 +175,7 @@ program gen_oniom
             close(I_TOP)
             ! Allocate stuff to read top
             allocate(molname(1:molec%natoms))
-            allocate(residue(1:2))
+            allocate(residue(1:nres))
             do i=1,nres
                 call allocate_atoms(residue(i),molnum(i)+1000)
             enddo

@@ -148,8 +148,12 @@ program reorder_fchk
                I_TRA=13,  &
                O_FCHK=20
     !files
-    character(len=10) :: filetype="guess"
+    character(len=10) :: filetype="guess",&
+                         filetype_grd="guess",&
+                         filetype_hess="guess"
     character(len=200):: inpfile ="input.fchk", &
+                         inpfile_grd='default', &
+                         inpfile_hess='default',&
                          orderfile = "none",    &
                          outfile="default", &
                          rotfile="none",        &
@@ -174,7 +178,8 @@ program reorder_fchk
     !===========================
 
     ! 0. GET COMMAND LINE ARGUMENTS
-    call parse_input(inpfile,filetype,orderfile,rotfile,trasfile,outfile,overwrite)
+    call parse_input(inpfile,filetype,orderfile,rotfile,trasfile,outfile,overwrite,&
+                     inpfile_grd,filetype_grd,inpfile_hess,filetype_hess)
  
     !================
     ! READ DATA
@@ -201,6 +206,7 @@ program reorder_fchk
     print'(X,A,I0)', " Mult.   : ", mult
     print'(X,A,/)', "Done"
 
+
     ! Determine the available data and how to read them (Freq and Grad)
     have_gradient=.false.
     if (adjustl(calc_type) == "Freq") then
@@ -216,6 +222,9 @@ program reorder_fchk
         have_hessian=.false.
         read_log_body=.true.
     endif
+    
+    if (inpfile_grd/='default') have_gradient=.true.
+    if (inpfile_hess/='default') have_hessian=.true.
 
     ! STRUCTURE FILE
     print'(X,A)', "READING STRUCTURE..."
@@ -225,28 +234,39 @@ program reorder_fchk
     Nat = molecule%natoms
     Nvib = 3*Nat-6
     print'(X,A,/)', "Done"
+    close(I_INP)
 
     ! GRADIENT FILE
     if (have_gradient) then
-        rewind(I_INP)
+        if (inpfile_grd=='default') then
+            open(I_INP,file=inpfile)
+            filetype_grd=filetype
+        else
+            open(I_INP,file=inpfile_grd,iostat=IOstatus)
+            if (IOstatus /= 0) call alert_msg( "fatal","Unable to open "//trim(adjustl(inpfile)) )
+            if (adjustl(filetype_grd) == "guess") &
+            call split_line_back(inpfile_grd,".",null,filetype_grd)
+        endif
         print'(X,A)', "READING GRADIENT..."
-        if (read_log_body) then
+        if (read_log_body .and. inpfile_grd/='default') then
             call read_gausslog_forces(I_INP,Nat,Grad,error)
         else
-            call generic_gradient_reader(I_INP,filetype,Nat,Grad,error)
+            call generic_gradient_reader(I_INP,filetype_grd,Nat,Grad,error)
         endif
         print'(X,A,/)', "Done"
+        close(I_INP)
     endif
 
     ! HESSIAN FILE
     if (have_hessian) then
-        rewind(I_INP)
+        open(I_INP,file=inpfile)
         print'(X,A)', "READING HESSIAN..."
         allocate(Hlt(1:3*Nat*(3*Nat+1)/2))
         call generic_Hessian_reader(I_INP,filetype,Nat,Hlt,error) 
         Hess(1:3*Nat,1:3*Nat) = Hlt_to_Hess(3*Nat,Hlt)
         print'(X,A,/)', "Done"
         have_hessian=.true.
+        close(I_INP)
     endif
 
     ! ENERGIES
@@ -274,7 +294,7 @@ program reorder_fchk
             deallocate(A)
         endif
     elseif (adjustl(filetype) == "log") then
-        rewind(I_INP)
+        open(I_INP,file=inpfile)
         ! we need to first compute the section lenght where properties are 
         call estimate_section_length(I_INP,5,lenght)
         rewind(I_INP)
@@ -503,13 +523,15 @@ program reorder_fchk
     contains
     !=============================================
 
-    subroutine parse_input(inpfile,filetype,orderfile,rotfile,trasfile,outfile,overwrite)
+    subroutine parse_input(inpfile,filetype,orderfile,rotfile,trasfile,outfile,overwrite,&
+                           inpfile_grd,filetype_grd,inpfile_hess,filetype_hess)
     !==================================================
     ! My input parser (gromacs style)
     !==================================================
         implicit none
 
-        character(len=*),intent(inout) :: inpfile,filetype,orderfile,outfile,rotfile,trasfile
+        character(len=*),intent(inout) :: inpfile,filetype,orderfile,outfile,rotfile,trasfile,&
+                                          inpfile_grd,filetype_grd,inpfile_hess,filetype_hess
         logical,intent(inout)          :: overwrite
         ! Local
         logical :: argument_retrieved,  &
@@ -532,6 +554,18 @@ program reorder_fchk
                     argument_retrieved=.true.
                 case ("-ft") 
                     call getarg(i+1, filetype)
+                    argument_retrieved=.true.  
+                case ("-fgrad") 
+                    call getarg(i+1, inpfile_grd)
+                    argument_retrieved=.true.
+                case ("-ftg") 
+                    call getarg(i+1, filetype_grd)
+                    argument_retrieved=.true.  
+                case ("-fhess") 
+                    call getarg(i+1, inpfile_hess)
+                    argument_retrieved=.true.
+                case ("-fth") 
+                    call getarg(i+1, filetype_hess)
                     argument_retrieved=.true.  
                 case ("-reor") 
                     call getarg(i+1, orderfile)

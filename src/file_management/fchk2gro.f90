@@ -62,6 +62,7 @@ program fchk2gro
     real(8),dimension(3)   :: Tr
     real(8),dimension(3,3) :: R
     character(len=100) :: rotcenter_str='COM'
+    real(8) :: scale_factor=1.d0
     !=============
 
     !================
@@ -98,7 +99,7 @@ program fchk2gro
     ! 0. GET COMMAND LINE ARGUMENTS
     call parse_input(inpfile,filetype_inp,outfile,filetype_out,addfile,massfile,overwrite,&
                      make_connect,use_elements,remove_com,resname,swapfile,rotfile,trasfile,&
-                     title,rotcenter_str)
+                     title,rotcenter_str,scale_factor)
 
  
     ! 1. READ INPUT
@@ -143,6 +144,12 @@ program fchk2gro
 
     ! 2. MAKE CHANGES IF REQUIRED
     ! -------------------------------
+    !Scale coordinates
+    do i=1,molec%natoms
+        molec%atom(i)%x = molec%atom(i)%x*scale_factor
+        molec%atom(i)%y = molec%atom(i)%y*scale_factor
+        molec%atom(i)%z = molec%atom(i)%z*scale_factor
+    enddo
     !Swaping atoms
     if (adjustl(swapfile) /= "none") then
         open(I_SWP,file=swapfile,status='old',iostat=IOstatus)
@@ -175,14 +182,19 @@ program fchk2gro
             print'(X,A)', "  (from the Center of Mass)"
             call get_com(molec)
             Tr = (/molec%comX,molec%comY,molec%comZ/)
+            print'(X,3F8.2)',  Tr(1:3)
         else 
             print'(X,A)', "  (from reference point: "//trim(adjustl(rotcenter_str))//")"
             call string2vector(rotcenter_str,Tr,i,',')
             if ( i/=3 ) call alert_msg('fatal','Reference rotation point is not well defined')
         endif
+        print'(3F8.3)', molec%atom(1)%x, molec%atom(1)%y, molec%atom(1)%z
         call translate_molec(molec,-Tr)
+        print'(3F8.3)', molec%atom(1)%x, molec%atom(1)%y, molec%atom(1)%z
         call rotate_molec(molec,R)
+        print'(3F8.3)', molec%atom(1)%x, molec%atom(1)%y, molec%atom(1)%z
         call translate_molec(molec,Tr)
+        print'(3F8.3)', molec%atom(1)%x, molec%atom(1)%y, molec%atom(1)%z
         print'(X,A,/)', "Done"
     endif
     !================
@@ -256,7 +268,7 @@ program fchk2gro
 
     subroutine parse_input(inpfile,filetype_inp,outfile,filetype_out,addfile,massfile,overwrite,&
                            make_connect,use_elements,remove_com,resname,swapfile,rotfile,&
-                           trasfile,title,rotcenter_str)
+                           trasfile,title,rotcenter_str,scale_factor)
     !==================================================
     ! My input parser (gromacs style)
     !==================================================
@@ -268,6 +280,7 @@ program fchk2gro
                                           rotfile,trasfile,rotcenter_str
         logical,intent(inout) :: overwrite, make_connect, use_elements, &
                                  remove_com
+        real(8),intent(inout) :: scale_factor
         ! Local
         logical :: argument_retrieved,  &
                    need_help = .false.
@@ -344,6 +357,11 @@ program fchk2gro
                 case ("-title")
                     call getarg(i+1, title)
                     argument_retrieved=.true.
+                    
+                case ("-scale")
+                    call getarg(i+1, arg)
+                    read(arg,*) scale_factor
+                    argument_retrieved=.true.
         
                 case ("-h")
                     need_help=.true.
@@ -385,6 +403,7 @@ program fchk2gro
         write(0,*)       '-connect     Add connectivity (pdb files)     ',  make_connect
         write(0,*)       '-use-elems   Use elements not FF names        ',  use_elements
         write(0,*)       '-rmcom       Remove COM (translate)           ',  remove_com
+        write(0,*)       '-scale       Scale coords by (change units)   ',  scale_factor
         write(0,*)       '-title       Title/header of the file         ', trim(adjustl(title))
         write(0,*)       '-h           This help                       ',  need_help
         write(0,*)       '-------------------------------------------------------------------'

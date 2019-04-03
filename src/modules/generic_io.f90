@@ -386,6 +386,8 @@ module generic_io
              call read_cfour_grad(unt,Nat,Grad,error_local)
             case("fcc")
              call read_fcc_grad(unt,Nat,Grad,error_local)
+            case("molcas")
+             call read_molcas_grad(unt,Nat,Grad,error_local) !,symm)
             case default
              call alert_msg("warning","Unsupported filetype:"//trim(adjustl(filetype)))
 !              call supported_filetype_list('grad')

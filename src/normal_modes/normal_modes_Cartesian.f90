@@ -258,7 +258,7 @@ program normal_modes_cartesian
 
     ! Manage special files (fcc) 
     if (adjustl(ft) == "fcc-state" .or. adjustl(ftn) == "fcc-state") then
-        call alert_msg("note","fcc-state files needs fcc-input as -f and statefile as -ftn")
+        call alert_msg("note","fcc-state files needs fcc-input as -f and statefile as -fnm")
         ft ="fcc-state"
         ftn="fcc-state"
         ! inpfile has Nat, Nvib, and Masses          <= in inpfile

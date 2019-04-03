@@ -90,7 +90,8 @@ bin_PROGRAMS = reform_fchk$(EXEEXT) rmsd_fit$(EXEEXT) \
 	fchk2gro$(EXEEXT) read_irc$(EXEEXT) read_scan$(EXEEXT) \
 	read_opt$(EXEEXT) get_symatoms$(EXEEXT) mod_topology$(EXEEXT) \
 	get_reordering$(EXEEXT) prepare_numder_coms$(EXEEXT) \
-	numder_dipoles$(EXEEXT) numderNM_dipoles$(EXEEXT)
+	numder_dipoles$(EXEEXT) numderNM_dipoles$(EXEEXT) \
+	rotate_cube_header$(EXEEXT)
 subdir = src/file_management
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
 am__aclocal_m4_deps = $(top_srcdir)/configure.ac
@@ -489,6 +490,38 @@ rmsd_fit_OBJECTS = $(am_rmsd_fit_OBJECTS)
 rmsd_fit_LDADD = $(LDADD)
 rmsd_fit_LINK = $(FCLD) $(AM_FCFLAGS) $(FCFLAGS) $(rmsd_fit_LDFLAGS) \
 	$(LDFLAGS) -o $@
+am_rotate_cube_header_OBJECTS = ../modules/alerts.$(OBJEXT) \
+	../modules/line_preprocess.$(OBJEXT) \
+	../modules/constants.$(OBJEXT) ../modules/verbosity.$(OBJEXT) \
+	../modules/io.$(OBJEXT) ../modules/version.$(OBJEXT) \
+	../modules/matrix.$(OBJEXT) ../modules/matrix_print.$(OBJEXT) \
+	../modules/structure_types.$(OBJEXT) \
+	../modules/molecular_structure.$(OBJEXT) \
+	../modules/symmetry.$(OBJEXT) ../modules/metrics.$(OBJEXT) \
+	../modules/atomic_geom.$(OBJEXT) \
+	../modules/manage_fcc.$(OBJEXT) \
+	../modules/manage_gamess.$(OBJEXT) \
+	../modules/manage_gaussian.$(OBJEXT) \
+	../modules/manage_cfour.$(OBJEXT) \
+	../modules/manage_gmx.$(OBJEXT) \
+	../modules/manage_molcas.$(OBJEXT) \
+	../modules/manage_molden.$(OBJEXT) \
+	../modules/manage_molpro.$(OBJEXT) \
+	../modules/manage_turbomol.$(OBJEXT) \
+	../modules/manage_pdb.$(OBJEXT) \
+	../modules/manage_orca.$(OBJEXT) \
+	../modules/manage_psi4.$(OBJEXT) \
+	../modules/manage_xyz.$(OBJEXT) \
+	../modules/manage_xyz_molec.$(OBJEXT) \
+	../modules/manage_gro_molec.$(OBJEXT) \
+	../modules/zmat_manage.$(OBJEXT) \
+	../modules/generic_io.$(OBJEXT) \
+	../modules/generic_io_molec.$(OBJEXT) \
+	../modules/internal.$(OBJEXT) rotate_cube_header.$(OBJEXT)
+rotate_cube_header_OBJECTS = $(am_rotate_cube_header_OBJECTS)
+rotate_cube_header_LDADD = $(LDADD)
+rotate_cube_header_LINK = $(FCLD) $(AM_FCFLAGS) $(FCFLAGS) \
+	$(rotate_cube_header_LDFLAGS) $(LDFLAGS) -o $@
 AM_V_P = $(am__v_P_@AM_V@)
 am__v_P_ = $(am__v_P_@AM_DEFAULT_V@)
 am__v_P_0 = false
@@ -519,13 +552,15 @@ SOURCES = $(fchk2gro_SOURCES) $(get_reordering_SOURCES) \
 	$(numderNM_dipoles_SOURCES) $(numder_dipoles_SOURCES) \
 	$(prepare_numder_coms_SOURCES) $(read_irc_SOURCES) \
 	$(read_opt_SOURCES) $(read_scan_SOURCES) \
-	$(reform_fchk_SOURCES) $(rmsd_fit_SOURCES)
+	$(reform_fchk_SOURCES) $(rmsd_fit_SOURCES) \
+	$(rotate_cube_header_SOURCES)
 DIST_SOURCES = $(fchk2gro_SOURCES) $(get_reordering_SOURCES) \
 	$(get_symatoms_SOURCES) $(mod_topology_SOURCES) \
 	$(numderNM_dipoles_SOURCES) $(numder_dipoles_SOURCES) \
 	$(prepare_numder_coms_SOURCES) $(read_irc_SOURCES) \
 	$(read_opt_SOURCES) $(read_scan_SOURCES) \
-	$(reform_fchk_SOURCES) $(rmsd_fit_SOURCES)
+	$(reform_fchk_SOURCES) $(rmsd_fit_SOURCES) \
+	$(rotate_cube_header_SOURCES)
 am__can_run_installinfo = \
   case $$AM_UPDATE_INFO_DIR in \
     n|no|NO) false;; \
@@ -636,6 +671,46 @@ top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
 AUTOMAKE_OPTIONS = subdir-objects
 #get_gscan numderX
+
+# ===========
+# rotate_cube_header
+# ===========
+rotate_cube_header_SOURCES = \
+                   ../modules/alerts.f90                  \
+                   ../modules/line_preprocess.f90         \
+                   ../modules/constants.f90               \
+                   ../modules/verbosity.f90               \
+                   ../modules/io.f90                      \
+                   ../modules/version.f90                 \
+                   ../modules/matrix.f90                  \
+                   ../modules/matrix_print.f90            \
+                   ../modules/structure_types.f90         \
+                   ../modules/molecular_structure.f90     \
+                   ../modules/symmetry.f90                \
+                   ../modules/metrics.f90                 \
+                   ../modules/atomic_geom.f90             \
+                   ../modules/manage_fcc.f90              \
+                   ../modules/manage_gamess.f90           \
+                   ../modules/manage_gaussian.f90         \
+                   ../modules/manage_cfour.f90            \
+                   ../modules/manage_gmx.f90              \
+                   ../modules/manage_molcas.f90           \
+                   ../modules/manage_molden.f90           \
+                   ../modules/manage_molpro.f90           \
+                   ../modules/manage_turbomol.f90         \
+                   ../modules/manage_pdb.f90              \
+                   ../modules/manage_orca.f90             \
+                   ../modules/manage_psi4.f90             \
+                   ../modules/manage_xyz.f90              \
+                   ../modules/manage_xyz_molec.f90        \
+                   ../modules/manage_gro_molec.f90        \
+                   ../modules/zmat_manage.f90             \
+                   ../modules/generic_io.f90              \
+                   ../modules/generic_io_molec.f90        \
+                   ../modules/internal.f90                \
+                   rotate_cube_header.f90
+
+rotate_cube_header_LDFLAGS = @LIBS@
 
 # =============
 # mod_topology
@@ -1323,6 +1398,10 @@ reform_fchk$(EXEEXT): $(reform_fchk_OBJECTS) $(reform_fchk_DEPENDENCIES) $(EXTRA
 rmsd_fit$(EXEEXT): $(rmsd_fit_OBJECTS) $(rmsd_fit_DEPENDENCIES) $(EXTRA_rmsd_fit_DEPENDENCIES) 
 	@rm -f rmsd_fit$(EXEEXT)
 	$(AM_V_FCLD)$(rmsd_fit_LINK) $(rmsd_fit_OBJECTS) $(rmsd_fit_LDADD) $(LIBS)
+
+rotate_cube_header$(EXEEXT): $(rotate_cube_header_OBJECTS) $(rotate_cube_header_DEPENDENCIES) $(EXTRA_rotate_cube_header_DEPENDENCIES) 
+	@rm -f rotate_cube_header$(EXEEXT)
+	$(AM_V_FCLD)$(rotate_cube_header_LINK) $(rotate_cube_header_OBJECTS) $(rotate_cube_header_LDADD) $(LIBS)
 
 mostlyclean-compile:
 	-rm -f *.$(OBJEXT)
