@@ -105,10 +105,10 @@ program fchk2gro
     ! 1. READ INPUT
     ! ---------------------------------
     ! Manage special files (fcc)
-    if (adjustl(filetype_inp) == "fcc".and.adjustl(addfile) == "none") then
+    if (adjustl(filetype_inp) == "fcc-state".and.adjustl(addfile) == "none") then
         call alert_msg("fatal","For fcc filetype, indicate statefile as -f and fcc-input as -add")
     endif
-    if (adjustl(filetype_inp) == "fcc") then
+    if (adjustl(filetype_inp) == "fcc-state") then
         ! inpfile has Nat, Nvib, and Masses          <= in addfile
         ! statefile has coordinates and normal modes <= in inpfile
         ! Generic readers parse the state (not the inpfile)
