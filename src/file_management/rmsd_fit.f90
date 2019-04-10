@@ -135,7 +135,6 @@ program rmsd_fit
     close(I_INP)
     !Option to specify the resname from command line
     if (adjustl(resname) /= "read") molec%atom(:)%resname=resname
-
     ! 1b. Refence molecule
     open(I_INP,file=reffile,status='old',iostat=IOstatus)
     if (IOstatus /= 0) call alert_msg( "fatal","Unable to open "//trim(adjustl(reffile)) )

@@ -55,7 +55,7 @@ module pdb_manage
                                                  chain_local,     &
                                                  ins_code_local
         integer,dimension(1:size(X))          :: resseq_local
-        logical :: have_read_structure=.false.
+        logical :: have_read_structure
 
         ! Compared with g96, we don't know the end of the section. To animations we
         ! would need to implement TER or MODEL entries. For the moment, we stop
@@ -63,9 +63,11 @@ module pdb_manage
         ! don't know how generic PDB files are writting. AFAIK The standard do not 
         ! prevent from reusing TITLE section 
 
+        ! Always better to initialize here rather than in the definition
+        have_read_structure=.false.
         read(unt,'(A)',iostat=ios) line
         i=0
-        do while (ios==0)        
+        do while (ios==0)       
 
             if (line(1:6) == "ATOM  " .or. line(1:6) == "HETATM") then
                 i=i+1

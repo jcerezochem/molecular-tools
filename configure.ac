@@ -33,6 +33,7 @@ fi
 if test -z $FCFLAGS; then
     if test "$FC" == "lf95"; then
         FCFLAGS='-DDOUBLE -DUSE_LAPACK -I../modules/ -Cpp --chk --maxfatals 1'
+# -g -fcheck=all -fbounds-check' 
     else
         FCFLAGS='-DDOUBLE -DUSE_LAPACK -I../modules/ -cpp'
     fi
