@@ -756,7 +756,7 @@ module molecular_structure
                             call alert_msg("warning","CS taken as cesium")
                         case ("l")
                             atom%element = "Cl"
-                            call alert_msg("warning","Cl taken as chlorine")
+                            call alert_msg("note","Cl taken as chlorine")
                         case ("L")
                             atom%element = "Cl"
                             call alert_msg("warning","CL taken as chlorine")

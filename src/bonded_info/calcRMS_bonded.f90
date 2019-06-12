@@ -74,6 +74,9 @@ program calcRMS_bonded
     integer :: ierr
     character(1) :: null
     character(len=16) :: dummy_char
+    character(len=36) :: label
+    logical :: skip_dihed=.false.
+    real(8) :: aaa
     !====================== 
 
     !=============
@@ -206,6 +209,35 @@ program calcRMS_bonded
                 adjustl(ref_molec%atom(ref_molec%geom%dihed(i,3))%name) == "H" .or. &
                 adjustl(ref_molec%atom(ref_molec%geom%dihed(i,4))%name) == "H") cycle
         endif
+        ! Check colinearity
+        skip_dihed = .false.
+        aaa = calc_atm_angle(ref_molec%atom(ref_molec%geom%dihed(i,1)),&
+                             ref_molec%atom(ref_molec%geom%dihed(i,2)),&
+                             ref_molec%atom(ref_molec%geom%dihed(i,3)))
+        if (abs(aaa-pi)<0.001d0) skip_dihed = .true.
+        aaa = calc_atm_angle(ref_molec%atom(ref_molec%geom%dihed(i,2)),&
+                             ref_molec%atom(ref_molec%geom%dihed(i,3)),&
+                             ref_molec%atom(ref_molec%geom%dihed(i,4)))
+        if (abs(aaa-pi)<0.001d0) skip_dihed = .true.
+        aaa = calc_atm_angle(molec%atom(ref_molec%geom%dihed(i,1)),&
+                             molec%atom(ref_molec%geom%dihed(i,2)),&
+                             molec%atom(ref_molec%geom%dihed(i,3)))
+        if (abs(aaa-pi)<0.001d0) skip_dihed = .true.
+        aaa = calc_atm_angle(molec%atom(ref_molec%geom%dihed(i,2)),&
+                             molec%atom(ref_molec%geom%dihed(i,3)),&
+                             molec%atom(ref_molec%geom%dihed(i,4)))
+        if (abs(aaa-pi)<0.001d0) skip_dihed = .true.
+        
+        if (skip_dihed) then
+            write(label,'(3(A2,A1,I2,A5),A2,A1,I2,A1)') &
+             ref_molec%atom(ref_molec%geom%dihed(i,1))%name, "(", ref_molec%geom%dihed(i,1), ") -- ",&
+             ref_molec%atom(ref_molec%geom%dihed(i,2))%name, "(", ref_molec%geom%dihed(i,2), ") -- ",&
+             ref_molec%atom(ref_molec%geom%dihed(i,3))%name, "(", ref_molec%geom%dihed(i,3), ") -- ",&
+             ref_molec%atom(ref_molec%geom%dihed(i,4))%name, "(", ref_molec%geom%dihed(i,4), ")"
+            call alert_msg('note','Collinearity found. Dihedral skipped: '//trim(label))
+            cycle
+        endif
+        
         !Using an external counter in case nonH is used
         k=k+1
         ref  = calc_atm_dihed_new(ref_molec%atom(ref_molec%geom%dihed(i,1)),&
