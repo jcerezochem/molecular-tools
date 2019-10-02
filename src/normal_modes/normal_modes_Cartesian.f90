@@ -163,6 +163,7 @@ program normal_modes_cartesian
                O_NUMD=27, &
                O_MOV=25,  &
                O_FCHK=26, &
+               O_ARR=27,  &
                S_VMD=30
 
     !files
@@ -180,7 +181,7 @@ program normal_modes_cartesian
                          rm_custom_mode ="none", &
                          outfchkfile='none'
     !Structure files to be created
-    character(len=100) :: g09file,qfile, tmpfile, g96file, grofile,numfile,numfwfile,numbwfile
+    character(len=100) :: g09file,qfile, tmpfile, g96file, grofile,numfile,numfwfile,numbwfile,arrowfile
     !status
     integer :: IOstatus
     !===================
@@ -969,12 +970,19 @@ program normal_modes_cartesian
         qcoord = 0.d0 
 
         ! Prepare and open files
-        call prepare_files(j,grofile,g09file,g96file,numfile,numfwfile,numbwfile,qfile,title,full_diagonalize)
+        call prepare_files(j,grofile,g09file,g96file,numfile,numfwfile,numbwfile,qfile,arrowfile,title,full_diagonalize)
         open(O_GRO,file=grofile)
         open(O_G09,file=g09file)
         open(O_G96,file=g96file)
         open(O_Q  ,file=qfile)
         open(O_NUM,file=numfile)
+        open(O_ARR,file=arrowfile)
+        
+        ! Print arrowfile
+        do k=1,Nat
+            write(O_ARR,*) k, LL(3*k-2:3*k,j)
+        enddo
+        close(O_ARR)
 
         !===========================
         !Start from equilibrium. 
@@ -1128,7 +1136,7 @@ program normal_modes_cartesian
         do i=1,Nsel
             j = nm(i)
             ! Get filenames (we want grofile name)
-            call prepare_files(j,grofile,g09file,g96file,numfile,numfwfile,numbwfile,qfile,title,full_diagonalize)
+            call prepare_files(j,grofile,g09file,g96file,numfile,numfwfile,numbwfile,qfile,arrowfile,title,full_diagonalize)
             vmdcall = trim(adjustl(vmdcall))//" "//trim(adjustl(grofile))
         enddo
         vmdcall = trim(adjustl(vmdcall))//" -e vmd_conf.dat"
@@ -1149,7 +1157,7 @@ program normal_modes_cartesian
         do i=0,Nsel-1
             j = nm(i+1)
             ! Get filenames (we want grofile name)
-            call prepare_files(j,grofile,g09file,g96file,numfile,numfwfile,numbwfile,qfile,title,full_diagonalize)
+            call prepare_files(j,grofile,g09file,g96file,numfile,numfwfile,numbwfile,qfile,arrowfile,title,full_diagonalize)
             write(S_VMD,*) "mol representation CPK"
             write(S_VMD,*) "molinfo ", i, " set drawn 0"
             write(S_VMD,*) "mol addrep ", i
@@ -1556,10 +1564,10 @@ program normal_modes_cartesian
         return
     end subroutine parse_input
 
-    subroutine prepare_files(icoord,grofile,g09file,g96file,numfile,numfwfile,numbwfile,qfile,title,fulldiag)
+    subroutine prepare_files(icoord,grofile,g09file,g96file,numfile,numfwfile,numbwfile,qfile,arrowfile,title,fulldiag)
 
         integer,intent(in) :: icoord
-        character(len=*),intent(out) :: grofile,g09file,g96file,numfile,numfwfile,numbwfile,qfile,title
+        character(len=*),intent(out) :: grofile,g09file,g96file,numfile,numfwfile,numbwfile,qfile,arrowfile,title
         logical,intent(in) :: fulldiag
 
         !Local
@@ -1581,6 +1589,7 @@ program normal_modes_cartesian
         numfile = "Mode"//trim(adjustl(dummy_char))//"_"//trim(full_label)//"Cart_num.com"
         numfwfile= "Mode"//trim(adjustl(dummy_char))//"_"//trim(full_label)//"Cart_numder_fw.com"
         numbwfile= "Mode"//trim(adjustl(dummy_char))//"_"//trim(full_label)//"Cart_numder_bw.com"
+        arrowfile= "Mode"//trim(adjustl(dummy_char))//"_"//trim(full_label)//"Cart_arrows.dat"
 
         return
 
