@@ -351,13 +351,11 @@ program vertical2adiabatic
         write(6,'(/,A)') '-------------------------------------------------------------------'
         write(6,'(A)')   ' Flag         Description                   Value'
         write(6,'(A)')   '-------------------------------------------------------------------'
-        write(6,*) '-f           Input file (State1)           ', trim(adjustl(inpfile))
-
-        
         write(6,*) '-f           Input structure file          ', trim(adjustl(inpfile))
         write(6,*) '-ft          \_FileType                    ', trim(adjustl(ft))
         write(6,*) '-o           Output internal file          ', trim(adjustl(intfile))
         write(6,*) '-cnx         Connectivity file             ', trim(adjustl(cnx_file))
+        write(6,*) '             (.gview, .dat)                '
         write(6,*) '-reorder     Reorder file                  ', trim(adjustl(order_file))
         write(6,*) '-intmode     Type of internal set          ', trim(adjustl(def_internal))
         write(6,*) '-zmatfile    Input Zmat file               ', trim(adjustl(zmatfile))
