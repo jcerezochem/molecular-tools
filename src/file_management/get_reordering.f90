@@ -81,7 +81,8 @@ program get_reordering
     !Auxiliar variables
     integer :: error
     character(1) :: null
-    real(8) :: dist_thr=0.1d0, dist
+    real(8) :: dist_thr, dist
+    character(len=6) :: thr_opt = 'NORMAL'
     !====================== 
 
     !=============
@@ -119,7 +120,20 @@ program get_reordering
     !===========================
 
     ! 0. GET COMMAND LINE ARGUMENTS
-    call parse_input(inpfile,filetype,reffile,reffiletype)
+    call parse_input(inpfile,filetype,reffile,reffiletype,thr_opt)
+    
+    ! Set distance threshold
+    call set_word_upper_case(thr_opt)
+    if (thr_opt == 'NORMAL') then
+        dist_thr = 0.1d0
+    else if (thr_opt == 'TIGTH') then
+        dist_thr = 0.01d0
+    else if (thr_opt == 'LOOSE') then
+        dist_thr = 0.5d0
+    else
+        call alert_msg('warning','Unknown threshold option: '//thr_opt//' Using NORMAL settings.')
+        dist_thr = 0.01d0
+    endif
  
     !================
     ! READ DATA
@@ -165,13 +179,13 @@ program get_reordering
     contains
     !=============================================
 
-    subroutine parse_input(inpfile,filetype,reffile,reffiletype)
+    subroutine parse_input(inpfile,filetype,reffile,reffiletype,thr_opt)
     !==================================================
     ! My input parser (gromacs style)
     !==================================================
         implicit none
 
-        character(len=*),intent(inout) :: inpfile,filetype, reffile, reffiletype
+        character(len=*),intent(inout) :: inpfile,filetype, reffile, reffiletype, thr_opt
         ! Local
         logical :: argument_retrieved,  &
                    need_help = .false.
@@ -201,7 +215,7 @@ program get_reordering
                     call getarg(i+1, reffiletype)
                     argument_retrieved=.true. 
                 case ("-thr") 
-                    call getarg(i+1, sym_thr)
+                    call getarg(i+1, thr_opt)
                     argument_retrieved=.true.
                 case ("-h")
                     need_help=.true.
@@ -223,7 +237,7 @@ program get_reordering
         write(0,*)       '-ft          \_ FileTyep                      ', trim(adjustl(filetype))
         write(0,*)       '-r           Input file                       ', trim(adjustl(reffile))
         write(0,*)       '-frt         \_ FileTyep                      ', trim(adjustl(reffiletype))
-        write(0,*)       '-thr         Symm. thr [tight|normal|loose]   ', trim(adjustl(sym_thr))
+        write(0,*)       '-thr         Symm. thr [tight|normal|loose]   ', trim(adjustl(thr_opt))
         write(0,*)       '-h           This help                       ',  need_help
         write(0,*)       '-------------------------------------------------------------------'
         if (need_help) call alert_msg("fatal", 'There is no manual (for the moment)' )

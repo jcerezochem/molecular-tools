@@ -609,6 +609,8 @@ program reorder_fchk
         write(0,*)       '-f           Input file                       ', trim(adjustl(inpfile))
         write(0,*)       '-ft          \_ FileTyep                      ', trim(adjustl(filetype))
         write(0,*)       '-reor        File with reordering instruction ', trim(adjustl(orderfile))
+        write(0,*)       '             First line: nswap. Nex lines:'
+        write(0,*)       '             iat_orig iat_new'
         write(0,*)       '-rot         File with 3x3 rotation matrix    ', trim(adjustl(rotfile))
         write(0,*)       '-tr          File translation vector (AA)     ', trim(adjustl(trasfile))
         write(0,*)       '             (the molecule is rotated FIRST)'
