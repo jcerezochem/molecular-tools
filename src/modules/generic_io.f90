@@ -27,6 +27,7 @@ module generic_io
     use pdb_manage
     use fcc_manage
     use xyz_manage
+    use molden_manage
     implicit none
 
     contains
@@ -79,6 +80,8 @@ module generic_io
              call read_orca_natoms(unt,Nat,error_local)
             case("molcas")
              call read_molcasUnSym_natoms(unt,Nat,error_local)
+            case("molden")
+             call read_molden_natoms(unt,Nat,error_local)
             case("molpro")
              call read_molpro_natoms(unt,Nat,error_local)
             case("turbomol")
@@ -199,6 +202,10 @@ module generic_io
              ResName(1:Nat) = "UNK"
             case("molcas")
              call read_molcasUnSym_geom(unt,Nat,AtName,X,Y,Z,error_local)
+             call assign_masses(Nat,AtName,Mass)
+             ResName(1:Nat) = "UNK"
+            case("molden")
+             call read_molden_geom(unt,Nat,AtName,X,Y,Z,error_local)
              call assign_masses(Nat,AtName,Mass)
              ResName(1:Nat) = "UNK"
             case("molpro")

@@ -639,325 +639,323 @@ module molecular_structure
 
         return
 
-        contains
-
-        subroutine get_element_from_name(atom)
-
-            type(str_atom),intent(inout) :: atom
-
-            !local
-            character(len=5) :: atname
-
-            !1. Process atom name 
-            atname = atom%name
-            atname = adjustl(atname)
-
-            ! Sometimes, H atoms start with a number in PDB, GRO..
-            if (atname(1:1) == "1" .or. &
-                atname(1:1) == "2" .or. &
-                atname(1:1) == "3" .or. &
-                atname(1:1) == "4" .or. &
-                atname(1:1) == "5" .or. &
-                atname(1:1) == "6" .or. &
-                atname(1:1) == "7" .or. &
-                atname(1:1) == "8" .or. &
-                atname(1:1) == "9") then
-                if (atname(2:2) == "H" .or. &
-                    atname(2:2) == "h") then
-                    atom%element="H"
-                    return
-                else
-                    !Then we simply remove the number and go on
-                    atname(1:4) = atname(2:5)
-                    atname(5:5) = ""
-                endif
-            endif
-
-            !Set first letter to upper case
-            call set_upper_case(atname(1:1))
-
-            !First solve conflicts with one-letter elements
-            select case (atname(1:1))
-               !==========
-                case ("H")
-               !==========
-                !It can be H, He, Hf (not considered the lanthanide: Ho)
-                    ! We consider that:
-                    !  HE is hidrogen labeled as "E" (strange, though)
-                    !  He is helium
-                    !  HF is hidrogen labeled as "F" (strange, though)
-                    !  Hf is hafnium
-                    select case (atname(2:2))
-                        case ("e")
-                            atom%element = "He"
-                            call alert_msg("warning","He taken as helium")
-                        case ("f")
-                            atom%element = "Hf"
-                            call alert_msg("warning","He taken as hafnium")
-                        case default
-                            atom%element = "H"
-                            if (adjustl(atom%element) /= adjustl(atom%name) ) &
-                             call alert_msg("note",trim(adjustl(atom%name))//" taken as hydrogen")
-                    end select
-                    return
-               !==========
-                case ("B")
-               !==========
-                !It can be B, Be, Br, Ba
-                    select case (atname(2:2))
-                        case ("a")
-                            atom%element = "Ba"
-                        case ("A")
-                            atom%element = "Ba"
-                            call alert_msg("note","BA taken as barium")
-                        case ("e")
-                            atom%element = "Be"
-                        case ("E")
-                            atom%element = "Be"
-                            call alert_msg("note","BE taken as berium")
-                        case ("r")
-                            atom%element = "Br"
-                        case ("R")
-                            atom%element = "Br"
-                            call alert_msg("note","BR taken as bromine")
-                        case default
-                            atom%element = "B"
-                            if (adjustl(atom%element) /= adjustl(atom%name) ) &
-                             call alert_msg("warning",trim(adjustl(atom%name))//" taken as borium")
-                    end select
-                    return
-               !==========
-                case ("C")
-               !==========
-                    !C is a nightmare... It can be C Cl Cd Ca Cr Cs (not considered the lanthanide/actinides: Ce, Cm, Cf)
-                    ! We consider that:
-                    !  CD is carbon labeled as "D"
-                    !  Cd is Cadmium
-                    !  CL and Cl are chlorine (there is not usually an "L" label)
-                    !  CR and Cr are chromium (WARNING: chirality label?)
-                    !  CS and Cs are cesium (WARNING: chirality label?)
-                    !  CA is carbon labeled as "A" or or calcium: use more info later
-                    !  Ca is calcium
-                    select case (atname(2:2))
-                        case ("d")
-                            atom%element = "Cd"
-                            call alert_msg("warning","Cd taken as cadmium")
-                        case ("r")
-                            atom%element = "Cr"
-                            call alert_msg("warning","Cd taken as chromium")
-                        case ("R")
-                            atom%element = "Cr"
-                            call alert_msg("warning","CR taken as chromium")
-                        case ("s")
-                            atom%element = "Cs"
-                            call alert_msg("warning","Cs taken as cesium")
-                        case ("S")
-                            atom%element = "Cs"
-                            call alert_msg("warning","CS taken as cesium")
-                        case ("l")
-                            atom%element = "Cl"
-                            call alert_msg("note","Cl taken as chlorine")
-                        case ("L")
-                            atom%element = "Cl"
-                            call alert_msg("warning","CL taken as chlorine")
-                        case ("a")
-                            ! If it has additional labels (e.g. Ca1), 
-                            ! this is probably not Ca but Carbon
-                            if (len_trim(atname) > 2) then
-                                atom%element = "C"
-                                call alert_msg("warning",trim(atname)//" taken as carbon")
-                            else
-                                atom%element = "Ca"
-                                call alert_msg("warning",trim(atname)//" taken as calcium")
-                            endif
-                        case ("A")
-                            !This case can be either C"A" or Ca. Mark with x to check later
-                            atom%element = "C"
-                            call alert_msg("note","CA taken as carbone")
-                        case default
-                            atom%element = "C"
-                            if (adjustl(atom%element) /= adjustl(atom%name) ) &
-                             call alert_msg("note",trim(adjustl(atom%name))//" taken as carbone")
-                    end select
-                    return
-               !==========
-                case ("N")
-               !==========
-                !It can be N, Na, Ni, Nb (not considered the lanthanide/actinides: Nd, Np, No)
-                    ! We consider that:
-                    !  NB is carbon labeled as "B"
-                    !  Nb is niobium
-                    !  Ni and NI are nickel (there is not usually an "I" label)
-                    !  NA is nitrogen labeled as "A" or or sodium: use more info later
-                    !  Na is sodium
-                    select case (atname(2:2))
-                        case ("b")
-                            atom%element = "Nb"
-                        case ("i")
-                            atom%element = "Ni"
-                        case ("I")
-                            atom%element = "Ni"
-                        case ("a")
-                            atom%element = "Na"
-                        case ("A")
-                            !This case can be either C"A" or Ca. Mark with x to check later
-                            atom%element = "Nx"
-                        case default
-                            atom%element = "N"
-                    end select
-                    return
-               !==========
-                case ("O")
-               !==========
-                !It can be O, Os
-                    ! We consider that:
-                    !  OS is carbon labeled as "S" (strange, although Os is more strange)
-                    !  Os is osmium
-                    select case (atname(2:2))
-                        case ("s")
-                            atom%element = "Os"
-                        case default
-                            atom%element = "O"
-                    end select
-                    return
-               !==========
-                case ("F")
-               !==========
-                !It can be F, Fe
-                    ! We consider that:
-                    !  Fe and FE are iron
-                    select case (atname(2:2))
-                        case ("e")
-                            atom%element = "Fe"
-                            call alert_msg("warning","Fe taken as iron")
-                        case ("E")
-                            atom%element = "Fe"
-                            call alert_msg("warning","FE taken as iron")
-                        case default
-                            atom%element = "F"
-                            if (adjustl(atom%element) /= adjustl(atom%name) ) &
-                             call alert_msg("note",trim(adjustl(atom%name))//" taken as fluorine")
-                    end select
-                    return
-               !==========
-                case ("P")
-               !==========
-                !It can be P, Pb, Po
-                    ! We consider that:
-                    !  Pb and PB are lead
-                    !  Po is polonium
-                    !  PO is P labeled "O"
-                    select case (atname(2:2))
-                        case ("o")
-                            atom%element = "Po"
-                        case ("O")
-                            atom%element = "Po"
-                        case ("t")
-                            atom%element = "Pt"
-                        case ("T")
-                            atom%element = "Pt"
-                        case default
-                            atom%element = "P"
-                    end select
-                    return
-               !==========
-                case ("S")
-               !==========
-                !It can be S, Sr, Se, Sn, Si
-                    ! We consider that:
-                    !  Sb is antimonium 
-                    !  SB sulfur labeled as "B"
-                    select case (atname(2:2))
-                        case ("i")
-                            atom%element = "Si"
-                            call alert_msg("warning","Si taken as silicon")
-                        case ("I")
-                            atom%element = "Si"
-                            call alert_msg("warning","SI taken as silicon")
-                        case ("r")
-                            atom%element = "Sr"
-                            call alert_msg("warning","Sr taken as strontium")
-                        case ("R")
-                            atom%element = "Sr"
-                            call alert_msg("warning","SR taken as strontium")
-                        case ("n")
-                            atom%element = "Sn"
-                            call alert_msg("warning","Sn taken as tin (Sn)")
-                        case ("N")
-                            atom%element = "Sn"
-                            call alert_msg("warning","SN taken as tin (Sn)")
-                        case ("b")
-                            atom%element = "Sb"
-                            call alert_msg("warning","Sb taken as antimony")
-                        case default
-                            atom%element = "S"
-                            if (adjustl(atom%element) /= adjustl(atom%name) ) &
-                             call alert_msg("note",trim(adjustl(atom%name))//" taken as sulfur")
-                    end select
-                    return
-               !==========
-                case ("K")
-               !==========
-                !It can be K, Kr
-                    select case (atname(2:2))
-                        case ("r")
-                            atom%element = "Kr"
-                        case ("R")
-                            atom%element = "Kr"
-                        case default
-                            atom%element = "K"
-                    end select
-                    return
-               !==========
-                case ("V")
-               !==========
-                !It can only be V
-                    atom%element = "V"
-                    return
-               !==========
-                case ("W")
-               !==========
-                !It can only be W
-                    atom%element = "W"
-                    return
-               !==========
-                case ("Y")
-               !==========
-                !It can only be Y
-                    atom%element = "Y"
-                    return
-               !==========
-                case ("U")
-               !==========
-                !It can only be U
-                    atom%element = "U"
-                    return
-               !==========
-                case ("I")
-               !==========
-                !It can be I, Ir
-                    ! We consider that:
-                    !  Ir and IR are iridium
-                    select case (atname(2:2))
-                        case ("r")
-                            atom%element = "Ir"
-                        case ("R")
-                            atom%element = "Ir"
-                        case default
-                            atom%element = "I"
-                    end select
-                    return
-            end select
-
-            !Once one-letter conflicts are solved, the rest are trivial
-            call set_lower_case(atname(2:2))
-            atom%element = atname(1:2)
-
-            return
-
-        end subroutine get_element_from_name
-
     end subroutine atname2element
+
+    subroutine get_element_from_name(atom)
+
+        type(str_atom),intent(inout) :: atom
+
+        !local
+        character(len=5) :: atname
+
+        !1. Process atom name 
+        atname = atom%name
+        atname = adjustl(atname)
+
+        ! Sometimes, H atoms start with a number in PDB, GRO..
+        if (atname(1:1) == "1" .or. &
+            atname(1:1) == "2" .or. &
+            atname(1:1) == "3" .or. &
+            atname(1:1) == "4" .or. &
+            atname(1:1) == "5" .or. &
+            atname(1:1) == "6" .or. &
+            atname(1:1) == "7" .or. &
+            atname(1:1) == "8" .or. &
+            atname(1:1) == "9") then
+            if (atname(2:2) == "H" .or. &
+                atname(2:2) == "h") then
+                atom%element="H"
+                return
+            else
+                !Then we simply remove the number and go on
+                atname(1:4) = atname(2:5)
+                atname(5:5) = ""
+            endif
+        endif
+
+        !Set first letter to upper case
+        call set_upper_case(atname(1:1))
+
+        !First solve conflicts with one-letter elements
+        select case (atname(1:1))
+            !==========
+            case ("H")
+            !==========
+            !It can be H, He, Hf (not considered the lanthanide: Ho)
+                ! We consider that:
+                !  HE is hidrogen labeled as "E" (strange, though)
+                !  He is helium
+                !  HF is hidrogen labeled as "F" (strange, though)
+                !  Hf is hafnium
+                select case (atname(2:2))
+                    case ("e")
+                        atom%element = "He"
+                        call alert_msg("warning","He taken as helium")
+                    case ("f")
+                        atom%element = "Hf"
+                        call alert_msg("warning","He taken as hafnium")
+                    case default
+                        atom%element = "H"
+                        if (adjustl(atom%element) /= adjustl(atom%name) ) &
+                            call alert_msg("note",trim(adjustl(atom%name))//" taken as hydrogen")
+                end select
+                return
+            !==========
+            case ("B")
+            !==========
+            !It can be B, Be, Br, Ba
+                select case (atname(2:2))
+                    case ("a")
+                        atom%element = "Ba"
+                    case ("A")
+                        atom%element = "Ba"
+                        call alert_msg("note","BA taken as barium")
+                    case ("e")
+                        atom%element = "Be"
+                    case ("E")
+                        atom%element = "Be"
+                        call alert_msg("note","BE taken as berium")
+                    case ("r")
+                        atom%element = "Br"
+                    case ("R")
+                        atom%element = "Br"
+                        call alert_msg("note","BR taken as bromine")
+                    case default
+                        atom%element = "B"
+                        if (adjustl(atom%element) /= adjustl(atom%name) ) &
+                            call alert_msg("warning",trim(adjustl(atom%name))//" taken as borium")
+                end select
+                return
+            !==========
+            case ("C")
+            !==========
+                !C is a nightmare... It can be C Cl Cd Ca Cr Cs (not considered the lanthanide/actinides: Ce, Cm, Cf)
+                ! We consider that:
+                !  CD is carbon labeled as "D"
+                !  Cd is Cadmium
+                !  CL and Cl are chlorine (there is not usually an "L" label)
+                !  CR and Cr are chromium (WARNING: chirality label?)
+                !  CS and Cs are cesium (WARNING: chirality label?)
+                !  CA is carbon labeled as "A" or or calcium: use more info later
+                !  Ca is calcium
+                select case (atname(2:2))
+                    case ("d")
+                        atom%element = "Cd"
+                        call alert_msg("warning","Cd taken as cadmium")
+                    case ("r")
+                        atom%element = "Cr"
+                        call alert_msg("warning","Cd taken as chromium")
+                    case ("R")
+                        atom%element = "Cr"
+                        call alert_msg("warning","CR taken as chromium")
+                    case ("s")
+                        atom%element = "Cs"
+                        call alert_msg("warning","Cs taken as cesium")
+                    case ("S")
+                        atom%element = "Cs"
+                        call alert_msg("warning","CS taken as cesium")
+                    case ("l")
+                        atom%element = "Cl"
+                        call alert_msg("note","Cl taken as chlorine")
+                    case ("L")
+                        atom%element = "Cl"
+                        call alert_msg("warning","CL taken as chlorine")
+                    case ("a")
+                        ! If it has additional labels (e.g. Ca1), 
+                        ! this is probably not Ca but Carbon
+                        if (len_trim(atname) > 2) then
+                            atom%element = "C"
+                            call alert_msg("warning",trim(atname)//" taken as carbon")
+                        else
+                            atom%element = "Ca"
+                            call alert_msg("warning",trim(atname)//" taken as calcium")
+                        endif
+                    case ("A")
+                        !This case can be either C"A" or Ca. Mark with x to check later
+                        atom%element = "C"
+                        call alert_msg("note","CA taken as carbone")
+                    case default
+                        atom%element = "C"
+                        if (adjustl(atom%element) /= adjustl(atom%name) ) &
+                            call alert_msg("note",trim(adjustl(atom%name))//" taken as carbone")
+                end select
+                return
+            !==========
+            case ("N")
+            !==========
+            !It can be N, Na, Ni, Nb (not considered the lanthanide/actinides: Nd, Np, No)
+                ! We consider that:
+                !  NB is carbon labeled as "B"
+                !  Nb is niobium
+                !  Ni and NI are nickel (there is not usually an "I" label)
+                !  NA is nitrogen labeled as "A" or or sodium: use more info later
+                !  Na is sodium
+                select case (atname(2:2))
+                    case ("b")
+                        atom%element = "Nb"
+                    case ("i")
+                        atom%element = "Ni"
+                    case ("I")
+                        atom%element = "Ni"
+                    case ("a")
+                        atom%element = "Na"
+                    case ("A")
+                        !This case can be either C"A" or Ca. Mark with x to check later
+                        atom%element = "Nx"
+                    case default
+                        atom%element = "N"
+                end select
+                return
+            !==========
+            case ("O")
+            !==========
+            !It can be O, Os
+                ! We consider that:
+                !  OS is carbon labeled as "S" (strange, although Os is more strange)
+                !  Os is osmium
+                select case (atname(2:2))
+                    case ("s")
+                        atom%element = "Os"
+                    case default
+                        atom%element = "O"
+                end select
+                return
+            !==========
+            case ("F")
+            !==========
+            !It can be F, Fe
+                ! We consider that:
+                !  Fe and FE are iron
+                select case (atname(2:2))
+                    case ("e")
+                        atom%element = "Fe"
+                        call alert_msg("warning","Fe taken as iron")
+                    case ("E")
+                        atom%element = "Fe"
+                        call alert_msg("warning","FE taken as iron")
+                    case default
+                        atom%element = "F"
+                        if (adjustl(atom%element) /= adjustl(atom%name) ) &
+                            call alert_msg("note",trim(adjustl(atom%name))//" taken as fluorine")
+                end select
+                return
+            !==========
+            case ("P")
+            !==========
+            !It can be P, Pb, Po
+                ! We consider that:
+                !  Pb and PB are lead
+                !  Po is polonium
+                !  PO is P labeled "O"
+                select case (atname(2:2))
+                    case ("o")
+                        atom%element = "Po"
+                    case ("O")
+                        atom%element = "Po"
+                    case ("t")
+                        atom%element = "Pt"
+                    case ("T")
+                        atom%element = "Pt"
+                    case default
+                        atom%element = "P"
+                end select
+                return
+            !==========
+            case ("S")
+            !==========
+            !It can be S, Sr, Se, Sn, Si
+                ! We consider that:
+                !  Sb is antimonium 
+                !  SB sulfur labeled as "B"
+                select case (atname(2:2))
+                    case ("i")
+                        atom%element = "Si"
+                        call alert_msg("warning","Si taken as silicon")
+                    case ("I")
+                        atom%element = "Si"
+                        call alert_msg("warning","SI taken as silicon")
+                    case ("r")
+                        atom%element = "Sr"
+                        call alert_msg("warning","Sr taken as strontium")
+                    case ("R")
+                        atom%element = "Sr"
+                        call alert_msg("warning","SR taken as strontium")
+                    case ("n")
+                        atom%element = "Sn"
+                        call alert_msg("warning","Sn taken as tin (Sn)")
+                    case ("N")
+                        atom%element = "Sn"
+                        call alert_msg("warning","SN taken as tin (Sn)")
+                    case ("b")
+                        atom%element = "Sb"
+                        call alert_msg("warning","Sb taken as antimony")
+                    case default
+                        atom%element = "S"
+                        if (adjustl(atom%element) /= adjustl(atom%name) ) &
+                            call alert_msg("note",trim(adjustl(atom%name))//" taken as sulfur")
+                end select
+                return
+            !==========
+            case ("K")
+            !==========
+            !It can be K, Kr
+                select case (atname(2:2))
+                    case ("r")
+                        atom%element = "Kr"
+                    case ("R")
+                        atom%element = "Kr"
+                    case default
+                        atom%element = "K"
+                end select
+                return
+            !==========
+            case ("V")
+            !==========
+            !It can only be V
+                atom%element = "V"
+                return
+            !==========
+            case ("W")
+            !==========
+            !It can only be W
+                atom%element = "W"
+                return
+            !==========
+            case ("Y")
+            !==========
+            !It can only be Y
+                atom%element = "Y"
+                return
+            !==========
+            case ("U")
+            !==========
+            !It can only be U
+                atom%element = "U"
+                return
+            !==========
+            case ("I")
+            !==========
+            !It can be I, Ir
+                ! We consider that:
+                !  Ir and IR are iridium
+                select case (atname(2:2))
+                    case ("r")
+                        atom%element = "Ir"
+                    case ("R")
+                        atom%element = "Ir"
+                    case default
+                        atom%element = "I"
+                end select
+                return
+        end select
+
+        !Once one-letter conflicts are solved, the rest are trivial
+        call set_lower_case(atname(2:2))
+        atom%element = atname(1:2)
+
+        return
+
+    end subroutine get_element_from_name
 
 !======================================
 

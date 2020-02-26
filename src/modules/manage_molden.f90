@@ -1,102 +1,184 @@
 module molden_manage
 
+    !==============================================================
+    ! This code is part of FCC_TOOLS 
+    !==============================================================
+    ! Description
+    !  This MODULE contains subroutines to get molecular information
+    !   from MOLCAS (out) files
+    !    
+    ! Notes  
+    !  All subroutines rewind the file after using it
+    !==============================================================
+
+    !Common declarations:
+    !===================
     use constants
+    use line_preprocess
+    implicit none
 
     contains
 
-    !==============================================================
-    ! This code is part of MOLECULAR_TOOLS (version 0.4/February 2014)
-    !==============================================================
-    ! Description
-    !  Basic I/O subroutines to read/write XYZ files.
-    !    subroutine read_molden(unt,system)
-    !    subroutine write_molden(unt,system)
-    !
-    ! Dependences
-    !  Uses "structure_types" module
-    !
-    ! Notes
-    !  Since variables molec, residue... are allocatable, they should
-    !  be passed to the sr even if they are output to get the allocation.
-    !
-    ! History
-    !  2013/03/08  Born (el adjetivo, no la persona)
-    !  2013/06/14  Added gaussian com writer
-    !-----------------------------------------------------
+    subroutine read_molden_natoms(unt,Nat,error_flag)
 
+        !==============================================================
+        ! This code is part of FCC_TOOLS
+        !==============================================================
+        !Description
+        ! Reads coordinates and atom names from MOLCAS. The coordinates
+        ! are retuned as a 3Nat vector
 
-    subroutine read_molden(unt,system)
+        !Description
+        ! Get geometry and atom names from MOLCAS. The number of atoms
+        ! is also taken
+        !
+        !Arguments
+        ! unt     (inp) int /scalar    unit for the file 
+        ! Nat     (out) int /scalar    Number of atoms
+        ! io_flag  (io ) flag          Error flag:
+        !                                   0 : Success
+        !                                  -i : Read error on line i
+        ! 
+        !Note
+        ! Need to understand better the MOLCAS output
+        !==============================================================
 
-        use structure_types
-        use alerts
+        integer,intent(in)  :: unt
+        integer,intent(out) :: Nat
+        integer,intent(out) :: error_flag
 
-       !Reads MOLDEN structure file from [ATOMS] (input/output in ANGS)
-
-        integer,intent(in)::unt
-        type(str_resmol),intent(inout)::system
-
-        !local
-        integer::i, natoms, ii, ios
-        character(len=260) :: line
-        character(len=10) :: units
+        !Local variables
+        !=============
+        character(len=240) :: line=""
         character :: cnull
-        !The use of get_structure=.false. fails probably due to
-        ! memory issues (change without being directly accesed)
-        logical :: not_get_structure=.true.
-
-        !The file is organized in sections. Each begining with a given name
-        ! This SR scans all the file till finding [ATOMS]. Some files  
-        ! have [N_ATOMS], but others doesn't. So we set natoms from the 
-        ! number of lines read in [ATOMS] section
-        system%natoms = 0
+        !I/O
+        integer :: IOstatus
+        !Counters
+        integer :: i, ii
+        
+        ! Search section
+        ii = 0
         do
-
-            read(unt,'(A)',iostat=ios) line
-            if (ios /= 0) exit
-
-            if (index(line,'[N_ATOMS]') /= 0) then
-                read(unt,*) system%natoms
-            elseif ( (index(line,'[ATOMS]') /= 0) .or. &
-                     (index(line,'[Atoms]') /= 0) ) then
-                not_get_structure=.false.
-                read(line,*) cnull, units
-                i=0
-                do 
-                     read(unt,'(A)') line
-                     if ( (adjustl(line) == "END") .or. &
-                          (index(line,'[') /= 0  ) ) exit
-                     i=i+1
-                     read(line,*) system%atom(i)%name,   &
-                                  ii,                    & !serial
-                                  system%atom(i)%AtNum,  &
-                                  system%atom(i)%x,      &
-                                  system%atom(i)%y,      &
-                                  system%atom(i)%z
-                     !Get elements from AtNum
-                     system%atom(i)%element = atname_from_atnum(system%atom(i)%AtNum)
-                     
-                enddo
-                if (i /= system%natoms) call alert_msg("note","[N_ATOMS] not found of conflictive in molden file")
-                system%natoms = i
-                !Change units if needed
-                if (adjustl(units) == "(AU)") then
-                    system%atom(1:i)%x = system%atom(1:i)%x*BOHRtoANGS
-                    system%atom(1:i)%y = system%atom(1:i)%y*BOHRtoANGS
-                    system%atom(1:i)%z = system%atom(1:i)%z*BOHRtoANGS
-                endif
-      
-                !We are done with the file
+            ii = ii + 1
+            read(unt,'(A)',IOSTAT=IOstatus) line
+            ! Two possible scenarios while reading:
+            ! 1) End of file
+            if ( IOstatus < 0 ) then
+                error_flag = -ii
+                rewind(unt)
+                return
+            endif
+            ! 2) Found what looked for!      
+            if ( adjustl(line) == "[N_ATOMS]" ) then
+                read(unt,*) Nat 
                 exit
-
             endif
 
         enddo
 
         rewind(unt)
+        return
 
-        return 
+    end subroutine read_molden_natoms
 
-    end subroutine read_molden
+    subroutine read_molden_geom(unt,Nat,AtName,X,Y,Z,error_flag)
+
+        !==============================================================
+        ! This code is part of FCC_TOOLS
+        !==============================================================
+        !Description
+        ! Reads coordinates and atom names from MOLCAS. The coordinates
+        ! are retuned as a 3Nat vector
+
+        !Description
+        ! Get geometry and atom names from MOLCAS. The number of atoms
+        ! is also taken
+        !
+        !Arguments
+        ! unt     (inp) int /scalar    unit for the file 
+        ! Nat     (out) int /scalar    Number of atoms
+        ! AtName  (out) char/vertor    Atom names
+        ! X,Y,Z   (out) real/vectors   Coordinate vectors (ANGSTRONG)
+        ! io_flag  (io ) flag          Error flag:
+        !                                   0 : Success
+        !                                  -i : Read error on line i
+        ! 
+        !Note
+        ! Need to understand better the MOLCAS output
+        !==============================================================
+
+        integer,intent(in)  :: unt
+        integer,intent(out) :: Nat
+        character(len=*), dimension(:), intent(out) :: AtName
+        real(kind=8), dimension(:), intent(out) :: X,Y,Z
+        integer,intent(out) :: error_flag
+
+        !Local variables
+        !=============
+        character(len=10)  :: units
+        character(len=240) :: line=""
+        character :: cnull
+        !I/O
+        integer :: IOstatus
+        !Counters
+        integer :: i, ii, AtNum
+        
+        
+        ! Search section
+        ii = 0
+        do
+            ii = ii + 1
+            read(unt,'(A)',IOSTAT=IOstatus) line
+            ! Two possible scenarios while reading:
+            ! 1) End of file
+            if ( IOstatus < 0 ) then
+                error_flag = -ii
+                rewind(unt)
+                return
+            endif
+            ! 2) Found what looked for!      
+            if ( adjustl(line) == "[N_ATOMS]" ) then
+                read(unt,*) Nat 
+                exit
+            endif
+
+        enddo
+        rewind(unt)
+
+        ! Search section
+        ii = 0
+        do
+            ii = ii + 1
+            read(unt,'(A)',IOSTAT=IOstatus) line
+            ! Two possible scenarios while reading:
+            ! 1) End of file
+            if ( IOstatus < 0 ) then
+                error_flag = -ii
+                rewind(unt)
+                return
+            endif
+            ! 2) Found what looked for!      
+            if ( index(line,"[ATOMS]") /= 0 ) then
+                read(line,*) cnull, units
+                exit
+            endif
+
+        enddo
+        do i=1,Nat
+            read(unt,*) AtName(i), cnull, cnull, X(i), Y(i), Z(i)
+        enddo
+        if (trim(adjustl(units))=='(AU)') then
+            !Transform to AA
+            X(1:Nat) = X(1:Nat)*BOHRtoANGS
+            Y(1:Nat) = Y(1:Nat)*BOHRtoANGS
+            Z(1:Nat) = Z(1:Nat)*BOHRtoANGS
+        endif
+
+        rewind(unt)
+        return
+
+    end subroutine read_molden_geom
 
 
 end module molden_manage
+

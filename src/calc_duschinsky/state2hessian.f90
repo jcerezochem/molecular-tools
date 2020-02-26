@@ -61,7 +61,8 @@ program state2hessian
     !files 
     character(len=200):: inpfile  ="fcc.inp", &
                          fccfile  ="state_file", &
-                         outfile  ="output.fchk"
+                         outfile  ="output.fchk", &
+                         massfile ="none"
     !status
     integer :: IOstatus
     integer :: current_verbose
@@ -85,19 +86,33 @@ program state2hessian
     !--------------------------
 
     ! 0. GET COMMAND LINE ARGUMENTS
-    call parse_input(inpfile,fccfile,outfile)
+    call parse_input(inpfile,fccfile,outfile,massfile)
 
 
     ! READ INPUT DATA 
-    ! Input file
-    open(I_INP,file=inpfile,status='old',iostat=IOstatus)
-    if (IOstatus /= 0) call alert_msg( "fatal","Unable to open "//trim(adjustl(inpfile)) )
-    read(I_INP,*) Nat
-    read(I_INP,*) Nvib
-    do i=1,Nat 
-        read(I_INP,*) Mass(i)
-    enddo    
-    close(I_INP)
+    if (massfile=='none') then
+        ! Input file
+        open(I_INP,file=inpfile,status='old',iostat=IOstatus)
+        if (IOstatus /= 0) call alert_msg( "fatal","Unable to open "//trim(adjustl(inpfile)) )
+        read(I_INP,*) Nat
+        read(I_INP,*) Nvib
+        do i=1,Nat 
+            read(I_INP,*) Mass(i)
+        enddo    
+        close(I_INP)
+    else
+        open(I_INP,file=massfile,status='old',iostat=IOstatus)
+        if (IOstatus /= 0) call alert_msg( "fatal","Unable to open "//trim(adjustl(massfile)) )
+        i = 0
+        do
+            i = i+1
+            read(I_INP,*,iostat=IOstatus) Mass(i)
+            if (IOstatus /= 0) exit
+        enddo
+        close(I_INP)
+        Nat  = i-1
+        Nvib = 3*Nat-6
+    endif
 
     ! State file
     open(I_INP,file=fccfile,status='old',iostat=IOstatus)
@@ -187,13 +202,13 @@ program state2hessian
     contains
     !=============================================
 
-    subroutine parse_input(inpfile,fccfile,outfile)
+    subroutine parse_input(inpfile,fccfile,outfile,massfile)
     !==================================================
     ! My input parser (gromacs style)
     !==================================================
         implicit none
 
-        character(len=*),intent(inout) :: inpfile,fccfile,outfile
+        character(len=*),intent(inout) :: inpfile,fccfile,outfile,massfile
         ! Local
         logical :: argument_retrieved,  &
                    need_help = .false.
@@ -217,6 +232,10 @@ program state2hessian
 
                 case ("-state") 
                     call getarg(i+1, fccfile)
+                    argument_retrieved=.true.
+                    
+                case ("-mass") 
+                    call getarg(i+1, massfile)
                     argument_retrieved=.true.
 
                 case ("-o") 
@@ -252,6 +271,7 @@ program state2hessian
         write(6,'(A)')   '-------------------------------------------------------------------'
         write(6,*)       '-input       FCclasses input file          ', trim(adjustl(inpfile))
         write(6,*)       '-state       FClasses state file           ', trim(adjustl(fccfile))
+        write(6,*)       '-mass        Mass file           ', trim(adjustl(massfile))
         write(6,*)       '-o           Output file (fchk)            ', trim(adjustl(outfile))
         write(6,*)       '-h               ',  need_help
         write(6,'(A)') '-------------------------------------------------------------------'
