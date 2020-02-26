@@ -191,17 +191,28 @@ program reorder_fchk
     call split_line_back(inpfile,".",null,filetype)
 
     if (adjustl(filetype) /= "log" .and. adjustl(filetype) /= "fchk") &
-        call alert_msg("fatal","Only Gaussian log and fchk files supported")
+        call alert_msg("warning","Only Gaussian log and fchk files fully supported")
 
     ! JOB INFO
-    print'(X,A)', "READING JOB INFO..."
-    rewind(I_INP)
-    call read_gauss_job(I_INP,filetype,calc_type,method,basis)
+    if (filetype=='fchk' .or. filetype=='log') then
+        print'(X,A)', "READING JOB INFO..."
+        rewind(I_INP)
+        call read_gauss_job(I_INP,filetype,calc_type,method,basis)
+    else
+        print'(X,A)', "SETTING ARBITRARILY THE JOB INFO..."
+        calc_type='Freq'
+        method='METHOD'
+        basis='BASIS'
+        charge=0
+        mult=1
+    endif
     print'(X,A)', " Job type: "//trim(adjustl(calc_type))
     print'(X,A)', " Method  : "//trim(adjustl(method))
     print'(X,A)', " Basis   : "//trim(adjustl(basis))
-    rewind(I_INP)
-    call read_gauss_chargemult(I_INP,filetype,charge,mult)
+    if (filetype=='fchk' .or. filetype=='log') then
+        rewind(I_INP)
+        call read_gauss_chargemult(I_INP,filetype,charge,mult)
+    endif
     print'(X,A,I0)', " Charge  : ", charge
     print'(X,A,I0)', " Mult.   : ", mult
     print'(X,A,/)', "Done"
