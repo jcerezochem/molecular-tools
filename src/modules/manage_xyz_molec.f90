@@ -91,6 +91,13 @@ module xyz_manage_molec
         integer::i
         character(len=5)  :: name
         character(len=50) :: fmt='(A5,3X,3(F10.5,5X))'
+        logical :: free_format_local
+        
+        ! Default is fixed format
+        free_format_local = .false.
+        if (present(free_format)) then
+            free_format_local = free_format
+        endif
 
 
         write(unt,'(I0)') system%natoms
@@ -100,7 +107,7 @@ module xyz_manage_molec
             write(unt,'(A)') system%title
         endif
 
-        if (present(free_format) .and. free_format) then
+        if (free_format_local) then
             do i=1,system%natoms   
                 name=adjustl(system%atom(i)%name)
                 write(unt,*)   name,                     &
@@ -148,6 +155,7 @@ module xyz_manage_molec
         !local
         integer::i, natoms
         character(len=100) :: chkname_local
+        logical            :: free_format_local
         character          :: null
         character(len=200) :: job
 
@@ -157,6 +165,12 @@ module xyz_manage_molec
             call split_line_back(chkname_local,".chk",chkname_local,null)
         else
             chkname_local="file"
+        endif
+        
+        ! Default is fixed format
+        free_format_local = .false.
+        if (present(free_format)) then
+            free_format_local = free_format
         endif
 
         ! Build job line
@@ -188,7 +202,7 @@ module xyz_manage_molec
         !Charge and multiplicity (TODO: read from system attributes)
         write(unt,'(A)') "0 1"
         !Geomertry
-        if (present(free_format) .and. free_format) then
+        if (free_format_local) then
             do i=1,system%natoms
                 write(unt,*) system%atom(i)%name, system%atom(i)%x,system%atom(i)%y,system%atom(i)%z
             enddo

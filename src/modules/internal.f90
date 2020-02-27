@@ -2346,10 +2346,9 @@ module internal_module
         logical :: do_analytical
         !======================  
 
-        if (present(analytical) .and. analytical) then
-            do_analytical=.true.
-        else
-            do_analytical=.false.
+        do_analytical = .false.
+        if (present(analytical)) then
+            do_analytical = analytical
         endif
 
 #ifndef WITH_LIBBDERS

@@ -1139,7 +1139,12 @@ module molecular_structure
         real(8),dimension(:,:), allocatable :: dist1, dist2
         ! interface specific
         real(8),dimension(:), allocatable :: geo1,geo2
+        logical :: use_mwc_local
 
+        use_mwc_local = .true.
+        if (present(use_mwc)) then
+            use_mwc_local = use_mwc
+        endif
 
         !interface with structure_types
         n= molecRef%natoms
@@ -1151,7 +1156,7 @@ module molecular_structure
        
         ! geo1 -> molec
         ! geo2 -> molecRef
-        if (present(use_mwc) .and. .not.use_mwc) then
+        if (.not.use_mwc_local) then
             do i=1,3*N,3
                 j = (i-1)/3 + 1
                 geo1(i  ) = molec%atom(j)%x   

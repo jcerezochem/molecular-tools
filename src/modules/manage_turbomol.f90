@@ -432,7 +432,12 @@ module turbomol_manage
         !Auxiliar arrays
         integer,dimension(6) :: modenums
         integer              :: nfreq
+        logical              :: withTrRot_local
         
+        withTrRot_local = .false.
+        if (present(withTrRot)) then
+            withTrRot_local = withTrRot
+        endif
         
         !Use N to store 3*Nat-6
         N = 3*Nat
@@ -496,7 +501,7 @@ module turbomol_manage
 
         ! Turbomol reports 3N modes. Tr+Rot with freq=0.00, so we remove Tr+Rot
         ! unless requested
-        if (present(withTrRot) .and. withTrRot) then
+        if (withTrRot_local) then
             rewind(unt)
             return
         else

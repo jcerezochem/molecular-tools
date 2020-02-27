@@ -47,6 +47,7 @@ module symmetry
         real(8),dimension(3) :: R
         integer :: Nat
         character(len=6) :: sym_thr_local
+        logical          :: rotate_local
 
         !----------------------------------------------
         ! UNITS MANAGEMENT
@@ -55,6 +56,10 @@ module symmetry
         call set_geom_units(molec,"Angs")
         !----------------------------------------------
 
+        rotate_local = .true.
+        if (present(rotate)) then
+            rotate_local = rotate
+        endif
 
         ! Set THRS according to the sym_thr variable
         sym_thr_local = adjustl(sym_thr)
@@ -80,7 +85,7 @@ module symmetry
         Z0=molec%atom(1:Nat)%z
 
         ! FIRST PLACE THE MOLECULE ON THE COM
-        if (present(rotate).and..not.rotate) then
+        if (.not.rotate_local) then
             print'(/,X,A,/)', "Using input geometry instead of rotating to principal axis of intertia"
         else
             !====================

@@ -317,6 +317,12 @@ module molcas_manage
         integer :: IOstatus
         !Counters
         integer :: i, ii
+        character(len=5) :: symm_local
+        
+        symm_local="C1"
+        if (present(symm)) then
+            symm_local = adjustl(symm)
+        endif
         
         
         !Use N to store 3*Nat
@@ -349,7 +355,7 @@ module molcas_manage
                 endif
         enddo
 
-        if (present(symm).and.adjustl(symm)=="CI") then
+        if (adjustl(symm_local)=="CI") then
             if (mod(Nat,2) /= 0) then
                 print*, "ERROR: cannot read Ci with odd number of atoms"
                 stop 

@@ -45,18 +45,17 @@ module io
         logical,intent(in),optional :: print_always
         ! local
         character(len=len_trim(title)) :: line
-        logical :: print_now
-
-        if (present(print_always) .and. print_always) then
-            print_now = .true.
-        else
-            print_now = .false.
+        logical :: print_always_local
+        
+        print_always_local=.false.
+        if (present(print_always)) then
+            print_always_local = print_always
         endif
 
         line=adjustl(title)
         call set_word_upper_case(line)
 
-        if (verbose == 0 .and. .not. print_now) return
+        if (verbose == 0 .and. .not. print_always_local) return
 
         write(unt,'(2/,X,A)') "==============================================="
         write(unt,'(2X,A)' )  line
@@ -76,12 +75,23 @@ module io
         character(len=len_trim(title)) :: line
         integer :: i
         logical :: first_letter
+        logical :: keep_case_local
+        logical :: upper_case_local
 
         if (verbose == 0) return
+        
+        keep_case_local=.false.
+        if (present(keep_case)) then
+            keep_case_local = keep_case
+        endif
+        upper_case_local=.false.
+        if (present(keep_case)) then
+            upper_case_local = upper_case
+        endif
 
-        if (present(keep_case) .and. keep_case) then
+        if (keep_case_local) then
             line=adjustl(title)
-        elseif (present(upper_case) .and. upper_case) then
+        elseif (upper_case_local) then
             line=adjustl(title)
             call set_word_upper_case(line)
         else
@@ -119,12 +129,23 @@ module io
         character(len=len_trim(title)) :: line
         integer :: i
         logical :: first_letter
+        logical :: keep_case_local
+        logical :: upper_case_local
 
         if (verbose == 0) return
 
-        if (present(keep_case) .and. keep_case) then
+        keep_case_local=.false.
+        if (present(keep_case)) then
+            keep_case_local = keep_case
+        endif
+        upper_case_local=.false.
+        if (present(keep_case)) then
+            upper_case_local = upper_case
+        endif
+        
+        if (keep_case_local) then
             line=adjustl(title)
-        elseif (present(upper_case) .and. upper_case) then
+        elseif (upper_case_local) then
             line=adjustl(title)
             call set_word_upper_case(line)
         else
@@ -161,12 +182,23 @@ module io
         character(len=len_trim(title)) :: line
         integer :: i
         logical :: first_letter
-        
+        logical :: keep_case_local
+        logical :: upper_case_local
+
         if (verbose == 0) return
 
-        if (present(keep_case) .and. keep_case) then
+        keep_case_local=.false.
+        if (present(keep_case)) then
+            keep_case_local = keep_case
+        endif
+        upper_case_local=.false.
+        if (present(keep_case)) then
+            upper_case_local = upper_case
+        endif
+        
+        if (keep_case_local) then
             line=adjustl(title)
-        elseif (present(upper_case) .and. upper_case) then
+        elseif (upper_case_local) then
             line=adjustl(title)
             call set_word_upper_case(line)
         else

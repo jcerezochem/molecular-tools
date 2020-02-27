@@ -749,14 +749,20 @@ module matrix
         !Local
         character :: TRANS
         integer :: LDA
+        logical :: tA_local
 
         !Needs BLAS
         external dgemv
+        
+        tA_local = .false.
+        if (present(tA)) then
+            tA_local = tA
+        endif
 
         !First dimension as specified in the calling program
         LDA = size(A,1)
 
-        if (present(tA).and.tA) then
+        if (tA_local) then
             TRANS="T"
             allocate(p(1:M))
         else
@@ -786,9 +792,20 @@ module matrix
         !Local
         character :: opA,opB
         integer :: LDA, LDB
+        logical :: tA_local, tB_local
 
         !Needs BLAS
         external dgemm
+        
+        tA_local = .false.
+        if (present(tA)) then
+            tA_local = tA
+        endif
+        tB_local = .false.
+        if (present(tB)) then
+            tB_local = tB
+        endif
+
 
         !First dimension as specified in the calling program
         ! equal to NA and NB if opA,opB = 'N'
@@ -797,8 +814,8 @@ module matrix
         opA = 'N'
         opB = 'N'
 
-        if (present(tA).and.tA) opA='T'
-        if (present(tB).and.tB) opB='T'
+        if (tA_local) opA='T'
+        if (tB_local) opB='T'
 
         call dgemm(opA,opB,NA,NB,NK,1.d0,A,LDA,B,LDB,0.d0,P,NA)  
         return
@@ -861,8 +878,14 @@ module matrix
         real(8),dimension(M,M)               :: P
         !Local
         real(8),dimension(M,N)               :: Aux
+        logical :: counter_local
+        
+        counter_local = .false.
+        if (present(counter)) then
+            counter_local=counter
+        endif
 
-        if (present(counter) .and. counter) then
+        if (counter_local) then
             Aux = matrix_product(M,N,N,X,A,tA=.true.)
             P   = matrix_product(M,M,N,Aux,X)
         else
@@ -895,8 +918,14 @@ module matrix
         !Local
         real(8),dimension(M,N)               :: Aux
         integer :: j
+        logical :: counter_local
+        
+        counter_local = .false.
+        if (present(counter)) then
+            counter_local=counter
+        endif
 
-        if (present(counter) .and. counter) then
+        if (counter_local) then
         ! NOT TESTED
             do j=1,N
                 Aux(:,j) = X(j,1:M)*a(j)
@@ -1011,21 +1040,22 @@ module matrix
 
         real(8) :: aux
         integer :: i,j
-        logical :: rev=.false.
+        logical :: reverse_local
 
+        reverse_local=.false.
         if (present(reverse)) then
-            rev=reverse
+            reverse_local=reverse
         endif
 
         do i=1,N-1
             do j=i+1,N
                 ! Normal ordering (Low to high)
-                if (V(j)<V(i) .and. .not.rev) then
+                if (V(j)<V(i) .and. .not.reverse_local) then
                     aux=V(i)
                     V(i) = V(j)
                     V(j) = aux
                 ! Reverse ordering (High to low)
-                elseif (V(j)>V(i) .and. rev) then
+                elseif (V(j)>V(i) .and. reverse_local) then
                     aux=V(i)
                     V(i) = V(j)
                     V(j) = aux
@@ -1086,21 +1116,22 @@ module matrix
         integer :: aux
         integer :: i,j
 
-        logical :: rev=.false.
+        logical :: reverse_local
 
+        reverse_local=.false.
         if (present(reverse)) then
-            rev=reverse
+            reverse_local=reverse
         endif
 
         do i=1,N-1
             do j=i+1,N
                 ! Normal ordering (Low to high)
-                if (V(j)<V(i) .and. .not.rev) then
+                if (V(j)<V(i) .and. .not.reverse_local) then
                     aux=V(i)
                     V(i) = V(j)
                     V(j) = aux
                 ! Reverse ordering (High to low)
-                elseif (V(j)>V(i) .and. rev) then
+                elseif (V(j)>V(i) .and. reverse_local) then
                     aux=V(i)
                     V(i) = V(j)
                     V(j) = aux
@@ -1187,9 +1218,19 @@ module matrix
         !Local
         ! scalar
         integer :: i, j, k, ii, jj, kk
+        logical :: tA_local, tR_local
+        
+        tA_local = .false.
+        if (present(tA)) then
+            tA_local = tA
+        endif
+        tR_local = .false.
+        if (present(tR)) then
+            tR_local = tR
+        endif
       
-        if (present(tA).and.tA) then
-            if (present(tR).and.tR) then
+        if (tA_local) then
+            if (tR_local) then
                 do i=1,N
                 do j=1,M
                     Arot(i,j) = 0.d0
@@ -1219,7 +1260,7 @@ module matrix
                 enddo
             endif
         else
-            if (present(tR).and.tR) then
+            if (tR_local) then
                 do i=1,N
                 do j=1,M
                     Arot(i,j) = 0.d0
@@ -1279,8 +1320,14 @@ module matrix
         !Local
         ! scalar
         integer :: i, j, k, ii, jj, kk
+        logical :: tR_local
+        
+        tR_local = .false.
+        if (present(tR)) then
+            tR_local = tR
+        endif
 
-        if (present(tR).and.tR) then
+        if (tR_local) then
             do i=1,N
                 Vrot(i) = 0.d0
                 ! ii runs over the 3x3 rot matrix
