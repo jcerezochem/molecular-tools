@@ -133,24 +133,27 @@ module generic_io_molec
         ! Initialize error local (old readers don't use it)
         error_local=0
 
-        if (present(title)) then
-            title_local = adjustl(title)
-        else
-            title_local = "Structure written with generic_io_molec"
+!         if (present(title)) then
+!             title_local = adjustl(title)
+!         else
+!             title_local = "Structure written with generic_io_molec"
+!         endif
+        if (len_trim(molec%title) == 0) then
+            molec%title = "Structure written with generic_io_molec"
         endif
 
         ! Readers still unsupported by generic_io module (more that in the case of readers)
         if (adjustl(filetype)=="gro") then
-            molec%title=title_local
+!             molec%title=title_local
             call write_gro(unt,molec)
         elseif (adjustl(filetype)=="g96") then
-            molec%title=title_local
+!             molec%title=title_local
             call write_g96(unt,molec)
         elseif (adjustl(filetype)=="xyz") then
-            molec%title=title_local
+!             molec%title=title_local
             call write_xyz(unt,molec)
         elseif (adjustl(filetype)=="xyz-free") then
-            molec%title=title_local
+!             molec%title=title_local
             call write_xyz(unt,molec,free_format=.true.)
 
         ! any other format is assumed to be supported
@@ -162,7 +165,7 @@ module generic_io_molec
                                                        molec%atom(:)%mass,&
                                                        molec%atom(:)%name,&
                                           error_flag=error_local,         &
-                                          title=title_local)
+                                          title=molec%title)
         endif
 
         ! Error handling

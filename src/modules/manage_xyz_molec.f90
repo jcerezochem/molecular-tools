@@ -104,7 +104,7 @@ module xyz_manage_molec
         if (len_trim(system%title) == 0) then
             write(unt,*) "File generated with write_xyz subroutine"
         else
-            write(unt,'(A)') system%title
+            write(unt,'(A)') trim(system%title)
         endif
 
         if (free_format_local) then
