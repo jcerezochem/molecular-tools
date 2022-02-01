@@ -7,7 +7,8 @@ SUBDIRS =                        \
           src/gen_oniom          \
           src/bonded_info        \
           src/wf_analysis        \
-          src/build_top          
+          src/build_top          \
+          src/joyce_tools
 
 #          src/vibrations         \
 #          src/joyce_tools

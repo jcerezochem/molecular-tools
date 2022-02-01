@@ -181,6 +181,7 @@ AC_CONFIG_FILES([Makefile
                  src/gen_oniom/Makefile    
                  src/wf_analysis/Makefile
                  src/build_top/Makefile    
+                 src/joyce_tools/Makefile    
 ])        
 AC_OUTPUT    
                
