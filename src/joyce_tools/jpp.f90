@@ -50,7 +50,7 @@ program joyce_preprocessor
     character(len=200) :: line, subline, ff_entry
     character(len=100) :: section, ICdescription, aux_char
     character(len=3)   :: jpp_mark
-    character :: cnull
+    character :: cnull, splitter
     logical :: track
     !Mapping old-new indexation
     integer,dimension(1:1000) :: ICmap
@@ -65,7 +65,8 @@ program joyce_preprocessor
                           inpfile="input.inp",   &
                           topfile_out="default", &
                           inpfile_out="default"
-    integer :: ios
+    character(len=500) :: msg
+    integer :: ios, iline
     integer :: I_TOP = 10,&
                I_INP = 11,&
                O_TOP = 20,&
@@ -95,10 +96,12 @@ program joyce_preprocessor
     track   = .false.
 
     !Read topology file
+    iline=0
     do
         read(I_TOP,'(A)',iostat=ios) line
         if (ios /= 0) exit
-
+        iline = iline + 1
+        
         !Leave unchanged commented or empty lines
         call split_line(line,";",subline,cnull)
         if (len_trim(subline) ==  0) then
@@ -137,7 +140,12 @@ program joyce_preprocessor
 
         !Process IC 
         subline=""
-        call split_line(line,"#",ff_entry,subline)
+        if (index(line,";") /= 0) then
+            splitter=";"
+        else
+            splitter="#"
+        endif
+        call split_line(line,splitter,ff_entry,subline)
         read(line(1:3),'(A)') jpp_mark
         if (jpp_mark == "add") then
             !Increase counters
@@ -158,7 +166,10 @@ program joyce_preprocessor
             if (adjustl(section)=="dihedrals") nDel_dihed=nDel_dihed+1
             !Get mapping
             read(subline,*,iostat=ios) i_old
-            if (ios /= 0) call alert_msg("fatal","Error reading topology. Check the format")
+            if (ios /= 0) then
+                write(msg,'(A,I0)') "Error reading topology. Check the format, line: ", iline
+                call alert_msg("fatal",msg)
+            endif
             ICmap(i_old) = 0
             cycle
         else
@@ -167,7 +178,10 @@ program joyce_preprocessor
             nIC_old = nIC_old + 1
             !Get mapping
             read(subline,*,iostat=ios) i_old
-            if (ios /= 0) call alert_msg("fatal","Error reading topology. Check the format")
+            if (ios /= 0) then
+                write(msg,'(A,I0)') "Error reading topology. Check the format, line: ", iline
+                call alert_msg("fatal",msg)
+            endif
             ICmap(i_old) = nIC
             !Counters tracking updates
             if (ICmap(i_old) /= i_old) then
@@ -183,7 +197,7 @@ program joyce_preprocessor
 
         !Prepare and write modified entry
         write(subline,*) nIC
-        subline = trim(ff_entry)//"  #  "//&
+        subline = trim(ff_entry)//"  "//splitter//"  "//&
                   trim(adjustl(subline))//" "//trim(adjustl(ICdescription))
         write(O_TOP,'(A)') trim(subline)
 
