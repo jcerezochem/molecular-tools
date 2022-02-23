@@ -286,6 +286,7 @@ program reorder_fchk
     have_TD =.false.
     have_TOT=.false.
     if (adjustl(filetype) == "fchk") then
+        open(I_INP,file=inpfile)
         call read_fchk(I_INP,"SCF Energy",dtype,N,A,IA,error)
         if (error == 0) then
             E_scf = A(1)
@@ -304,6 +305,7 @@ program reorder_fchk
             have_TOT = .true.
             deallocate(A)
         endif
+        close(I_INP)
     elseif (adjustl(filetype) == "log") then
         open(I_INP,file=inpfile)
         ! we need to first compute the section lenght where properties are 
@@ -326,12 +328,12 @@ program reorder_fchk
             E_tot = E_td
             have_TOT = .true.
         endif
+        close(I_INP)
     endif
     if (have_SCF) print*, "  SCF Energy"
     if (have_TD ) print*, "  CIS Energy"
     if (have_TOT) print*, "  Total Energy"
     print'(X,A,/)', "Done"
-    close(I_INP)
 
 
     !================
