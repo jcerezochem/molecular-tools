@@ -232,7 +232,7 @@ program prepare_numder_coms
                               method=method,   &!
                               basis=basis,     &!
                               title=title,     &!
-                              free_format=.true.)
+                              free_format=.false.)
         close(O_GAU)
         molecule%atom(i)%x = molecule%atom(i)%x + delta
         ! Fw
@@ -247,7 +247,7 @@ program prepare_numder_coms
                               method=method,   &!
                               basis=basis,     &!
                               title=title,     &!
-                              free_format=.true.)
+                              free_format=.false.)
         close(O_GAU)
         molecule%atom(i)%x = molecule%atom(i)%x - delta
         ! ** Y **
@@ -263,7 +263,7 @@ program prepare_numder_coms
                               method=method,   &!
                               basis=basis,     &!
                               title=title,     &!
-                              free_format=.true.)
+                              free_format=.false.)
         close(O_GAU)
         molecule%atom(i)%y = molecule%atom(i)%y + delta
         ! Fw
@@ -278,7 +278,7 @@ program prepare_numder_coms
                               method=method,   &!
                               basis=basis,     &!
                               title=title,     &!
-                              free_format=.true.)
+                              free_format=.false.)
         close(O_GAU)
         molecule%atom(i)%y = molecule%atom(i)%y - delta
         ! ** Z **
@@ -294,7 +294,7 @@ program prepare_numder_coms
                               method=method,   &!
                               basis=basis,     &!
                               title=title,     &!
-                              free_format=.true.)
+                              free_format=.false.)
         close(O_GAU)
         molecule%atom(i)%z = molecule%atom(i)%z + delta
         ! Fw
@@ -309,7 +309,7 @@ program prepare_numder_coms
                               method=method,   &!
                               basis=basis,     &!
                               title=title,     &!
-                              free_format=.true.)
+                              free_format=.false.)
         close(O_GAU)
         molecule%atom(i)%z = molecule%atom(i)%z - delta
     

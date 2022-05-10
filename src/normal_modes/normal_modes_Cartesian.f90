@@ -987,6 +987,7 @@ program normal_modes_cartesian
         !===========================
         !Start from equilibrium. 
         !===========================
+        k=0
         molecule%atom(1:Nat)%x = X0(1:Nat)
         molecule%atom(1:Nat)%y = Y0(1:Nat)
         molecule%atom(1:Nat)%z = Z0(1:Nat)
