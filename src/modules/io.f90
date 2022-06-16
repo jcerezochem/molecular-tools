@@ -192,7 +192,7 @@ module io
             keep_case_local = keep_case
         endif
         upper_case_local=.false.
-        if (present(keep_case)) then
+        if (present(upper_case)) then
             upper_case_local = upper_case
         endif
         
