@@ -246,6 +246,13 @@ program reorder_fchk
     Nvib = 3*Nat-6
     print'(X,A,/)', "Done"
     close(I_INP)
+    do i=1,Nat
+        if (molecule%atom(i)%mass == 0.d0) then
+            call alert_msg('warning','The mass read for '//adjustl(trim(molecule%atom(i)%name))&
+                           //' from FCHK is zero. Changing to hard-coded mass')
+            molecule%atom(i)%mass = atmass_from_atnum(molecule%atom(i)%AtNum)
+        endif
+    enddo
 
     ! GRADIENT FILE
     if (have_gradient) then
@@ -501,8 +508,8 @@ program reorder_fchk
     call write_fchk(O_FCHK,"Current cartesian coordinates",'R',N,A,IA,error)
     deallocate(A,IA)
     !Atomic weights
-    call write_fchk(O_FCHK,"Integer atomic weights",'I',3*Nat,A,int(molecule%atom(:)%mass),error)
-    call write_fchk(O_FCHK,"Real atomic weights",'R',3*Nat,molecule%atom(:)%mass,IA,error)
+    call write_fchk(O_FCHK,"Integer atomic weights",'I',Nat,A,int(molecule%atom(:)%mass),error)
+    call write_fchk(O_FCHK,"Real atomic weights",'R',Nat,molecule%atom(:)%mass,IA,error)
     !Energy 
     if (have_SCF) &
         call write_fchk(O_FCHK,"SCF Energy",'R',0,(/E_scf/),IA,error)
