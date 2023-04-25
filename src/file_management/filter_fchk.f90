@@ -120,7 +120,8 @@ program filter_fchk
     
     ! Select sections
     do while ( len_trim(line) /= 0 )
-        read(I_SEC,'(A42,X,A1)',iostat=IOstatus) sect_label, dtype
+        ! Select section
+        read(I_SEC,'(A42)',iostat=IOstatus) sect_label
         if (IOstatus /= 0) exit
         print*, "Copying section: "//adjustl(trim(sect_label))
         ! Read
