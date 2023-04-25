@@ -848,7 +848,7 @@ module gaussian_manage
         read(line,'(A42,X,A1,3X,A1,X,A)') section_full, data_type, is_array, cdata
         if (is_array /= "N") then
             !Is not an array
-            N=1
+            N=0
             if ( data_type == "R" ) then 
                 allocate( A(1:1) )
                 read(cdata,*) A(1)
