@@ -1,7 +1,7 @@
 AUTOMAKE_OPTIONS = subdir-objects
 
-bin_PROGRAMS = reform_fchk rmsd_fit fchk2gro read_irc read_scan read_opt get_symatoms mod_topology get_reordering \
-               prepare_numder_coms numder_dipoles numderNM_dipoles rotate_cube_header
+bin_PROGRAMS = reform_fchk filter_fchk rmsd_fit fchk2gro read_irc read_scan read_opt get_symatoms mod_topology \
+               get_reordering prepare_numder_coms numder_dipoles numderNM_dipoles rotate_cube_header
 #get_gscan numderX
 
 # ===========
@@ -123,6 +123,20 @@ reform_fchk_SOURCES = \
                       ../modules/vibrational_analysis.f90    \
                       reform_fchk.f90
 reform_fchk_LDFLAGS = @LIBS@
+
+# ============
+# filter_fchk
+# ============
+filter_fchk_SOURCES = \
+                      ../modules/alerts.f90                  \
+                      ../modules/line_preprocess.f90         \
+                      ../modules/constants.f90               \
+                      ../modules/verbosity.f90               \
+                      ../modules/io.f90                      \
+                      ../modules/version.f90                 \
+                      ../modules/manage_gaussian.f90         \
+                      filter_fchk.f90
+filter_fchk_LDFLAGS = @LIBS@
 
 rmsd_fit_SOURCES = \
                    ../modules/alerts.f90                  \

@@ -86,12 +86,12 @@ POST_INSTALL = :
 NORMAL_UNINSTALL = :
 PRE_UNINSTALL = :
 POST_UNINSTALL = :
-bin_PROGRAMS = reform_fchk$(EXEEXT) rmsd_fit$(EXEEXT) \
-	fchk2gro$(EXEEXT) read_irc$(EXEEXT) read_scan$(EXEEXT) \
-	read_opt$(EXEEXT) get_symatoms$(EXEEXT) mod_topology$(EXEEXT) \
-	get_reordering$(EXEEXT) prepare_numder_coms$(EXEEXT) \
-	numder_dipoles$(EXEEXT) numderNM_dipoles$(EXEEXT) \
-	rotate_cube_header$(EXEEXT)
+bin_PROGRAMS = reform_fchk$(EXEEXT) filter_fchk$(EXEEXT) \
+	rmsd_fit$(EXEEXT) fchk2gro$(EXEEXT) read_irc$(EXEEXT) \
+	read_scan$(EXEEXT) read_opt$(EXEEXT) get_symatoms$(EXEEXT) \
+	mod_topology$(EXEEXT) get_reordering$(EXEEXT) \
+	prepare_numder_coms$(EXEEXT) numder_dipoles$(EXEEXT) \
+	numderNM_dipoles$(EXEEXT) rotate_cube_header$(EXEEXT)
 subdir = src/file_management
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
 am__aclocal_m4_deps = $(top_srcdir)/configure.ac
@@ -136,6 +136,15 @@ fchk2gro_OBJECTS = $(am_fchk2gro_OBJECTS)
 fchk2gro_LDADD = $(LDADD)
 fchk2gro_LINK = $(FCLD) $(AM_FCFLAGS) $(FCFLAGS) $(fchk2gro_LDFLAGS) \
 	$(LDFLAGS) -o $@
+am_filter_fchk_OBJECTS = ../modules/alerts.$(OBJEXT) \
+	../modules/line_preprocess.$(OBJEXT) \
+	../modules/constants.$(OBJEXT) ../modules/verbosity.$(OBJEXT) \
+	../modules/io.$(OBJEXT) ../modules/version.$(OBJEXT) \
+	../modules/manage_gaussian.$(OBJEXT) filter_fchk.$(OBJEXT)
+filter_fchk_OBJECTS = $(am_filter_fchk_OBJECTS)
+filter_fchk_LDADD = $(LDADD)
+filter_fchk_LINK = $(FCLD) $(AM_FCFLAGS) $(FCFLAGS) \
+	$(filter_fchk_LDFLAGS) $(LDFLAGS) -o $@
 am_get_reordering_OBJECTS = ../modules/alerts.$(OBJEXT) \
 	../modules/line_preprocess.$(OBJEXT) \
 	../modules/constants.$(OBJEXT) ../modules/verbosity.$(OBJEXT) \
@@ -547,18 +556,18 @@ AM_V_FCLD = $(am__v_FCLD_@AM_V@)
 am__v_FCLD_ = $(am__v_FCLD_@AM_DEFAULT_V@)
 am__v_FCLD_0 = @echo "  FCLD    " $@;
 am__v_FCLD_1 = 
-SOURCES = $(fchk2gro_SOURCES) $(get_reordering_SOURCES) \
-	$(get_symatoms_SOURCES) $(mod_topology_SOURCES) \
-	$(numderNM_dipoles_SOURCES) $(numder_dipoles_SOURCES) \
-	$(prepare_numder_coms_SOURCES) $(read_irc_SOURCES) \
-	$(read_opt_SOURCES) $(read_scan_SOURCES) \
+SOURCES = $(fchk2gro_SOURCES) $(filter_fchk_SOURCES) \
+	$(get_reordering_SOURCES) $(get_symatoms_SOURCES) \
+	$(mod_topology_SOURCES) $(numderNM_dipoles_SOURCES) \
+	$(numder_dipoles_SOURCES) $(prepare_numder_coms_SOURCES) \
+	$(read_irc_SOURCES) $(read_opt_SOURCES) $(read_scan_SOURCES) \
 	$(reform_fchk_SOURCES) $(rmsd_fit_SOURCES) \
 	$(rotate_cube_header_SOURCES)
-DIST_SOURCES = $(fchk2gro_SOURCES) $(get_reordering_SOURCES) \
-	$(get_symatoms_SOURCES) $(mod_topology_SOURCES) \
-	$(numderNM_dipoles_SOURCES) $(numder_dipoles_SOURCES) \
-	$(prepare_numder_coms_SOURCES) $(read_irc_SOURCES) \
-	$(read_opt_SOURCES) $(read_scan_SOURCES) \
+DIST_SOURCES = $(fchk2gro_SOURCES) $(filter_fchk_SOURCES) \
+	$(get_reordering_SOURCES) $(get_symatoms_SOURCES) \
+	$(mod_topology_SOURCES) $(numderNM_dipoles_SOURCES) \
+	$(numder_dipoles_SOURCES) $(prepare_numder_coms_SOURCES) \
+	$(read_irc_SOURCES) $(read_opt_SOURCES) $(read_scan_SOURCES) \
 	$(reform_fchk_SOURCES) $(rmsd_fit_SOURCES) \
 	$(rotate_cube_header_SOURCES)
 am__can_run_installinfo = \
@@ -794,6 +803,21 @@ reform_fchk_SOURCES = \
                       reform_fchk.f90
 
 reform_fchk_LDFLAGS = @LIBS@
+
+# ============
+# filter_fchk
+# ============
+filter_fchk_SOURCES = \
+                      ../modules/alerts.f90                  \
+                      ../modules/line_preprocess.f90         \
+                      ../modules/constants.f90               \
+                      ../modules/verbosity.f90               \
+                      ../modules/io.f90                      \
+                      ../modules/version.f90                 \
+                      ../modules/manage_gaussian.f90         \
+                      filter_fchk.f90
+
+filter_fchk_LDFLAGS = @LIBS@
 rmsd_fit_SOURCES = \
                    ../modules/alerts.f90                  \
                    ../modules/line_preprocess.f90         \
@@ -1350,6 +1374,10 @@ clean-binPROGRAMS:
 fchk2gro$(EXEEXT): $(fchk2gro_OBJECTS) $(fchk2gro_DEPENDENCIES) $(EXTRA_fchk2gro_DEPENDENCIES) 
 	@rm -f fchk2gro$(EXEEXT)
 	$(AM_V_FCLD)$(fchk2gro_LINK) $(fchk2gro_OBJECTS) $(fchk2gro_LDADD) $(LIBS)
+
+filter_fchk$(EXEEXT): $(filter_fchk_OBJECTS) $(filter_fchk_DEPENDENCIES) $(EXTRA_filter_fchk_DEPENDENCIES) 
+	@rm -f filter_fchk$(EXEEXT)
+	$(AM_V_FCLD)$(filter_fchk_LINK) $(filter_fchk_OBJECTS) $(filter_fchk_LDADD) $(LIBS)
 
 get_reordering$(EXEEXT): $(get_reordering_OBJECTS) $(get_reordering_DEPENDENCIES) $(EXTRA_get_reordering_DEPENDENCIES) 
 	@rm -f get_reordering$(EXEEXT)

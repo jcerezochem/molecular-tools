@@ -787,7 +787,7 @@ module gaussian_manage
     end subroutine read_gauslog_tdenergy
 
 
-    subroutine read_fchk(unt,section,data_type,N,A,I,error_flag)
+    subroutine read_fchk(unt,section,data_type,N,A,I,error_flag,rwnd)
 
         !==============================================================
         ! This code is part of MOLECULAR_TOOLS 
@@ -804,6 +804,8 @@ module gaussian_manage
         ! I(integer,dimension(:)): Int array to store int data
         ! error_flag(integer,out): 0: success
         !                          1: section not found
+        ! rwnd(logical,in,opt): .true.  rewind before reading (default)
+        !                       .false. do not rewind
         !==============================================================
 
         integer,intent(in)                                       :: unt
@@ -813,6 +815,7 @@ module gaussian_manage
         double precision, dimension(:), allocatable, intent(out) :: A
         integer,dimension(:), allocatable, intent(out)           :: I
         integer,intent(out),optional                             :: error_flag
+        logical,intent(in),optional                              :: rwnd
 
         !Local stuff
         !=============
@@ -820,11 +823,19 @@ module gaussian_manage
         character(len=42)  :: section_full
         character(len=1)   :: is_array
         character(len=40)  :: cdata
+        logical            :: rwnd_local
         !I/O
         integer :: IOstatus
         
+        if (present(rwnd)) then
+            rwnd_local = rwnd
+        else
+            rwnd_local = .true.
+        endif
+        
         ! This is the only subroutine that must be rewind first
-        rewind(unt)        
+        ! but we add the option to not doing so
+        if (rwnd_local) rewind(unt)        
 
         ! Search section
         if (present(error_flag)) error_flag = 0
@@ -833,9 +844,16 @@ module gaussian_manage
                 ! Two possible scenarios while reading:
                 ! 1) End of file
                 if ( IOstatus < 0 ) then
-                    call alert_msg("warning","Section '"//trim(adjustl(section))//"' not present in the FCHK file.")
-                    if (present(error_flag)) error_flag=1
-                    return
+                    ! If was not rewind before reading, give a new turn
+                    if (.not.rwnd_local) then
+                        rewind(unt)
+                        rwnd_local = .true.
+                        cycle
+                    else
+                        call alert_msg("warning","Section '"//trim(adjustl(section))//"' not present in the FCHK file.")
+                        if (present(error_flag)) error_flag=1
+                        return
+                    endif
                 endif
                 ! 2) Found what looked for!      
                 if ( INDEX(line,trim(adjustl(section))) /= 0 ) then

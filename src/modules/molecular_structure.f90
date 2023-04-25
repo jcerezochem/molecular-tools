@@ -420,8 +420,9 @@ module molecular_structure
                 !Get default bond length from database
                 av_len=bond_length_db(molec%atom(i)%AtNum,molec%atom(j)%AtNum,include_hbond)
                 ! Criterium: dist < av. length +10% --increased from 5% (17/12/12) due to H2O2
+                ! Was 15% at some point. Decreased to 8% (2023)
                 ! a more sophiticated data base might include hibridization
-                av_len=av_len*1.15
+                av_len=av_len*1.08
 
                 if (dist < av_len) then
                     i_cnx=i_cnx+1
