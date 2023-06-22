@@ -91,6 +91,8 @@ program numder_dipoles
     real(8) :: E_scf, E_td, E_tot
     ! FCHK data
     real(8),dimension(1:NDIM) :: DipFW, DipBW, Dip0
+    real(8),dimension(1:NDIM) :: DipMFW, DipMBW, DipM0
+    real(8),dimension(1:NDIM) :: DipVFW, DipVBW, DipV0
     real(8),dimension(1)      :: DD ! fake
     !
     integer :: iflag1, iflag2
@@ -114,7 +116,7 @@ program numder_dipoles
 
     !====================== 
     !Read fchk auxiliars
-    real(8),dimension(:),allocatable :: A
+    real(8),dimension(:),allocatable :: A,B,C
     integer,dimension(:),allocatable :: IA
     character(len=1) :: dtype
     integer :: error, N, lenght
@@ -200,10 +202,14 @@ program numder_dipoles
     iflag2=-1
     is_ddip=.false.
     call read_gaussfchk_dip(I_INP,iflag1,iflag2,is_ddip,'eldip',Dip0,DD,error)
+    call read_gaussfchk_dip(I_INP,iflag1,iflag2,is_ddip,'magdip',DipM0,DD,error)
+    call read_gaussfchk_dip(I_INP,iflag1,iflag2,is_ddip,'veldip',DipV0,DD,error)
     close(I_INP)
     
     ! Compute derivatives
     allocate(A(1:9*Nat))
+    allocate(B(1:9*Nat))
+    allocate(C(1:9*Nat))
     delta2 = 2.d0*delta / BOHRtoANGS
     is_ddip=.false.
     k=0
@@ -216,6 +222,8 @@ program numder_dipoles
         open(I_INP,file=inpfile,status='old',iostat=IOstatus)
         if (IOstatus /= 0) call alert_msg( "fatal","Unable to open "//trim(adjustl(inpfile)) )
         call read_gaussfchk_dip(I_INP,iflag1,iflag2,is_ddip,'eldip',DipBW,DD,error)
+        call read_gaussfchk_dip(I_INP,iflag1,iflag2,is_ddip,'magdip',DipMBW,DD,error)
+        call read_gaussfchk_dip(I_INP,iflag1,iflag2,is_ddip,'veldip',DipVBW,DD,error)
         close(I_INP)
         ! Fw
         iflag1=-1
@@ -224,14 +232,23 @@ program numder_dipoles
         open(I_INP,file=inpfile,status='old',iostat=IOstatus)
         if (IOstatus /= 0) call alert_msg( "fatal","Unable to open "//trim(adjustl(inpfile)) )
         call read_gaussfchk_dip(I_INP,iflag1,iflag2,is_ddip,'eldip',DipFW,DD,error)
+        call read_gaussfchk_dip(I_INP,iflag1,iflag2,is_ddip,'magdip',DipMFW,DD,error)
+        call read_gaussfchk_dip(I_INP,iflag1,iflag2,is_ddip,'veldip',DipVFW,DD,error)
         close(I_INP)
         ! Compute derivative (in AU)
         k=k+1 !mu_x
         A(k) = (dipFW(1)-dipBW(1))/delta2
+        B(k) = (dipMFW(1)-dipMBW(1))/delta2
+        C(k) = (dipVFW(1)-dipVBW(1))/delta2
         k=k+1 !mu_y
         A(k) = (dipFW(2)-dipBW(2))/delta2
+        B(k) = (dipMFW(2)-dipMBW(2))/delta2
+        C(k) = (dipVFW(2)-dipVBW(2))/delta2
         k=k+1 !mu_z
         A(k) = (dipFW(3)-dipBW(3))/delta2
+        B(k) = (dipMFW(3)-dipMBW(3))/delta2
+        C(k) = (dipVFW(3)-dipVBW(3))/delta2
+        
         
         ! ** Y **
         ! Bw
@@ -241,6 +258,8 @@ program numder_dipoles
         open(I_INP,file=inpfile,status='old',iostat=IOstatus)
         if (IOstatus /= 0) call alert_msg( "fatal","Unable to open "//trim(adjustl(inpfile)) )
         call read_gaussfchk_dip(I_INP,iflag1,iflag2,is_ddip,'eldip',DipBW,DD,error)
+        call read_gaussfchk_dip(I_INP,iflag1,iflag2,is_ddip,'magdip',DipMBW,DD,error)
+        call read_gaussfchk_dip(I_INP,iflag1,iflag2,is_ddip,'veldip',DipVBW,DD,error)
         close(I_INP)
         ! Fw
         iflag1=-1
@@ -249,14 +268,22 @@ program numder_dipoles
         open(I_INP,file=inpfile,status='old',iostat=IOstatus)
         if (IOstatus /= 0) call alert_msg( "fatal","Unable to open "//trim(adjustl(inpfile)) )
         call read_gaussfchk_dip(I_INP,iflag1,iflag2,is_ddip,'eldip',DipFW,DD,error)
+        call read_gaussfchk_dip(I_INP,iflag1,iflag2,is_ddip,'magdip',DipMFW,DD,error)
+        call read_gaussfchk_dip(I_INP,iflag1,iflag2,is_ddip,'veldip',DipVFW,DD,error)
         close(I_INP)
         ! Compute derivative (in AU)
         k=k+1 !mu_x
         A(k) = (dipFW(1)-dipBW(1))/delta2
+        B(k) = (dipMFW(1)-dipMBW(1))/delta2
+        C(k) = (dipVFW(1)-dipVBW(1))/delta2
         k=k+1 !mu_y
         A(k) = (dipFW(2)-dipBW(2))/delta2
+        B(k) = (dipMFW(2)-dipMBW(2))/delta2
+        C(k) = (dipVFW(2)-dipVBW(2))/delta2
         k=k+1 !mu_z
         A(k) = (dipFW(3)-dipBW(3))/delta2
+        B(k) = (dipMFW(3)-dipMBW(3))/delta2
+        C(k) = (dipVFW(3)-dipVBW(3))/delta2
         
         ! ** Z **
         ! Bw
@@ -266,6 +293,8 @@ program numder_dipoles
         open(I_INP,file=inpfile,status='old',iostat=IOstatus)
         if (IOstatus /= 0) call alert_msg( "fatal","Unable to open "//trim(adjustl(inpfile)) )
         call read_gaussfchk_dip(I_INP,iflag1,iflag2,is_ddip,'eldip',DipBW,DD,error)
+        call read_gaussfchk_dip(I_INP,iflag1,iflag2,is_ddip,'magdip',DipMBW,DD,error)
+        call read_gaussfchk_dip(I_INP,iflag1,iflag2,is_ddip,'veldip',DipVBW,DD,error)
         close(I_INP)
         ! Fw
         iflag1=-1
@@ -274,14 +303,22 @@ program numder_dipoles
         open(I_INP,file=inpfile,status='old',iostat=IOstatus)
         if (IOstatus /= 0) call alert_msg( "fatal","Unable to open "//trim(adjustl(inpfile)) )
         call read_gaussfchk_dip(I_INP,iflag1,iflag2,is_ddip,'eldip',DipFW,DD,error)
+        call read_gaussfchk_dip(I_INP,iflag1,iflag2,is_ddip,'magdip',DipMFW,DD,error)
+        call read_gaussfchk_dip(I_INP,iflag1,iflag2,is_ddip,'veldip',DipVFW,DD,error)
         close(I_INP)
         ! Compute derivative (in AU)
         k=k+1 !mu_x
         A(k) = (dipFW(1)-dipBW(1))/delta2
+        B(k) = (dipMFW(1)-dipMBW(1))/delta2
+        C(k) = (dipVFW(1)-dipVBW(1))/delta2
         k=k+1 !mu_y
         A(k) = (dipFW(2)-dipBW(2))/delta2
+        B(k) = (dipMFW(2)-dipMBW(2))/delta2
+        C(k) = (dipVFW(2)-dipVBW(2))/delta2
         k=k+1 !mu_z
         A(k) = (dipFW(3)-dipBW(3))/delta2
+        B(k) = (dipMFW(3)-dipMBW(3))/delta2
+        C(k) = (dipVFW(3)-dipVBW(3))/delta2
     
     enddo    
     
@@ -297,7 +334,38 @@ program numder_dipoles
         write(O_OUT,'(3(X,E18.9))') A(ii+1:ii+3)
     enddo
     close(O_OUT)
+    deallocate(A)
     print'(/,X,A)', "eldip written to file: "//trim(adjustl(outfile))
+    
+    ! Open out-magdip file
+    outfile='magdip_'//trim(adjustl(basefile))
+    open(O_OUT,file=outfile,status='unknown',iostat=IOstatus)
+    if (IOstatus /= 0) call alert_msg( "fatal","Unable to open "//trim(adjustl(outfile)) )
+    
+    write(O_OUT,'(3(X,E18.9))') DipM0(1:3)
+    write(O_OUT,'(3(X,E18.9))') DipM0(1:3)
+    do i=1,3*Nat
+        ii=3*(i-1)
+        write(O_OUT,'(3(X,E18.9))') B(ii+1:ii+3)
+    enddo
+    close(O_OUT)
+    deallocate(B)
+    print'(/,X,A)', "magdip written to file: "//trim(adjustl(outfile))
+    
+    ! Open out-veldip file
+    outfile='eldip_vel_'//trim(adjustl(basefile))
+    open(O_OUT,file=outfile,status='unknown',iostat=IOstatus)
+    if (IOstatus /= 0) call alert_msg( "fatal","Unable to open "//trim(adjustl(outfile)) )
+    
+    write(O_OUT,'(3(X,E18.9))') DipV0(1:3)
+    write(O_OUT,'(3(X,E18.9))') DipV0(1:3)
+    do i=1,3*Nat
+        ii=3*(i-1)
+        write(O_OUT,'(3(X,E18.9))') C(ii+1:ii+3)
+    enddo
+    close(O_OUT)
+    deallocate(C)
+    print'(/,X,A)', "eldip(vel gauge) written to file: "//trim(adjustl(outfile))
     
     
 
@@ -365,10 +433,10 @@ program numder_dipoles
 
        !Print options (to stdx)
         write(0,'(/,A)') '========================================================'
-        write(0,'(/,A)') '             P R E P A R E   N U M D E R  C O M S '    
-        write(0,'(/,A)') '       Prepare input files (.com) for numerical ' 
-        write(0,'(A)')   '       derivatives displacing the initila structure'
-        write(0,'(A)')   '               +/- 0.001 Angs for each atom'
+        write(0,'(/,A)') '             N U M D E R _ D I P O L E S '    
+        write(0,'(/,A)') '       Comptue numerical derivatives from the outputs ' 
+        write(0,'(A)')   '         prepared with prepare_numder_coms, i.e '
+        write(0,'(A)')   '              +/- 0.001 Angs for each atom'
         call print_version()
         write(0,'(/,A)') '========================================================'
         write(0,'(/,A)') '-------------------------------------------------------------------'
@@ -376,9 +444,6 @@ program numder_dipoles
         write(0,'(A)')   '-------------------------------------------------------------------'
         write(0,*)       '-f           Input file                       ', trim(adjustl(inpfile))
         write(0,*)       '-ft          \_ FileTyep                      ', trim(adjustl(filetype))
-        write(0,*)       '-o           Output file                      ', trim(adjustl(outfile))
-        write(0,*)       '-fto         \_ FileTyep                      ', trim(adjustl(filetype_out))
-        write(0,*)       '-ow          Force overwrite output          ',  overwrite
         write(0,*)       '-h           This help                       ',  need_help
         write(0,*)       '-------------------------------------------------------------------'
         if (need_help) call alert_msg("fatal", 'There is no manual (for the moment)' )
