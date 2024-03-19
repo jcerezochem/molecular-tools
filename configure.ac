@@ -35,7 +35,8 @@ if test -z $FCFLAGS; then
         FCFLAGS='-DDOUBLE -DUSE_LAPACK -I../modules/ -Cpp --chk --maxfatals 1'
 # -g -fcheck=all -fbounds-check' 
     else
-        FCFLAGS='-DDOUBLE -DUSE_LAPACK -I../modules/ -cpp -g -fbounds-check'
+        FCFLAGS='-DDOUBLE -DUSE_LAPACK -I../modules/ -cpp -O3'
+#        FCFLAGS='-DDOUBLE -DUSE_LAPACK -I../modules/ -cpp -g -fbounds-check'
     fi
 fi
 
