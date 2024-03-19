@@ -79,9 +79,9 @@ module matrix
         real(8),dimension(:,:),intent(in) :: A
         ! Local
         real(8),dimension(N,N) :: AuxArray
-        real(8) :: AuxScalar
+        real(8),dimension(1:1) :: AuxScalar
         ! LAPACK things
-        double complex,dimension(:),allocatable :: work
+        real(8),dimension(:),allocatable :: work
         integer,dimension(1:N) :: ipiv
         integer :: info, lwork
         ! Other
@@ -95,7 +95,7 @@ module matrix
 
         ! Initialize LAPACK (calculating optimal size first)
         call dsytrf('L', N, AuxArray, N, ipiv, AuxScalar, -1, info)
-        lwork = int(AuxScalar)
+        lwork = int(AuxScalar(1))
         allocate(work(1:lwork),stat=alloc_status) 
         if (alloc_status /= 0) then
             write(0,*) "ERROR: Memory cannot be allocated (DETERMINANT ROUTINE)"
@@ -147,9 +147,9 @@ module matrix
         real(8),dimension(:,:),intent(in) :: A
         ! Local
         real(8),dimension(N,N) :: AuxArray
-        real(8) :: AuxScalar
+        real(8),dimension(1:1) :: AuxScalar
         ! LAPACK things
-        double complex,dimension(:),allocatable :: work
+        real(8),dimension(:),allocatable :: work
         integer,dimension(1:N) :: ipiv
         integer :: info, lwork
         ! Other
@@ -163,7 +163,7 @@ module matrix
 
         ! Initialize LAPACK (calculating optimal size first)
         call dsytrf('L', N, AuxArray, N, ipiv, AuxScalar, -1, info)
-        lwork = int(AuxScalar)
+        lwork = int(AuxScalar(1))
         allocate(work(1:lwork),stat=alloc_status) 
         if (alloc_status /= 0) then
             write(0,*) "ERROR: Memory cannot be allocated (DETERMINANT ROUTINE)"
@@ -188,16 +188,16 @@ module matrix
             if (ipiv(i) < 0 .and. ipiv(i) == ipiv(i+1)) then
                 ! Compute the 2x2 block
                 cycle_next=.true.
-                AuxScalar = AuxArray(i,i)*AuxArray(i+1,i+1) - AuxArray(i+1,i)**2
-                Log_det  = Log_det + Log(abs((AuxScalar)))
-                sign_det = sign_det*sign(1.d0,AuxScalar)
+                AuxScalar(1) = AuxArray(i,i)*AuxArray(i+1,i+1) - AuxArray(i+1,i)**2
+                Log_det  = Log_det + Log(abs((AuxScalar(1))))
+                sign_det = sign_det*sign(1.d0,AuxScalar(1))
              else if (ipiv(i) < 0 .and. ipiv(i) == ipiv(i-1)) then
                 ! Second part of a 2x2 block
                 cycle
              else
-                AuxScalar = AuxArray(i,i)
-                Log_det  = Log_det + Log(abs((AuxScalar)))
-                sign_det = sign_det*sign(1.d0,AuxScalar)
+                AuxScalar(1) = AuxArray(i,i)
+                Log_det  = Log_det + Log(abs((AuxScalar(1))))
+                sign_det = sign_det*sign(1.d0,AuxScalar(1))
             endif
         enddo
         
@@ -219,9 +219,8 @@ module matrix
         real(8),dimension(:,:),intent(in) :: A
         ! Local
         real(8),dimension(N,N) :: AuxArray
-        real(8) :: AuxScalar
         ! LAPACK things
-        double complex,dimension(:),allocatable :: work
+        real(8),dimension(:),allocatable :: work
         integer,dimension(1:N) :: ipiv
         integer :: info, lwork
         ! Counters
@@ -261,9 +260,9 @@ module matrix
         integer,intent(in) :: N
         real(8),dimension(:,:),intent(in) :: A
         ! Local
-        real(8) :: AuxScalar
+        real(8),dimension(1:1) :: AuxScalar
         ! LAPACK things
-        double complex,dimension(:),allocatable :: work
+        real(8),dimension(:),allocatable :: work
         integer,dimension(1:N) :: ipiv
         integer :: info, lwork
         ! Other
@@ -276,7 +275,7 @@ module matrix
 
         ! Initialize LAPACK (calculating optimal size first)
         call dsytrf('L', N, Ainv, N, ipiv, AuxScalar, -1, info)
-        lwork = int(AuxScalar)
+        lwork = int(AuxScalar(1))
         allocate(work(1:lwork),stat=alloc_status) 
         if (alloc_status /= 0) then
             print*, "ERROR: Memory cannot be allocated (LAPACK)"
@@ -317,9 +316,9 @@ module matrix
         integer,intent(in) :: N
         real(8),dimension(:,:),intent(in) :: A
         ! Local
-        real(8) :: AuxScalar
+        real(8),dimension(1:1) :: AuxScalar
         ! LAPACK things
-        double complex,dimension(:),allocatable :: work
+        real(8),dimension(:),allocatable :: work
         integer,dimension(1:N) :: ipiv
         integer :: info, lwork
         ! Other
@@ -336,7 +335,7 @@ module matrix
         endif
         ! Initialize LAPACK (calculating optimal size first)
         call dgetri(N, Ainv, N, ipiv, AuxScalar, -1, info)
-        lwork = int(AuxScalar)
+        lwork = int(AuxScalar(1))
         allocate(work(1:lwork),stat=alloc_status) 
         if (alloc_status /= 0) then
             print*, "ERROR: Memory cannot be allocated (LAPACK)"

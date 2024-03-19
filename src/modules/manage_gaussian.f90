@@ -1027,15 +1027,15 @@ module gaussian_manage
             derivatives=.false.
         endif
         
-        ! Get Egs if we need Ev (vel gauge)
-        if (adjustl(dip_type) == "veldip") then
-            call read_fchk(unt,"SCF Energy",data_type,N,A,IA,error_local)
-            if (error_local /= 0) then
-                call alert_msg("fatal",'Cannot read Egs. VEL gauge cannot be used')
-            endif
-            Egs = A(1)
-            deallocate(A)
-        endif
+!         ! Get Egs if we need Ev (vel gauge)
+!         if (adjustl(dip_type) == "veldip") then
+!             call read_fchk(unt,"SCF Energy",data_type,N,A,IA,error_local)
+!             if (error_local /= 0) then
+!                 call alert_msg("fatal",'Cannot read Egs. VEL gauge cannot be used')
+!             endif
+!             Egs = A(1)
+!             deallocate(A)
+!         endif
         
         ! Read ETran state values
         call read_fchk(unt,"ETran state values",data_type,N,A,IA,error_local)
@@ -1050,10 +1050,11 @@ module gaussian_manage
             j=(Ntarget-1)*16 + 2
             Dip(1:3) = A(j:j+2)
         else if (adjustl(dip_type) == "veldip") then
-            j=(Ntarget-1)*16 + 1
-            Ev = A(j) - Egs
+!             j=(Ntarget-1)*16 + 1
+!             Ev = A(j) - Egs
             j=(Ntarget-1)*16 + 5
-            Dip(1:3) = - A(j:j+2)/Ev
+!             Dip(1:3) = - A(j:j+2)/Ev
+            Dip(1:3) = A(j:j+2)
         else if (adjustl(dip_type) == "magdip") then
             j=(Ntarget-1)*16 + 8
             Dip(1:3) = A(j:j+2)/(-2.d0)
@@ -1078,8 +1079,9 @@ module gaussian_manage
                 if (adjustl(dip_type) == "eldip") then
                     DipD(jj:jj+2) = A(k+2:k+4)
                 else if (adjustl(dip_type) == "veldip") then
-                    !veldip ders not implemented (silently)
-                    DipD(jj:jj+2) = 0.0
+!                     !veldip ders not implemented (silently)
+!                     DipD(jj:jj+2) = 0.d0
+                    DipD(jj:jj+2) = A(k+5:k+7)
                 else if (adjustl(dip_type) == "magdip") then
                     !Note that MagDip should be divided by -2 (see FCclasses manual)
                     DipD(jj:jj+2) = A(k+8:k+10)/(-2.d0)

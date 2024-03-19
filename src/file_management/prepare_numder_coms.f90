@@ -173,7 +173,7 @@ program prepare_numder_coms
     !===========================
 
     ! 0. GET COMMAND LINE ARGUMENTS
-    call parse_input(inpfile,filetype,outfile,filetype_out,overwrite)
+    call parse_input(inpfile,filetype,outfile,filetype_out,overwrite,delta)
 
     ! Output names are labeled with steps
     call split_line_back(outfile,".",basefile,extension)
@@ -325,7 +325,7 @@ program prepare_numder_coms
     contains
     !=============================================
 
-    subroutine parse_input(inpfile,filetype,outfile,filetype_out,overwrite)
+    subroutine parse_input(inpfile,filetype,outfile,filetype_out,overwrite,delta)
     !==================================================
     ! My input parser (gromacs style)
     !==================================================
@@ -333,6 +333,7 @@ program prepare_numder_coms
 
         character(len=*),intent(inout) :: inpfile,filetype,outfile,filetype_out
         logical,intent(inout)          :: overwrite
+        real(8),intent(inout)          :: delta
         ! Local
         logical :: argument_retrieved,  &
                    need_help = .false.
@@ -363,6 +364,10 @@ program prepare_numder_coms
                     argument_retrieved=.true.  
                 case("-ow")
                     overwrite=.true.
+                case("-delta")
+                    call getarg(i+1, arg)
+                    read(arg,*) delta
+                    argument_retrieved=.true.
                 case ("-h")
                     need_help=.true.
 
@@ -382,7 +387,7 @@ program prepare_numder_coms
         write(0,'(/,A)') '             P R E P A R E   N U M D E R  C O M S '    
         write(0,'(/,A)') '       Prepare input files (.com) for numerical ' 
         write(0,'(A)')   '       derivatives displacing the initila structure'
-        write(0,'(A)')   '               +/- 0.001 Angs for each atom'
+        write(0,'(A)')   '               +/- delta Angs for each atom'
         call print_version()
         write(0,'(/,A)') '========================================================'
         write(0,'(/,A)') '-------------------------------------------------------------------'
@@ -392,6 +397,7 @@ program prepare_numder_coms
         write(0,*)       '-ft          \_ FileTyep                      ', trim(adjustl(filetype))
         write(0,*)       '-o           Output file                      ', trim(adjustl(outfile))
         write(0,*)       '-fto         \_ FileTyep                      ', trim(adjustl(filetype_out))
+        write(0,'(X,A,ES9.3)')    '-delta       Delta (angstrom)                 ', delta
         write(0,*)       '-ow          Force overwrite output          ',  overwrite
         write(0,*)       '-h           This help                       ',  need_help
         write(0,*)       '-------------------------------------------------------------------'
