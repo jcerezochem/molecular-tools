@@ -300,19 +300,14 @@ program read_scan
         call write_fchk(O_FCHK,"Current cartesian coordinates",'R',N,A,(/0/),error)
         deallocate(A)
         !Atomic weights
-        N=3*molecule%natoms
+        N=molecule%natoms
         allocate(A(1:N),IA(1:N))
-        do i=1,N/3
-            j=3*i
-            A(j-2) = molecule%atom(i)%x/BOHRtoANGS
-            A(j-1) = molecule%atom(i)%y/BOHRtoANGS
-            A(j)   = molecule%atom(i)%z/BOHRtoANGS
-            IA(j-2)= int(molecule%atom(i)%x/BOHRtoANGS)
-            IA(j-1)= int(molecule%atom(i)%y/BOHRtoANGS)
-            IA(j)  = int(molecule%atom(i)%z/BOHRtoANGS)
+        do i=1,N
+            A(i)  = molecule%atom(i)%mass
+            IA(i) = int(molecule%atom(i)%mass)
         enddo
-        call write_fchk(O_FCHK,"Integer atomic weights",'I',3*Nat,(/0.d0/),IA,error)
-        call write_fchk(O_FCHK,"Real atomic weights",'R',3*Nat,A,(/0/),error)
+        call write_fchk(O_FCHK,"Integer atomic weights",'I',Nat,(/0.d0/),IA,error)
+        call write_fchk(O_FCHK,"Real atomic weights",'R',Nat,A,(/0/),error)
         deallocate(A,IA)
         !Energy 
         call write_fchk(O_FCHK,"Total Energy",'R',0,(/E/),(/0/),error)
