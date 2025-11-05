@@ -313,19 +313,14 @@ program read_opt
             call write_fchk(O_FCHK,"Nuclear charges",'R',N,A,(/0/),error)
             deallocate(A)
             !Atomic weights
-            N=3*molecule%natoms
+            N=molecule%natoms
             allocate(A(1:N),IA(1:N))
-            do ii=1,N/3
-                j=3*ii
-                A(j-2) = molecule%atom(ii)%x/BOHRtoANGS
-                A(j-1) = molecule%atom(ii)%y/BOHRtoANGS
-                A(j)   = molecule%atom(ii)%z/BOHRtoANGS
-                IA(j-2)= int(molecule%atom(ii)%x/BOHRtoANGS)
-                IA(j-1)= int(molecule%atom(ii)%y/BOHRtoANGS)
-                IA(j)  = int(molecule%atom(ii)%z/BOHRtoANGS)
+            do ii=1,N
+                A(i)  = molecule%atom(i)%mass
+                IA(i) = int(molecule%atom(i)%mass)
             enddo
-            call write_fchk(O_FCHK,"Integer atomic weights",'I',3*Nat,(/0.d0/),IA,error)
-            call write_fchk(O_FCHK,"Real atomic weights",'R',3*Nat,A,(/0/),error)
+            call write_fchk(O_FCHK,"Integer atomic weights",'I',Nat,(/0.d0/),IA,error)
+            call write_fchk(O_FCHK,"Real atomic weights",'R',Nat,A,(/0/),error)
             deallocate(A,IA)
             !Coordinates
             N=3*molecule%natoms
